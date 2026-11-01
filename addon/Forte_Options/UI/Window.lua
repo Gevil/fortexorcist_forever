@@ -383,10 +383,14 @@ local function newBuilder(o, page)
         })
 
         local content = CreateFrame("Frame", nil, secFrame)
-        content:SetWidth(w - 12)
+        -- Polish pass defect 4: the bar and its content box are the SAME
+        -- width (bar.width == content width); the rows keep their 12px
+        -- visual inset as an inner offset, not a narrower content box.
         -- Rows begin BELOW the 22px section bar: at offset 0 every row 0
-        -- sat on the bar and all sections overprinted (defect 1).
-        content:SetPoint("TOPLEFT", secFrame, "TOPLEFT", 12, -WC.SECTION_H)
+        -- sat on the bar and all sections overprinted (defect 1 pass).
+        content:SetWidth(w)
+        content:SetPoint("TOPLEFT", secFrame, "TOPLEFT", 0, -WC.SECTION_H)
+        local INSET = 12
 
         local sec = {
             frame = secFrame, bar = bar, content = content, title = title,
@@ -398,8 +402,8 @@ local function newBuilder(o, page)
         -- width, each advancing its OWN y so every row anchors strictly
         -- below the previous row of its column (the old shared cursor
         -- reset col 2 to y 0 and overprinted it, defect 1).
-        local colW = (content:GetWidth() - b.gutter) / 2
-        local colX = { 0, colW + b.gutter }
+        local colW = (content:GetWidth() - 2 * INSET - b.gutter) / 2
+        local colX = { INSET, INSET + colW + b.gutter }
         local colY = { 0, 0 }
         local nextCol = 1
         local rowStep = WC.ROW_H + b.rowGap
@@ -419,10 +423,17 @@ local function newBuilder(o, page)
         local function fullRow()
             local y = cursorBottom()
             colY[1], colY[2] = y + rowStep, y + rowStep
-            return 0, y, content:GetWidth()
+            return INSET, y, content:GetWidth() - 2 * INSET
         end
 
         local function addWidget(kind, spec)
+            -- STR and INFO rows span the full row width (polish pass
+            -- defect 3): their value region needs the whole width
+            -- between the 38% label column and the recycle zone, which a
+            -- 2-column cell cannot give (span > 1 = full-row law).
+            if (kind == "STR" or kind == "INFO") and not spec.span then
+                spec.span = 2
+            end
             local x, y, w
             if spec.span and spec.span > 1 then x, y, w = fullRow()
             else x, y, w = slot() end
@@ -440,12 +451,14 @@ local function newBuilder(o, page)
         for _, kind in ipairs({ "CHK", "NUM", "SLD", "COL", "STR", "INFO" }) do
             s[kind] = function(spec) return addWidget(kind, spec) end
         end
-        --- Full-width help line: yellow ! marker + white text (Tips law).
+        --- Full-width help line (Tips law): plain left text inside the
+        --- section's inner inset.
         function s.TEXT(text)
             local y = cursorBottom()
             colY[1], colY[2] = y + rowStep, y + rowStep
-            local line = W.TIPS_LINE(content, text, content:GetWidth())
-            line:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -y)
+            local lineW = content:GetWidth() - 2 * INSET
+            local line = W.TIPS_LINE(content, text, lineW)
+            line:SetPoint("TOPLEFT", content, "TOPLEFT", INSET, -y)
             sec.lines[#sec.lines + 1] = line
             return line
         end

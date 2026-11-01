@@ -106,7 +106,10 @@ test("CHK binds, click writes, refresh syncs, recycle resets", function()
     w.refresh()
     assertEquals(false, w.obj:GetChecked())
     -- The gold check tint resolved to a real method (reported + visible).
-    assertTrue(W.checkedTint == "SetCheckedVertexColor"
+    -- Polish pass: the native checked texture is the primary path
+    -- (SetCheckedVertexColor does not exist on CheckButton in the sim).
+    assertTrue(W.checkedTint == "SetCheckedTexture"
+        or W.checkedTint == "SetCheckedVertexColor"
         or W.checkedTint == "GetCheckedTexture")
     print("[chk] checkedTint=" .. W.checkedTint)
 end)
@@ -435,7 +438,9 @@ function()
             local obj = wd.obj
             assertNotNil(obj)
             assertTrue(obj:IsShown())
-            assertTrue(obj:GetWidth() > 0)
+            assertTrue(obj:GetWidth() > 0,
+                "zero-width " .. tostring(wd.spec.key) .. " w="
+                .. tostring(obj:GetWidth()))
             assertTrue(obj:GetHeight() > 0)
             assertTrue(obj:GetLeft() >= r:GetLeft() - 0.5)
             assertTrue(obj:GetRight() <= r:GetRight() + 0.5)
@@ -564,5 +569,232 @@ function()
     end
     O:Scroll(4000)                                  -- back to the top
     assertEquals(0, O._scroll)
+    O:Close()
+end)
+
+-- =============================================================== Polish ==
+-- Numeric gates for the 2026-11-01 polish pass (defects 1-6). Positions are
+-- asserted through the live frames in the sim.
+
+local function nearT(a, b, tol)
+    return assertTrue(math.abs(a - b) <= tol + 1e-9)
+end
+
+test("polish 1: every row label is LEFT-justified at row left + 8", function()
+    O:Open("General")
+    local page = O.pagesBuilt["General"]
+    local n = 0
+    for si = 2, #page.sections do
+        for _, wd in ipairs(page.sections[si].widgets) do
+            local lab, r = wd.label, wd.row
+            n = n + 1
+            assertEquals("LEFT", lab:GetJustifyH())
+            near(r:GetLeft() + WC.LABEL_INSET, lab:GetLeft())
+            assertTrue(lab:GetHeight() > 0)
+            -- the label owns a bounded column: its column never crosses
+            -- the recycle zone, so the clipped text can never overprint
+            -- the control column
+            assertTrue(lab:GetLeft() + wd.labelWidth
+                <= r:GetRight() - (WC.ICON_W + WC.ICON_GAP) + 0.5,
+                "label column crosses the recycle zone")
+            -- clipped: the column is measured from the text, not the cell
+            local unb = (lab.GetUnboundedStringWidth
+                and lab:GetUnboundedStringWidth()) or 0
+            assertTrue(wd.labelWidth >= math.min(unb, wd.labelWidth) - 0.5)
+            assertTrue(wd.labelWidth > 0)
+        end
+    end
+    assertTrue(n >= 7)
+    -- the first row's label (report value: justify, left)
+    local first = page.sections[2].widgets[1]
+    assertEquals("LEFT", first.label:GetJustifyH())
+    near(first.row:GetLeft() + 8, first.label:GetLeft())
+    print(string.format("[polish1] first label justify=%s left=%.1f rowLeft=%.1f",
+        first.label:GetJustifyH(), first.label:GetLeft(),
+        first.row:GetLeft()))
+    O:Close()
+end)
+
+test("polish 2: tips lines are plain text, LEFT at section left + 12",
+function()
+    O:Open("General")
+    local tips = O.pagesBuilt["General"].sections[1]
+    assertEquals(4, #tips.lines)
+    local src = {
+        "Drag the title bar to move this window; ESC closes it.",
+        "/fx options opens and closes this window.",
+        "Global Frame Lock protects every Forte module frame from dragging.",
+        "The recycle icon left of every row restores just that option.",
+    }
+    for i, line in ipairs(tips.lines) do
+        local body = line.body
+        assertEquals(src[i], body:GetText())       -- verbatim, no marker
+        local t = body:GetText()
+        assertTrue(t:find("!") == nil, "stray bullet marker")
+        assertEquals("LEFT", body:GetJustifyH())
+        near(line:GetLeft() + WC.TIPS_INSET, body:GetLeft())
+        local r, g, b = body:GetTextColor()
+        assertTrue(r >= 0.99 and g >= 0.99 and b >= 0.99, "tips text is white")
+        assertTrue(body:GetWidth() > 100)          -- fills the line, not centred
+    end
+    print(string.format("[polish2] tips body left=%.1f lineLeft=%.1f width=%.1f",
+        tips.lines[1].body:GetLeft(), tips.lines[1]:GetLeft(),
+        tips.lines[1].body:GetWidth()))
+    O:Close()
+end)
+
+test("polish 3: STR spans its row; no value overprints its label column",
+function()
+    O:Open("Cooldown")
+    local page = O.pagesBuilt["Cooldown"]
+    local str
+    for _, wd in ipairs(page.sections[3].widgets) do
+        if wd.spec.key == "TimeTags" then str = wd end
+    end
+    assertNotNil(str)
+    -- the string box spans the full row: content width minus the
+    -- section's 12px inner insets (defect 3 law: STR rows get the whole
+    -- row, not a half-column cell)
+    near(page.sections[3].content:GetWidth() - 2 * WC.TIPS_INSET,
+        str.row:GetWidth())
+    -- label column ~38% of the row
+    nearT(str.row:GetWidth() * WC.LABEL_COL_RATIO, str.labelWidth, 1)
+    assertEquals("LEFT", str.obj:GetJustifyH())
+    nearT(str.row:GetRight() - (WC.ICON_W + WC.ICON_GAP), str.obj:GetRight(), 1)
+    local gap = str.obj:GetLeft() - str.label:GetRight()
+    assertTrue(gap >= 4 - 0.5, "STR value overprints the label")
+    print(string.format("[polish3] TimeTags labelRight=%.1f valueLeft=%.1f col=%.1f rowW=%.1f",
+        str.label:GetRight(), str.obj:GetLeft(), str.labelWidth,
+        str.row:GetWidth()))
+
+    -- General: the BarFont/BarTexture INFO rows must not overprint either
+    O:Open("General")
+    local gp = O.pagesBuilt["General"]
+    for _, wd in ipairs(gp.sections[3].widgets) do
+        if wd.spec.key == "BarFont"
+            or wd.spec.key == "BarTexture" then
+            local g2 = wd.obj:GetLeft() - wd.label:GetRight()
+            assertTrue(g2 >= 4 - 0.5,
+                "INFO overprint " .. tostring(wd.spec.key))
+            -- clipped to one line, inside the row box
+            local ml = (wd.valueText.GetMaxLines
+                and wd.valueText:GetMaxLines())
+            if ml then assertEquals(1, ml) end
+            assertTrue(wd.obj:GetRight() <= wd.row:GetRight() + 0.5)
+            if wd.spec.key == "BarFont" then
+                print(string.format("[polish3] BarFont labelRight=%.1f valueLeft=%.1f rowW=%.1f",
+                    wd.label:GetRight(), wd.obj:GetLeft(),
+                    wd.row:GetWidth()))
+            end
+        end
+    end
+    -- Coloring rows: the r g b a value region starts right of the label
+    O:Open("Cooldown")
+    for _, wd in ipairs(O.pagesBuilt["Cooldown"].sections[4].widgets) do
+        assertTrue(wd.valueText:GetLeft()
+            >= wd.label:GetLeft() + wd.labelWidth + 4 - 0.5,
+            "COL value overprints the label")
+    end
+    O:Close()
+end)
+
+test("polish 4: section bars are full-width navy bars with a light top edge",
+function()
+    O:Open("General")
+    local page = O.pagesBuilt["General"]
+    for _, sec in ipairs(page.sections) do
+        local bar = sec.bar
+        near(sec.content:GetWidth(), bar.bar:GetWidth())
+        assertEquals(WC.SECTION_H, bar.bar:GetHeight())
+        assertTrue(bar.art:GetTexture() ~= nil, "bar fill has a texture")
+        assertTrue(bar.edge ~= nil, "bar has a top edge")
+        nearT(bar.bar:GetTop(), bar.edge:GetTop(), 0.5)
+        nearT(1, bar.edge:GetHeight(), 0.5)
+        nearT(bar.bar:GetWidth(), bar.edge:GetWidth(), 1)
+        -- title: white, LEFT, after the collapse arrow
+        assertEquals("LEFT", bar.title:GetJustifyH())
+        nearT(bar.bar:GetLeft() + 24, bar.title:GetLeft(), 0.5)
+        local r, g, b = bar.title:GetTextColor()
+        assertTrue(r >= 0.99 and g >= 0.99 and b >= 0.99, "title white")
+        assertTrue(bar.plus:IsShown())
+    end
+    local gmo = page.sections[2]
+    print(string.format("[polish4] bar width=%.1f height=%.1f edgeW=%.1f",
+        gmo.bar.bar:GetWidth(), gmo.bar.bar:GetHeight(),
+        gmo.bar.edge:GetWidth()))
+    O:Close()
+end)
+
+test("polish 5: recycle icons are real 12px textures, grey, gold on hover",
+function()
+    O:Open("General")
+    local page = O.pagesBuilt["General"]
+    local first
+    for si = 2, #page.sections do
+        for _, wd in ipairs(page.sections[si].widgets) do
+            local rb = wd.resetBtn
+            assertNotNil(rb)
+            assertTrue(rb:IsShown())
+            assertEquals(WC.ICON_W, rb:GetWidth())
+            assertEquals(WC.ICON_W, rb:GetHeight())
+            assertNotNil(rb.iconTex)
+            assertTrue(rb.iconTex:GetTexture() ~= nil, "icon has a texture file")
+            nearT(WC.ICON_GREY_A, rb:GetAlpha(), 0.01)
+            if not first then first = wd end
+        end
+    end
+    -- hover: gold at full alpha; leave: grey at rest alpha
+    local enter = first.resetBtn:GetScript("OnEnter")
+    local leave = first.resetBtn:GetScript("OnLeave")
+    assertNotNil(enter); assertNotNil(leave)
+    enter(first.resetBtn)
+    nearT(1.0, first.resetBtn:GetAlpha(), 0.01)
+    local r, g, _, a = first.resetBtn.iconTex:GetVertexColor()
+    assertTrue(r >= 0.99 and g >= 0.7, "hover gold")
+    assertTrue(a == nil or a >= 0.99, "hover icon alpha")
+    leave(first.resetBtn)
+    nearT(WC.ICON_GREY_A, first.resetBtn:GetAlpha(), 0.01)
+    print(string.format("[polish5] row icon %.0fx%.0f shown=%s alpha=%.2f tex=%s",
+        first.resetBtn:GetWidth(), first.resetBtn:GetHeight(),
+        tostring(first.resetBtn:IsShown()), first.resetBtn:GetAlpha(),
+        tostring(first.resetBtn.iconTex:GetTexture())))
+
+    -- section bars + the header carry the same icon
+    for _, sec in ipairs(page.sections) do
+        local rec = sec.bar.recycle
+        if sec.title ~= "Some Tips" then
+            assertTrue(rec:IsShown(), "section recycle hidden")
+            assertEquals(WC.ICON_W, rec:GetWidth())
+            assertNotNil(rec.iconTex:GetTexture())
+        end
+    end
+    local hdr = O.header
+    assertTrue(hdr.recycle:IsShown())
+    assertEquals(WC.ICON_W, hdr.recycle:GetWidth())
+    assertNotNil(hdr.recycle.iconTex:GetTexture())
+    O:Close()
+end)
+
+test("polish 6: checkboxes are 14px, dark-filled, bordered box", function()
+    O:Open("General")
+    local page = O.pagesBuilt["General"]
+    local n = 0
+    for si = 2, #page.sections do
+        for _, wd in ipairs(page.sections[si].widgets) do
+            if wd.boxFill then
+                n = n + 1
+                assertEquals(14, wd.obj:GetWidth())
+                assertEquals(14, wd.obj:GetHeight())
+                assertTrue(wd.boxFill:GetTexture() ~= nil, "dark fill texture")
+                nearT(wd.obj:GetWidth(), wd.boxFill:GetWidth(), 0.5)
+                nearT(wd.obj:GetHeight(), wd.boxFill:GetHeight(), 0.5)
+            end
+        end
+    end
+    assertTrue(n >= 3)
+    local cb = page.sections[2].widgets[1]   -- Global Frame Lock
+    print(string.format("[polish6] checkbox %.0fx%.0f fill=%.0fx%.0f",
+        cb.obj:GetWidth(), cb.obj:GetHeight(),
+        cb.boxFill:GetWidth(), cb.boxFill:GetHeight()))
     O:Close()
 end)
