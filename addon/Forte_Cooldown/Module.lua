@@ -164,11 +164,16 @@ function M:RecordCastEvent(spellID, inCombat)
         if inCombat then d.inSecret = d.inSecret + 1 end
     end
     local name
-    if spellID ~= nil and C_Spell and C_Spell.GetSpellInfo then
-        local ok, info = pcall(C_Spell.GetSpellInfo, spellID)
-        if ok and info then
-            name = FX.Compat.PlainOrNil(info.name)
-        end
+    -- No `spellID ~= nil` here: that is a comparison on a possibly-secret
+    -- payload field. The pcall absorbs a nil/invalid argument instead.
+    -- The info table may carry conditional-secret contents, so its truth test
+    -- and field read stay inside the protected call; only a plain string leaves.
+    if C_Spell and C_Spell.GetSpellInfo then
+        local ok, resolved = pcall(function()
+            local info = C_Spell.GetSpellInfo(spellID)
+            return info and FX.Compat.PlainOrNil(info.name)
+        end)
+        if ok and type(resolved) == "string" then name = resolved end
     end
     if name then
         d.resolved = d.resolved + 1

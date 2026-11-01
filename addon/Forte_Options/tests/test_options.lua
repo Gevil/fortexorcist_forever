@@ -906,3 +906,16 @@ function()
     assertTrue(not tr:IsShown(), "track hidden again after a page switch")
     O:Close()
 end)
+
+test("title: player-realm from GetRealmName, never a dangling dash", function()
+    O:Open("General")
+    local text = O.titleFS:GetText()
+    local name = UnitName("player")
+    assertTrue(text:find("by Xus - " .. name, 1, true) ~= nil, "title names the player: " .. text)
+    assertTrue(text:sub(-1) ~= "-", "no trailing dash: " .. text)
+    local realm = GetRealmName and GetRealmName()
+    if type(realm) == "string" and realm ~= "" then
+        assertTrue(text:find(name .. "-" .. realm, 1, true) ~= nil, "realm appended: " .. text)
+    end
+    O:Close()
+end)

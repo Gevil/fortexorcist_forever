@@ -31,6 +31,13 @@ local function near3(actual, expected)
     return assertTrue(math.abs(actual - expected) < 1e-3)
 end
 
+-- Slots bind by entry NAME (v4): the canonical handle for "the slot for
+-- this name right now" is the Display's own name -> slot map. Index order
+-- drives position only; identity is the name.
+local function slotOf(name)
+    return Display._byName[name]
+end
+
 -- ---------------------------------------------------------------- TimelineMath --
 
 test("TimelineMath.pos matches the power-scale formula", function()
@@ -129,7 +136,8 @@ test("Icons are 24x24 and sit at TimelineMath.pos on the time axis", function()
 
     assertEquals(3, #Display.slots)
     for i = 1, 3 do
-        local slot = Display.slots[i]
+        local slot = slotOf(THREE[i].name)
+        assertNotNil(slot)
         assertTrue(slot.frame:IsShown())
         assertEquals(24, slot.frame:GetWidth())
         assertEquals(24, slot.frame:GetHeight())
@@ -140,24 +148,24 @@ test("Icons are 24x24 and sit at TimelineMath.pos on the time axis", function()
     local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
     for i = 1, 3 do
         local e = THREE[i]
-        local _, _, _, xoff = Display.slots[i].frame:GetPoint()
+        local _, _, _, xoff = slotOf(e.name).frame:GetPoint()
         near3(xoff, TM.pos(e.endTime - now, W, H, Max, Loga))
     end
 
     -- t < 0 clamps to the left end (Disengage at -30 s); 60 s sits on the
     -- curve; the 1:00/4.0 texts ride on the icons (IconTime).
-    assertEquals("1:00", Display.slots[3].timeFS:GetText())
-    assertEquals("2.0", Display.slots[2].timeFS:GetText())
+    assertEquals("1:00", slotOf("Bestial Wrath").timeFS:GetText())
+    assertEquals("2.0", slotOf("Concussive Shot").timeFS:GetText())
 
     -- Just-bound icons start their fade-in at Alpha (0.2).
-    near3(Display.slots[1].frame:GetAlpha(), S.Alpha)
+    near3(slotOf("Disengage").frame:GetAlpha(), S.Alpha)
     -- First-sighting cast splashes took three pool slots.
     assertEquals(3, #Display.splashPool)
 end)
 
 test("Fade-in completes, splashes retire, pool stays (grow-only)", function()
     Display:Update(THREE, 100.4)
-    near3(Display.slots[1].frame:GetAlpha(), S.AlphaMax)
+    near3(slotOf("Disengage").frame:GetAlpha(), S.AlphaMax)
     -- Splashes ended at 100.35 and hid; the pool kept its slots.
     assertFalse(Display.splashPool[1].frame:IsShown())
     assertEquals(3, #Display.splashPool)
@@ -190,7 +198,9 @@ test("Fewer entries hides spare slots; pool never shrinks", function()
     Display:Update({
         { name = "Disengage", start = 100, duration = 26, endTime = 126 },
     }, 110)
-    assertTrue(Display.slots[1].frame:IsShown())
+    -- Disengage keeps ITS slot; the two dropped names released theirs
+    -- (hidden, on the free list) -- the pool itself never shrinks.
+    assertTrue(slotOf("Disengage").frame:IsShown())
     assertFalse(Display.slots[2].frame:IsShown())
     assertFalse(Display.slots[3].frame:IsShown())
     assertEquals(3, #Display.slots)
@@ -221,20 +231,20 @@ test("Overlapping icons cross-fade over ~1 s per member", function()
     -- Freshly bound: Alpha fully focused (times its 0.2 fade-in start),
     -- Bravo dark; the fade-in completes over FadeSeconds.
     Display:Update(entries, now)
-    near3(Display.slots[1].frame:GetAlpha(), S.Alpha)
-    near3(Display.slots[2].frame:GetAlpha(), 0)
+    near3(slotOf("Alpha").frame:GetAlpha(), S.Alpha)
+    near3(slotOf("Bravo").frame:GetAlpha(), 0)
 
     -- 0.5 s later the focus has rotated once and is mid-cross-fade.
     Display:Update(entries, now + 0.5)
-    local a = Display.slots[1].frame:GetAlpha()
-    local b = Display.slots[2].frame:GetAlpha()
+    local a = slotOf("Alpha").frame:GetAlpha()
+    local b = slotOf("Bravo").frame:GetAlpha()
     near3(a + b, 1.0)
     assertTrue(b > 0.2)
 
     -- One full CrossfadeSeconds in: focus has rotated again.
     Display:Update(entries, now + 1.0)
-    a = Display.slots[1].frame:GetAlpha()
-    b = Display.slots[2].frame:GetAlpha()
+    a = slotOf("Alpha").frame:GetAlpha()
+    b = slotOf("Bravo").frame:GetAlpha()
     near3(a + b, 1.0)
     assertTrue(b > 0.8)
 end)
@@ -253,7 +263,7 @@ test("Segment fills span prev-icon centre to own centre with the alpha law", fun
         { name = "SegLeft", start = 0, duration = 999, endTime = now + 60  },
         { name = "SegRight", start = 0, duration = 999, endTime = now + 120 },
     }, now)
-    local l, r = Display.slots[1], Display.slots[2]
+    local l, r = slotOf("SegLeft"), slotOf("SegRight")
 
     -- First visible segment: bar's left edge (0) to its own centre.
     near3(l._segL, 0)
@@ -280,7 +290,7 @@ test("Overlap-group members share the group's segment left border", function()
         { name = "Alpha", start = 0, duration = 999, endTime = now + 20.0 },
         { name = "Bravo", start = 0, duration = 999, endTime = now + 20.35 },
     }, now)
-    local a, b = Display.slots[1], Display.slots[2]
+    local a, b = slotOf("Alpha"), slotOf("Bravo")
     -- First group: the left border is the bar's left edge for EVERY member
     -- (the t8/t12 propagation, :560-570) -- Bravo's segment covers Alpha's.
     near3(a._segL, 0)
@@ -297,7 +307,7 @@ end)
 -- (charges = 0, Engine:Sorted), so a charges > 0 row exists on the hand-made
 -- feeds (and in the screenshot scenario), never in play.
 
-test("Charge rows print the count at the icon's bottom-right, charges-less rows hide it", function()
+test("Charge rows print the count at the icon's top-right, charges-less rows hide it", function()
     local now = 5000
     Display:Update({
         { name = "Drained", start = 0, duration = 12, endTime = now + 12,
@@ -306,7 +316,8 @@ test("Charge rows print the count at the icon's bottom-right, charges-less rows 
           charges = 1, maxCharges = 3, rechargeEnd = now + 18 },
         { name = "PlainCast", start = 0, duration = 60, endTime = now + 60 },
     }, now)
-    local drained, partial, plain = Display.slots[1], Display.slots[2], Display.slots[3]
+    local drained, partial, plain =
+        slotOf("Drained"), slotOf("Partial"), slotOf("PlainCast")
 
     -- The count, as text, on both charge rows; nothing on the charges-less one.
     assertTrue(drained.chargeFS:IsShown())
@@ -316,13 +327,15 @@ test("Charge rows print the count at the icon's bottom-right, charges-less rows 
     assertFalse(plain.chargeFS:IsShown())
 
     for _, slot in ipairs({ drained, partial }) do
-        -- Blizzard's count corner: CooldownViewer.xml anchors its
-        -- ChargeCount FontString BOTTOMRIGHT at (-2, 2) over the icon.
+        -- v4: the count rides the icon's TOPRIGHT at (-1, -1). (v1 copied
+        -- Blizzard's CooldownViewer.xml count corner, BOTTOMRIGHT (-2, 2)
+        -- -- which overprinted the 3-4 character IconTime string printed at
+        -- the BOTTOMLEFT; see the geometry test below.)
         local point, _, relPoint, xoff, yoff = slot.chargeFS:GetPoint()
-        assertEquals("BOTTOMRIGHT", point)
-        assertEquals("BOTTOMRIGHT", relPoint)
-        near3(xoff, -2)
-        near3(yoff, 2)
+        assertEquals("TOPRIGHT", point)
+        assertEquals("TOPRIGHT", relPoint)
+        near3(xoff, -1)
+        near3(yoff, -1)
         -- A small number: the icon is bar-height (24), the count font is the
         -- icon font (10, OUTLINE) and the glyph box fits inside the icon.
         local _, size = slot.chargeFS:GetFont()
@@ -354,14 +367,14 @@ test("A charge row rides rechargeEnd, not the last cast's window", function()
         { name = "RidesRecharge", start = now - 100, duration = 12,
           endTime = now - 88, charges = 0, maxCharges = 2, rechargeEnd = now + 12 },
     }, now)
-    local slot = Display.slots[1]
+    local slot = slotOf("RidesRecharge")
     local _, _, _, xoff = slot.frame:GetPoint()
     near3(xoff, TM.pos(12, W, H, Max, Loga))
     -- A charges-less row has no rechargeEnd and keeps riding endTime.
     Display:Update({
         { name = "PlainCast", start = now, duration = 45, endTime = now + 45 },
     }, now)
-    _, _, _, xoff = Display.slots[1].frame:GetPoint()
+    _, _, _, xoff = slotOf("PlainCast").frame:GetPoint()
     near3(xoff, TM.pos(45, W, H, Max, Loga))
 end)
 
@@ -378,7 +391,8 @@ test("Row category drives the segment, spark and time-text colours", function()
     }, now)
 
     local item, potion, plain, bogus =
-        Display.slots[1], Display.slots[2], Display.slots[3], Display.slots[4]
+        slotOf("GoldTrinket"), slotOf("GreenPotion"),
+        slotOf("NoCategory"), slotOf("BogusCategory")
 
     -- The segment carries the RAW category colour (original :1403).
     local r, g, b = item.seg:GetVertexColor()
@@ -426,10 +440,160 @@ test("row.icon overrides the spell-icon resolution", function()
         { name = "NoIconRow", start = 0, duration = 60, endTime = now + 90 },
     }, now)
     assertEquals("Interface\\Icons\\INV_Misc_Potion_01",
-        Display.slots[1].tex:GetTexture())
+        slotOf("ItemRow").tex:GetTexture())
     -- A row without an icon keeps the spell lookup (nil here: the sim knows
     -- neither name) -- i.e. the override never invents a texture.
-    local plainTex = Display.slots[2].tex:GetTexture()
+    local plainTex = slotOf("NoIconRow").tex:GetTexture()
     assertTrue(plainTex == nil
         or plainTex ~= "Interface\\Icons\\INV_Misc_Potion_01")
+end)
+
+-- ------------------------------------------------------------ name binding --
+-- Regression (manager-found, 2026-11-01): slots used to bind by INDEX into
+-- the soonest-first feed, so any shift of the list -- a cooldown finishing,
+-- a new cast inserted mid-list -- re-ran the first-sighting branch on every
+-- shifted slot: the fade-in restarted AND a fresh 4x cast splash spawned
+-- (the v3 screenshot shows four enlarged splash icons behind the bar).
+-- Slots are name-bound now: identity/texture/colour/fade/splash are
+-- per-name, index order drives position only. Each test below asserts ZERO
+-- splashes where the index code demonstrably produced one per shifted slot
+-- (checked by reasoning through the old Update/BindSlot: slot i rebinding
+-- to entries[i]'s new name early-returns on `slot._name == e.name` never).
+
+local function activeSplashes()
+    local c = 0
+    for i = 1, #Display.splashPool do
+        if Display.splashPool[i]._endAt then c = c + 1 end
+    end
+    return c
+end
+
+test("The soonest cooldown leaving shifts the bar: no new splash, fade + texture kept", function()
+    local now = 20000
+    local ABC = {
+        { name = "ShiftA", start = 0, duration = 100, endTime = now + 30 },
+        { name = "ShiftB", start = 0, duration = 100, endTime = now + 60 },
+        { name = "ShiftC", start = 0, duration = 100, endTime = now + 120 },
+    }
+    Display:Update(ABC, now)
+    assertEquals(3, activeSplashes())   -- three fresh casts, three splashes
+
+    local slotB, slotC = slotOf("ShiftB"), slotOf("ShiftC")
+    assertNotNil(slotB); assertNotNil(slotC)
+    local fadeB, fadeC, texB, texC = slotB._fadeStart, slotC._fadeStart,
+        slotB.tex, slotC.tex
+    near3(fadeB, now)
+    local poolSize = #Display.splashPool
+
+    -- The splash pool's active count returns to 0 after SplashSeconds of
+    -- advancing now; the pool itself keeps its (grow-only) size.
+    Display:Update(ABC, now + S.SplashSeconds + 0.01)
+    assertEquals(0, activeSplashes())
+    assertEquals(poolSize, #Display.splashPool)
+
+    -- A finishes and drops off the feed: B and C shift one index down.
+    Display:Update({ ABC[2], ABC[3] }, now + 40)
+    -- Index binding: BOTH shifted slots re-sight -> 2 splashes + restarted
+    -- fades. Name binding: the shift is POSITIONAL -> zero splashes, fades
+    -- untouched, same slot objects, same textures, A's slot released.
+    assertEquals(0, activeSplashes())
+    assertTrue(slotOf("ShiftB") == slotB)
+    assertTrue(slotOf("ShiftC") == slotC)
+    assertTrue(slotOf("ShiftB").tex == texB)
+    assertTrue(slotOf("ShiftC").tex == texC)
+    assertTrue(slotOf("ShiftB").frame:IsShown())
+    assertTrue(slotOf("ShiftC").frame:IsShown())
+    near3(slotOf("ShiftB")._fadeStart, fadeB)
+    near3(slotOf("ShiftC")._fadeStart, fadeC)
+    assertTrue(slotOf("ShiftA") == nil)
+end)
+
+test("A new cast inserted mid-list splashes exactly once, at its own centre", function()
+    local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
+    local now = 21000
+    local A = { name = "InsA", start = 0, duration = 100, endTime = now + 30 }
+    local B = { name = "InsB", start = 0, duration = 100, endTime = now + 60 }
+    local C = { name = "InsC", start = 0, duration = 100, endTime = now + 120 }
+    Display:Update({ A, B, C }, now)
+    local settled = now + S.SplashSeconds + 0.01
+    Display:Update({ A, B, C }, settled)
+    assertEquals(0, activeSplashes())
+
+    -- D sorts in between A (~30 s) and B (~60 s). Index binding re-sights
+    -- slot2 (D), slot3 (C) and slot4 (B): 3 splashes. Name binding: exactly
+    -- one -- D's.
+    local D = { name = "InsD", start = 0, duration = 100, endTime = settled + 45 }
+    Display:Update({ A, D, B, C }, settled)
+    assertEquals(1, activeSplashes())
+
+    -- The live splash is centred where D's icon sits.
+    local live
+    for i = 1, #Display.splashPool do
+        local s = Display.splashPool[i]
+        if s._endAt then live = s end
+    end
+    assertNotNil(live)
+    local _, _, _, xoff = live.frame:GetPoint()
+    local x = TM.pos(D.endTime - settled, W, H, Max, Loga)
+    near3(xoff, x + H * 0.5 - (W - 2 * S.Inset) * 0.5)
+
+    -- D's fade starts now; A's never restarted.
+    near3(slotOf("InsD")._fadeStart, settled)
+    near3(slotOf("InsA")._fadeStart, now)
+end)
+
+test("A name that left the bar and returns (a new cast) splashes again", function()
+    local now = 22000
+    local A = { name = "RetA", start = 0, duration = 30, endTime = now + 30 }
+    local B = { name = "RetB", start = 0, duration = 60, endTime = now + 60 }
+    Display:Update({ A, B }, now)
+    -- A is done: B shifts down one index WITHOUT re-sighting. Index
+    -- binding: B lands on A's slot -> 1 splash. Name binding: zero.
+    Display:Update({ B }, now + S.SplashSeconds + 0.01)
+    assertEquals(0, activeSplashes())
+    Display:Update({ B }, now + 1)
+    assertEquals(0, activeSplashes())
+    -- A is cast again and returns to the feed: a fresh first sighting.
+    Display:Update({ A, B }, now + 2)
+    assertEquals(1, activeSplashes())
+    -- ...and the pool quiets out again after SplashSeconds.
+    Display:Update({ A, B }, now + 2 + S.SplashSeconds + 0.01)
+    assertEquals(0, activeSplashes())
+end)
+
+test("The charge count at the icon's top-right is clear of the time text", function()
+    local now = 23000
+    -- The v3 collision: a 4-character time string printed at the 24 px
+    -- icon's BOTTOMLEFT and the charge count at its BOTTOMRIGHT overprint
+    -- ("40." over "0", 3-4 chars).
+    Display:Update({
+        { name = "GeomCharge", start = 0, duration = 60, endTime = now + 40.0,
+          charges = 0, maxCharges = 3, rechargeEnd = now + 40.0 },
+    }, now)
+    local slot = slotOf("GeomCharge")
+    assertNotNil(slot)
+    assertTrue(slot.chargeFS:IsShown())
+    assertEquals("40.0", slot.timeFS:GetText())   -- the wide 4-char string
+    assertEquals("0", slot.chargeFS:GetText())
+    local _, cSize = slot.chargeFS:GetFont()
+    local _, tSize = slot.timeFS:GetFont()
+    assertEquals(cSize, tSize)                    -- same font/size as v1
+
+    local point, _, relPoint, xoff, yoff = slot.chargeFS:GetPoint()
+    assertEquals("TOPRIGHT", point)
+    assertEquals("TOPRIGHT", relPoint)
+    near3(xoff, -1)
+    near3(yoff, -1)
+
+    -- No overprint: the count's box is clear of the time text's box. At
+    -- sim font metrics (measured: 12 px line height for size-10 OUTLINE in
+    -- the 24 px icon, digit 5.97, dot 3.86) the boxes graze inside the
+    -- 1.5 px descender/ascender band -- zero ink overlap. The v1
+    -- BOTTOMRIGHT anchor fails BOTH disjuncts here: its count box sank to
+    -- the icon's bottom edge, 10 px below the time text's top, and its
+    -- 4-character span overprinted the count by ~6 px.
+    local clear = (slot.chargeFS:GetBottom() >= slot.timeFS:GetTop() - 1.5)
+        or (slot.chargeFS:GetLeft() >= slot.timeFS:GetRight())
+        or (slot.timeFS:GetLeft() >= slot.chargeFS:GetRight())
+    assertTrue(clear)
 end)

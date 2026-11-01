@@ -194,14 +194,16 @@ function O:Build()
     strip:SetVertexColor(C.TITLE_BG[1], C.TITLE_BG[2], C.TITLE_BG[3],
         C.TITLE_BG[4])
     local name = (UnitName and UnitName("player")) or "?"
+    -- GetRealmName is the documented global (ConnectionDocumentation.lua:68);
+    -- GetServerName is not in the Forever catalog (uiforever flags it missing).
     local realm = ""
-    if GetServerName then
-        local ok, r = pcall(GetServerName)
+    if GetRealmName then
+        local ok, r = pcall(GetRealmName)
         if ok and type(r) == "string" then realm = r end
     end
+    local who = (realm ~= "") and (name .. "-" .. realm) or name
     local title = W.fontString(titleBar, "GameFontHighlightSmall",
-        string.format("ForteXorcist v%s by Xus - %s-%s",
-            FX.CONST.VERSION, name, realm), C.TAB_GOLD)
+        string.format("ForteXorcist v%s by Xus - %s", FX.CONST.VERSION, who), C.TAB_GOLD)
     title:SetJustifyH("CENTER")
     title:SetPoint("CENTER", titleBar, "CENTER", 0, 0)
     self.titleFS, self.titleBar = title, titleBar

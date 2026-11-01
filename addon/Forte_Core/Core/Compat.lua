@@ -39,8 +39,10 @@ Compat.HAS_BLIZZ_CDM = false
 --- Never compare, branch on, or do arithmetic with a raw read of unit/combat
 --- state without passing it through this first -- a bare `if x > 5` on a
 --- secret number throws, not just returns a wrong answer.
+--- issecretvalue runs FIRST: even `v == nil` is a comparison, and a secret
+--- may wrap nil ("Secret NIL is not public nil", wow-ui-sim spec
+--- base-spell-specialization-security.md:19). A plain nil passes through as nil.
 function Compat.PlainOrNil(v)
-    if v == nil then return nil end
     local iss = _G.issecretvalue
     if iss and iss(v) then return nil end
     return v

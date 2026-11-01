@@ -33,6 +33,14 @@
 -- setter is dirty-checked because the whole pass runs at 10 Hz. Positions,
 -- tag placement and grouping are frame-free in UI/TimelineMath.lua.
 --
+-- Slots bind by entry NAME, never by index: a slot keeps its name for its
+-- whole life on the bar, so a name is seen (splash + fade-in) exactly once;
+-- when a cooldown ends and the entries shift up, the shift is purely
+-- positional. Index order drives position, segment and alpha; texture,
+-- colour, fade start and splash are per-name. A name that leaves the feed
+-- releases its slot (hidden, back on the free list, identity dropped) and a
+-- later cast of the same name is a fresh first sighting.
+--
 -- Font: the owner font decision (2026-11-01) is the libre Century-Gothic
 -- lookalike URWGothic-Book.ttf at size 11 (the .otf twin next to it is license
 -- source only). The file is validated once (CreateFont + SetFont/GetFont
@@ -304,7 +312,11 @@ function D:Init()
     title:SetPoint("BOTTOM", f, "TOP", 0, 2)
 
     self.anchor, self.title, self.bar, self.fill = f, title, bar, fill
-    self.slots = {}
+    self.slots = {}        -- grow-only icon-slot pool
+    self._byName = {}      -- name -> slot bound to it (names on the bar)
+    self._free = {}        -- stack of released slots (release pops, O(1))
+    self._islot = {}       -- scratch: per-pass index -> bound slot
+    self._seen = {}        -- scratch: names present in the current pass
     self.tagFS = {}
     self.splashPool = {}
     self.pulsePool = {}
@@ -375,13 +387,21 @@ function D:Slash(cmd)
 end
 
 -- ----------------------------------------------------------------- pools --
---- Icon slot i from the grow-only pool: a bar-height frame carrying the
---- spell icon, its Spark2 running glow (ADD blend, category-tinted), the
---- on-icon time text (IconTime, :1837) and the charge-count number. Created
---- on first demand, never destroyed; Update hides what it does not need.
-function D:AcquireSlot(i)
-    local slot = self.slots[i]
-    if slot then return slot end
+--- An icon slot from the grow-only pool: released slots (their name left
+--- the bar) come off the free list first, else the pool grows by one. A
+--- bar-height frame carrying the spell icon, its Spark2 running glow (ADD
+--- blend, category-tinted), the on-icon time text (IconTime, :1837) and the
+--- charge-count number. Created on first demand, never destroyed; the
+--- caller binds the name (BindSlot), Update releases what the feed dropped.
+function D:AcquireSlot()
+    local free = self._free
+    local top = #free
+    if top > 0 then
+        local slot = free[top]
+        free[top] = nil
+        return slot
+    end
+    local i = #self.slots + 1
 
     -- The segment fill (Aluminium, drawn on the bar layer, NOT inside the
     -- slot frame: it spans between icons, original bar.texture, :1441-1450).
@@ -412,14 +432,15 @@ function D:AcquireSlot(i)
     applyFont(timeFS, ICON_FONT_SIZE, "OUTLINE")
     timeFS:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
 
-    -- Charge count: the current castable number, the Blizzard cooldown
-    -- count text -- CooldownViewer.xml's ChargeCount/Current FontString is
-    -- anchored BOTTOMRIGHT at (-2, 2) over the icon; same corner, same
-    -- offsets, IconFont size + OUTLINE like IconTime. Hidden until a row
-    -- with a `charges` count binds here (Update owns the visibility).
+    -- Charge count: the current castable number. v1 sat at the Blizzard
+    -- CooldownViewer.xml count corner (BOTTOMRIGHT -2, 2), but the 3-4
+    -- character IconTime string at the icon's BOTTOMLEFT overprints it at
+    -- 24 px icon width ("40." over "0"). v4 rides the icon's TOPRIGHT
+    -- instead, same font/colours, clear of the time text. Hidden until a
+    -- row with a `charges` count binds here (Update owns the visibility).
     local chargeFS = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     applyFont(chargeFS, ICON_FONT_SIZE, "OUTLINE")
-    chargeFS:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+    chargeFS:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -1)
     chargeFS:Hide()
 
     slot = { frame = frame, tex = tex, spark = spark, timeFS = timeFS,
@@ -428,11 +449,36 @@ function D:AcquireSlot(i)
     return slot
 end
 
---- Bind a slot to a row: textures, colours, splash, fade start.
---- Everything heavy lives in the first-sighting branch; the per-tick path in
---- Update stays allocation-free. `cx` = icon centre x relative to the bar.
+--- Give a slot back: its name left the feed. Hide everything the slot
+--- draws (frame, segment, charge text), drop the identity so a later cast
+--- of the same name is a fresh first sighting (splash + fade-in), push the
+--- slot on the free list. The frame/texture survive for the next bind.
+function D:ReleaseSlot(slot)
+    local name = slot._name
+    if name then
+        self._byName[name] = nil
+        slot._name = nil
+    end
+    if slot._shown then
+        slot._shown = false
+        slot.frame:Hide()
+        slot.seg:Hide()
+    end
+    if slot._chargeShown then
+        slot._chargeShown = false
+        slot.chargeFS:Hide()
+    end
+    local free = self._free
+    free[#free + 1] = slot
+end
+
+--- Bind a slot to a row for its first sighting: textures, colours, splash,
+--- fade start. Only called for a name that is NOT on the bar (Update takes
+--- the byName branch), so the slot arrives fresh off the free list / a new
+--- pool entry and this whole body runs once per cast, never per tick; the
+--- per-tick path in Update stays allocation-free. `cx` = icon centre x
+--- relative to the bar.
 function D:BindSlot(slot, e, cx, now)
-    if slot._name == e.name then return end
     slot._name = e.name
     -- A row-carried icon (an item / potion texture: a fileID or a path)
     -- overrides the spell-icon lookup; nil rows keep the lookup.
@@ -470,7 +516,9 @@ function D:SpawnSplash(cx, texPath, col, now)
     end
     if not s then
         local splashSize = S.Height * S.SplashFactor
-        local f = CreateFrame("Frame", nil, UIParent)
+        -- Named for dump-tree checks: a visible frame named
+        -- ForteXorcistCooldownSplash<n> is a splash on screen.
+        local f = CreateFrame("Frame", "ForteXorcistCooldownSplash" .. (#pool + 1), UIParent)
         local iconTex = f:CreateTexture(nil, "ARTWORK")
         iconTex:SetSize(splashSize, splashSize)
         iconTex:SetPoint("CENTER", f, "CENTER", 0, 0)
@@ -576,7 +624,7 @@ function D:_GroupItems(entries, n)
         it.name = entries[i].name
         it.x = entries[i].x
         it.v = entries[i].v
-        it.slot = self.slots[i]
+        it.slot = self._islot[i]   -- the slot bound to this entry THIS pass
         it.alpha = 1
     end
     for i = n + 1, #items do
@@ -651,6 +699,8 @@ function D:Update(entries, now)
     if not self.anchor then return end
     local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
     local n = #entries
+    local byName, islot, seen = self._byName, self._islot, self._seen
+    wipe(seen)
 
     for i = 1, n do
         local e = entries[i]
@@ -663,9 +713,20 @@ function D:Update(entries, now)
         local x = TM.pos(remaining, W, H, Max, Loga)
         e.x = x                                   -- transient tag (see above)
         e.v = (x + H * 0.5) / W                   -- the position factor t7
-        local slot = self:AcquireSlot(i)
         local cx = x + H * 0.5 - (W - 2 * S.Inset) * 0.5  -- centre for the splash
-        self:BindSlot(slot, e, cx, now)
+        local slot = byName[e.name]
+        if not slot then
+            -- A name not on the bar in the previous pass: first sighting.
+            -- Fresh slot from the pool + BindSlot (textures, colours,
+            -- fade-in, splash). A name already on the bar keeps its slot
+            -- untouched -- entries shifting down as a cooldown finishes is
+            -- a POSITIONAL event, never a re-sighting.
+            slot = self:AcquireSlot()
+            byName[e.name] = slot
+            self:BindSlot(slot, e, cx, now)
+        end
+        islot[i] = slot
+        seen[e.name] = true
         -- LEFT-anchored at pos(t), the original's bar.icon CENTER->LEFT at
         -- t10 (:1450): icon centre = bar-left + pos(t) + ih/2 = t9, the very
         -- right edge of the segment span.
@@ -712,6 +773,15 @@ function D:Update(entries, now)
         if endAt then
             self._ready[e.name] = nil
             self:SpawnPulse(e.name, slot._texPath, slot._col, endAt)
+        end
+    end
+
+    -- Names the feed dropped release their slots (hide + free-list; a nil
+    -- assignment during pairs is legal). Identity goes with them, so the
+    -- next cast of the name splashes and fades in again.
+    for name in pairs(byName) do
+        if not seen[name] then
+            self:ReleaseSlot(byName[name])
         end
     end
 
@@ -768,7 +838,7 @@ function D:Update(entries, now)
 
     -- Icon alpha = fade-in ramp * group visibility (dirty-checked).
     for i = 1, n do
-        local slot = self.slots[i]
+        local slot = islot[i]
         local it = items[i]
         local p = (now - slot._fadeStart) / S.FadeSeconds
         local a = (p >= 1) and S.AlphaMax or (S.Alpha + (S.AlphaMax - S.Alpha) * p)
@@ -780,16 +850,9 @@ function D:Update(entries, now)
         end
     end
 
-    -- Slots past the entry count: hide (frame + segment), and only if
-    -- actually shown.
-    for i = n + 1, #self.slots do
-        local slot = self.slots[i]
-        if slot._shown and slot.frame:IsShown() then
-            slot._shown = false
-            slot.frame:Hide()
-            slot.seg:Hide()
-        end
-    end
+    -- Slots are name-bound: the release pass above already hid and freed
+    -- every slot whose name left the feed -- there is no index tail to
+    -- sweep any more.
 
     -- Prune cross-fade states whose group died (not seen, stale).
     for sig, st in pairs(self._xf) do
