@@ -93,3 +93,94 @@ function Compat.IsPlayerSpell(spellID)
     end
     return false
 end
+
+-- Item seams (Forte_Cooldown/Core/Items.lua). Existence verified twice:
+-- pinned Forever catalog (docs/api items-inventory + combat catalogs,
+-- 1.60.1.70532) and the wow-ui-sim probe (2026-11-01). SIM RESULT:
+-- C_Item.{GetItemCooldown, GetItemInfoInstant, GetItemInfo, GetItemIconByID},
+-- C_Container.{GetItemCooldown, GetContainerItemCooldown, GetContainerItemID,
+-- GetContainerNumSlots, GetContainerItemInfo}, GetInventoryItemID and
+-- GetInventoryItemCooldown all EXIST and return plain numbers (0/0/1 =
+-- ready). C_Item.GetItemSpell and C_Spell.GetItemCooldown are ABSENT in the
+-- sim profile build (catalog-listed, live-only) -- callers must nil-guard.
+-- C_Item.GetItemCooldown accepts a raw itemID number as its ItemInfo
+-- argument (measured in the sim; CooldownMaster passes numbers on the live
+-- client too).
+
+--- The equipped item id in an inventory slot (trinkets: 13/14), nil when
+--- empty. GetInventoryItemID is the Blizzard paperdoll/bag path (verified
+--- in the Camelot UI source) and is present in the sim.
+function Compat.GetEquippedItemID(slot)
+    if type(GetInventoryItemID) == "function" then
+        return GetInventoryItemID("player", slot)
+    end
+    return nil
+end
+
+--- The item's display name via C_Item.GetItemInfo (async-backed; returns
+--- nil for ids the client has never seen -- a live probe, see Items.lua
+--- header). May raise on a junk id: call sites pcall it.
+function Compat.GetItemInfoName(itemID)
+    if C_Item and C_Item.GetItemInfo then
+        return (C_Item.GetItemInfo(itemID))
+    end
+    return nil
+end
+
+--- The item's icon fileID (C_Item.GetItemIconByID), nil where absent.
+function Compat.GetItemIcon(itemID)
+    if C_Item and C_Item.GetItemIconByID then
+        return C_Item.GetItemIconByID(itemID)
+    end
+    return nil
+end
+
+--- The item's on-use spell as (spellName, spellID), nil where the API is
+--- absent (it is in the sim build) or the item has no use spell. Catalog
+--- C_Item.GetItemSpell(itemInfo): the sim and CooldownMaster accept the
+--- raw itemID.
+function Compat.GetItemSpellInfo(itemID)
+    if C_Item and C_Item.GetItemSpell then
+        return C_Item.GetItemSpell(itemID)
+    end
+    return nil
+end
+
+--- Slots in a bag (0 = backpack). nil when the API is absent.
+function Compat.GetContainerNumSlots(bag)
+    if C_Container and C_Container.GetContainerNumSlots then
+        return C_Container.GetContainerNumSlots(bag)
+    end
+    return nil
+end
+
+--- The item id in bag `bag` at 1-based `slot`, nil when empty/absent.
+function Compat.GetContainerItemID(bag, slot)
+    if C_Container and C_Container.GetContainerItemID then
+        return C_Container.GetContainerItemID(bag, slot)
+    end
+    return nil
+end
+
+--- RAW item-cooldown read: (startTime, duration, enable). Equipped items
+--- (slot non-nil) ride GetInventoryItemCooldown("player", slot) --
+--- CooldownMaster's proven split: bag items poll by itemID via
+--- C_Container.GetItemCooldown, equipped trinkets by inventory slot (a bag
+--- copy of the same itemID shares its category cooldown, the slot is the
+--- one instance you own). Returns (nil, nil, nil) when no API applies.
+--- The catalog annotates NO SecretWhen… on these returns (only
+--- SecretArguments=AllowedWhenUntainted), so they are expected plain --
+--- that expectation is an open live probe (docs/design-combat-procs.md §5.7);
+--- consumers MUST route every number through PlainOrNil regardless.
+function Compat.GetItemCooldownInfo(itemID, slot)
+    if slot ~= nil and type(GetInventoryItemCooldown) == "function" then
+        return GetInventoryItemCooldown("player", slot)
+    end
+    if C_Container and C_Container.GetItemCooldown then
+        return C_Container.GetItemCooldown(itemID)
+    end
+    if C_Item and C_Item.GetItemCooldown then
+        return C_Item.GetItemCooldown(itemID)
+    end
+    return nil, nil, nil
+end

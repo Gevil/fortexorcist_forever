@@ -1,0 +1,375 @@
+-- addon/Forte_Hunter/Core/Tools.lua
+-- FX.Hunter.Tools: two independent Hunter trackers, no on-screen UI.
+--
+-- 1. Aspect tracker -- Hunter aspects are mutually exclusive stance-like
+--    buffs. Buff reads are secret in combat, so in-combat state is
+--    cast-PREDICTED (our own UNIT_SPELLCAST_SUCCEEDED names, PLAN §3.2) and
+--    out-of-combat a plain aura read over the aspect list reconciles (and
+--    corrects) the prediction. The aspect list is DERIVED from the generated
+--    ForteXorcist.Data.Hunter table by the name pattern "^Aspect of" --
+--    never hard-coded spell IDs.
+--
+-- 2. Ranged swing / Auto Shot timer. Verified Forever contract (docs/api
+--    catalog, SwingTimerDocumentation.lua:42/53, see docs/hunter-tools.md):
+--      PLAYER_SWING               payload (swingDuration, swingType)  -- DURATION FIRST
+--      PLAYER_SWING_RANGE_UPDATE  payload (swingType, isInRange, checksRange) -- TYPE LEADS
+--    Two separate handlers, never one unpack order (PLAN §8). The
+--    Enum.PlayerSwingType is MainHand=0, OffHand=1, Ranged=2; this tracker
+--    models the Ranged swing only. Speed: the event duration is the anchor;
+--    UnitRangedDamage / UnitAttackSpeed (both SecretWhenUnitStatsRestricted,
+--    routed through PlainOrNil) are consulted only when it is unusable, and
+--    the last observed duration is the final fallback. "Auto Shot" cast
+--    events are the event-based fallback start when no swing events arrive
+--    (live probe item, docs/hunter-tools.md).
+--
+-- Secret-value law: every unit/aura/cooldown read passes
+-- FX.Compat.PlainOrNil before any compare or arithmetic; a secret (nil)
+-- read NEVER overwrites known state.
+--
+-- NOTE (catalog audit, docs/hunter-tools.md): the originally-specified
+-- reader `C_UnitAuras.GetPlayerAuraBySpellName` does NOT exist in the
+-- Forever catalog. The name-resolving, player-scoped equivalent that does
+-- is C_UnitAuras.GetAuraDataBySpellName(unit, spellName, filter)
+-- (UnitAuraDocumentation.lua:244, SecretWhenUnitAuraRestricted, filter
+-- Nilable) -- that is the default reader below.
+
+ForteXorcist = ForteXorcist or {}
+local FX = ForteXorcist
+FX.Hunter = FX.Hunter or {}
+
+-- ============================================================ AspectTracker
+
+local AspectTracker = {}
+AspectTracker.__index = AspectTracker
+
+function AspectTracker:IsCombat()
+    local f = self.inCombat
+    if f then return f() and true or false end
+    -- No injected predicate: sample the live lockdown (catalog:
+    -- InCombatLockdown, RestrictedActionsDocumentation.lua:44, unannotated).
+    return type(InCombatLockdown) == "function" and InCombatLockdown() and true or false
+end
+
+--- Our own successful cast of an aspect. Aspects are mutually exclusive, so
+--- the newest cast replaces the tracked one. Non-aspect casts are ignored.
+--- Returns true when the tracker adopted the name.
+function AspectTracker:OnCast(name)
+    if name ~= nil and self.byName[name] then
+        self.current = name
+        return true
+    end
+    return false
+end
+
+--- Out-of-combat correction pass over the aspect list.
+--- readAura(name) -> true (plain read: this aspect is active),
+---                    false (plain read: not active),
+---                    nil  (no reliable read: secret/missing API/error).
+--- Rules: a found aspect replaces a stale prediction; every-aspect
+--- confirmed-absent clears `current`; any unknown read with nothing found
+--- leaves `current` unchanged (a secret read never overwrites).
+--- Returns "adopted" | "cleared" | "unchanged".
+function AspectTracker:Reconcile(readAura)
+    local reader = readAura or FX.Hunter.DefaultAuraReader
+    local found, unknown = nil, false
+    for _, name in ipairs(self.order) do
+        local ok, v = pcall(reader, name)
+        local state
+        if ok then state = v end
+        if state == true then
+            found = name
+            break
+        elseif state == nil then
+            unknown = true
+        end
+    end
+    if found then
+        self.current = found
+        return "adopted"
+    end
+    if not unknown then
+        self.current = nil
+        return "cleared"
+    end
+    return "unchanged"
+end
+
+function AspectTracker:Current()
+    return self.current
+end
+
+--- Reminder predicate: true when no aspect is known active AND we are out
+--- of combat (a mid-combat reminder we cannot answer is noise).
+function AspectTracker:Missing()
+    if self.current ~= nil then return false end
+    return not self:IsCombat()
+end
+
+--- Plain copy of the tracked state (no metatable, no live objects).
+function AspectTracker:Snapshot()
+    local list = {}
+    for i, name in ipairs(self.order) do list[i] = name end
+    return {
+        current = self.current,
+        missing = self:Missing(),
+        aspects = list,
+    }
+end
+
+function FX.Hunter.NewAspectTracker(opts)
+    opts = opts or {}
+    local self = setmetatable({
+        order = {},       -- aspect names, stable iteration order
+        byName = {},      -- [name] = true membership set
+        current = nil,    -- tracked aspect name, nil = none known active
+        inCombat = opts.inCombat,   -- injectable predicate for tests
+    }, AspectTracker)
+    for _, name in ipairs(opts.names or {}) do
+        if not self.byName[name] then
+            self.byName[name] = true
+            self.order[#self.order + 1] = name
+        end
+    end
+    return self
+end
+
+-- ============================================================== SwingTracker
+
+local SwingTracker = {}
+SwingTracker.__index = SwingTracker
+
+local function rangedSwingType()
+    local e = _G.Enum and _G.Enum.PlayerSwingType
+    return (e and e.Ranged) or 2   -- catalog value: Ranged = 2
+end
+
+function SwingTracker:Clock()
+    if self.now then return self.now() end
+    return GetTime()
+end
+
+--- Ranged weapon speed as a plain seconds-per-shot number, or nil.
+--- An injected speedReader (tests, later gear models) replaces the live
+--- reads. Live path: UnitRangedDamage(unit) -> speed is the FIRST return
+--- (UnitDocumentation.lua:2961), UnitAttackSpeed(unit) ->
+--- (attackSpeed, offhandAttackSpeed, rangedAttackSpeed)
+--- (UnitDocumentation.lua:681); both are SecretWhenUnitStatsRestricted, so
+--- every return passes through PlainOrNil and a secret/absent read yields
+--- nil.
+function SwingTracker:SpeedFromUnit()
+    local reader = self.speedReader
+    if reader then
+        local ok, v = pcall(reader)
+        if not ok then return nil end
+        return FX.Compat.PlainOrNil(v)
+    end
+    if type(UnitRangedDamage) == "function" then
+        local ok, speed = pcall(UnitRangedDamage, "player")
+        local plain = ok and FX.Compat.PlainOrNil(speed)
+        if plain and plain > 0 then return plain end
+    end
+    if type(UnitAttackSpeed) == "function" then
+        local ok, _, _, ranged = pcall(UnitAttackSpeed, "player")
+        local plain = ok and FX.Compat.PlainOrNil(ranged)
+        if plain and plain > 0 then return plain end
+    end
+    return nil
+end
+
+--- PLAYER_SWING handler -- payload order (swingDuration, swingType),
+--- duration FIRST (verified contract, file header). A secret/unusable
+--- duration falls back to the live speed read, then to the last observed
+--- duration; with no speed knowledge at all the swing stays idle.
+--- `swingType` is used only as the Ranged filter.
+function SwingTracker:OnSwingStart(duration, swingType)
+    if swingType ~= self.rangedType then return end
+    duration = FX.Compat.PlainOrNil(duration)
+    if duration == nil then duration = self:SpeedFromUnit() end
+    if duration == nil then duration = self.lastDuration end
+    if duration == nil then return end
+    self.active, self.start, self.duration = true, self:Clock(), duration
+end
+
+--- PLAYER_SWING_RANGE_UPDATE handler -- payload order
+--- (swingType, isInRange, checksRange), swingType LEADS (verified contract,
+--- file header). isInRange is meaningless while checksRange is false. Out of
+--- range the ranged swing stops: the timer goes idle and the next
+--- PLAYER_SWING restarts it.
+function SwingTracker:OnSwingRange(swingType, isInRange, checksRange)
+    if swingType ~= self.rangedType then return end
+    if checksRange and isInRange == false then
+        self.active, self.start, self.duration = false, nil, nil
+    end
+end
+
+--- Event-based fallback (PLAN §8 Auto Shot model): with no PLAYER_SWING
+--- events reaching addons (catalog evidence level: declaration only), the
+--- Auto Shot CAST event restarts the timer using the speed read / last
+--- observed duration.
+function SwingTracker:OnCast(name)
+    if name ~= "Auto Shot" then return end
+    local d = self:SpeedFromUnit() or self.lastDuration
+    if d == nil then return end
+    self.active, self.start, self.duration = true, self:Clock(), d
+end
+
+--- Fraction completed (0..1) and seconds remaining of the current ranged
+--- swing, nil when idle. Observing completion finalises the swing (the next
+--- call reports idle), so "nil after completion" holds without a ticker.
+function SwingTracker:Progress(now)
+    if not self.active then return nil end
+    now = now or self:Clock()
+    local elapsed = now - self.start
+    if elapsed < 0 then elapsed = 0 end
+    if elapsed >= self.duration then
+        self.lastDuration = self.duration
+        self.active, self.start, self.duration = false, nil, nil
+        return nil
+    end
+    self.lastDuration = self.duration
+    return elapsed / self.duration, self.duration - elapsed
+end
+
+--- Plain copy of the swing state (seconds, booleans; no live objects).
+function SwingTracker:Snapshot()
+    local fraction, remaining = self:Progress()
+    return {
+        active = self.active and true or false,
+        duration = self.duration,
+        lastDuration = self.lastDuration,
+        fraction = fraction,
+        remaining = remaining,
+    }
+end
+
+function FX.Hunter.NewSwingTracker(opts)
+    opts = opts or {}
+    return setmetatable({
+        now = opts.now,                   -- injectable clock for tests
+        speedReader = opts.speedReader,   -- injectable speed source
+        rangedType = opts.rangedType or rangedSwingType(),
+        active = false,
+        start = nil,        -- Clock() seconds at swing start
+        duration = nil,     -- active swing length, seconds
+        lastDuration = nil, -- last observed length (speed fallback chain)
+    }, SwingTracker)
+end
+
+-- ================================================================ module
+
+FX.Hunter.Tools = {}
+local M = FX.Hunter.Tools
+
+--- Aspect names derived from the generated data by the "^Aspect of" name
+--- pattern. Never hard-coded IDs; regeneration-safe.
+function M.DeriveAspectNames()
+    local names = {}
+    local data = FX.Data and FX.Data.Hunter
+    if not data then return names end
+    for _, spell in pairs(data) do
+        local name = spell and spell.name
+        if type(name) == "string" and name:find("^Aspect of") then
+            names[#names + 1] = name
+        end
+    end
+    table.sort(names) -- stable reconcile order across sessions
+    return names
+end
+
+M.aspectNames = M.DeriveAspectNames()
+
+--- Default live aura reader: plain-presence probe for one aspect on the
+--- player. Contract matches AspectTracker:Reconcile's readAura.
+--- C_UnitAuras.GetAuraDataBySpellName(unit, spellName, filter) -- the
+--- name-resolving player-scoped lookup the Forever catalog actually ships
+--- (unit is NeverSecret, filter Nilable so we pass nil). Its return is
+--- SecretWhenUnitAuraRestricted: a secret value reads as "no reliable
+--- information" (nil), a plain nil as "confirmed not active" (false).
+function FX.Hunter.DefaultAuraReader(name)
+    if not (C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName) then return nil end
+    local ok, aura = pcall(C_UnitAuras.GetAuraDataBySpellName, "player", name, nil)
+    if not ok then return nil end
+    if aura == nil then return false end
+    local iss = _G.issecretvalue
+    if iss and iss(aura) then return nil end
+    return true
+end
+
+M.Aspects = FX.Hunter.NewAspectTracker({ names = M.aspectNames })
+M.Swing = FX.Hunter.NewSwingTracker()
+
+local function resolveCastName(spellID)
+    if spellID == nil then return nil end
+    if not (C_Spell and C_Spell.GetSpellInfo) then return nil end
+    -- pcall: a secret (tainted) id can raise on lookup; only a plain name
+    -- is ever returned (same pattern as Forte_Cooldown/Module.lua).
+    local ok, info = pcall(C_Spell.GetSpellInfo, spellID)
+    if not ok or not info then return nil end
+    local name = FX.Compat.PlainOrNil(info.name)
+    if type(name) ~= "string" then return nil end
+    return name
+end
+
+function M:OnEnable()
+    -- Event frame for hunters only (the shared /fx bootstrap runs
+    -- OnEnable for every player class).
+    if FX._playerClass ~= "HUNTER" then return end
+    local f = CreateFrame("Frame")
+    f:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+    f:RegisterEvent("PLAYER_SWING")
+    f:RegisterEvent("PLAYER_SWING_RANGE_UPDATE")
+    f:RegisterEvent("PLAYER_REGEN_ENABLED")
+    f:SetScript("OnEvent", function(_, event, a1, a2, a3)
+        if event == "UNIT_SPELLCAST_SUCCEEDED" then
+            -- Payload (unit, castGUID, spellID[, castBarID]) -- the 4th
+            -- field lands past a3 and is tolerated (PLAN §8 mitigation 3).
+            local name = resolveCastName(a3)
+            if name then
+                M.Aspects:OnCast(name)
+                M.Swing:OnCast(name)
+            end
+        elseif event == "PLAYER_SWING" then
+            -- a1, a2 = swingDuration, swingType (DURATION FIRST)
+            M.Swing:OnSwingStart(a1, a2)
+        elseif event == "PLAYER_SWING_RANGE_UPDATE" then
+            -- a1, a2, a3 = swingType, isInRange, checksRange (TYPE LEADS)
+            M.Swing:OnSwingRange(a1, a2, a3)
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            -- Out of combat: every aura read is plain again -- the moment
+            -- the cast prediction gets re-anchored (PLAN §3.2).
+            M.Aspects:Reconcile()
+        end
+    end)
+
+    -- /fx status integration. Forte_Core/Init.lua's status branch calls
+    -- exactly one Status chain (FX.Cooldown.Module:Status(), Init.lua:100)
+    -- and Forte_Core is not ours to edit, so piggyback the Hunter line onto
+    -- that chain. No Forte_Cooldown tests assert Status() output; without
+    -- Forte_Cooldown installed the Hunter status line is not printed
+    -- (reported open issue, docs/hunter-tools.md).
+    local cd = FX.Cooldown and FX.Cooldown.Module
+    if cd and cd.Status and not cd._fxHunterStatusHooked then
+        cd._fxHunterStatusHooked = true
+        local prev = cd.Status
+        cd.Status = function(self, ...)
+            local r = prev(self, ...)
+            FX.Print(M:Status())
+            return r
+        end
+    end
+end
+
+--- One-line module state for `/fx status`.
+function M:Status()
+    local snap = M.Aspects:Snapshot()
+    local fraction, remaining = M.Swing:Progress()
+    return string.format(
+        "Hunter: %d aspects | current=%s%s | ranged swing: %s",
+        #snap.aspects,
+        tostring(snap.current),
+        snap.missing and " (no aspect -- cast one)" or "",
+        fraction and string.format("%.0f%% (%.1fs left)", fraction * 100, remaining)
+            or "idle")
+end
+
+FX.RegisterModule("Hunter", M)

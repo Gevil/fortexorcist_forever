@@ -288,3 +288,148 @@ test("Overlap-group members share the group's segment left border", function()
     near3(b._segVL, 0)
     assertTrue(b._segR > a._segR)
 end)
+
+-- The row contract the Engine/ItemsCD feed adds: `charges`/`maxCharges` (the
+-- count printed on the icon) with `rechargeEnd` (the landing the icon rides),
+-- `category` (a TimelineSkin.Colors key) and `icon` (a texture override).
+-- Rows without them render exactly as before -- every test above is such a
+-- row. The engine ships a charge row only while the bar is DRAINED
+-- (charges = 0, Engine:Sorted), so a charges > 0 row exists on the hand-made
+-- feeds (and in the screenshot scenario), never in play.
+
+test("Charge rows print the count at the icon's bottom-right, charges-less rows hide it", function()
+    local now = 5000
+    Display:Update({
+        { name = "Drained", start = 0, duration = 12, endTime = now + 12,
+          charges = 0, maxCharges = 2, rechargeEnd = now + 12 },
+        { name = "Partial", start = 0, duration = 12, endTime = now + 12,
+          charges = 1, maxCharges = 3, rechargeEnd = now + 18 },
+        { name = "PlainCast", start = 0, duration = 60, endTime = now + 60 },
+    }, now)
+    local drained, partial, plain = Display.slots[1], Display.slots[2], Display.slots[3]
+
+    -- The count, as text, on both charge rows; nothing on the charges-less one.
+    assertTrue(drained.chargeFS:IsShown())
+    assertEquals("0", drained.chargeFS:GetText())
+    assertTrue(partial.chargeFS:IsShown())
+    assertEquals("1", partial.chargeFS:GetText())
+    assertFalse(plain.chargeFS:IsShown())
+
+    for _, slot in ipairs({ drained, partial }) do
+        -- Blizzard's count corner: CooldownViewer.xml anchors its
+        -- ChargeCount FontString BOTTOMRIGHT at (-2, 2) over the icon.
+        local point, _, relPoint, xoff, yoff = slot.chargeFS:GetPoint()
+        assertEquals("BOTTOMRIGHT", point)
+        assertEquals("BOTTOMRIGHT", relPoint)
+        near3(xoff, -2)
+        near3(yoff, 2)
+        -- A small number: the icon is bar-height (24), the count font is the
+        -- icon font (10, OUTLINE) and the glyph box fits inside the icon.
+        local _, size = slot.chargeFS:GetFont()
+        assertTrue(size <= 12)
+        assertTrue(slot.chargeFS:GetWidth() > 0)
+        assertTrue(slot.chargeFS:GetWidth() <= slot.frame:GetWidth())
+        assertTrue(slot.chargeFS:GetHeight() <= slot.frame:GetHeight())
+        assertTrue(slot.chargeFS:GetLeft() >= slot.frame:GetLeft() - 1e-3)
+        assertTrue(slot.chargeFS:GetRight() <= slot.frame:GetRight() + 1e-3)
+        assertTrue(slot.chargeFS:GetTop() <= slot.frame:GetTop() + 1e-3)
+        assertTrue(slot.chargeFS:GetBottom() >= slot.frame:GetBottom() - 1e-3)
+    end
+
+    -- White while charges > 0, Blizzard gold on a drained bar.
+    local zr, zg, zb = drained.chargeFS:GetTextColor()
+    near3(zr, S.ChargeZeroColor[1]); near3(zg, S.ChargeZeroColor[2])
+    near3(zb, S.ChargeZeroColor[3])
+    local wr, wg, wb = partial.chargeFS:GetTextColor()
+    near3(wr, S.ChargeColor[1]); near3(wg, S.ChargeColor[2]); near3(wb, S.ChargeColor[3])
+    assertFalse(zr == wr and zg == wg and zb == wb)
+end)
+
+test("A charge row rides rechargeEnd, not the last cast's window", function()
+    local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
+    local now = 6000
+    -- The last cast lapsed long ago (endTime in the past); the NEXT charge
+    -- lands in 12 s -- the icon must sit where 12 s belongs on the axis.
+    Display:Update({
+        { name = "RidesRecharge", start = now - 100, duration = 12,
+          endTime = now - 88, charges = 0, maxCharges = 2, rechargeEnd = now + 12 },
+    }, now)
+    local slot = Display.slots[1]
+    local _, _, _, xoff = slot.frame:GetPoint()
+    near3(xoff, TM.pos(12, W, H, Max, Loga))
+    -- A charges-less row has no rechargeEnd and keeps riding endTime.
+    Display:Update({
+        { name = "PlainCast", start = now, duration = 45, endTime = now + 45 },
+    }, now)
+    _, _, _, xoff = Display.slots[1].frame:GetPoint()
+    near3(xoff, TM.pos(45, W, H, Max, Loga))
+end)
+
+test("Row category drives the segment, spark and time-text colours", function()
+    local now = 7000
+    Display:Update({
+        { name = "GoldTrinket", start = 0, duration = 60, endTime = now + 60,
+          category = "Item" },
+        { name = "GreenPotion", start = 0, duration = 60, endTime = now + 90,
+          category = "Potion" },
+        { name = "NoCategory", start = 0, duration = 60, endTime = now + 120 },
+        { name = "BogusCategory", start = 0, duration = 60, endTime = now + 150,
+          category = "NotACategory" },
+    }, now)
+
+    local item, potion, plain, bogus =
+        Display.slots[1], Display.slots[2], Display.slots[3], Display.slots[4]
+
+    -- The segment carries the RAW category colour (original :1403).
+    local r, g, b = item.seg:GetVertexColor()
+    local ic = S.Colors.Item
+    near3(r, ic[1]); near3(g, ic[2]); near3(b, ic[3])
+    r, g, b = potion.seg:GetVertexColor()
+    local pc = S.Colors.Potion
+    near3(r, pc[1]); near3(g, pc[2]); near3(b, pc[3])
+    -- No category = Spell; an unknown category key falls back to Spell too.
+    for _, slot in ipairs({ plain, bogus }) do
+        r, g, b = slot.seg:GetVertexColor()
+        local sc = S.Colors.Spell
+        near3(r, sc[1]); near3(g, sc[2]); near3(b, sc[3])
+    end
+
+    -- The spark and the on-icon time text ride FixIntensity(category)
+    -- (Forte_Core.lua :800-805), so they follow the same per-row colour.
+    local function fix(c)
+        local largest = math.max(math.max(c[1], c[2]), c[3])
+        if largest == 1 then
+            return 0.7 * c[1] + 0.3, 0.7 * c[2] + 0.3, 0.7 * c[3] + 0.3
+        end
+        return 0.7 * c[1] / largest + 0.3, 0.7 * c[2] / largest + 0.3,
+            0.7 * c[3] / largest + 0.3
+    end
+    local er, eg, eb = fix(S.Colors.Item)
+    r, g, b = item.spark:GetVertexColor()
+    near3(r, er); near3(g, eg); near3(b, eb)
+    r, g, b = item.timeFS:GetTextColor()
+    near3(r, er); near3(g, eg); near3(b, eb)
+    er, eg, eb = fix(S.Colors.Potion)
+    r, g, b = potion.spark:GetVertexColor()
+    near3(r, er); near3(g, eg); near3(b, eb)
+    -- The two categories are genuinely different colours (not one tint).
+    local ir, ig, ib = item.seg:GetVertexColor()
+    local pr, pg, pb = potion.seg:GetVertexColor()
+    assertFalse(ir == pr and ig == pg and ib == pb)
+end)
+
+test("row.icon overrides the spell-icon resolution", function()
+    local now = 8000
+    Display:Update({
+        { name = "ItemRow", start = 0, duration = 60, endTime = now + 60,
+          category = "Item", icon = "Interface\\Icons\\INV_Misc_Potion_01" },
+        { name = "NoIconRow", start = 0, duration = 60, endTime = now + 90 },
+    }, now)
+    assertEquals("Interface\\Icons\\INV_Misc_Potion_01",
+        Display.slots[1].tex:GetTexture())
+    -- A row without an icon keeps the spell lookup (nil here: the sim knows
+    -- neither name) -- i.e. the override never invents a texture.
+    local plainTex = Display.slots[2].tex:GetTexture()
+    assertTrue(plainTex == nil
+        or plainTex ~= "Interface\\Icons\\INV_Misc_Potion_01")
+end)

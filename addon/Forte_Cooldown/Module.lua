@@ -14,6 +14,7 @@ FX.RegisterModule("Cooldown", M)
 local TICK_SECONDS = 0.1        -- 10 Hz display/sweep cadence
 local READ_DEBOUNCE = 0.1       -- coalesce a SPELL_UPDATE_COOLDOWN burst
 local REBUILD_DEBOUNCE = 0.5    -- coalesce a SPELLS_CHANGED burst
+local RESCAN_DEBOUNCE = 0.5     -- coalesce an inventory-change burst
 local READ_NET_TICKS = 10       -- every 10th tick = 1 Hz safety read pass
 
 -- Scratch tables reused for the life of the session: these fill every tick,
@@ -21,8 +22,21 @@ local READ_NET_TICKS = 10       -- every 10th tick = 1 Hz safety read pass
 local readyScratch = {}
 local sortedScratch = {}
 
-local readPending, rebuildPending = false, false
+local readPending, rebuildPending, rescanPending = false, false, false
 local reasonShown = false
+
+--- Coalesced item rescan (PLAYER_ENTERING_WORLD / BAG_UPDATE_COOLDOWN /
+--- PLAYER_EQUIPMENT_CHANGED / BAG_UPDATE_DELAYED -- all four verified in
+--- the pinned Forever catalog). A looting spree fires the bag events per
+--- item; one rescan covers the burst.
+local function requestRescan()
+    if rescanPending then return end
+    rescanPending = true
+    C_Timer.After(RESCAN_DEBOUNCE, function()
+        rescanPending = false
+        if Engine.Items then Engine.Items:Rescan() end
+    end)
+end
 
 --- Can the player cast this spell? C_Spell resolves a name to exactly the
 --- rank this character knows (that's why the Engine keys by name), and
@@ -72,6 +86,12 @@ function M:ReadAll()
                 Engine:OnRead(name, start, duration, now)
             end
         end
+    end
+    -- The item side rides the same pass: its entries live in
+    -- Engine.entries too, so the 1 Hz net, PLAYER_REGEN_ENABLED and the
+    -- debounced read events re-anchor items exactly like spells.
+    if Engine.Items then
+        Engine.Items:ReadAll(now)
     end
 end
 
@@ -154,6 +174,12 @@ function M:RecordCastEvent(spellID, inCombat)
         d.resolved = d.resolved + 1
         if inCombat then d.inResolved = d.inResolved + 1 end
         Engine:OnCast(name, GetTime())
+        -- Item path: a resolved name that is some tracked item's use spell
+        -- starts its predicted window (shared potion category included);
+        -- a class spell is inert here (not in byCastSpell).
+        if Engine.Items then
+            Engine.Items:OnCastBySpellName(name, GetTime())
+        end
     else
         d.unresolved = d.unresolved + 1
         if inCombat then d.inUnresolved = d.inUnresolved + 1 end
@@ -181,6 +207,13 @@ function M:OnEnable()
     f:RegisterEvent("SPELL_UPDATE_COOLDOWN")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
     f:RegisterEvent("SPELLS_CHANGED")
+    -- Item rescan triggers -- every event name verified in the pinned
+    -- Forever catalog (SystemDocumentation / ContainerDocumentation /
+    -- PaperDollInfoDocumentation) before registration.
+    f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f:RegisterEvent("BAG_UPDATE_COOLDOWN")
+    f:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+    f:RegisterEvent("BAG_UPDATE_DELAYED")
     f:SetScript("OnEvent", function(_, event, unit, castGUID, spellID, castBarID)
         if event == "UNIT_SPELLCAST_SUCCEEDED" then
             -- Our own casts: the signal most likely to stay readable in
@@ -212,6 +245,15 @@ function M:OnEnable()
                     M:Rebuild()
                 end)
             end
+        elseif event == "PLAYER_ENTERING_WORLD"
+            or event == "BAG_UPDATE_COOLDOWN"
+            or event == "PLAYER_EQUIPMENT_CHANGED"
+            or event == "BAG_UPDATE_DELAYED" then
+            -- Inventory changed (loot, equip, a drunk potion's slot, zone-in
+            -- resync): which items exist is a fresh question. The events
+            -- carry payloads (booleans / an equipment slot) this branch
+            -- deliberately ignores -- a rescan re-reads the whole inventory.
+            requestRescan()
         end
     end)
 
@@ -244,6 +286,10 @@ function M:OnEnable()
     -- Display arrives with UI/Display.lua; nil-safe until that lands.
     if FX.Cooldown.Display then FX.Cooldown.Display:Init() end
     M:Rebuild()
+    -- First item sweep at login (PLAYER_ENTERING_WORLD re-runs it after a
+    -- zone-in; the bag events cover looting). A no-op when Forte_Items is
+    -- not installed -- Core/Items.lua degrades silently.
+    if Engine.Items then Engine.Items:Rescan() end
 end
 
 --- `/fx` status hook (Init.lua is not edited; `FX.Cooldown.Module:Status()`
@@ -257,6 +303,10 @@ function M:Status()
         FX.Print(string.format("  %s: %.1fs%s", e.name,
             math.max(0, e.endTime - GetTime()),
             e.predicted and " (predicted)" or ""))
+    end
+    if Engine.Items then
+        local it, ia = Engine.Items:Counts()
+        FX.Print(string.format("Items: %d tracked, %d active", it, ia))
     end
     -- Cast-secrecy counters (PLAN §8 "instrument" mitigation): the first
     -- live combat session reads the truth off the `secret` column.

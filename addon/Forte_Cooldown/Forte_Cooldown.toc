@@ -4,9 +4,10 @@
 ## Version: 0.1.0-dev
 ## Author: Gevil
 ## Dependencies: Forte_Core
-## OptionalDeps: Forte_Hunter, Forte_Warlock
+## OptionalDeps: Forte_Hunter, Forte_Items, Forte_Warlock
 
 Core/Engine.lua
+Core/Items.lua
 UI/TimelineMath.lua
 UI/Timeline.lua
 Module.lua

@@ -78,7 +78,10 @@ Engine.MIN_COOLDOWN = 2.99
 Engine.tracked = {}   -- [name] = { name, dataId, baseDuration, maxCharges? (runtime, DetectCharges) }
 -- [name] = { name, start, duration, endTime, predicted, source =
 --            "cast"|"read"|"edge", anchored?, charges? = {max, current,
---            nextAt}, rechargeEnd? = nextAt } -- see file header
+--            nextAt}, rechargeEnd? = nextAt, category? ("Item"/"Potion" --
+--            set only by Core/Items.lua entries; rows default "Spell"),
+--            icon? (item texture; nil = Timeline resolves the spell icon) }
+--            -- see file header
 Engine.entries = {}
 Engine.learned = {}   -- [name] = seconds, persisted via Engine:AttachStorage
 
@@ -313,6 +316,12 @@ end
 --- allocates nothing (the row outlives its entry by design: both die on the
 --- next Build). Rows, not live entries, travel to the Display so its reads
 --- cannot mutate the bar state.
+--- Display tags (cross-worker contract 2026-11-01): `category` is the
+--- row's EFFECTIVE category -- item entries carry "Item"/"Potion" (set by
+--- Core/Items.lua), a spell's tracked row may carry a per-spell `fxClass`
+--- override (the Timeline's documented classification knob), the rest
+--- default "Spell". `icon` is nil for spells (the Timeline's own spell-icon
+--- resolution then applies), a texture for items.
 local function rowFor(e)
     local r = e.row
     if not r then
@@ -323,6 +332,9 @@ local function rowFor(e)
     r.predicted, r.source = e.predicted, e.source
     local c = e.charges
     r.charges, r.maxCharges, r.rechargeEnd = c and c.current, c and c.max, c and c.nextAt
+    local t = Engine.tracked[e.name]
+    r.category = e.category or (t and t.fxClass) or "Spell"
+    r.icon = e.icon
     return r
 end
 

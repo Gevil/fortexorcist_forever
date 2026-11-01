@@ -19,8 +19,14 @@
 --
 -- It is a pure renderer: it NEVER reads unit/aura/cooldown APIs. The Module
 -- feeds the Engine's plain, sorted scratch array ({ name, start, duration,
--- endTime, predicted }) at 10 Hz plus ready names through OnReady(); we keep
--- no references to it (only the transient e.x position tag for grouping).
+-- endTime, predicted, charges, maxCharges, rechargeEnd, category, icon })
+-- at 10 Hz plus ready names through OnReady(); we keep no references to it
+-- (only the transient e.x position tag for grouping).
+-- `charges`/`maxCharges` (the current count) drive the icon's charge number
+-- and `rechargeEnd` the icon's position for a multi-charge bar; `category`
+-- picks the colour out of TimelineSkin.Colors (default "Spell") and `icon`
+-- overrides the spell-icon lookup (items/potions). Every one of those is
+-- optional: a row without them renders exactly as before.
 --
 -- PLAN.md §3.4 rules: frames are created inside Init/Acquire* only; the slot,
 -- splash and pulse pools only grow (acquire/hide, never destroy); every style
@@ -64,6 +70,11 @@ FX.Cooldown.TimelineSkin = {
     BarTexture = TEX .. "Aluminium",          -- FW.Default.Texture
     BarColor = { 1, 1, 1, 0.20 },             -- BarColor: white a 0.20
     TextColor = { 1, 1, 1, 0.20 },            -- TextColor (tag labels)
+    -- Charge-count text (the icon's BOTTOMRIGHT number): white while the
+    -- bar has charges, Blizzard gold when the bar is drained (`charges 0`,
+    -- the one state the engine keeps on the bar -- see Engine:Sorted).
+    ChargeColor = { 1, 1, 1, 1 },
+    ChargeZeroColor = { 1.00, 0.82, 0.00, 1 },
     Spark = TEX .. "Spark2",
     SparkScale = 2.2,                         -- glow size / icon size (:1157)
     SparkAlpha = 1.0,                         -- Spark = {[0]=true, 1}
@@ -185,12 +196,18 @@ local function formatRemaining(remaining)
     return string.format("%.1f", remaining)
 end
 
---- The entry's category color: the Engine's per-spell `fxClass` override,
---- else the default Spell orange. Read once per (slot, name) bind.
-local function classColor(name)
-    local tracked = FX.Cooldown.Engine and FX.Cooldown.Engine.tracked
-    local t = tracked and tracked[name]
-    local cls = (t and t.fxClass) or "Spell"
+--- The row's category colour: the row's own `category` (the engine's
+--- per-row tag -- "Item", "Potion", "Pet", ...), else the Engine's per-spell
+--- `fxClass` override, else the default Spell orange. An unknown category
+--- name falls back to Spell, so a row that carries none renders exactly as
+--- before. Read once per (slot, name) bind.
+local function rowColor(row)
+    local cls = row.category
+    if not cls then
+        local tracked = FX.Cooldown.Engine and FX.Cooldown.Engine.tracked
+        local t = tracked and tracked[row.name]
+        cls = (t and t.fxClass) or "Spell"
+    end
     return S.Colors[cls] or S.Colors.Spell
 end
 
@@ -359,9 +376,9 @@ end
 
 -- ----------------------------------------------------------------- pools --
 --- Icon slot i from the grow-only pool: a bar-height frame carrying the
---- spell icon, its Spark2 running glow (ADD blend, category-tinted) and the
---- on-icon time text (IconTime, :1837). Created on first demand, never
---- destroyed; Update hides what it does not need.
+--- spell icon, its Spark2 running glow (ADD blend, category-tinted), the
+--- on-icon time text (IconTime, :1837) and the charge-count number. Created
+--- on first demand, never destroyed; Update hides what it does not need.
 function D:AcquireSlot(i)
     local slot = self.slots[i]
     if slot then return slot end
@@ -395,29 +412,46 @@ function D:AcquireSlot(i)
     applyFont(timeFS, ICON_FONT_SIZE, "OUTLINE")
     timeFS:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
 
-    slot = { frame = frame, tex = tex, spark = spark, timeFS = timeFS, seg = seg }
+    -- Charge count: the current castable number, the Blizzard cooldown
+    -- count text -- CooldownViewer.xml's ChargeCount/Current FontString is
+    -- anchored BOTTOMRIGHT at (-2, 2) over the icon; same corner, same
+    -- offsets, IconFont size + OUTLINE like IconTime. Hidden until a row
+    -- with a `charges` count binds here (Update owns the visibility).
+    local chargeFS = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    applyFont(chargeFS, ICON_FONT_SIZE, "OUTLINE")
+    chargeFS:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+    chargeFS:Hide()
+
+    slot = { frame = frame, tex = tex, spark = spark, timeFS = timeFS,
+             chargeFS = chargeFS, seg = seg }
     self.slots[i] = slot
     return slot
 end
 
---- Bind a slot to an entry: textures, colours, splash, fade start.
+--- Bind a slot to a row: textures, colours, splash, fade start.
 --- Everything heavy lives in the first-sighting branch; the per-tick path in
 --- Update stays allocation-free. `cx` = icon centre x relative to the bar.
 function D:BindSlot(slot, e, cx, now)
     if slot._name == e.name then return end
     slot._name = e.name
-    slot._texPath = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(e.name)
+    -- A row-carried icon (an item / potion texture: a fileID or a path)
+    -- overrides the spell-icon lookup; nil rows keep the lookup.
+    slot._texPath = e.icon
+        or (C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(e.name))
     if slot._texPath then
         -- The icon texture stays UNTINTED (bar.icon:SetNormalTexture(t5),
         -- :1400); the category colour rides the segment, spark and text.
         slot.tex:SetTexture(slot._texPath)
     end
-    local col = classColor(e.name)
+    local col = rowColor(e)
     slot._col = col
     slot._segCol = col                      -- segment: raw category (:1403)
     local fr, fg, fb = fixIntensity(col[1], col[2], col[3])
     slot.spark:SetVertexColor(fr, fg, fb)   -- FixIntensity (:1407, :1417)
     slot.timeFS:SetTextColor(fr, fg, fb)    -- IconTextColor off -> FixIntensity
+    -- The charge number is per-tick state (Update): drop the previous
+    -- name's cached text/colour so the first pass always repaints it.
+    slot._chargeText, slot._chargeCol = nil, nil
     slot._fadeStart = now
     slot._alpha = nil
     self:SpawnSplash(cx, slot._texPath, col, now)
@@ -604,8 +638,8 @@ function D:_SetSegment(slot, leftX, rightX, uvL, uvR, a)
         seg:SetTexCoord(uvL, 0, uvL, 1, uvR, 0, uvR, 1)
     end
     local col = slot._segCol
-    if col and slot._segSetA ~= a then
-        slot._segSetA = a
+    if col and (slot._segSetCol ~= col or slot._segSetA ~= a) then
+        slot._segSetCol, slot._segSetA = col, a
         seg:SetVertexColor(col[1], col[2], col[3], a)
     end
 end
@@ -620,7 +654,12 @@ function D:Update(entries, now)
 
     for i = 1, n do
         local e = entries[i]
-        local remaining = e.endTime - now
+        -- A multi-charge bar rides its NEXT charge landing: the engine keeps
+        -- `rechargeEnd` in `endTime` for the rows it ships, and the explicit
+        -- field wins when the two ever diverge. Plain cooldowns carry no
+        -- rechargeEnd, so they read exactly as before.
+        local finishAt = e.rechargeEnd or e.endTime
+        local remaining = finishAt - now
         local x = TM.pos(remaining, W, H, Max, Loga)
         e.x = x                                   -- transient tag (see above)
         e.v = (x + H * 0.5) / W                   -- the position factor t7
@@ -640,6 +679,33 @@ function D:Update(entries, now)
             slot.frame:Show()
         end
         slot.timeFS:SetText(formatRemaining(math.max(0, remaining)))
+
+        -- Charge count: the row's current castable number at the icon's
+        -- BOTTOMRIGHT. Engine:Sorted only ships a charge row while the bar
+        -- is drained (`charges` = 0) -- while charges > 0 the spell is
+        -- castable and stays off the bar -- so on the live feed this is the
+        -- number riding the recharge; a charges-less row (every plain
+        -- cooldown, every test entry) keeps it hidden.
+        local count = e.charges
+        if count ~= nil and e.maxCharges ~= nil then
+            local text = tostring(count)
+            if slot._chargeText ~= text then
+                slot._chargeText = text
+                slot.chargeFS:SetText(text)
+            end
+            local cc = (count > 0) and S.ChargeColor or S.ChargeZeroColor
+            if slot._chargeCol ~= cc then
+                slot._chargeCol = cc
+                slot.chargeFS:SetTextColor(cc[1], cc[2], cc[3], cc[4])
+            end
+            if not slot._chargeShown then
+                slot._chargeShown = true
+                slot.chargeFS:Show()
+            end
+        elseif slot._chargeShown then
+            slot._chargeShown = false
+            slot.chargeFS:Hide()
+        end
 
         -- Attach a queued ready pulse (OnReady is fed by the Module).
         local endAt = self._ready[e.name]
