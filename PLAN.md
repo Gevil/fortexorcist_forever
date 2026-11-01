@@ -541,9 +541,37 @@ owner (Gevil). You do not need to be clever; you need to be **rigorous**. Read �
 - A basalt worker cannot view images; you (or the owner) must judge visuals and send **numeric** deltas back.
 - Basalt workers can run long; check `proc://` stage lines rather than waiting blindly; if one is at ~80% context without writing its deliverable, message it to write to disk now (worked for `FuncSpec`).
 
-### 10.7 Open owner decisions / not yet asked
-- Authorize the first commit and push of this batch (large: 11 addons + tools + docs).
-- When to run the first real-client session.
-- Spell Timer scope for v1 (own casts predicted only — confirm that is acceptable).
-- Whether to adopt `RdyGaming/hated-wow-mcp` (lint/TOC validation) and `Geraldlol/witchcraft` (live in-client error capture) for the real-client phase (§5.1 candidates).
-- Trinket/proc list review: after `ItemData` lands, ask which proc buffs the owner actually wants shown (procs are out-of-combat-only on Forever).
+### 10.7 Owner decisions (resolved 2026-11-01)
+- Commit + push: **authorized** (pushing after every verified step).
+- First real-client session: **only after the 11-04 launch**.
+- Spell Timer v1 scope: **own-cast predictions** accepted.
+- In-client MCP tools (`hated-wow-mcp`, `witchcraft`): **adopt after launch**.
+- Item/trinket procs: **required, in combat too** — engine-wide problem; plan in `docs/design-combat-procs.md`, evidence in `docs/research/secrets-unknowns.md`. Ask the owner which procs to watch once the gate-container probe passes on launch day.
+
+---
+
+## 11. Iteration plan (written 2026-11-01 late, unattended run)
+
+Status at `156392e`: `scripts/gate.py` PASS — Forte_Cooldown 75, Forte_Hunter 15, Forte_Options 42 tests; 0 `Forte_*` errors; 10 data sets + 2 modules + options load; data deterministic. uiforever battery T1–T13 recorded in §10.4.
+
+**Iteration B (now, parallel, disjoint file ownership; basalt workers):**
+| Slice | Owner files | What | Why |
+|---|---|---|---|
+| B1 ProbeKit | `Forte_Core/Core/Probe.lua` (+toc twins, `Forte_Core/tests/`), `docs/launch-day.md` | `/fx probe [label]` runs every day-1 probe from `docs/research/secrets-unknowns.md` + `docs/design-combat-procs.md` §5 inside pcalls, records into `FX.db.probes`, prints a summary; owner checklist for launch day | turns launch day into one command; answers the 7 open live questions in one session |
+| B2 ReadTiers | `Forte_Cooldown/Core/Engine.lua`, `Module.lua`, `Forte_Core/Core/Compat.lua`, tests | (a) boolean ready tier from NeverSecret `isActive/isOnGCD` (early-ready in combat, resets); (b) opportunistic exact anchor from `C_Spell.GetSpellCooldownDuration` objects when not `HasSecretValues()` and the remaining time reads plain; (c) `FX.SecretState` from `C_RestrictedActions` + `C_Secrets.Should*BeSecret`, updated on `ADDON_RESTRICTION_STATE_CHANGED`, shown in `/fx status` | in-combat correctness beyond prediction (research Q2/Q5) |
+| B3 HunterUI | `Forte_Hunter/UI/*`, `Forte_Hunter/Pages/*` (+toc twins), tests | Auto Shot swing bar (Classic skin: Aluminium, URW Gothic) from `PLAYER_SWING` (documented, no secrecy), aspect-missing reminder out of combat, Hunter options page registered through `FX.Options:RegisterPage` | first visible class tool; Hunter first |
+| B4 TimelineFidelity | `Forte_Cooldown/UI/Timeline.lua`, `test_timeline.lua`, screenshots | splash to the original's law (`Forte_Cooldown.lua:1391-1403`: ~2.5×, white, ~1 s), re-check pulse/cross-fade against source; screenshot scenarios must advance the clock before capture | the remaining known fidelity delta |
+
+**Iteration C (before launch if time allows):**
+- Weapon-enchant timers (`C_Item.GetWeaponEnchantInfo` + `WEAPON_ENCHANT_CHANGED`) as an `Enchant` category on the bar.
+- Load-on-demand class data (`## LoadOnDemand: 1` per class addon, `C_AddOns.LoadAddOn` at PLAYER_LOGIN; research Q9) — saves ~300 KB.
+- Warlock tools groundwork (Soulstone/Healthstone/Shard tracking — out of combat reads + cast prediction).
+- Spell Timer (`Forte_Timer`) design + seed from `UI/Rows.lua` (own-cast predicted rows).
+
+**Iteration D (after launch-day probes):**
+- Proc gate containers + `C_UnitAuras.AddAuraSound` (design P-C/P-D) — only after probe 2/3 shows self-buff gates fire in combat.
+- Duration-object rendering spine (research design change 5) if probe 5 shows self-built objects tick in combat.
+- Fix whatever `/fx probe` reports; update §8 risks with measured facts.
+
+Every slice: worker owns its files only; manager re-runs `scripts/gate.py`, views every screenshot, re-tests on uiforever when behaviour changed, commits + pushes.
+
