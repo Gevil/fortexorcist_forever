@@ -25,6 +25,18 @@ function FX.RegisterModule(name, mod)
     FX._moduleOrder[#FX._moduleOrder + 1] = name
 end
 
+-- Subcommand registry for /fx: Forte_Options registers "options"/"config"
+-- (later modules may add more). Dispatch order in FX.OnSlash: the cooldown
+-- Display's claims (lock/unlock/reset) first, registered subs next, the
+-- status fallback last.
+FX.slashSubs = FX.slashSubs or {}
+
+--- Call from any Forte_* addon's own Lua before the first /fx is typed.
+--- fn(rest) gets the remainder of the (lower-cased, trimmed) message.
+function FX.RegisterSlash(sub, fn)
+    FX.slashSubs[(sub or ""):lower()] = fn
+end
+
 -- Slash command registration is not protected and is safe at file-load time.
 SLASH_FORTEXORCIST1 = "/fx"
 SLASH_FORTEXORCIST2 = "/fortexorcist"
@@ -38,6 +50,15 @@ function FX.OnSlash(msg)
     -- commands so the core never shadows a module command by accident.
     local cd = FX.Cooldown and FX.Cooldown.Display
     if cd and cd.Slash and cd:Slash(msg) then
+        return
+    end
+    -- Registered subcommands (/fx options|config|opt), after the Display's
+    -- claims so lock/unlock/reset keep their behaviour, before the status
+    -- fallback so a module can own any sub name.
+    local sub, rest = msg:match("^(%S+)%s*(.*)$")
+    local fn = sub and FX.slashSubs[sub]
+    if fn then
+        fn(rest)
         return
     end
     if msg == "status" then

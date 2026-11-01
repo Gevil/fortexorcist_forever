@@ -2,7 +2,7 @@
 -- Source: mythicsim-forever-engine/data/{items,enchants,consumables}.jsonl
 -- Build pin: client_build 1.60.1.70425, engine_revision a667dce8492bd9fb94269a9f864289cb74006775
 -- File pins (sha256 prefix, manifest.json): items=79e1e471a9bc enchants=0fc9751d4532 consumables=ba7451d78154
--- Regenerated: 2026-11-01T18:11:48+00:00
+-- Regenerated: 2026-11-01T18:15:23+00:00
 -- Counts: onUse=238 procs=405 (item=400 enchant=5) consumables=79
 -- Entries with a buff but no duration: onUse=54 procs=205 (window unknown from data; show as '?' until measured)
 -- Name collisions (same name, multiple ids -- ByName keys resolve to the LOWEST id;

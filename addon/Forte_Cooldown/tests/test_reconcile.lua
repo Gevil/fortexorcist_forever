@@ -54,15 +54,37 @@ local function restorePlain()
     FX.Compat.PlainOrNil = realPlainOrNil
 end
 
---- First generated Hunter row the SIM's spell DB resolves to a plain
---- spellID (the sim profile DB is sparse and renumbered -- test_engine.lua's
---- build-skew law -- so the probe, not the data pin, decides).
-local function anyResolvableSpellID()
-    local data = FX.Data and FX.Data.Hunter
-    for _, spell in pairs(data or {}) do
-        local ok, info = pcall(C_Spell.GetSpellInfo, spell.name)
-        local id = ok and info and realPlainOrNil(info.spellID)
-        if id ~= nil then return id end
+--- A plain spellID the SIM's DB resolves (name probe, id fallback) that
+--- (a) the sim's player knows (IsPlayerSpell) and (b) resolves BY ID back
+--- to a name inside `trackedLowered` (the caller's own Build, matched
+--- case-insensitively -- test_engine.lua's name law). A cast of this id
+--- therefore resolves in Module:RecordCastEvent and lands in Engine:OnCast
+--- as a tracked spell.
+local function anyResolvableSpellID(trackedLowered)
+    for _, data in pairs(FX.Data or {}) do
+        if type(data) == "table" then
+            for id, spell in pairs(data) do
+                if type(spell) == "table" then
+                    local cd = spell.cooldownMs and spell.cooldownMs / 1000
+                    if cd and cd >= Engine.MIN_COOLDOWN and spell.name then
+                        local ok, info = pcall(C_Spell.GetSpellInfo, spell.name)
+                        local pid = ok and info and realPlainOrNil(info.spellID)
+                        if pid == nil then
+                            ok, info = pcall(C_Spell.GetSpellInfo, id)
+                            pid = ok and info and realPlainOrNil(info.spellID)
+                        end
+                        if pid ~= nil and FX.Compat.IsPlayerSpell(pid) then
+                            local okN, infoN = pcall(C_Spell.GetSpellInfo, pid)
+                            local nm = okN and infoN and realPlainOrNil(infoN.name)
+                            if type(nm) == "string" and nm ~= ""
+                                and trackedLowered[nm:lower()] then
+                                return pid
+                            end
+                        end
+                    end
+                end
+            end
+        end
     end
     return nil
 end
@@ -76,7 +98,17 @@ test("cast counters classify plain/secret/unresolved, split combat, persist", fu
     assertNotNil(FX.db)
     assertEquals(FX.db.diag.casts, d)
 
-    local liveID = anyResolvableSpellID()
+    -- The probe rides the sim profile's class (FX._playerClass, set at
+    -- PLAYER_LOGIN), not a hard-picked one: build the tracked set from it
+    -- (test_engine.lua's last test has already wiped the module's Build by
+    -- the time this file runs -- file order).
+    assertNotNil(FX._playerClass)
+    freshStorage()
+    assertNotNil(Engine:Build(FX._playerClass, allKnown))
+    local trackedLowered = {}
+    for name in pairs(Engine.tracked) do trackedLowered[name:lower()] = true end
+
+    local liveID = anyResolvableSpellID(trackedLowered)
     assertNotNil(liveID)
     local bogus = 987654321
     local okB, infoB = pcall(C_Spell.GetSpellInfo, bogus)
@@ -88,11 +120,12 @@ test("cast counters classify plain/secret/unresolved, split combat, persist", fu
     M:RecordCastEvent(bogus, false)    -- plain number, resolves to nothing
     restorePlain()
 
+    local wantResolved = 1 + (bogusResolves and 1 or 0)
     assertEquals(3, d.seen)
     assertEquals(2, d.plainId)
     assertEquals(1, d.secretId)
-    assertEquals(1, d.resolved)
-    assertEquals(1 + (bogusResolves and 1 or 0), d.unresolved)
+    assertEquals(wantResolved, d.resolved)
+    assertEquals(3 - wantResolved, d.unresolved)
     -- In-combat split (out-of-combat is totals minus this).
     assertEquals(1, d.inSeen)
     assertEquals(0, d.inPlain)
