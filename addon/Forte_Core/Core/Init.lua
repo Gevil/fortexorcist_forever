@@ -67,23 +67,60 @@ function FX.OnSlash(msg)
         for _, name in ipairs(FX._moduleOrder) do
             FX.Print("  " .. name)
         end
-        local cdMod = FX.Cooldown and FX.Cooldown.Module
-        if cdMod and cdMod.Status then
-            cdMod:Status()
+        -- Every registered module prints its own status lines, in
+        -- registration order (the registry is the only order we own). The
+        -- old code hard-wired Forte_Cooldown and let Forte_Hunter wrap it;
+        -- review m6 killed both. One module's Status raising must not
+        -- silence the others, so each call is protected.
+        for _, name in ipairs(FX._moduleOrder) do
+            local mod = FX.modules[name]
+            if mod and mod.Status then
+                local ok, err = pcall(mod.Status, mod)
+                if not ok then
+                    FX.Print("|cffff5555" .. name .. " status failed:|r " .. tostring(err))
+                end
+            end
         end
         return
     end
     FX.Print(FX.CONST.VERSION .. " -- /fx status")
 end
 
+--- Re-read the player's class token and, when it changed, update
+--- FX._playerClass and call every module's optional OnClassChanged(new).
+--- Real clients never change class mid-session; this is the cheap guard
+--- for tooling that does (the uiforever T4 artifact logged in as the
+--- wrong class). Runs at PLAYER_ENTERING_WORLD; PLAYER_LOGIN below keeps
+--- its own one-time capture.
+function FX.RefreshPlayerClass()
+    local ok, _, classFile = pcall(UnitClass, "player")
+    if not ok or type(classFile) ~= "string" then return end
+    if classFile == FX._playerClass then return end
+    FX._playerClass = classFile
+    for _, name in ipairs(FX._moduleOrder) do
+        local mod = FX.modules[name]
+        if mod and mod.OnClassChanged then
+            local okC, err = pcall(mod.OnClassChanged, mod, classFile)
+            if not okC then
+                FX.Print("|cffff5555" .. name .. " OnClassChanged failed:|r " .. tostring(err))
+            end
+        end
+    end
+end
+
 local bootstrap = CreateFrame("Frame")
 bootstrap:RegisterEvent("ADDON_LOADED")
 bootstrap:RegisterEvent("PLAYER_LOGIN")
+bootstrap:RegisterEvent("PLAYER_ENTERING_WORLD")
 bootstrap:SetScript("OnEvent", function(_, event, addonName)
     if event == "ADDON_LOADED" then
         if addonName ~= FX.CONST.ADDON_NAME then return end
         _G[FX.CONST.SV_KEY] = _G[FX.CONST.SV_KEY] or {}
         FX.db = _G[FX.CONST.SV_KEY]
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        -- Zone-in re-read (the login capture below is the first one): the
+        -- uiforever T4 artifact class guard, see FX.RefreshPlayerClass.
+        FX.RefreshPlayerClass()
     elseif event == "PLAYER_LOGIN" then
         local _, classFile = UnitClass("player")
         FX._playerClass = classFile -- e.g. "HUNTER", "WARLOCK" -- matches ForteXorcist.Data keys title-cased below

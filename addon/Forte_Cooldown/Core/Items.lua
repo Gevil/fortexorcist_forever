@@ -37,6 +37,19 @@
 -- FX.Compat.GetItemCooldownInfo, the seam tests script. All live C_* calls
 -- are pcall'd: on a secret-restricted client a read raises, it does not
 -- merely return a secret.
+--  * Evidence for the inventory-slot pair (GetInventoryItemID for the id,
+--    GetInventoryItemCooldown for the window): the wow-ui-sim probe
+--    (measured 2026-11-01: both exist, returning plain 0/0/1 = ready),
+--    uiforever.com, and CooldownMaster shipping them against the live
+--    client (docs/engine-notes.md). They are NOT declared in the pinned
+--    Forever catalogs (zero declarations; the nearest catalog entry is
+--    C_TooltipInfo.GetInventoryItemByID) -- the earlier "verified in the
+--    pinned catalog" claim at this spot was false (review 2026-11-01 m2).
+--    Every call site is nil-guarded, and Compat.GetEquippedItemID falls
+--    back to the catalog-declared pair
+--    C_Item.GetItemID(ItemLocation:CreateFromEquipmentSlot(slot)), so a
+--    client without the globals degrades to "no equipped items tracked"
+--    (bag items keep working) -- never an error.
 --
 -- Open live probes (docs/design-combat-procs.md §5.7, first real client):
 --  1. Are the item-cooldown returns plain in combat? (The catalog annotates
@@ -109,6 +122,22 @@ function Items:BestDuration(name)
     return t and t.baseDuration
 end
 
+--- The stale-entry sweep, run at the END of a Rescan against the freshly
+--- built `Items.tracked` (M2 fix, 2026-11-01: the sweep used to run at the
+--- top, right after the wipe, so `not self.tracked[name]` matched EVERY
+--- item entry and a bag event killed every live trinket/potion timer --
+--- in combat included, where no secret read can bring it back). Only an
+--- entry whose item the fresh scan did not find dies.
+local function pruneUntracked()
+    for name, e in pairs(Engine.entries) do
+        if (e.category == "Item" or e.category == "Potion")
+            and not Items.tracked[name] then
+            e.row = nil
+            Engine.entries[name] = nil
+        end
+    end
+end
+
 --- Rescan equipped trinkets (slots 13/14) and bag consumables/on-use items
 --- against the generated data, matched by NAME. Returns the tracked count.
 --- `readers` overrides the game seams for tests
@@ -118,19 +147,13 @@ end
 function Items:Rescan(readers)
     wipe(self.tracked)
     wipe(self.byCastSpell)
-    -- Invariant FIRST, before the data gate: an item-category entry with no
-    -- tracking behind it dies -- here and on the data-absent path, so a
-    -- mid-session loss of the data addon retires its live entries cleanly.
-    for name, e in pairs(Engine.entries) do
-        if (e.category == "Item" or e.category == "Potion")
-            and not self.tracked[name] then
-            e.row = nil
-            Engine.entries[name] = nil
-        end
-    end
     local data = FX.Data and FX.Data.Items
     if not data or type(data.onUse) ~= "table" or type(data.consumables) ~= "table" then
-        return 0 -- Forte_Items absent: the item feature simply is off
+        -- Forte_Items absent: the item feature simply is off. Nothing is
+        -- tracked, so the sweep retires every live item entry (a mid-session
+        -- loss of the data addon degrades cleanly).
+        pruneUntracked()
+        return 0
     end
     readers = readers or {}
     local getEquippedItemID = readers.getEquippedItemID or (FX.Compat and FX.Compat.GetEquippedItemID)
@@ -140,6 +163,11 @@ function Items:Rescan(readers)
     local numSlots = readers.numSlots or (FX.Compat and FX.Compat.GetContainerNumSlots)
     local getContainerItemID = readers.getContainerItemID or (FX.Compat and FX.Compat.GetContainerItemID)
     if not (getEquippedItemID and getItemName and numSlots and getContainerItemID) then
+        -- The inventory cannot be read at all: this is blindness, not an
+        -- empty inventory, so NOTHING is pruned (pruning here would be the
+        -- M2 bug again -- live item entries die on an event that proved
+        -- nothing). The live entries keep their clocks and retire through
+        -- the reads/Sweep like any other entry.
         return 0
     end
 
@@ -224,7 +252,11 @@ function Items:Rescan(readers)
     end
 
     -- 3. Entries of items that left the inventory (unequipped, drunk,
-    --    sold) died with the untracked sweep at the top of this function.
+    --    sold): the fresh scan did not find them, so the sweep retires
+    --    them. Everything the scan DID find keeps its live entry -- the
+    --    bag events that trigger a rescan (looting, a potion count change)
+    --    say nothing about a running cooldown (M2).
+    pruneUntracked()
     return n
 end
 
@@ -323,7 +355,11 @@ function Items:ReadAll(now)
     if not read then return end
     for name, t in pairs(self.tracked) do
         local ok, start, duration = pcall(read, t.itemId, t.slot)
-        if ok and start ~= nil then
+        -- No `start ~= nil` here: that is a comparison on an unprobed live
+        -- read (m1 -- a secret number raises on `~= nil` and takes the
+        -- whole 1 Hz pass down with it). OnRead is the guard: it routes
+        -- every number through PlainOrNil and answers "secret".
+        if ok then
             self:OnRead(name, start, duration, now)
         end
     end

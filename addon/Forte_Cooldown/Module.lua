@@ -24,6 +24,7 @@ local sortedScratch = {}
 
 local readPending, rebuildPending, rescanPending = false, false, false
 local reasonShown = false
+local zeroShown = false
 
 --- Coalesced item rescan (PLAYER_ENTERING_WORLD / BAG_UPDATE_COOLDOWN /
 --- PLAYER_EQUIPMENT_CHANGED / BAG_UPDATE_DELAYED -- all four verified in
@@ -96,6 +97,10 @@ function M:ReadAll()
 end
 
 function M:Rebuild()
+    -- The source line and the zero notice below describe THIS pass: clear
+    -- the recorded source so Build's isKnown calls repopulate it (nil =
+    -- no source answered during this Rebuild).
+    FX.Compat.isPlayerSpellSource = nil
     local n, reason = Engine:Build(FX._playerClass, isKnown)
     if not n then
         -- SPELLS_CHANGED can fire constantly (loot, talents, levels). Say
@@ -107,11 +112,32 @@ function M:Rebuild()
         return
     end
     reasonShown = false
+    -- M4 (review 2026-11-01): the data is there, the class is right, and
+    -- the isKnown gate resolved NOTHING -- the shape a missing
+    -- spell-known source leaves behind (IsPlayerSpell is not in the pinned
+    -- Forever catalog; Compat.IsPlayerSpell now chains through the
+    -- C_SpellBook fallbacks and records which source answers). 0 is
+    -- truthy in Lua, so the `not n` branch above cannot carry this: say it
+    -- out loud, naming the source, once per session -- an empty bar is
+    -- otherwise indistinguishable from "nothing to show".
+    if n == 0 and not zeroShown then
+        zeroShown = true
+        FX.Print("cooldowns: 0 spells known - spell-known check via "
+            .. tostring(FX.Compat.isPlayerSpellSource
+                or "none (IsPlayerSpell and C_SpellBook absent)")
+            .. "; report this")
+    end
     -- Multi-charge detection: a live C_Spell.GetSpellCharges sweep marks
     -- tracked spells whose (NeverSecret) maxCharges is > 1. Runtime facts,
     -- not data -- see Engine:DetectCharges and the Engine header.
     Engine:DetectCharges()
     M:ReadAll()
+end
+
+--- Core FX.RefreshPlayerClass notification (uiforever T4 class guard):
+--- the tracked set is class data, so a class change is a full rebuild.
+function M:OnClassChanged()
+    M:Rebuild()
 end
 
 --- Bind (and create) the cast-secrecy counters. The numbers live in
@@ -304,6 +330,11 @@ function M:Status()
     for _ in pairs(Engine.tracked) do tracked = tracked + 1 end
     local active = Engine:Sorted(sortedScratch)
     FX.Print(string.format("Cooldown: %d tracked, %d active", tracked, #active))
+    -- M4: the /fx status probe for the spell-known gate. "not probed"
+    -- means IsPlayerSpell/chain was never consulted; the fallback names
+    -- say the legacy IsPlayerSpell global was absent on this client.
+    FX.Print(string.format("spell-known check: %s",
+        tostring(FX.Compat.isPlayerSpellSource or "not probed")))
     for _, e in ipairs(active) do
         FX.Print(string.format("  %s: %.1fs%s", e.name,
             math.max(0, e.endTime - GetTime()),

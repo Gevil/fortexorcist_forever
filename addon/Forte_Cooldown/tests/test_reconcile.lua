@@ -44,6 +44,7 @@ local originalStorage = Engine.learned
 local savedDbDiag = FX.db and FX.db.diag and FX.db.diag.casts
 
 local realPlainOrNil = FX.Compat.PlainOrNil
+local realIsPlayerSpell = _G.IsPlayerSpell
 local function patchPlain()
     FX.Compat.PlainOrNil = function(v)
         if v == SECRET then return nil end
@@ -52,6 +53,51 @@ local function patchPlain()
 end
 local function restorePlain()
     FX.Compat.PlainOrNil = realPlainOrNil
+end
+
+--- A plain spellID the sim's player knows (the pristine IsPlayerSpell
+--- answers, so the caller can stub the global without losing the probe).
+local function knownPlayerSpellID()
+    for _, data in pairs(FX.Data or {}) do
+        if type(data) == "table" then
+            for _, spell in pairs(data) do
+                if type(spell) == "table" and type(spell.name) == "string" then
+                    local ok, info = pcall(C_Spell.GetSpellInfo, spell.name)
+                    local id = ok and info and realPlainOrNil(info.spellID)
+                    if id ~= nil and realIsPlayerSpell
+                        and realIsPlayerSpell(id) then
+                        return id
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+--- Drive the real /fx status path with FX.Print captured.
+local function statusLines()
+    local out = {}
+    local realPrint = FX.Print
+    FX.Print = function(msg) out[#out + 1] = tostring(msg) end
+    FX.OnSlash("status")
+    FX.Print = realPrint
+    return out
+end
+
+local function countMatching(lines, pattern)
+    local n = 0
+    for _, l in ipairs(lines) do
+        if l:find(pattern) then n = n + 1 end
+    end
+    return n
+end
+
+local function firstIndex(lines, pattern)
+    for i, l in ipairs(lines) do
+        if l:find(pattern) then return i end
+    end
+    return nil
 end
 
 --- A plain spellID the SIM's DB resolves (name probe, id fallback) that
@@ -167,6 +213,121 @@ test("/fx status prints the casts line and the combat split", function()
 
     if FX.db then FX.db.diag.casts = savedCasts end
     M:InitCastDiag()
+end)
+
+-- ------------------------------------------------- status loop (review m6) --
+-- The 2026-11-01 wave replaced Init.lua's hard-wired `FX.Cooldown.Module:
+-- Status()` call (plus Forte_Hunter's monkey-patch on it) with a loop over
+-- FX._moduleOrder: every module prints its OWN lines. These tests drive
+-- FX.OnSlash("status") end to end with both modules registered.
+
+test("/fx status prints every module Status once, in registration order", function()
+    assertNotNil(FX.modules["Hunter"]) -- Forte_Hunter loads via OptionalDeps
+    assertNotNil(FX.modules["Cooldown"])
+    local lines = statusLines()
+    assertEquals(1, countMatching(lines, "^Cooldown: %d+ tracked"))
+    assertEquals(1, countMatching(lines, "^Hunter: %d+ aspects"))
+    local orderCd, orderHu
+    for i, name in ipairs(FX._moduleOrder) do
+        if name == "Cooldown" then orderCd = i end
+        if name == "Hunter" then orderHu = i end
+    end
+    assertNotNil(orderCd)
+    assertNotNil(orderHu)
+    local idxCd = firstIndex(lines, "^Cooldown: %d+ tracked")
+    local idxHu = firstIndex(lines, "^Hunter: %d+ aspects")
+    assertNotNil(idxCd)
+    assertNotNil(idxHu)
+    if orderCd < orderHu then
+        assertTrue(idxCd < idxHu)
+    else
+        assertTrue(idxHu < idxCd)
+    end
+end)
+
+test("/fx status prints the Hunter line with no Cooldown module (m6)", function()
+    -- The old chain died with Forte_Cooldown (Tools.lua admitted it in a
+    -- comment); the registry loop is module-agnostic.
+    local savedMod = FX.modules.Cooldown
+    local savedOrder = {}
+    for i, name in ipairs(FX._moduleOrder) do savedOrder[i] = name end
+    for i = #FX._moduleOrder, 1, -1 do
+        if FX._moduleOrder[i] == "Cooldown" then table.remove(FX._moduleOrder, i) end
+    end
+    FX.modules.Cooldown = nil
+    local lines = statusLines()
+    FX.modules.Cooldown = savedMod
+    for i, name in ipairs(savedOrder) do FX._moduleOrder[i] = name end
+    assertEquals(1, countMatching(lines, "^Hunter: %d+ aspects"))
+end)
+
+-- ---------------------------------------------- spell-known chain (M4) --
+
+test("IsPlayerSpell chain falls through when the top source is absent", function()
+    local known = knownPlayerSpellID()
+    assertNotNil(known)
+    assertNotNil(_G.C_SpellBook) -- the sim ships the SpellBook system
+    local savedIPS, savedSB = _G.IsPlayerSpell, _G.C_SpellBook
+    local savedSource = FX.Compat.isPlayerSpellSource
+    _G.IsPlayerSpell = nil
+    FX.Compat.isPlayerSpellSource = nil
+    -- Second link: the real C_SpellBook answers for a spell we know.
+    assertTrue(FX.Compat.IsPlayerSpell(known))
+    assertEquals("IsSpellKnownOrInSpellBook", FX.Compat.isPlayerSpellSource)
+    -- Third link: only IsSpellKnown present.
+    _G.C_SpellBook = { IsSpellKnown = function() return true end }
+    FX.Compat.isPlayerSpellSource = nil
+    assertTrue(FX.Compat.IsPlayerSpell(known))
+    assertEquals("IsSpellKnown", FX.Compat.isPlayerSpellSource)
+    -- All links gone: false, no source recorded.
+    _G.C_SpellBook = nil
+    FX.Compat.isPlayerSpellSource = nil
+    assertFalse(FX.Compat.IsPlayerSpell(known))
+    assertNil(FX.Compat.isPlayerSpellSource)
+    _G.IsPlayerSpell, _G.C_SpellBook = savedIPS, savedSB
+    FX.Compat.isPlayerSpellSource = savedSource
+end)
+
+test("Rebuild says 0 spells known once when every spell-known source is absent", function()
+    local savedIPS, savedSB = _G.IsPlayerSpell, _G.C_SpellBook
+    _G.IsPlayerSpell, _G.C_SpellBook = nil, nil
+    local lines = {}
+    local realPrint = FX.Print
+    FX.Print = function(msg) lines[#lines + 1] = tostring(msg) end
+    M:Rebuild()
+    M:Rebuild()
+    FX.Print = realPrint
+    _G.IsPlayerSpell, _G.C_SpellBook = savedIPS, savedSB
+    local zeros, reasons = 0, 0
+    for _, l in ipairs(lines) do
+        if l:find("0 spells known") then zeros = zeros + 1 end
+        if l:find("no data") then reasons = reasons + 1 end
+    end
+    assertEquals(1, zeros)   -- ONE notice, not one per Rebuild
+    assertEquals(0, reasons) -- data exists: NOT the "no data" path
+    local joined = table.concat(lines, "\n")
+    assertContains(joined, "spell-known check via none")
+    assertContains(joined, "report this")
+    -- Zero tracked IS the M4 failure shape the notice warns about.
+    local tracked = 0
+    for _ in pairs(Engine.tracked) do tracked = tracked + 1 end
+    assertEquals(0, tracked)
+    -- Re-arm a tracked set for anything running before the file-end Restore.
+    freshStorage()
+    assertNotNil(Engine:Build(FX._playerClass, allKnown))
+end)
+
+test("/fx status prints the spell-known source", function()
+    local savedSource = FX.Compat.isPlayerSpellSource
+    FX.Compat.isPlayerSpellSource = "IsSpellKnown"
+    local lines = {}
+    local realPrint = FX.Print
+    FX.Print = function(msg) lines[#lines + 1] = tostring(msg) end
+    M:Status()
+    FX.Print = realPrint
+    FX.Compat.isPlayerSpellSource = savedSource
+    local joined = table.concat(lines, "\n")
+    assertContains(joined, "spell-known check: IsSpellKnown")
 end)
 
 -- ------------------------------------------------------------- active edge --

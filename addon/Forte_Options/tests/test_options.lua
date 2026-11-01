@@ -368,6 +368,99 @@ test("Cooldown page: Lock wiring, colours render, section recycles", function()
     d:SetLocked(true)
 end)
 
+test("m4: /fx lock|unlock publish into Lock AND GlobalLock", function()
+    local d = FX.Cooldown.Display
+    d:SetLocked(true)
+    assertEquals(true, S:Get("Cooldown", "Lock"))
+    assertEquals(true, S:Get("General", "GlobalLock"))
+    FX.OnSlash("unlock")
+    assertEquals(false, d.cfg.locked)
+    assertEquals(false, S:Get("Cooldown", "Lock"))
+    assertEquals(false, S:Get("General", "GlobalLock"))
+    FX.OnSlash("lock")
+    assertEquals(true, d.cfg.locked)
+    assertEquals(true, S:Get("Cooldown", "Lock"))
+    assertEquals(true, S:Get("General", "GlobalLock"))
+end)
+
+test("m4: the Cooldown page reads the LIVE lock (/fx unlock -> box unchecked)",
+function()
+    local d = FX.Cooldown.Display
+    FX.OnSlash("unlock")
+    O:Open("Cooldown")
+    local page = O.pagesBuilt["Cooldown"]
+    local lockW
+    for _, wd in ipairs(page.sections[2].widgets) do
+        if wd.spec.key == "Lock" then lockW = wd end
+    end
+    assertNotNil(lockW)
+    lockW.refresh()
+    assertEquals(false, lockW.obj:GetChecked())
+    -- The header lock icon follows the live state: unlocked = gold.
+    local r, g = O.header.lockText:GetTextColor()
+    assertTrue(r >= 0.99 and g >= 0.7, "unlocked header icon is gold")
+    -- Click the box -> the setting flips -> the bar is LOCKED.
+    lockW.obj:GetScript("OnClick")(lockW.obj, "LeftButton")
+    assertEquals(true, d.cfg.locked)
+    assertEquals(true, S:Get("Cooldown", "Lock"))
+    assertEquals(true, S:Get("General", "GlobalLock"))
+    -- And the General page's mirror reads the same live truth.
+    O:Open("General")
+    local gl
+    for _, wd in ipairs(O.pagesBuilt["General"].sections[2].widgets) do
+        if wd.spec.key == "GlobalLock" then gl = wd end
+    end
+    assertNotNil(gl)
+    gl.refresh()
+    assertEquals(true, gl.obj:GetChecked())
+    d:SetLocked(true)
+    O:Close()
+end)
+
+test("T9 live wiring: a Width edit on the page resizes the live bar", function()
+    O:Open("Cooldown")
+    local page = O.pagesBuilt["Cooldown"]
+    local widthW
+    for _, wd in ipairs(page.sections[3].widgets) do
+        if wd.spec.key == "Width" then widthW = wd end
+    end
+    assertNotNil(widthW)
+    widthW.obj:SetText("320")
+    widthW.obj:GetScript("OnEnterPressed")(widthW.obj)
+    assertEquals(320, FX.Cooldown.Display.anchor:GetWidth())
+    -- The per-row recycle restores the default AND the bar follows.
+    widthW.resetBtn:GetScript("OnClick")(widthW.resetBtn)
+    assertEquals(250, S:Get("Cooldown", "Width"))
+    assertEquals(250, FX.Cooldown.Display.anchor:GetWidth())
+    O:Close()
+end)
+
+test("T9 live wiring: the ColorSpell row retints the live segments", function()
+    O:Open("Cooldown")
+    local d = FX.Cooldown.Display
+    local page = O.pagesBuilt["Cooldown"]
+    local colW
+    for _, wd in ipairs(page.sections[4].widgets) do
+        if wd.spec.key == "ColorSpell" then colW = wd end
+    end
+    assertNotNil(colW)
+    local custom = { 0.30, 0.20, 0.90, 1 }
+    S:Set("Cooldown", "ColorSpell", custom)
+    local now = GetTime() + 90000
+    d:Update({
+        { name = "OptsProbe", start = 0, duration = 120, endTime = now + 120 },
+    }, now)
+    local slot = d._byName["OptsProbe"]
+    assertNotNil(slot)
+    local r, g, b = slot.seg:GetVertexColor()
+    assertTrue(math.abs(r - custom[1]) < 1e-3)
+    assertTrue(math.abs(g - custom[2]) < 1e-3)
+    assertTrue(math.abs(b - custom[3]) < 1e-3)
+    S:Reset("Cooldown", "ColorSpell")
+    d:Update({}, now + 1)
+    O:Close()
+end)
+
 test("About page builds and opens", function()
     O:Open("About")
     assertEquals("About", O.pageId)

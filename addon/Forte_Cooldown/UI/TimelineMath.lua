@@ -88,10 +88,35 @@ end
 --- `s9 > t10` -- "more than half an icon overlap"). Entries with x = nil
 --- (hidden) are skipped. Returns groups: each group is a list of the entry
 --- tables, in input order.
-function TM.group(sortedEntries, H)
-    local groups = {}
+---
+--- `out` (optional) is a CALLER-OWNED scratch table: the groups list and
+--- every group sub-list are reused from it, the pass allocates NOTHING.
+--- The contract: every list the pass produces lives in `out` (the live
+--- groups in out[1..n], out.nested holding the whole pool), so the next
+--- pass finds every list in the pool, wiped. Without `out` the result is
+--- fresh tables, which keeps the pure/unit-test shape unchanged.
+function TM.group(sortedEntries, H, out)
+    local groups, nested, pool
+    if out then
+        groups = out
+        nested = groups.nested
+        if not nested then
+            nested = {}
+            groups.nested = nested
+        end
+        pool = #nested
+        -- Detach the previous pass's live lists: they stay in the pool
+        -- (nested), already wiped by the tail pass of the call that made
+        -- them (see the clear below), so the pass starts on a full pool.
+        for i = #groups, 1, -1 do
+            groups[i] = nil
+        end
+    else
+        groups, nested, pool = {}, nil, 0
+    end
     local cur
     local prevCentre
+    local n = 0
     for i = 1, #sortedEntries do
         local e = sortedEntries[i]
         if e.x then
@@ -99,8 +124,18 @@ function TM.group(sortedEntries, H)
             if prevCentre and prevCentre > e.x then
                 cur[#cur + 1] = e
             else
-                cur = { e }
-                groups[#groups + 1] = cur
+                n = n + 1
+                cur = nested and nested[n]
+                if cur then
+                    -- Reuse from the pool: the list may carry the last
+                    -- pass's members -- wipe first, fill after.
+                    for j = #cur, 1, -1 do cur[j] = nil end
+                else
+                    cur = {}
+                    if nested then nested[n] = cur end
+                end
+                cur[1] = e
+                groups[n] = cur
             end
             prevCentre = centre
         end

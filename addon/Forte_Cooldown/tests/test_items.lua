@@ -330,6 +330,61 @@ test("ReadAll routes the seam through OnRead; raises leave entries alone", funct
     assertNil(Engine.entries[PHPOT]) -- the raise left no entry, no crash
 end)
 
+test("ReadAll: a secret read raises nothing, leaves the entry, and rides the guard (m1)", function()
+    if not (FX.Data and FX.Data.Items) then return end
+    freshStorage()
+    asHunter()
+    Items:Rescan(readersFrom({
+        equipped = { [13] = GEM_ID },
+        names = { [GEM_ID] = GEM },
+        spells = { [GEM_ID] = "Arcane Infusion" },
+    }))
+    Items:OnCastBySpellName("Arcane Infusion", 5000)
+    local e = Engine.entries[GEM]
+    local start, dur, endTime = e.start, e.duration, e.endTime
+
+    -- Instrument the guarding gate: every read of the pass has to REACH
+    -- OnRead. A raw test on the read inside the pass -- m1's
+    -- `ok and start ~= nil` -- is precisely what is forbidden, and a read
+    -- the pass filters out by itself is a read no guard ever classified.
+    local visits = 0
+    local realOnRead = Items.OnRead
+    Items.OnRead = function(self, name, s, d, n)
+        visits = visits + 1
+        return realOnRead(self, name, s, d, n)
+    end
+    local realRead = FX.Compat.GetItemCooldownInfo
+    local ok
+
+    -- 1. The combat-locked shape: the seam answers with secret numbers.
+    patchPlain()
+    FX.Compat.GetItemCooldownInfo = function() return SECRET, SECRET, SECRET end
+    ok = pcall(Items.ReadAll, Items, 5010)
+    restorePlain()
+    assertTrue(ok, "a secret item read raises nothing in the 1 Hz pass")
+    assertEquals(1, visits, "the secret read rides the guard")
+    local e2 = Engine.entries[GEM]
+    assertNotNil(e2, "the pass leaves the entry")
+    assertEquals(e, e2) -- the same entry object
+    near(start, e2.start)
+    near(dur, e2.duration)
+    near(endTime, e2.endTime)
+    assertEquals("cast", e2.source)
+    assertTrue(e2.predicted)
+
+    -- 2. The numberless shape (Compat.GetItemCooldownInfo with no item API
+    --    applying): the pass must not classify it -- OnRead does, as
+    --    "secret" -- so the entry stays.
+    visits = 0
+    FX.Compat.GetItemCooldownInfo = function() return nil, nil, nil end
+    ok = pcall(Items.ReadAll, Items, 5020)
+    FX.Compat.GetItemCooldownInfo = realRead
+    Items.OnRead = realOnRead
+    assertTrue(ok, "a numberless read raises nothing")
+    assertEquals(1, visits, "the numberless read rides the guard")
+    assertNotNil(Engine.entries[GEM], "only OnRead's clear law retires the entry")
+end)
+
 -- ----------------------------------------------------------------- rows ---
 
 test("Sorted rows expose category/icon; spell rows default Spell/nil", function()
@@ -402,6 +457,60 @@ test("Rescan drops entries of items that left the inventory", function()
     Items:Rescan(readersFrom({ equipped = {} }))
     assertNotNil(Engine.entries["Rapid Fire"])
     Engine.entries["Rapid Fire"] = nil
+end)
+
+test("a rescan that re-finds the item keeps its live entry (M2)", function()
+    if not (FX.Data and FX.Data.Items) then return end
+    freshStorage()
+    asHunter()
+    local spec = readersFrom({
+        equipped = { [13] = GEM_ID },
+        names = { [GEM_ID] = GEM, [PHPOT_ID] = PHPOT, [MPOT_ID] = MPOT },
+        spells = { [GEM_ID] = "Arcane Infusion", [PHPOT_ID] = "Greater Healing" },
+        bags = { [0] = { PHPOT_ID, MPOT_ID } },
+    })
+    Items:Rescan(spec)
+    -- A fired trinket and a drunk-potion family: three live windows.
+    Items:OnCast(GEM, 7000)
+    Items:OnCastBySpellName("Greater Healing", 7010)
+    local gemEntry = Engine.entries[GEM]
+    assertNotNil(gemEntry)
+    local phpotEntry = Engine.entries[PHPOT]
+    assertNotNil(phpotEntry, "the drunk potion's family window")
+    local mpotEntry = Engine.entries[MPOT]
+    assertNotNil(mpotEntry, "the tracked sibling shares the category window")
+
+    -- The bag event (loot, a potion count change, BAG_UPDATE_COOLDOWN)
+    -- triggers the debounced rescan. It re-finds every one of these items,
+    -- so it says NOTHING about the running cooldowns: the M2 bug killed
+    -- them all (the untracked sweep ran on the just-wiped `tracked`).
+    local n = Items:Rescan(readersFrom({
+        equipped = { [13] = GEM_ID },
+        names = { [GEM_ID] = GEM, [PHPOT_ID] = PHPOT, [MPOT_ID] = MPOT },
+        spells = { [GEM_ID] = "Arcane Infusion", [PHPOT_ID] = "Greater Healing" },
+        bags = { [0] = { PHPOT_ID, MPOT_ID } },
+    }))
+    assertEquals(3, n)
+    local gem = Engine.entries[GEM]
+    assertNotNil(gem, "a trinket window survives a rescan that re-finds it")
+    assertEquals(gemEntry, gem) -- the same entry object, not a rebuilt one
+    near(7000, gem.start)
+    near(7120, gem.endTime)
+    assertEquals("cast", gem.source)
+    for _, pair in ipairs({ { PHPOT, phpotEntry, 7010 }, { MPOT, mpotEntry, 7010 } }) do
+        local pe = Engine.entries[pair[1]]
+        assertNotNil(pe, pair[1] .. " keeps its shared-category window")
+        assertEquals(pair[2], pe)
+        near(pair[3], pe.start)
+        near(pair[3] + 120, pe.endTime)
+    end
+    -- The window is intact: it still sweeps out at its endTime.
+    local popped = {}
+    for _, nm in ipairs(Engine:Sweep(7120, {})) do popped[nm] = true end
+    assertTrue(popped[GEM], "the trinket pops at the untouched endTime")
+    Engine.entries[GEM] = nil
+    Engine.entries[PHPOT] = nil
+    Engine.entries[MPOT] = nil
 end)
 
 test("Counts + /fx status print the Items line", function()

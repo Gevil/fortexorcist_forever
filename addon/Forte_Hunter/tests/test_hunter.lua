@@ -269,19 +269,123 @@ test("Auto Shot cast starts the timer from the speed read; last-known fallback",
 end)
 
 -- 9. Module wiring sanity: registration is load-time; frame creation is
--- OnEnable-gated by class; Status() carries the module line.
-test("module registered, Status string shape", function()
+-- OnEnable-gated by class; Status PRINTS its own line (review m6: the
+-- Core registry loops and modules print -- the Forte_Cooldown Status
+-- wrapper is gone), StatusLine keeps the string shape.
+test("module registered, Status prints its own line", function()
     assertNotNil(FX.modules["Hunter"])
     assertEquals(Tools, FX.modules["Hunter"])
-    local status = Tools:Status()
+    local lines = {}
+    local realPrint = FX.Print
+    FX.Print = function(msg) lines[#lines + 1] = tostring(msg) end
+    Tools:Status()
+    FX.Print = realPrint
+    assertEquals(1, #lines) -- exactly one printed line
+    local status = lines[1]
     assertContains(status, "Hunter:")
     assertContains(status, "aspects")
     assertContains(status, "ranged swing")
     assertContains(status, "idle")
-    -- Aspect + swing state appear once set.
+    -- The StatusLine string behind the print carries aspect state.
     local savedAspectCurrent = Tools.Aspects:Current()
     Tools.Aspects:OnCast(Tools.aspectNames[1])
-    assertContains(Tools:Status(), Tools.aspectNames[1])
+    assertContains(Tools:StatusLine(), Tools.aspectNames[1])
     Tools.Aspects:Reconcile(function() return false end) -- restore
     assertEquals(savedAspectCurrent, Tools.Aspects:Current())
+end)
+
+-- 10. M3 (review 2026-11-01): the cast-event spellID may be a secret --
+-- resolveCastName wraps the lookup, the info truth test and the field
+-- read in ONE pcall; no raw comparison on the payload survives. The
+-- M.ResolveCastName seam is the exact function the event frame calls (the
+-- old code exposed no seam and compared the raw id before the pcall).
+test("cast name resolution survives sentinel, nil and junk spellIDs", function()
+    assertNotNil(Tools.ResolveCastName)
+    -- Sentinel through a PlainOrNil seam: classifies as a secret. The
+    -- secret-path contract is "nil in, nil out, never a raise" (mirrors
+    -- test_reconcile.lua's sentinel seam).
+    local SECRET = "FXTEST-SECRET-VALUE"
+    local realPlain = FX.Compat.PlainOrNil
+    FX.Compat.PlainOrNil = function(v)
+        if v == SECRET then return nil end
+        return realPlain(v)
+    end
+    local okS, nameS = pcall(Tools.ResolveCastName, SECRET)
+    FX.Compat.PlainOrNil = realPlain
+    assertTrue(okS)
+    assertNil(nameS)
+    -- nil / junk ids: the pcall absorbs the lookup, nil out, no raise.
+    local okN, nameN = pcall(Tools.ResolveCastName, nil)
+    assertTrue(okN)
+    assertNil(nameN)
+    local okB, nameB = pcall(Tools.ResolveCastName, 987654321)
+    assertTrue(okB)
+    assertNil(nameB)
+    -- A table id (the LuaJIT emulation cannot raise out of a plain
+    -- compare; the pcall still owns every touch of the payload).
+    local okT, nameT = pcall(Tools.ResolveCastName, setmetatable({},
+        { __index = function() error("touched", 0) end }))
+    assertTrue(okT)
+    assertNil(nameT)
+end)
+
+-- 11. Class re-read hardening (uiforever T4 artifact): Core
+-- FX.RefreshPlayerClass notifies OnClassChanged; the tools' event frame
+-- follows the class.
+test("OnClassChanged switches the event frame on and off", function()
+    local wasEnabled = Tools._eventsEnabled and true or false
+    Tools:OnClassChanged("HUNTER")
+    assertTrue(Tools._eventsEnabled)
+    assertNotNil(Tools._eventFrame)
+    assertNotNil(Tools._eventFrame:GetScript("OnEvent"))
+    Tools:OnClassChanged("WARLOCK")
+    assertFalse(Tools._eventsEnabled)
+    assertNil(Tools._eventFrame:GetScript("OnEvent"))
+    -- Restore the pre-test state (the sim profile is not a Hunter: events
+    -- were never live at login).
+    if wasEnabled then
+        Tools:EnableEvents()
+    else
+        Tools:DisableEvents()
+        Tools._eventFrame = nil
+    end
+end)
+
+test("FX.RefreshPlayerClass re-reads UnitClass and notifies modules", function()
+    assertNotNil(FX.RefreshPlayerClass) -- the new Core hook
+    local savedClass, savedUC = FX._playerClass, _G.UnitClass
+    local calls = {}
+    local probe = {
+        OnClassChanged = function(_, class) calls[#calls + 1] = class end,
+    }
+    FX.modules["__FxTestProbe"] = probe
+    FX._moduleOrder[#FX._moduleOrder + 1] = "__FxTestProbe"
+    _G.UnitClass = function(unit)
+        if unit == "player" then return "Priest", "PRIEST" end
+        error("unexpected unit " .. tostring(unit), 0)
+    end
+    FX.RefreshPlayerClass()
+    assertEquals("PRIEST", FX._playerClass)
+    assertEquals(1, #calls)
+    assertEquals("PRIEST", calls[1])
+    -- Unchanged class: no notification.
+    FX.RefreshPlayerClass()
+    assertEquals(1, #calls)
+    -- A failing read leaves the class alone.
+    _G.UnitClass = function() error("lockdown", 0) end
+    FX.RefreshPlayerClass()
+    assertEquals("PRIEST", FX._playerClass)
+    -- Restore (before the probe cleanup so no module sees a stubbed UnitClass).
+    _G.UnitClass = savedUC
+    FX._playerClass = savedClass
+    FX.modules["__FxTestProbe"] = nil
+    for i = #FX._moduleOrder, 1, -1 do
+        if FX._moduleOrder[i] == "__FxTestProbe" then
+            table.remove(FX._moduleOrder, i)
+        end
+    end
+    -- A no-op re-read with the real class back: proves the restore is
+    -- consistent (no module notification expected).
+    FX.RefreshPlayerClass()
+    assertEquals(1, #calls)
 end)

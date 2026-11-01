@@ -55,7 +55,11 @@
 --  * OnReadCharges (from C_Spell.GetSpellCharges) re-anchors: `current` from
 --    the plain currentCharges, `nextAt` from the plain
 --    cooldownStartTime + cooldownDuration; any secret component leaves the
---    clock model untouched. A plain full-bar read CLEARS the entry. For a
+--    clock model untouched. A plain full-bar read CLEARS the entry. A
+--    drained bar the read catches with NO clock at all (secret pair, no
+--    previous charges model) arms one at `now + BestDuration` -- OnCast's
+--    arming rule -- because a clockless charge entry can never satisfy the
+--    Sweep and would ride `entries` forever (m3, review 2026-11-01). For a
 --    charge spell the plain GetSpellCooldown "ready" read never clears
 --    (its last-cast window lapses mid-bar): the charge read owns the
 --    lifecycle, and OnRead only ever ANCHORS.
@@ -256,6 +260,20 @@ function Engine:OnReadCharges(name, currentCharges, cooldownStartTime, cooldownD
         -- Secret pair: keep the clock model; the charges read still
         -- certifies the bar's count.
         c.nextAt = prev.nextAt
+    end
+    if c.nextAt == nil and c.current < c.max then
+        -- m3: a drained bar with no clock to inherit -- the pair was secret
+        -- AND there was no previous charges model (the entry is fresh from
+        -- this read). The charge Sweep advances only via `nextAt` and pops
+        -- only at the full bar, so a clockless drained bar can never be
+        -- `done`: the entry would ride in `entries` for the rest of the
+        -- session. Arm the recharge clock exactly like OnCast arms it --
+        -- the best known duration from `now` -- so the bar always finishes.
+        local bd = self:BestDuration(name)
+        if bd then
+            c.nextAt = now + bd
+            if not e.duration then e.duration = bd end
+        end
     end
     return "anchored"
 end

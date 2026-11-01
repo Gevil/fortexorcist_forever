@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # deploy.sh — deploy ForteXorcist addons into a WoW Forever Interface/AddOns dir.
 #
-# Symlinks every addon/Forte_* directory that contains a .toc into the target
-# AddOns dir as <AddOns>/<Name> -> <abs source dir> (ln -sfn, so re-running
-# replaces existing symlinks idempotently). Never copies, never deletes
-# anything that is not a repo-owned symlink.
+# Default (symlink) mode links every addon/Forte_* directory that contains a
+# .toc into the target AddOns dir as <AddOns>/<Name> -> <abs source dir>
+# (ln -sfn, so re-running replaces existing symlinks idempotently). --copy
+# mode installs real directory copies instead (see usage). Nothing outside
+# this script's own symlinks/marked copies is ever deleted.
 set -eu -o pipefail
 
 DEFAULT_DEST='<WoW install>/_forever_/Interface/AddOns'
+
+# Marker file this script stamps into every --copy deployment, so a later
+# run recognises its OWN copies and replaces only those.
+COPY_MARKER='.fx-deploy-copy'
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)
 REPO_ROOT=$(cd -- "$SCRIPT_DIR/.." >/dev/null 2>&1 && pwd -P)
@@ -18,15 +23,23 @@ usage() {
 	Usage: ${0##*/} [options]
 
 	Deploys the game-loadable addons (addon/Forte_* dirs containing a .toc) into
-	a WoW Forever Interface/AddOns directory as symlinks to the source dirs.
-	Re-running replaces the symlinks (idempotent); edits then need only /reload.
+	a WoW Forever Interface/AddOns directory. Re-running is idempotent; edits
+	then need only /reload (symlink mode).
 
 	Modes (pick at most one; default is deploy):
 	  (no mode)     Deploy: (re)create symlinks for all Forte_* addons.
+	  --copy        Copy mode: rsync/cp the addon dirs (minus tests/) into the
+	                destination as real directories, replacing only this
+	                script's own previous copies (marked with .fx-deploy-copy)
+	                and its own previous symlinks. Use this when third-party
+	                tools (e.g. ForeverSVFix) edit addon .toc files IN PLACE:
+	                through a symlink such an edit writes into the git
+	                working tree. Copies need this script re-run to update.
 	  --remove      Remove only symlinks in the destination that point into this
-	                repo's addon/ dir. Leaves everything else untouched.
-	  --list        Per addon, print: source path, linked/unlinked, and whether
-	                the destination entry is a foreign dir/file/symlink.
+	                repo's addon/ dir. Leaves everything else untouched
+	                (including --copy deployments: remove those by hand).
+	  --list        Per addon, print: source path, linked/linked-copy/unlinked,
+	                and whether the destination entry is a foreign dir/file/symlink.
 
 	Options:
 	  --dest <dir>  Destination AddOns dir (overrides \$DEPLOY_DEST).
@@ -41,7 +54,10 @@ usage() {
 	    It is NEVER created: this script does not build WoW install trees.
 	  - If <dest>/<Name> exists and is NOT a symlink (a real dir or file the
 	    owner made by hand), that addon is refused with an error on stderr and
-	    left alone. Other addons are still processed.
+	    left alone. In --copy mode a real dir is accepted ONLY when it carries
+	    the .fx-deploy-copy marker this script stamps; foreign dirs/files and
+	    symlinks not pointing into this repo are refused the same way. Other
+	    addons are still processed.
 	  - Exit codes: 0 = all requested work done;
 	                1 = deploy finished but >=1 addon was refused (see above),
 	                    or a hard filesystem error occurred;
@@ -84,6 +100,11 @@ while [ $# -gt 0 ]; do
     --remove)
       [ "$MODE" = deploy ] || die 2 "only one mode allowed (--remove already set)"
       MODE=remove
+      shift
+      ;;
+    --copy)
+      [ "$MODE" = deploy ] || die 2 "only one mode allowed (--copy already set)"
+      MODE=copy
       shift
       ;;
     --list)
@@ -129,7 +150,11 @@ case $MODE in
           state="symlink-foreign(-> $tgt)"
         fi
       elif [ -d "$target" ]; then
-        state=foreign-dir
+        if [ -f "$target/$COPY_MARKER" ]; then
+          state=linked-copy
+        else
+          state=foreign-dir
+        fi
       elif [ -e "$target" ]; then
         state=foreign-file
       fi
@@ -151,8 +176,63 @@ case $MODE in
     done
     printf '%d repo symlink(s) removed from %s\n' "$removed" "$DEST"
     ;;
+  copy)
+    # Real-directory deployments. Replaces ONLY this script's own prior
+    # entries: its symlinks (pointing into this repo's addon/ dir) and its
+    # copies (stamped with $COPY_MARKER). Everything foreign is refused and
+    # left alone, exactly like the symlink mode's non-symlink rule.
+    rc=0
+    if command -v rsync >/dev/null 2>&1; then
+      COPY_TOOL=rsync
+    else
+      COPY_TOOL=cp
+    fi
+    for src in "${ADDON_DIRS[@]}"; do
+      name=${src##*/}
+      target=$DEST/$name
+      if [ -e "$target" ] || [ -L "$target" ]; then
+        if [ -L "$target" ]; then
+          tgt=$(readlink -f -- "$target" 2>/dev/null) || tgt=
+          case $tgt in
+            "$ADDON_ROOT"/*) rm -- "$target" ;;
+            *)
+              printf 'deploy.sh: %s: REFUSED: %s is a symlink not pointing into this repo (-> %s); leaving it alone.\n' "$name" "$target" "$tgt" >&2
+              rc=1
+              continue
+              ;;
+          esac
+        elif [ -d "$target" ]; then
+          if [ -f "$target/$COPY_MARKER" ]; then
+            rm -r -- "$target"
+          else
+            printf 'deploy.sh: %s: REFUSED: %s is a directory this script did not create (no %s marker); refusing to delete a hand-made entry. Move/remove it manually, then re-run.\n' "$name" "$target" "$COPY_MARKER" >&2
+            rc=1
+            continue
+          fi
+        else
+          printf 'deploy.sh: %s: REFUSED: %s exists and is not a directory or symlink.\n' "$name" "$target" >&2
+          rc=1
+          continue
+        fi
+      fi
+      mkdir -- "$target"
+      if [ "$COPY_TOOL" = rsync ]; then
+        # -a preserves, --delete drops files removed upstream, the
+        # anchored exclude keeps tests/ out of the game's face.
+        rsync -a --delete --exclude=/tests/ -- "$src/" "$target/"
+      else
+        # cp -a has no exclude: copy the content, then drop tests/.
+        cp -a -- "$src/." "$target/"
+        if [ -e "$target/tests" ]; then rm -r -- "$target/tests"; fi
+      fi
+      printf 'ForteXorcist deploy.sh --copy from %s\n' "$src" > "$target/$COPY_MARKER"
+      printf 'copied %s -> %s\n' "$name" "$target"
+    done
+    exit "$rc"
+    ;;
   deploy)
     rc=0
+    printf 'deploy.sh: note: symlinks make the git working tree the live addon files. Third-party tools that edit addon .toc files IN PLACE (e.g. ForeverSVFix) write through the symlink into this repo. If such tools are installed, deploy with --copy instead.\n' >&2
     for src in "${ADDON_DIRS[@]}"; do
       name=${src##*/}
       target=$DEST/$name

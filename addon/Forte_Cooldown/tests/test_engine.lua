@@ -22,6 +22,23 @@
 local FX = ForteXorcist
 local Engine = FX.Cooldown.Engine
 
+-- Secret sentinel seam (the tests/test_reconcile.lua pattern): the sim
+-- exposes no A_Admin verb to mint a real secret value, so PlainOrNil is
+-- wrapped so a string sentinel classifies as nil -- the exact downstream
+-- contract a live secret read has. Used by the charges m3 test; restored
+-- inside it (the framework has no teardown).
+local SECRET = "FXTEST-SECRET-VALUE"
+local realPlainOrNil = FX.Compat.PlainOrNil
+local function patchPlain()
+    FX.Compat.PlainOrNil = function(v)
+        if v == SECRET then return nil end
+        return realPlainOrNil(v)
+    end
+end
+local function restorePlain()
+    FX.Compat.PlainOrNil = realPlainOrNil
+end
+
 -- Durations that arrive through the `cooldownMs / 1000` division are floats;
 -- compare them with a tolerance, never exact equality (measured 2026-11-01: a
 -- hard 79.2 assertion died on the float32 round-trip with 79.199996948242).
@@ -240,6 +257,61 @@ test("Secret read leaves engine state untouched", function()
     -- Nothing learned from a secret read.
     assertNil(storage["Bestial Wrath"])
     near(120, Engine:BestDuration("Bestial Wrath"))
+end)
+
+-- m3 (review 2026-11-01): a charges read with a SECRET pair and no previous
+-- clock used to build charges = { max, current } with nextAt = nil. The
+-- charge Sweep advances only through nextAt and clears only at the full
+-- bar, so such an entry can never be done -- it rides Engine.entries for
+-- the rest of the session. The fix arms the clock on OnCast's rule.
+test("OnReadCharges: a secret pair with no clock arms one and the bar sweeps out", function()
+    freshStorage()
+    Engine:Build("HUNTER", allKnown)
+    Engine.tracked["Bestial Wrath"].maxCharges = 2
+    local dur = Engine:BestDuration("Bestial Wrath") -- 120 (data-pinned)
+
+    -- The shape: charges read, every number secret, no entry (so no
+    -- previous clock). The plain currentCharges is NOT secret here -- with
+    -- a secret count the read is "secret" and changes nothing at all,
+    -- which is the test_reconcile.lua case, not this one.
+    patchPlain()
+    assertEquals("anchored", Engine:OnReadCharges("Bestial Wrath",
+        0, SECRET, SECRET, 1000))
+    restorePlain()
+
+    local e = Engine.entries["Bestial Wrath"]
+    assertNotNil(e, "the drained bar is modelled")
+    assertEquals(2, e.charges.max)
+    assertEquals(0, e.charges.current)
+    assertNotNil(e.charges.nextAt, "the bar carries a clock")
+    near(1000 + dur, e.charges.nextAt) -- OnCast's arming rule
+    near(dur, e.duration)              -- the Sweep's step is the recharge
+
+    -- The clock ticks: one charge per window, no pop before the full bar,
+    -- and the entry LEAVES the bar at the full one (the old shape left it
+    -- in entries forever).
+    local out = Engine:Sweep(1000 + dur, {})
+    assertEquals(0, #out)
+    assertNotNil(Engine.entries["Bestial Wrath"])
+    assertEquals(1, e.charges.current)
+    near(1000 + 2 * dur, e.charges.nextAt)
+
+    out = Engine:Sweep(1000 + 2 * dur, {})
+    assertEquals(1, #out)
+    assertEquals("Bestial Wrath", out[1])
+    assertNil(Engine.entries["Bestial Wrath"])
+end)
+
+test("OnReadCharges: no duration known means no entry is created", function()
+    freshStorage()
+    Engine:Build("HUNTER", allKnown)
+    -- A tracked, multi-charge spell with NO duration to predict from: no
+    -- learned value and no generated base row.
+    Engine.tracked["No Clock Spell"] = { name = "No Clock Spell", maxCharges = 2 }
+    assertNil(Engine:BestDuration("No Clock Spell"))
+    assertEquals("ignored", Engine:OnReadCharges("No Clock Spell", 0, 0, 0, 5000))
+    assertNil(Engine.entries["No Clock Spell"])
+    Engine.tracked["No Clock Spell"] = nil
 end)
 
 -- 5. Data sanity against the live spell DB (the reason this file runs in the

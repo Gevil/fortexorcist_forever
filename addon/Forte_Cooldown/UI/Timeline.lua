@@ -78,12 +78,16 @@ FX.Cooldown.TimelineSkin = {
     BarTexture = TEX .. "Aluminium",          -- FW.Default.Texture
     BarColor = { 1, 1, 1, 0.20 },             -- BarColor: white a 0.20
     TextColor = { 1, 1, 1, 0.20 },            -- TextColor (tag labels)
+    TimeFormatAlt = false,                    -- General AltTimeFormat:
+                                              -- m:ss for EVERY time
     -- Charge-count text (the icon's BOTTOMRIGHT number): white while the
     -- bar has charges, Blizzard gold when the bar is drained (`charges 0`,
     -- the one state the engine keeps on the bar -- see Engine:Sorted).
     ChargeColor = { 1, 1, 1, 1 },
     ChargeZeroColor = { 1.00, 0.82, 0.00, 1 },
     Spark = TEX .. "Spark2",
+    SparkOn = true,                           -- the Spark OPTION (on/off);
+                                              -- Spark above is the texture
     SparkScale = 2.2,                         -- glow size / icon size (:1157)
     SparkAlpha = 1.0,                         -- Spark = {[0]=true, 1}
     Alpha = 0.2, AlphaMax = 1.0,              -- icon fade-in endpoints
@@ -122,11 +126,39 @@ local S = FX.Cooldown.TimelineSkin
 local FONT_FILE = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
 local FONT_SIZE = 11
 local ICON_FONT_SIZE = FONT_SIZE - 1   -- FW IconFont = Font size - 1 (:1806)
+local ICON_FONT_FLAGS = "OUTLINE"
 
 D.fontFile = nil   -- set by validateFont() in Init; nil = template fallback
 
 local ANCHOR_W, ANCHOR_H = S.Width, 20
 local DEFAULT = { point = "CENTER", relPoint = "CENTER", x = 0, y = -150, locked = true }
+
+-- Frame scale/alpha inputs (OP-06 header fields + General FrameAlpha/
+-- FrameScale), module-local so the setters are safe to call before Init
+-- (the values are live skin state; Init and ApplyFrameFX read them back).
+D.frameState = {
+    scale = 1.0, alpha = 1.0,          -- the Cooldown page's Scale / Alpha
+    globalScale = 1.0, globalAlpha = 1.0,   -- General FrameScale / FrameAlpha
+    enabled = true, hideCombat = false,     -- Basics: Enable / HideCombat
+}
+local FS = D.frameState
+
+--- The validated, lower-compare round-trip of validateFont for ANY file
+--- path (the General BarFont option feeds arbitrary strings).
+local function validateFontFile(path)
+    if type(path) ~= "string" or path == "" then return nil end
+    local okCreate, fontObj = pcall(CreateFont, path, FONT_SIZE)
+    if not okCreate or not fontObj then return nil end
+    local probe = UIParent:CreateFontString(nil, "OVERLAY")
+    if not probe then return nil end
+    local okSet = pcall(probe.SetFont, probe, path, FONT_SIZE)
+    local got = okSet and probe:GetFont()
+    probe:Hide()
+    if type(got) == "string" and got:lower() == path:lower() then
+        return path
+    end
+    return nil
+end
 
 local fallbackCfg
 local function config()
@@ -144,30 +176,21 @@ local function config()
     return cfg
 end
 
---- Validate the shipped font ONCE: CreateFont the file, SetFont it on a
---- throwaway fontstring and read GetFont back. Accepted only when the round
---- trip returns the same file; everything else leaves fontFile nil and every
+--- Validate the shipped font ONCE (the shipped path through the generic
+--- round-trip above). Rejected files leave fontFile nil and every
 --- fontstring keeps its GameFontHighlightSmall template.
 local function validateFont()
-    local okCreate, fontObj = pcall(CreateFont, FONT_FILE, FONT_SIZE)
-    if not okCreate or not fontObj then return nil end
-    local probe = UIParent:CreateFontString(nil, "OVERLAY")
-    if not probe then return nil end
-    local okSet = pcall(probe.SetFont, probe, FONT_FILE, FONT_SIZE)
-    local got = okSet and probe:GetFont()
-    probe:Hide()
-    if type(got) == "string" and got:lower() == FONT_FILE:lower() then
-        return FONT_FILE
-    end
-    return nil
+    return validateFontFile(FONT_FILE)
 end
 
 --- Apply the validated font, dirty-checked, falling back to the string's
 --- GameFontHighlightSmall template (set at creation) when the file was not
---- accepted. SetFont returns the object (truthy) on success in 12.x; treat
---- any false/nil return or raise as a rejection and restore the template.
+--- accepted. The cache key carries the accepted FILE, so a BarFont change
+--- re-applies every live string. SetFont returns the object (truthy) on
+--- success in 12.x; treat any false/nil return or raise as a rejection and
+--- restore the template.
 local function applyFont(fs, size, flags)
-    local key = tostring(size) .. "|" .. (flags or "")
+    local key = (D.fontFile or "tpl") .. "|" .. tostring(size) .. "|" .. (flags or "")
     if fs._font == key then return end
     local ok = false
     if D.fontFile then
@@ -197,26 +220,43 @@ end
 --- FW:SecToTimeD, TimeFormat branch (Forte_Core.lua :1746-1761; TimeFormat
 --- defaults true, :2487): m:ss at >= 60, tenths below. (The original feeds
 --- the raw float to "%02d", Lua 5.1 truncates; math.floor is explicit here.)
+--- S.TimeFormatAlt (the General AltTimeFormat option) prints m:ss for
+--- EVERY remaining time, tenths never.
 local function formatRemaining(remaining)
-    if remaining >= 60 then
+    if remaining >= 60 or S.TimeFormatAlt then
         return string.format("%d:%02d", math.floor(remaining / 60), math.floor(remaining % 60))
     end
     return string.format("%.1f", remaining)
 end
 
---- The row's category colour: the row's own `category` (the engine's
---- per-row tag -- "Item", "Potion", "Pet", ...), else the Engine's per-spell
---- `fxClass` override, else the default Spell orange. An unknown category
---- name falls back to Spell, so a row that carries none renders exactly as
---- before. Read once per (slot, name) bind.
-local function rowColor(row)
+--- The identity of the DISPLAYED string for `formatRemaining`: one whole
+--- second for the m:ss branches, one rounded tenth for the %0.1f branch.
+--- m5: the render pass compares this int, so a per-tick call with the same
+--- visible value formats (and SetTexts) nothing.
+local function timeKey(remaining)
+    if remaining >= 60 or S.TimeFormatAlt then
+        return math.floor(remaining)
+    end
+    return math.floor(remaining * 10 + 0.5)
+end
+
+--- The category KEY of a row (its colour identity, the TimelineSkin.Colors
+--- key). Read once per (slot, name) bind and cached on the slot so a
+--- SetCategoryColor can recolor exactly the slots that ride that category.
+local function rowClass(row)
     local cls = row.category
     if not cls then
         local tracked = FX.Cooldown.Engine and FX.Cooldown.Engine.tracked
         local t = tracked and tracked[row.name]
         cls = (t and t.fxClass) or "Spell"
     end
-    return S.Colors[cls] or S.Colors.Spell
+    return cls
+end
+
+--- The row's category colour: S.Colors[rowClass(row)], unknown categories
+--- falling back to Spell so a row without one renders exactly as before.
+local function rowColor(row)
+    return S.Colors[rowClass(row)] or S.Colors.Spell
 end
 
 -- ------------------------------------------------------------------- init --
@@ -322,11 +362,22 @@ function D:Init()
     self.pulsePool = {}
     self._xf = {}        -- cross-fade focus state, keyed by group signature
     self._gitems = {}    -- scratch for grouping (entries are engine-owned)
+    self._groupsScratch = {}   -- TM.group's caller-owned scratch (m5)
     self._ready = {}
 
+    -- Login apply FIRST (Init runs at PLAYER_LOGIN): saved settings resize
+    -- the skin, then BuildTags/Build draw in the saved geometry. Live
+    -- changes arrive through the OnChange listeners from here on.
+    self:_WireSettings()
+    self:ApplyStoredSettings()
     self:BuildTags()
     self:ApplyPosition()
     self:SetLocked(self.cfg.locked and true or false)
+    -- The scale/alpha/enabled/hide-combat state may have been set before
+    -- the frames existed (options apply runs at PLAYER_LOGIN, and the
+    -- setters are safe pre-Init); make the live frames agree with it.
+    self:ApplyFrameFX()
+    self:UpdateVisibility()
 end
 
 -- -------------------------------------------------------------- position --
@@ -349,6 +400,21 @@ end
 function D:SetLocked(locked)
     locked = not not locked
     self.cfg.locked = locked
+    -- m4: the lock has ONE truth (the bar) -- publish it to the options
+    -- store so the checkboxes and the header icon read live state. Guarded
+    -- by store-inequality: a settings listener that calls back into
+    -- SetLocked finds the store already agrees and the loop dies there.
+    local st = FX.Settings
+    if st and st.IsRegistered then
+        if st:IsRegistered("Cooldown")
+            and st:Get("Cooldown", "Lock") ~= locked then
+            st:Set("Cooldown", "Lock", locked)
+        end
+        if st:IsRegistered("General")
+            and st:Get("General", "GlobalLock") ~= locked then
+            st:Set("General", "GlobalLock", locked)
+        end
+    end
     if not self.anchor then return end
     self.anchor:SetMovable(not locked)
     self.anchor:EnableMouse(not locked)
@@ -384,6 +450,315 @@ function D:Slash(cmd)
         return true
     end
     return false
+end
+
+-- ----------------------------------------------------------- live settings --
+-- T9: the public seam the options window drives. Every setter is safe to
+-- call at ANY time: pre-Init it records intent (skin `S` + `D.frameState`),
+-- post-Init it also rebuilds exactly the pieces that key owns (tags,
+-- segment caches, slot geometry, fonts, colours). In combat the bar is a
+-- plain non-secure frame, so geometry/texture/colour edits are legal there.
+-- `ApplySettings(tbl)` maps the options keys (the names as Forte_Options
+-- registers them) onto these setters; `ApplyStoredSettings()` pulls every
+-- saved value from FX.Settings (login apply), and `_WireSettings()` (run
+-- from Init, i.e. PLAYER_LOGIN) subscribes to FX.Settings:OnChange so a
+-- change applies live. Keys with no consumer YET (FrameSnap, ShowTooltips)
+-- are deliberately NOT in the map; the pages mark them "not used yet".
+
+local CATEGORY_OF = {
+    ColorSpell = "Spell", ColorPowerup = "Powerup", ColorItem = "Item",
+    ColorPotion = "Potion", ColorPet = "Pet", ColorInternal = "Internal",
+    ColorBuff = "Buff", ColorDebuff = "Debuff",
+}
+
+function D:SetSize(w, h)
+    if type(w) == "number" and w > 0 then S.Width = w end
+    if type(h) == "number" and h > 0 then S.Height = h end
+    if not self.anchor then return end
+    self.anchor:SetSize(S.Width, S.Height)
+    for i = 1, #self.slots do
+        local slot = self.slots[i]
+        slot.frame:SetSize(S.Height, S.Height)
+        slot.tex:SetSize(S.Height, S.Height)
+        slot.spark:SetSize(S.Height * S.SparkScale, S.Height * S.SparkScale)
+    end
+    for i = 1, #self.splashPool do
+        local sp = self.splashPool[i]
+        sp.tex:SetSize(S.Height * S.SplashFactor, S.Height * S.SplashFactor)
+    end
+    for i = 1, #self.pulsePool do
+        local p = self.pulsePool[i]
+        p.tex:SetSize(S.Height, S.Height)
+        p.spark:SetSize(S.Height * S.SparkScale, S.Height * S.SparkScale)
+    end
+    self:InvalidateLayout()
+    self:BuildTags()
+end
+
+--- Max time / power scale move every icon and tag on the curve.
+function D:SetMaxTime(v)
+    if type(v) ~= "number" or v <= 0 then return end
+    S.Max = v
+    if not self.anchor then return end
+    self:InvalidateLayout()
+    self:BuildTags()
+end
+
+function D:SetPowerScale(v)
+    if type(v) ~= "number" or v <= 0 then return end
+    S.Loga = v
+    if not self.anchor then return end
+    self:InvalidateLayout()
+    self:BuildTags()
+end
+
+function D:SetTimeTags(text)
+    S.CustomTags = tostring(text or "")
+    if self.anchor then self:BuildTags() end
+end
+
+--- Drop the caches that key on the timeline geometry so the next Update
+--- re-anchors icons, segments and TexCoords from the new skin numbers.
+function D:InvalidateLayout()
+    for i = 1, #(self.slots or {}) do
+        local slot = self.slots[i]
+        slot._cx = nil
+        slot._segSetL, slot._segSetR = nil, nil
+        slot._segSetVL, slot._segSetV = nil, nil
+    end
+end
+
+--- One category colour (ColorSpell .. ColorDebuff). Assigning a FRESH
+--- table to S.Colors[key] busts every cached identity (_segCol/_segSetCol
+--- compare by table), so segments repaint themselves on the next pass; the
+--- spark and the time text need the explicit re-tint of the bound slots.
+function D:SetCategoryColor(key, col)
+    if type(col) ~= "table" then return end
+    S.Colors[key] = { col[1] or 1, col[2] or 1, col[3] or 1 }
+    local c = S.Colors[key]
+    local fr, fg, fb = fixIntensity(c[1], c[2], c[3])
+    for i = 1, #(self.slots or {}) do
+        local slot = self.slots[i]
+        if slot._name and slot._colorClass == key then
+            slot._col = c
+            slot._segCol = c
+            slot.spark:SetVertexColor(fr, fg, fb)
+            slot.timeFS:SetTextColor(fr, fg, fb)
+        end
+    end
+end
+
+function D:SetBarColor(col)
+    if type(col) ~= "table" then return end
+    S.BarColor = { col[1] or 1, col[2] or 1, col[3] or 1, col[4] or 0.2 }
+    local c = S.BarColor
+    if self.fill then self.fill:SetVertexColor(c[1], c[2], c[3], c[4]) end
+end
+
+function D:SetBgColor(col)
+    if type(col) ~= "table" then return end
+    S.BgColor = { col[1] or 0, col[2] or 0, col[3] or 0, col[4] or 0.5 }
+    local c = S.BgColor
+    local f = self.anchor
+    if f and f.SetBackdropColor then
+        f:SetBackdropColor(c[1], c[2], c[3], c[4])
+        f:SetBackdropBorderColor(c[1], c[2], c[3], c[4])
+    end
+end
+
+function D:SetSparkOn(on)
+    S.SparkOn = not not on
+    for i = 1, #(self.slots or {}) do
+        if S.SparkOn then self.slots[i].spark:Show()
+        else self.slots[i].spark:Hide() end
+    end
+    for i = 1, #(self.pulsePool or {}) do
+        if S.SparkOn then self.pulsePool[i].spark:Show()
+        else self.pulsePool[i].spark:Hide() end
+    end
+end
+
+--- Bar fill texture (General BarTexture): the fill and every segment.
+function D:SetBarTexture(path)
+    if type(path) ~= "string" or path == "" then return end
+    S.BarTexture = path
+    if self.fill then self.fill:SetTexture(path) end
+    for i = 1, #(self.slots or {}) do
+        self.slots[i].seg:SetTexture(path)
+    end
+end
+
+--- Bar font (General BarFont): re-validate the file and re-apply it to
+--- every live fontstring (applyFont's key carries the file).
+function D:SetBarFont(path)
+    self.fontFile = validateFontFile(path)
+    D.fontFile = self.fontFile
+    for i = 1, #(self.tagFS or {}) do
+        applyFont(self.tagFS[i], FONT_SIZE)
+    end
+    for i = 1, #(self.slots or {}) do
+        local slot = self.slots[i]
+        applyFont(slot.timeFS, ICON_FONT_SIZE, ICON_FONT_FLAGS)
+        applyFont(slot.chargeFS, ICON_FONT_SIZE, ICON_FONT_FLAGS)
+    end
+end
+
+function D:SetScale(v)
+    FS.scale = (type(v) == "number" and v > 0) and v or 1.0
+    self:ApplyFrameFX()
+end
+
+function D:SetAlpha(v)
+    FS.alpha = (type(v) == "number" and v > 0) and v or 1.0
+    self:ApplyFrameFX()
+end
+
+function D:SetGlobalScale(v)
+    FS.globalScale = (type(v) == "number" and v > 0) and v or 1.0
+    self:ApplyFrameFX()
+end
+
+function D:SetGlobalAlpha(v)
+    FS.globalAlpha = (type(v) == "number" and v > 0) and v or 1.0
+    self:ApplyFrameFX()
+end
+
+--- Frame scale/alpha = the module's own value x the Global one (OP-06).
+function D:ApplyFrameFX()
+    if not self.anchor then return end
+    self.anchor:SetScale(FS.scale * FS.globalScale)
+    self.anchor:SetAlpha(FS.alpha * FS.globalAlpha)
+end
+
+function D:SetEnabled(on)
+    FS.enabled = not not on
+    self:UpdateVisibility()
+end
+
+function D:SetHideCombat(on)
+    FS.hideCombat = not not on
+    self:UpdateVisibility()
+end
+
+function D:SetTimeFormatAlt(on)
+    S.TimeFormatAlt = not not on
+    -- The displayed string identity changes -> force one repaint pass.
+    for i = 1, #(self.slots or {}) do
+        self.slots[i]._timeKey = nil
+    end
+end
+
+--- Enable gates everything; HideCombat ("Hide when not in combat") hides
+--- the bar OUT of combat. Dirty-checked; Update refreshes it every pass,
+--- which is how the combat transitions self-heal without event wiring.
+function D:UpdateVisibility()
+    if not self.anchor then return end
+    local show = FS.enabled
+    if show and FS.hideCombat then
+        show = (type(InCombatLockdown) == "function")
+            and InCombatLockdown() and true or false
+    end
+    if self._shown == show then return end
+    self._shown = show
+    if show then self.anchor:Show() else self.anchor:Hide() end
+end
+
+--- IgnoreShort = the Engine's public floor. Engine.lua is not touched
+--- here; MIN_COOLDOWN is its public field, and the tracked set is rebuilt
+--- so a lowered floor takes effect immediately.
+function D:IgnoreShortChanged(value)
+    local E = FX.Cooldown.Engine
+    if not E then return end
+    E.MIN_COOLDOWN = (type(value) == "number") and value or 2.99
+    local m = FX.Cooldown.Module
+    if m and m.Rebuild then pcall(m.Rebuild, m) end
+end
+
+--- options key -> Display method. Keys absent from this map (FrameSnap,
+--- ShowTooltips) have no consumer yet and stay stored-only.
+local KEYMAP = {
+    Enable = "SetEnabled",
+    HideCombat = "SetHideCombat",
+    Lock = "SetLocked",
+    Width = "SetWidth",
+    Height = "SetHeight",
+    MaxTime = "SetMaxTime",
+    PowerScale = "SetPowerScale",
+    TimeTags = "SetTimeTags",
+    IgnoreShort = "SetIgnoreShort",
+    BarColor = "SetBarColor",
+    BgColor = "SetBgColor",
+    Spark = "SetSparkOn",
+    Scale = "SetScale",
+    Alpha = "SetAlpha",
+    GlobalLock = "SetLocked",
+    FrameAlpha = "SetGlobalAlpha",
+    FrameScale = "SetGlobalScale",
+    AltTimeFormat = "SetTimeFormatAlt",
+    BarFont = "SetBarFont",
+    BarTexture = "SetBarTexture",
+}
+
+function D:SetWidth(v) self:SetSize(v, nil) end
+function D:SetHeight(v) self:SetSize(nil, v) end
+
+--- Public bulk seam: { [options key] = value }. Unknown keys (the
+--- not-used-yet ones) are ignored by design.
+function D:ApplySettings(tbl)
+    for key, value in pairs(tbl or {}) do
+        local m = KEYMAP[key]
+        if m then
+            self[m](self, value)
+        elseif CATEGORY_OF[key] then
+            self:SetCategoryColor(CATEGORY_OF[key], value)
+        end
+    end
+end
+
+function D:SetIgnoreShort(v) self:IgnoreShortChanged(v) end
+
+--- The stored shape of every wired key (the pages' defaults are the
+--- canonical source; Get returns them unmodified when the store is empty).
+local STORED = {
+    Cooldown = { "Enable", "HideCombat", "Width", "Height", "MaxTime",
+        "PowerScale", "TimeTags", "IgnoreShort", "BarColor", "BgColor",
+        "Spark", "Scale", "Alpha",
+        "ColorSpell", "ColorPowerup", "ColorItem", "ColorPotion",
+        "ColorPet", "ColorInternal", "ColorBuff", "ColorDebuff" },
+    General = { "FrameAlpha", "FrameScale", "AltTimeFormat",
+        "BarFont", "BarTexture" },
+}
+
+--- Apply every saved value (login: Init runs at PLAYER_LOGIN). Lock and
+--- GlobalLock are NOT pulled -- the live lock state is the truth and
+--- SetLocked publishes it upward (m4).
+function D:ApplyStoredSettings()
+    local st = FX.Settings
+    if not st or not st.IsRegistered then return end
+    for module, keys in pairs(STORED) do
+        if st:IsRegistered(module) then
+            local out = {}
+            for i = 1, #keys do
+                out[keys[i]] = st:Get(module, keys[i])
+            end
+            self:ApplySettings(out)
+        end
+    end
+end
+
+--- Live wiring: one listener per settings module, registered once from
+--- Init. The Lock/GlobalLock listeners keep the m4 mirror warm for pages
+--- opened later; every other key routes through KEYMAP.
+function D:_WireSettings()
+    local st = FX.Settings
+    if not st or not st.OnChange or self._wired then return end
+    self._wired = true
+    st:OnChange("Cooldown", function(key, value)
+        self:ApplySettings({ [key] = value })
+    end)
+    st:OnChange("General", function(key, value)
+        self:ApplySettings({ [key] = value })
+    end)
 end
 
 -- ----------------------------------------------------------------- pools --
@@ -425,11 +800,14 @@ function D:AcquireSlot()
     spark:SetPoint("CENTER", frame, "CENTER", 0, 0)
     spark:SetSize(S.Height * S.SparkScale, S.Height * S.SparkScale)
     spark:SetAlpha(S.SparkAlpha)
+    -- The Spark OPTION (S.SparkOn): the running glow is a flag, off hides
+    -- it on the whole pool (SetSparkOn) and on freshly built slots.
+    if not S.SparkOn then spark:Hide() end
 
     -- IconTime text: IconFont = font, size-1, OUTLINE (:1806), anchored
     -- BOTTOMLEFT of the icon (NewBar :1120-1122).
     local timeFS = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    applyFont(timeFS, ICON_FONT_SIZE, "OUTLINE")
+    applyFont(timeFS, ICON_FONT_SIZE, ICON_FONT_FLAGS)
     timeFS:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
 
     -- Charge count: the current castable number. v1 sat at the Blizzard
@@ -490,6 +868,7 @@ function D:BindSlot(slot, e, cx, now)
         slot.tex:SetTexture(slot._texPath)
     end
     local col = rowColor(e)
+    slot._colorClass = rowClass(e)         -- the SetCategoryColor target
     slot._col = col
     slot._segCol = col                      -- segment: raw category (:1403)
     local fr, fg, fb = fixIntensity(col[1], col[2], col[3])
@@ -498,6 +877,7 @@ function D:BindSlot(slot, e, cx, now)
     -- The charge number is per-tick state (Update): drop the previous
     -- name's cached text/colour so the first pass always repaints it.
     slot._chargeText, slot._chargeCol = nil, nil
+    slot._timeKey = nil                     -- fresh icon: paint the time
     slot._fadeStart = now
     slot._alpha = nil
     self:SpawnSplash(cx, slot._texPath, col, now)
@@ -697,6 +1077,16 @@ end
 --- numeric `.x` the grouping consumes; keep no references to it.
 function D:Update(entries, now)
     if not self.anchor then return end
+    -- Enable / Hide-when-out-of-combat ride this 10 Hz pass (cheap and
+    -- dirty-checked): the bar self-heals on combat transitions. A hidden
+    -- bar spends no draw work; the transient splash/pulse timers keep
+    -- running so nothing resurfaces when it returns.
+    self:UpdateVisibility()
+    if not self._shown then
+        self:UpdatePulses(now)
+        self:UpdateSplashes(now)
+        return
+    end
     local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
     local n = #entries
     local byName, islot, seen = self._byName, self._islot, self._seen
@@ -739,7 +1129,16 @@ function D:Update(entries, now)
             slot._shown = true
             slot.frame:Show()
         end
-        slot.timeFS:SetText(formatRemaining(math.max(0, remaining)))
+        -- m5: the icon time text repaints only when the DISPLAYED value
+        -- moves (whole second on the m:ss branches, tenth below a minute):
+        -- the key int decides, so an unchanged tenth costs no string.format
+        -- and no SetText (the sibling charge text is cached the same way).
+        local remainingShown = remaining > 0 and remaining or 0
+        local tKey = timeKey(remainingShown)
+        if slot._timeKey ~= tKey then
+            slot._timeKey = tKey
+            slot.timeFS:SetText(formatRemaining(remainingShown))
+        end
 
         -- Charge count: the row's current castable number at the icon's
         -- BOTTOMRIGHT. Engine:Sorted only ships a charge row while the bar
@@ -786,9 +1185,10 @@ function D:Update(entries, now)
     end
 
     -- Overlap groups + cross-fade focus (TimelineMath.group, original
-    -- :554-637). Singletons keep alpha 1.
+    -- :554-637). Singletons keep alpha 1. m5: the groups list and its
+    -- sub-lists are the Display's own scratch, reused every pass.
     local items = self:_GroupItems(entries, n)
-    local groups = TM.group(items, H)
+    local groups = TM.group(items, H, self._groupsScratch)
     local xfSeen = self._seenScratch or {}
     self._seenScratch = xfSeen
     wipe(xfSeen)

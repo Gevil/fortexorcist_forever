@@ -635,7 +635,16 @@ function O:BuildHeader(def)
         -(C.TITLE_H + C.TABS_H))
     head.bar:SetSize(C.WIN_W - 16, C.HEAD_H)
     self.header = head
-    local locked = def.lockKey and FX.Settings:Get(def.module, def.lockKey)
+    -- m4: the icon reads the LIVE lock state of the cooldown bar when the
+    -- bar exists (it is the single truth /fx lock|unlock moves); the store
+    -- is the fallback for a page whose module has no live frame.
+    local locked
+    local d = FX.Cooldown and FX.Cooldown.Display
+    if def.lockKey and d and d.cfg and d.cfg.locked ~= nil then
+        locked = d.cfg.locked
+    elseif def.lockKey then
+        locked = FX.Settings:Get(def.module, def.lockKey)
+    end
     head.setLockedVisual(locked and true or false)
 
     -- The lock icon tracks the setting. The listener is registered once per

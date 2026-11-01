@@ -298,69 +298,113 @@ end
 M.Aspects = FX.Hunter.NewAspectTracker({ names = M.aspectNames })
 M.Swing = FX.Hunter.NewSwingTracker()
 
+--- Resolve a UNIT_SPELLCAST_SUCCEEDED spellID to a plain spell name.
+--- M3 (review 2026-11-01): the payload spellID is catalog-annotated
+--- SecretWhenUnitSpellCastRestricted, so NO raw comparison on it is legal
+--- (not even `== nil`, not even outside arithmetic -- PlainOrNil's header)
+--- and the info table it returns may itself carry conditional-secret
+--- contents. The whole lookup, truth test and field read therefore run
+--- inside ONE pcall and only a plain string ever leaves it -- the exact
+--- shape Forte_Cooldown/Module.lua:RecordCastEvent uses. Exposed on M
+--- (M.ResolveCastName) so the sim tests drive the identical function the
+--- event frame calls.
 local function resolveCastName(spellID)
-    if spellID == nil then return nil end
     if not (C_Spell and C_Spell.GetSpellInfo) then return nil end
-    -- pcall: a secret (tainted) id can raise on lookup; only a plain name
-    -- is ever returned (same pattern as Forte_Cooldown/Module.lua).
-    local ok, info = pcall(C_Spell.GetSpellInfo, spellID)
-    if not ok or not info then return nil end
-    local name = FX.Compat.PlainOrNil(info.name)
-    if type(name) ~= "string" then return nil end
-    return name
+    local ok, resolved = pcall(function()
+        local info = C_Spell.GetSpellInfo(spellID)
+        return info and FX.Compat.PlainOrNil(info.name)
+    end)
+    if ok and type(resolved) == "string" then return resolved end
+    return nil
+end
+M.ResolveCastName = resolveCastName
+
+--- The event frame's dispatcher. Payload contracts in the file header
+--- (PLAN §8): UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID[,
+--- castBarID]) -- the 4th field lands past a3 and is tolerated;
+--- PLAYER_SWING(swingDuration, swingType) DURATION FIRST;
+--- PLAYER_SWING_RANGE_UPDATE(swingType, isInRange, checksRange) TYPE
+--- LEADS; PLAYER_REGEN_ENABLED = out of combat, the moment the cast
+--- prediction gets re-anchored (PLAN §3.2).
+local function onToolEvent(self, event, a1, a2, a3)
+    if event == "UNIT_SPELLCAST_SUCCEEDED" then
+        local name = resolveCastName(a3)
+        if name then
+            self.Aspects:OnCast(name)
+            self.Swing:OnCast(name)
+        end
+    elseif event == "PLAYER_SWING" then
+        -- a1, a2 = swingDuration, swingType
+        self.Swing:OnSwingStart(a1, a2)
+    elseif event == "PLAYER_SWING_RANGE_UPDATE" then
+        -- a1, a2, a3 = swingType, isInRange, checksRange
+        self.Swing:OnSwingRange(a1, a2, a3)
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        self.Aspects:Reconcile()
+    end
 end
 
-function M:OnEnable()
-    -- Event frame for hunters only (the shared /fx bootstrap runs
-    -- OnEnable for every player class).
-    if FX._playerClass ~= "HUNTER" then return end
-    local f = CreateFrame("Frame")
+--- Register the tools' events (idempotent while enabled). The frame is
+--- created inside an OnEnable/OnClassChanged handler -- never at file
+--- load (Init.lua's taint rule).
+function M:EnableEvents()
+    if self._eventsEnabled then return end
+    local f = self._eventFrame
+    if not f then
+        f = CreateFrame("Frame")
+        self._eventFrame = f
+    end
     f:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
     f:RegisterEvent("PLAYER_SWING")
     f:RegisterEvent("PLAYER_SWING_RANGE_UPDATE")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
-    f:SetScript("OnEvent", function(_, event, a1, a2, a3)
-        if event == "UNIT_SPELLCAST_SUCCEEDED" then
-            -- Payload (unit, castGUID, spellID[, castBarID]) -- the 4th
-            -- field lands past a3 and is tolerated (PLAN §8 mitigation 3).
-            local name = resolveCastName(a3)
-            if name then
-                M.Aspects:OnCast(name)
-                M.Swing:OnCast(name)
-            end
-        elseif event == "PLAYER_SWING" then
-            -- a1, a2 = swingDuration, swingType (DURATION FIRST)
-            M.Swing:OnSwingStart(a1, a2)
-        elseif event == "PLAYER_SWING_RANGE_UPDATE" then
-            -- a1, a2, a3 = swingType, isInRange, checksRange (TYPE LEADS)
-            M.Swing:OnSwingRange(a1, a2, a3)
-        elseif event == "PLAYER_REGEN_ENABLED" then
-            -- Out of combat: every aura read is plain again -- the moment
-            -- the cast prediction gets re-anchored (PLAN §3.2).
-            M.Aspects:Reconcile()
-        end
-    end)
+    f:SetScript("OnEvent", function(...) onToolEvent(M, ...) end)
+    self._eventsEnabled = true
+end
 
-    -- /fx status integration. Forte_Core/Init.lua's status branch calls
-    -- exactly one Status chain (FX.Cooldown.Module:Status(), Init.lua:100)
-    -- and Forte_Core is not ours to edit, so piggyback the Hunter line onto
-    -- that chain. No Forte_Cooldown tests assert Status() output; without
-    -- Forte_Cooldown installed the Hunter status line is not printed
-    -- (reported open issue, docs/hunter-tools.md).
-    local cd = FX.Cooldown and FX.Cooldown.Module
-    if cd and cd.Status and not cd._fxHunterStatusHooked then
-        cd._fxHunterStatusHooked = true
-        local prev = cd.Status
-        cd.Status = function(self, ...)
-            local r = prev(self, ...)
-            FX.Print(M:Status())
-            return r
+--- Tear the event registrations back down (class changed away from
+--- HUNTER; Core FX.RefreshPlayerClass). The SetScript(nil) is the part
+--- that silences the module everywhere: Unregister(Unit)Event is
+--- catalog-declared for the real client (Frame) but absent from the
+--- simulator's frame emulation, so both are nil-guarded. GetScript going
+--- nil makes the disabled state observable for the tests.
+function M:DisableEvents()
+    local f = self._eventFrame
+    if f and self._eventsEnabled then
+        if f.UnregisterUnitEvent then
+            f:UnregisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
         end
+        if f.UnregisterEvent then
+            f:UnregisterEvent("PLAYER_SWING")
+            f:UnregisterEvent("PLAYER_SWING_RANGE_UPDATE")
+            f:UnregisterEvent("PLAYER_REGEN_ENABLED")
+        end
+        f:SetScript("OnEvent", nil)
+    end
+    self._eventsEnabled = false
+end
+
+function M:OnEnable()
+    -- Event frame for hunters only (the shared /fx bootstrap runs
+    -- OnEnable for every player class). /fx status needs no hook: the
+    -- Core status loop (Init.lua, review m6) calls M:Status directly --
+    -- the old one-shot wrapper on Forte_Cooldown's Status method is gone.
+    if FX._playerClass ~= "HUNTER" then return end
+    self:EnableEvents()
+end
+
+--- Core FX.RefreshPlayerClass notification (uiforever T4 class guard):
+--- the event frame follows the class.
+function M:OnClassChanged(classFile)
+    if classFile == "HUNTER" then
+        self:EnableEvents()
+    else
+        self:DisableEvents()
     end
 end
 
---- One-line module state for `/fx status`.
-function M:Status()
+--- One-line module state as a string (the shape the tests assert).
+function M:StatusLine()
     local snap = M.Aspects:Snapshot()
     local fraction, remaining = M.Swing:Progress()
     return string.format(
@@ -370,6 +414,12 @@ function M:Status()
         snap.missing and " (no aspect -- cast one)" or "",
         fraction and string.format("%.0f%% (%.1fs left)", fraction * 100, remaining)
             or "idle")
+end
+
+--- `/fx status` integration: prints its own line (review m6 -- modules
+--- print, the Core registry only loops).
+function M:Status()
+    FX.Print(M:StatusLine())
 end
 
 FX.RegisterModule("Hunter", M)

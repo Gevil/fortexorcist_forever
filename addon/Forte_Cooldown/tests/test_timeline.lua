@@ -597,3 +597,360 @@ test("The charge count at the icon's top-right is clear of the time text", funct
         or (slot.timeFS:GetLeft() >= slot.chargeFS:GetRight())
     assertTrue(clear)
 end)
+
+-- ======================================================== live settings ==
+-- T9: every wired settings key must MOVE the live bar. These drive the
+-- production seam exactly as the options window does -- FX.Settings:Set --
+-- so they prove the OnChange wiring registered by Display:Init, the
+-- KEYMAP routing and the Display setters' rebuild-what-moved behaviour.
+-- Forte_Options loads in every gate run; its chunk-registered defaults are
+-- the source of the values (Display:Init applied them at PLAYER_LOGIN).
+-- Every test restores the defaults it moved (Reset writes the registered
+-- default back THROUGH Set, so the live bar self-heals the same way).
+
+local Settings = FX.Settings
+local Engine = FX.Cooldown.Engine
+
+local function shownTags()
+    local n = 0
+    for i = 1, #Display.tagFS do
+        if Display.tagFS[i]:IsShown() then n = n + 1 end
+    end
+    return n
+end
+
+test("Settings Width/Height resize the bar and every pool member", function()
+    Display:Init()
+    Settings:Set("Cooldown", "Width", 320)
+    Settings:Set("Cooldown", "Height", 30)
+    assertEquals(320, Display.anchor:GetWidth())
+    assertEquals(30, Display.anchor:GetHeight())
+    -- The icons ride the bar height.
+    local now = 30000
+    Display:Update({
+        { name = "SizedA", start = 0, duration = 120, endTime = now + 120 },
+    }, now)
+    local slot = slotOf("SizedA")
+    assertEquals(30, slot.frame:GetWidth())
+    assertEquals(30, slot.frame:GetHeight())
+    near3(slot.spark:GetWidth(), 30 * S.SparkScale)
+    -- Back to the defaults (registered 250/24): store AND bar agree.
+    Settings:Reset("Cooldown", "Width")
+    Settings:Reset("Cooldown", "Height")
+    assertEquals(250, Display.anchor:GetWidth())
+    assertEquals(24, Display.anchor:GetHeight())
+    Display:Update({
+        { name = "SizedA", start = 0, duration = 120, endTime = now + 121 },
+    }, now + 1)
+    assertEquals(24, slotOf("SizedA").frame:GetWidth())
+    Display:Update({}, now + 2)
+end)
+
+test("Settings MaxTime/PowerScale/TimeTags move the curve and the tags", function()
+    Display:Init()
+    -- Defaults: tags 0 1 10 30 60 120 (< 300) + the Max end tag = 7.
+    assertEquals(7, shownTags())
+    local x10 = select(4, Display.tagFS[3]:GetPoint())   -- the "10" tag
+    Settings:Set("Cooldown", "MaxTime", 60)
+    -- Tags >= 60 break out: 0 1 10 30 + Max tag.
+    assertEquals(5, shownTags())
+    Settings:Reset("Cooldown", "MaxTime")
+    assertEquals(7, shownTags())
+    -- Loga steepens the curve: the "10" tag slides measurably left.
+    Settings:Set("Cooldown", "PowerScale", 0.66)
+    local x10b = select(4, Display.tagFS[3]:GetPoint())
+    assertTrue(math.abs(x10 - x10b) > 10,
+        "Loga moved the 10-tag by " .. tostring(math.abs(x10 - x10b)))
+    Settings:Reset("Cooldown", "PowerScale")
+    near3(select(4, Display.tagFS[3]:GetPoint()), x10)
+    -- Custom tags: 0 5 15 + the Max tag.
+    Settings:Set("Cooldown", "TimeTags", "0 5 15")
+    assertEquals(4, shownTags())
+    Settings:Reset("Cooldown", "TimeTags")
+    assertEquals(7, shownTags())
+    -- A shortened axis parks a 120 s cooldown at the right end (t > Max):
+    -- the icon's LEFT offset is exactly W - H/2 there.
+    local now = 30500
+    Settings:Set("Cooldown", "MaxTime", 60)
+    Display:Update({
+        { name = "ParkedCD", start = 0, duration = 120, endTime = now + 120 },
+    }, now)
+    local _, _, _, xoff = slotOf("ParkedCD").frame:GetPoint()
+    near3(xoff, S.Width - S.Height * 0.5)
+    Settings:Reset("Cooldown", "MaxTime")
+    Display:Update({}, now + 1)
+end)
+
+test("Settings category colours retint segments, sparks and time text", function()
+    local now = 31000
+    local custom = { 0.20, 1.00, 0.40, 1 }
+    Display:Update({
+        { name = "ColItem", start = 0, duration = 120, endTime = now + 120,
+          category = "Item" },
+        { name = "ColSpell", start = 0, duration = 120, endTime = now + 150 },
+    }, now)
+    local item, spell = slotOf("ColItem"), slotOf("ColSpell")
+    -- A fresh bind after the change carries the new colour verbatim, and
+    -- the bound rows ride on through the same pass (the pool never sees a
+    -- feed that drops them -- a dropped row releases its slot for good).
+    Settings:Set("Cooldown", "ColorItem", custom)
+    Display:Update({
+        { name = "FreshItem", start = 0, duration = 120, endTime = now + 90,
+          category = "Item" },
+        { name = "ColItem", start = 0, duration = 120, endTime = now + 120,
+          category = "Item" },
+        { name = "ColSpell", start = 0, duration = 120, endTime = now + 150 },
+    }, now)
+    -- The sim stores vertex colours as float32: compare with a float32-
+    -- tolerant epsilon, not bit-equality on the quantised read-back.
+    local function nearCol(a, b)
+        return math.abs(a - b) < 1e-3
+    end
+    local r, g, b = slotOf("FreshItem").seg:GetVertexColor()
+    assertTrue(nearCol(r, custom[1]) and nearCol(g, custom[2])
+        and nearCol(b, custom[3]))
+    -- A slot bound all along is retinted on the next pass (identity-cached
+    -- _segSetCol busts when SetCategoryColor swaps the table).
+    r, g, b = item.seg:GetVertexColor()
+    assertTrue(nearCol(r, custom[1]) and nearCol(g, custom[2])
+        and nearCol(b, custom[3]))
+    -- The untouched category keeps its own colour (shared-table safety).
+    r, g, b = spell.seg:GetVertexColor()
+    local def = FX.Cooldown.TimelineSkin.Colors.Spell
+    assertTrue(nearCol(r, def[1]) and nearCol(g, def[2])
+        and nearCol(b, def[3]))
+    Settings:Reset("Cooldown", "ColorItem")
+    Display:Update({}, now + 1)
+end)
+
+test("Settings BarColor and BarTexture drive the fill; BarTexture the segments", function()
+    Settings:Set("Cooldown", "BarColor", { 1, 0, 0, 0.44 })
+    local r, g, b, a = Display.fill:GetVertexColor()
+    near3(r, 1); near3(g, 0); near3(b, 0); near3(a, 0.44)
+    Settings:Reset("Cooldown", "BarColor")
+    -- A Forte-vendored texture path (known Blizzard texture paths resolve
+    -- to numeric texture ids in the sim, so string round-trips use our own).
+    local tex = "Interface\\AddOns\\Forte_Core\\Textures\\Border"
+    Settings:Set("General", "BarTexture", tex)
+    assertEquals(tex, Display.fill:GetTexture())
+    local now = 31500
+    Display:Update({
+        { name = "TexSeg", start = 0, duration = 120, endTime = now + 120 },
+    }, now)
+    assertEquals(tex, slotOf("TexSeg").seg:GetTexture())
+    Settings:Reset("General", "BarTexture")
+    assertEquals(FX.Cooldown.TimelineSkin.BarTexture, Display.fill:GetTexture())
+    Display:Update({}, now + 1)
+end)
+
+test("Settings Scale/Alpha (module) and FrameScale/FrameAlpha (global) compose", function()
+    Display:Init()
+    Settings:Set("Cooldown", "Scale", 1.5)
+    Settings:Set("Cooldown", "Alpha", 0.5)
+    near3(Display.anchor:GetScale(), 1.5)
+    near3(Display.anchor:GetAlpha(), 0.5)
+    Settings:Set("General", "FrameScale", 2.0)
+    Settings:Set("General", "FrameAlpha", 0.4)
+    near3(Display.anchor:GetScale(), 3.0)     -- 1.5 * 2.0
+    near3(Display.anchor:GetAlpha(), 0.20)    -- 0.5 * 0.4
+    Settings:Reset("Cooldown", "Scale")
+    Settings:Reset("Cooldown", "Alpha")
+    Settings:Reset("General", "FrameScale")
+    Settings:Reset("General", "FrameAlpha")
+    near3(Display.anchor:GetScale(), 1.0)
+    near3(Display.anchor:GetAlpha(), 1.0)
+end)
+
+test("Settings Spark=false hides the running glow on every slot", function()
+    local now = 32000
+    Display:Update({
+        { name = "SparkMe", start = 0, duration = 120, endTime = now + 120 },
+    }, now)
+    assertTrue(slotOf("SparkMe").spark:IsShown())
+    Settings:Set("Cooldown", "Spark", false)
+    assertFalse(slotOf("SparkMe").spark:IsShown())
+    Settings:Set("Cooldown", "Spark", true)
+    assertTrue(slotOf("SparkMe").spark:IsShown())
+    Display:Update({}, now + 1)
+end)
+
+test("Settings Enable=false hides the bar; HideCombat follows the combat state", function()
+    local now = 32500
+    local feed = { { name = "VisA", start = 0, duration = 120, endTime = now + 120 } }
+    Display:Update(feed, now)
+    assertTrue(Display.anchor:IsShown())
+    Settings:Set("Cooldown", "Enable", false)
+    Display:Update(feed, now + 1)
+    assertFalse(Display.anchor:IsShown())
+    Settings:Set("Cooldown", "Enable", true)
+    Display:Update(feed, now + 2)
+    assertTrue(Display.anchor:IsShown())
+    -- HideCombat = "hide when NOT in combat": stub the lockdown read.
+    local real = InCombatLockdown
+    Settings:Set("Cooldown", "HideCombat", true)
+    _G.InCombatLockdown = function() return false end
+    Display:Update(feed, now + 3)
+    assertFalse(Display.anchor:IsShown())
+    _G.InCombatLockdown = function() return true end
+    Display:Update(feed, now + 4)
+    assertTrue(Display.anchor:IsShown())
+    _G.InCombatLockdown = real
+    Settings:Reset("Cooldown", "HideCombat")
+    Display:Update(feed, now + 5)
+    assertTrue(Display.anchor:IsShown())
+    Display:Update({}, now + 6)
+end)
+
+test("Settings IgnoreShort writes Engine.MIN_COOLDOWN (public field)", function()
+    Settings:Set("Cooldown", "IgnoreShort", 8)
+    near(Engine.MIN_COOLDOWN, 8)
+    Settings:Reset("Cooldown", "IgnoreShort")
+    near(Engine.MIN_COOLDOWN, 2.99)
+end)
+
+test("Settings AltTimeFormat switches the icon time text to m:ss", function()
+    local now = 33000
+    local feed = { { name = "AltFmt", start = 0, duration = 60, endTime = now + 45 } }
+    Display:Update(feed, now)
+    assertEquals("45.0", slotOf("AltFmt").timeFS:GetText())
+    Settings:Set("General", "AltTimeFormat", true)
+    Display:Update(feed, now)
+    assertEquals("0:45", slotOf("AltFmt").timeFS:GetText())
+    Settings:Reset("General", "AltTimeFormat")
+    Display:Update(feed, now)
+    assertEquals("45.0", slotOf("AltFmt").timeFS:GetText())
+    Display:Update({}, now + 1)
+end)
+
+test("Settings BarFont re-validates and re-applies every fontstring live", function()
+    local shipped = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
+    local tag = Display.tagFS[1]
+    -- Login already applied the stored default through this very seam,
+    -- and the sim's [font] verdict accepted it (the game-font law of the
+    -- "Init" test: the shipped file round-trips through CreateFont).
+    assertTrue(tag:GetFont():lower() == shipped:lower())
+    -- The options file is the same vendored file the page registers.
+    assertEquals(shipped, Settings:Get("General", "BarFont"))
+    -- SetBarFont routes through validateFontFile (CreateFont + SetFont
+    -- pcall, the client's own acceptability verdict -- in the sim every
+    -- path CreateFont takes is accepted, so what this proves is the live
+    -- re-apply: the tag, title and every pooled time/count fontstring).
+    Settings:Set("General", "BarFont", "Interface\\AddOns\\Forte_Core\\Fonts\\NOPE.ttf")
+    assertTrue(tag:GetFont():lower()
+        == "interface\\addons\\forte_core\\fonts\\nope.ttf")
+    Settings:Reset("General", "BarFont")
+    assertTrue(tag:GetFont():lower() == shipped:lower())
+end)
+
+test("ApplySettings pushes a whole table through the same seam", function()
+    Display:ApplySettings({ Width = 260, MaxTime = 200, Spark = false })
+    assertEquals(260, Display.anchor:GetWidth())
+    near3(S.Max, 200)
+    local now = 33500
+    Display:Update({
+        { name = "BulkA", start = 0, duration = 120, endTime = now + 120 },
+    }, now)
+    assertFalse(slotOf("BulkA").spark:IsShown())
+    Display:ApplySettings({ Width = 250, MaxTime = 300, Spark = true })
+    assertEquals(250, Display.anchor:GetWidth())
+    near3(S.Max, 300)
+    assertTrue(slotOf("BulkA").spark:IsShown())
+    Display:Update({}, now + 1)
+end)
+
+test("Not-used-yet keys (FrameSnap, ShowTooltips) are inert and safe", function()
+    -- Deliberately NOT in the Display KEYMAP: the Set must not move
+    -- anything on the bar (documented in the pages' tips).
+    local w0 = Display.anchor:GetWidth()
+    local a0 = Display.anchor:GetAlpha()
+    Settings:Set("General", "FrameSnap", true)
+    Settings:Set("General", "ShowTooltips", false)
+    assertEquals(w0, Display.anchor:GetWidth())
+    near3(Display.anchor:GetAlpha(), a0)
+    Settings:Reset("General", "FrameSnap")
+    Settings:Reset("General", "ShowTooltips")
+end)
+
+-- ================================================================= m5 perf --
+
+test("m5: two passes with unchanged state do not touch SetText at all", function()
+    Display:Init()
+    local now = 34000
+    local feed = {
+        { name = "QuietA", start = 0, duration = 120, endTime = now + 120.5 },
+        { name = "QuietB", start = 0, duration = 46,  endTime = now + 45.6 },
+    }
+    Display:Update(feed, now)     -- binds, paints both icons once
+    local a, b = slotOf("QuietA"), slotOf("QuietB")
+    assertNotNil(a); assertNotNil(b)
+    local ca, cb = 0, 0
+    local origA, origB = a.timeFS.SetText, b.timeFS.SetText
+    a.timeFS.SetText = function(fs, txt) ca = ca + 1; return origA(fs, txt) end
+    b.timeFS.SetText = function(fs, txt) cb = cb + 1; return origB(fs, txt) end
+
+    -- Two identical passes: zero format calls, zero SetText.
+    Display:Update(feed, now)
+    Display:Update(feed, now)
+    assertEquals(0, ca)
+    assertEquals(0, cb)
+
+    -- The >= 60 icon (m:ss) rides whole seconds: 120.5 -> 120.2 stays
+    -- "2:00", zero calls; the sub-minute icon crosses one tenth (45.6 ->
+    -- 45.3) -- exactly one repaint.
+    Display:Update(feed, now + 0.3)
+    assertEquals(0, ca)
+    assertEquals(1, cb)
+
+    -- One full second later it is "1:59" -- exactly one repaint.
+    Display:Update(feed, now + 1.1)
+    assertEquals(1, ca)
+    assertEquals("1:59", a.timeFS:GetText())
+
+    -- The tenths icon crossed 44.6..44.5 -> "44.5", one repaint (2 total).
+    assertEquals(2, cb)
+    assertEquals("44.5", b.timeFS:GetText())
+
+    a.timeFS.SetText = origA
+    b.timeFS.SetText = origB
+    Display:Update({}, now + 2)
+end)
+
+test("m5: TM.group reuses the caller's scratch tables pass over pass", function()
+    local out = {}
+    local e1 = { name = "GA", x = 100 }
+    local e2 = { name = "GB", x = 103 }
+    local e3 = { name = "GC", x = 200 }
+    local g1 = TM.group({ e1, e2, e3 }, 24, out)
+    assertTrue(g1 == out)                 -- the caller's table IS the result
+    assertEquals(2, #g1)
+    assertEquals(2, #g1[1])
+    assertEquals("GC", g1[2][1].name)
+    local sub1, sub2 = g1[1], g1[2]
+
+    -- Second pass: identical structure -> the very same tables, no growth.
+    local g2 = TM.group({ e1, e2, e3 }, 24, out)
+    assertTrue(g2 == out)
+    assertTrue(g2[1] == sub1 and g2[2] == sub2)
+    assertEquals(2, #g2)
+    assertEquals("GA", g2[1][1].name)
+    assertEquals("GB", g2[1][2].name)
+
+    -- A split pass (no overlap): both lists refilled, stale members gone.
+    local g3 = TM.group({ e1, e3 }, 24, out)
+    assertEquals(2, #g3)
+    assertEquals(1, #g3[1])
+    assertEquals(1, #g3[2])
+    assertEquals("GA", g3[1][1].name)
+    assertEquals("GC", g3[2][1].name)
+
+    -- A shorter pass: stale groups drop off the live list.
+    local g4 = TM.group({ e1 }, 24, out)
+    assertEquals(1, #g4)
+    assertEquals("GA", g4[1][1].name)
+
+    -- The pure shape (no scratch) still returns fresh tables.
+    local fresh = TM.group({ e1, e2, e3 }, 24)
+    assertTrue(fresh ~= out)
+    assertEquals(2, #fresh)
+    assertEquals(2, #fresh[1])
+end)
