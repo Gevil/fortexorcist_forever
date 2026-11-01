@@ -44,6 +44,11 @@ W.C = {
     LABEL_INSET = 8, LABEL_COL_RATIO = 0.38, TIPS_INSET = 12,
     SECTION_H = 22, SECTION_PAD = 6,
     HEAD_H = 24,
+    -- 2026-11-01 defect pass: the header control boxes are measured from
+    -- the bar's right edge (the old nil-global anchor made them render
+    -- left of the window).
+    HEAD_CTRL_RIGHT = 28,   -- scale box right edge inset from the bar right
+    HEAD_CTRL_GAP = 90,     -- alpha box right edge left of the scale box
 
     -- colours
     GOLD = { 1, 0.82, 0, 1 },          -- option labels (the original's gold)
@@ -261,9 +266,11 @@ end
 
 -- ------------------------------------------------------------- row frame --
 --- A row of width `width` in parent, returning the frame. Callers anchor
---- rows themselves (the page builder owns the vertical cursor).
-local function makeRow(parent, width)
-    local row = CreateFrame("Frame", nil, parent)
+--- rows themselves (the page builder owns the vertical cursor). `name`
+--- (spec.name) registers the row as a global frame so dump-tree can read
+--- its geometry.
+local function makeRow(parent, width, name)
+    local row = CreateFrame("Frame", name, parent)
     row:SetSize(width, C.ROW_H)
     return row
 end
@@ -287,7 +294,9 @@ end
 
 --- The common handle skeleton; the per-type builder fills obj/refresh.
 local function newWidget(parent, spec, width, labelColour)
-    local w = { spec = spec, row = makeRow(parent, width), labelColour = labelColour }
+    local w = { spec = spec,
+        row = makeRow(parent, width, spec and spec.name),
+        labelColour = labelColour }
     attachLabel(w, spec, labelColour)
     w.setEnabled = function(self, enabled) setEnabled(self, enabled) end
     return w
@@ -660,7 +669,7 @@ end
 --- scaleSpec, alphaSpec, onResetAll, width }
 function W.HEADER(parent, spec)
     local C = W.C
-    local bar = CreateFrame("Frame", nil, parent)
+    local bar = CreateFrame("Frame", spec.barName, parent)
     bar:SetSize(spec.width, C.HEAD_H)
     local art = bar:CreateTexture(nil, "BACKGROUND")
     art:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
@@ -710,14 +719,25 @@ function W.HEADER(parent, spec)
 
     if spec.scaleSpec then head.scale = W.NUM(bar, spec.scaleSpec) end
     if spec.alphaSpec then head.alpha = W.NUM(bar, spec.alphaSpec) end
+    -- 2026-11-01 defect pass: BOTH boxes anchor to the bar itself (the old
+    -- code referenced a nil `recycle` global, so the rows fell through to a
+    -- screen-relative anchor and rendered left of the window). The scale
+    -- box's right edge sits HEAD_CTRL_RIGHT px before the bar's right edge,
+    -- the alpha box HEAD_CTRL_GAP px left of the scale box. Height =
+    -- HEAD_H with a RIGHT<->RIGHT anchor at y 0 puts each box in the bar's
+    -- exact vertical band.
     if head.scale then
-        head.scale.row:SetPoint("RIGHT", recycle, "LEFT", -10, 0)
+        head.scale.row:SetPoint("RIGHT", bar, "RIGHT", -C.HEAD_CTRL_RIGHT, 0)
         head.scale.row:SetSize(head.scale.row:GetWidth(), C.HEAD_H)
         head.scale.label:SetText("scale")
         head.scale.label:SetPoint("LEFT", head.scale.row, "LEFT", 0, 0)
     end
     if head.alpha then
-        head.alpha.row:SetPoint("RIGHT", (head.scale and head.scale.row or recycle), "LEFT", -10, 0)
+        head.alpha.row:SetPoint("RIGHT",
+            head.scale and head.scale.row or recycleBtn, "LEFT",
+            head.scale and -C.HEAD_CTRL_GAP
+                or -(C.ICON_W + C.HEAD_CTRL_GAP + head.alpha.row:GetWidth()),
+            0)
         head.alpha.row:SetSize(head.alpha.row:GetWidth(), C.HEAD_H)
         head.alpha.label:SetText("alpha")
     end

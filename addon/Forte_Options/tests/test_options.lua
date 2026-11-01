@@ -798,3 +798,111 @@ test("polish 6: checkboxes are 14px, dark-filled, bordered box", function()
         cb.boxFill:GetWidth(), cb.boxFill:GetHeight()))
     O:Close()
 end)
+
+-- ========================================================== Defect pass 2 ==
+-- Numeric gates for the 2026-11-01 follow-up pass: the header alpha/scale
+-- boxes must sit INSIDE the header bar on every module page, and the
+-- viewport carries a scrollbar whose thumb tracks the scroll offset.
+
+test("header alpha/scale boxes sit inside the header bar (both pages)",
+function()
+    for _, pageId in ipairs({ "General", "Cooldown" }) do
+        O:Open(pageId)
+        local h = O.header
+        local bar = h.bar
+        assertTrue(bar:IsShown(), pageId .. " header bar shown")
+        assertTrue(h.scale ~= nil, pageId .. " scale field exists")
+        assertTrue(h.alpha ~= nil, pageId .. " alpha field exists")
+        for _, pair in ipairs({ { "scale", h.scale }, { "alpha", h.alpha } }) do
+            local name, wd = pair[1], pair[2]
+            local r = wd.row
+            assertTrue(r:IsShown(), pageId .. " " .. name .. " box shown")
+            assertTrue(r:GetLeft() >= bar:GetLeft() - 0.5,
+                pageId .. " " .. name .. " box left of the bar")
+            assertTrue(r:GetRight() <= bar:GetRight() + 0.5,
+                pageId .. " " .. name .. " box right of the bar")
+            nearT(bar:GetTop(), r:GetTop(), 0.5)
+            nearT(r:GetBottom(), bar:GetBottom(), 0.5)
+            -- the label and the edit box live inside the box
+            assertTrue(wd.label:GetLeft() >= r:GetLeft() - 0.5)
+            assertTrue(wd.obj:GetRight() <= r:GetRight() + 0.5)
+            assertTrue(wd.obj:GetWidth() > 0, name .. " edit box width")
+            print(string.format(
+                "[hdr2] %s %s box L=%.1f R=%.1f T=%.1f B=%.1f (bar L=%.1f R=%.1f T=%.1f B=%.1f)",
+                pageId, name, r:GetLeft(), r:GetRight(),
+                r:GetTop(), r:GetBottom(),
+                bar:GetLeft(), bar:GetRight(), bar:GetTop(), bar:GetBottom()))
+        end
+        -- the requested layout: scale ends 28px before the bar's right
+        -- edge, alpha ends 90px before the scale box's left edge, and the
+        -- scale box stays left of the header recycle icon.
+        nearT(bar:GetRight() - WC.HEAD_CTRL_RIGHT, h.scale.row:GetRight(), 1)
+        nearT(h.scale.row:GetLeft() - WC.HEAD_CTRL_GAP,
+            h.alpha.row:GetRight(), 1)
+        assertTrue(h.scale.row:GetRight() <= h.recycle:GetLeft() + 0.5,
+            pageId .. " scale box over the recycle icon")
+        assertTrue(h.alpha.row:GetRight() < h.scale.row:GetLeft(),
+            pageId .. " header boxes overlap")
+    end
+    O:Close()
+end)
+
+test("scrollbar: 6px track + thumb tracks the offset, hidden when the page fits",
+function()
+    O:Open("General")
+    local tr, th = O.scrollTrack, O.scrollThumb
+    assertTrue(tr ~= nil and th ~= nil, "scrollbar frames exist")
+    assertEquals(O.C.SCROLL_W, tr:GetWidth())
+    -- General fits the viewport: no scroll indication at all.
+    assertTrue(O.contentHeight <= O.viewport:GetHeight() + 0.5,
+        "General content must fit")
+    assertTrue(not tr:IsShown(), "track hidden on a fitting page")
+    assertTrue(not th:IsShown(), "thumb hidden on a fitting page")
+    print(string.format("[sb2] General contentH=%.1f vpH=%.1f hidden",
+        O.contentHeight, O.viewport:GetHeight()))
+
+    O:Open("Cooldown")
+    local vp = O.viewport
+    assertTrue(O.contentHeight > vp:GetHeight(), "Cooldown overflows")
+    assertTrue(tr:IsShown(), "track shown on an overflowing page")
+    assertTrue(th:IsShown(), "thumb shown on an overflowing page")
+    -- the thumb lives inside the track
+    assertTrue(th:GetLeft() >= tr:GetLeft() - 0.5)
+    assertTrue(th:GetRight() <= tr:GetRight() + 0.5)
+    assertTrue(th:GetTop() <= tr:GetTop() + 0.5)
+    assertTrue(th:GetBottom() >= tr:GetBottom() - 0.5)
+    -- height ratio = viewport / content of the track
+    local want = vp:GetHeight() / O.contentHeight * tr:GetHeight()
+    assertTrue(want >= O.C.SCROLL_THUMB_MIN - 0.5, "min-height clamp active")
+    nearT(want, th:GetHeight(), 1)
+    print(string.format(
+        "[sb2] Cooldown vpH=%.1f contentH=%.1f track %.1fx%.1f thumb %.1fx%.1f ratio=%.3f",
+        vp:GetHeight(), O.contentHeight, tr:GetWidth(), tr:GetHeight(),
+        th:GetWidth(), th:GetHeight(), th:GetHeight() / tr:GetHeight()))
+
+    -- offset 0: flush with the track top
+    assertEquals(0, O._scroll)
+    nearT(tr:GetTop(), th:GetTop(), 0.5)
+    print(string.format("[sb2] offset 0: thumb T=%.1f (track T=%.1f)",
+        th:GetTop(), tr:GetTop()))
+    -- a mid offset: strictly between the two extremes
+    local maxScroll = O.contentHeight - vp:GetHeight()
+    O:Scroll(-maxScroll / 2)
+    nearT(maxScroll / 2, O._scroll, 1)
+    assertTrue(th:GetTop() < tr:GetTop() - 0.5, "mid scroll moves thumb down")
+    assertTrue(th:GetBottom() > tr:GetBottom() + 0.5, "mid scroll lifts bottom")
+    -- max offset: flush with the track bottom
+    O:Scroll(-maxScroll)
+    assertEquals(maxScroll, O._scroll)
+    nearT(tr:GetBottom(), th:GetBottom(), 0.5)
+    print(string.format(
+        "[sb2] offset max: scroll=%.1f thumb T=%.1f B=%.1f (track T=%.1f B=%.1f)",
+        O._scroll, th:GetTop(), th:GetBottom(), tr:GetTop(), tr:GetBottom()))
+    -- back to the top: flush again, and the bar hides on a fitting page
+    O:Scroll(maxScroll)
+    assertEquals(0, O._scroll)
+    nearT(tr:GetTop(), th:GetTop(), 0.5)
+    O:Open("General")
+    assertTrue(not tr:IsShown(), "track hidden again after a page switch")
+    O:Close()
+end)

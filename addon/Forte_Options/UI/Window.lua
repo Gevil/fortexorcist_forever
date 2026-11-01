@@ -47,6 +47,14 @@ O.C = {
 
     WHEEL_STEP = 40,
 
+    -- scroll indication (2026-11-01 defect pass): a 6px track on the
+    -- viewport's right edge + an Aluminium thumb (UpdateScrollbar).
+    SCROLL_W = 6,
+    SCROLL_THUMB_W = 4,
+    SCROLL_THUMB_MIN = 16,
+    SCROLL_TRACK = { 0.04, 0.05, 0.08, 0.4 },   -- dark, alpha 0.4
+    SCROLL_THUMB = { 0.72, 0.73, 0.78, 0.8 },   -- Aluminium tint, alpha 0.8
+
     -- Module index palette (module identity colours, spec §3.6 header tints)
     SLATE = { 0.35, 0.38, 0.55 },
     GREEN = { 0.15, 0.55, 0.30 },
@@ -260,6 +268,34 @@ function O:Build()
         self:Scroll(delta * C.WHEEL_STEP)
     end)
     self.viewport, self.content = viewport, content
+
+    -- ---- scroll indication ---------------------------------------------
+    -- A 6px dark track pinned to the viewport's right edge; the thumb's
+    -- height is the viewport's share of the content height (min 16px) and
+    -- its top offset follows the scroll offset. UpdateScrollbar hides the
+    -- whole bar whenever the page fits (defect: no scroll indication).
+    local sbTrack = CreateFrame("Frame", "ForteXorcistOptionsScrollTrack", f)
+    sbTrack:SetSize(C.SCROLL_W, vpH)
+    sbTrack:SetPoint("TOPRIGHT", viewport, "TOPRIGHT", 0, 0)
+    local sbArt = sbTrack:CreateTexture(nil, "BACKGROUND")
+    sbArt:SetPoint("TOPLEFT", sbTrack, "TOPLEFT", 0, 0)
+    sbArt:SetPoint("BOTTOMRIGHT", sbTrack, "BOTTOMRIGHT", 0, 0)
+    sbArt:SetTexture(TEX .. "Aluminium")
+    sbArt:SetVertexColor(C.SCROLL_TRACK[1], C.SCROLL_TRACK[2],
+        C.SCROLL_TRACK[3], C.SCROLL_TRACK[4])
+    local sbThumb = CreateFrame("Frame", "ForteXorcistOptionsScrollThumb", sbTrack)
+    sbThumb:SetSize(C.SCROLL_THUMB_W, C.SCROLL_THUMB_MIN)
+    sbThumb:SetPoint("TOPLEFT", sbTrack, "TOPLEFT",
+        (C.SCROLL_W - C.SCROLL_THUMB_W) / 2, 0)
+    local thArt = sbThumb:CreateTexture(nil, "BACKGROUND")
+    thArt:SetPoint("TOPLEFT", sbThumb, "TOPLEFT", 0, 0)
+    thArt:SetPoint("BOTTOMRIGHT", sbThumb, "BOTTOMRIGHT", 0, 0)
+    thArt:SetTexture(TEX .. "Aluminium")
+    thArt:SetVertexColor(C.SCROLL_THUMB[1], C.SCROLL_THUMB[2],
+        C.SCROLL_THUMB[3], C.SCROLL_THUMB[4])
+    sbThumb:Hide()
+    sbTrack:Hide()
+    self.scrollTrack, self.scrollThumb = sbTrack, sbThumb
 
     -- ---- module index --------------------------------------------------
     self:BuildIndex(f)
@@ -563,6 +599,7 @@ function O:BuildHeader(def)
     if self.header and self.header.bar then self.header.bar:Hide() end
     local head = W.HEADER(self.window, {
         title = def.title,
+        barName = "ForteXorcistOptionsHeaderBar",
         colour = def.colour,
         width = C.WIN_W - 16,
         lockTip = def.lockKey and "Click to lock/unlock module frames"
@@ -577,6 +614,7 @@ function O:BuildHeader(def)
         end,
         scaleSpec = def.scaleKey and {
             module = def.module, key = def.scaleKey, label = "scale",
+            name = "ForteXorcistOptionsHeaderScale",
             width = 96, numWidth = 48,
             min = C.HEAD_SCALE_RANGE[1], max = C.HEAD_SCALE_RANGE[2], step = 0.1,
             tip = "Frame scale (" .. C.HEAD_SCALE_RANGE[1] .. ".."
@@ -584,6 +622,7 @@ function O:BuildHeader(def)
         } or nil,
         alphaSpec = def.alphaKey and {
             module = def.module, key = def.alphaKey, label = "alpha",
+            name = "ForteXorcistOptionsHeaderAlpha",
             width = 96, numWidth = 48,
             min = C.HEAD_ALPHA_RANGE[1], max = C.HEAD_ALPHA_RANGE[2], step = 0.05,
             tip = "Frame alpha (" .. C.HEAD_ALPHA_RANGE[1] .. ".."
@@ -630,6 +669,34 @@ function O:ApplyScroll()
     -- below by moving the scroll child up by the scroll amount.
     self.content:SetPoint("TOPLEFT", self.viewport, "TOPLEFT",
         0, self._scroll or 0)
+    self:UpdateScrollbar()
+end
+
+--- Track visible iff the content overflows the viewport. Thumb height =
+--- viewportH/contentH x trackH (min C.SCROLL_THUMB_MIN); top offset =
+--- scroll/maxScroll of the free span, so the thumb sits flush with the
+--- track top at offset 0 and with the track bottom at max offset.
+function O:UpdateScrollbar()
+    local tr, th = self.scrollTrack, self.scrollThumb
+    if not tr then return end
+    local vpH = self.viewport:GetHeight()
+    local contentH = self.contentHeight or 0
+    local trackH = tr:GetHeight()
+    local maxScroll = contentH - vpH
+    if maxScroll <= 0 then
+        tr:Hide()
+        th:Hide()   -- the sim's IsShown does not read the parent chain
+        return
+    end
+    tr:Show()
+    local h = vpH / contentH * trackH
+    if h < C.SCROLL_THUMB_MIN then h = C.SCROLL_THUMB_MIN end
+    th:SetHeight(h)
+    local frac = (self._scroll or 0) / maxScroll
+    th:ClearAllPoints()
+    th:SetPoint("TOPLEFT", tr, "TOPLEFT",
+        (C.SCROLL_W - C.SCROLL_THUMB_W) / 2, -frac * (trackH - h))
+    th:Show()
 end
 
 -- --------------------------------------------------------------- open/close --
