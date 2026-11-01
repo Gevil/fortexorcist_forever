@@ -1,0 +1,30 @@
+{
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Shaman tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped -- re-check them after a mythicsim-forever-engine pull. Forever notes: the shaman kit gained new core spells (Riptide and Lava Lash join the shock/cooldown families, Molten Blast, Healing Rain, Decoy Totem, Stoneclaw Totem, Earthbind Totem, Feral Spirit, Rage of the Farseer, Totemic Projection); the Far Sight scry line is split into Call of the Elements/Spirits/Ancestors (L20/30/40) and Call of Flame/Thunder (L60); melee 'stamps' are Windfury/Flametongue/Rockbiter Weapon + Frostbrand. Shocks and totems often carry the cooldown as a shared category cooldown (e.g. shock category, Mana Tide category 591) -- the generator emits CategoryCooldownMs as cooldownMs.",
+  "cooldowns": [
+    "Earth Shock", "Flame Shock", "Frost Shock", "Riptide", "Chain Lightning",
+    "Molten Blast", "Lava Lash", "Fire Nova", "Healing Rain", "Decoy Totem",
+    "Grounding Totem", "Stoneclaw Totem", "Earthbind Totem", "Mana Tide Totem",
+    "Feral Spirit", "Elemental Mastery", "Nature's Swiftness", "Rage of the Farseer",
+    "Totemic Projection", "Reincarnation"
+  ],
+  "buffs": [
+    "Lightning Shield", "Earth Shield", "Water Shield", "Flurry", "Clearcasting",
+    "Elemental Devastation", "Power Surge", "Energized Shield", "Shield Mastery",
+    "Tidal Waves", "Way of Earth"
+  ],
+  "stamps": [
+    "Windfury Weapon", "Flametongue Weapon", "Rockbiter Weapon (Passive)", "Frostbrand Attack"
+  ],
+  "totems": [
+    "Stoneskin Totem", "Strength of Earth Totem", "Grace of Air Totem",
+    "Healing Stream Totem", "Mana Spring Totem", "Fire Resistance Totem",
+    "Frost Resistance Totem", "Nature Resistance Totem", "Poison Cleansing Totem",
+    "Disease Cleansing Totem", "Flametongue Totem", "Magma Totem", "Searing Totem",
+    "Tremor Totem", "Windwall Totem"
+  ],
+  "utility": [
+    "Ghost Wolf", "Ancestral Spirit", "Far Sight", "Call of Flame", "Call of Thunder",
+    "Call of the Elements", "Call of the Spirits", "Call of the Ancestors",
+    "Purge", "Cure Poison", "Cure Disease"
+  ]
+}

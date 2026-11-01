@@ -18,6 +18,48 @@
 --    highest-rank ID, but a lower-level character knows a lower rank with a
 --    different ID. C_Spell resolves a name to whatever rank the player knows.
 --
+-- Entry provenance (`entry.source`):
+--  * "cast"  started by OnCast from our own (plain) UNIT_SPELLCAST_SUCCEEDED.
+--  * "read"  anchored/confirmed by a plain cooldown read (OnRead) -- an
+--            anchoring read also *certifies* an entry created by "edge".
+--  * "edge"  started by OnActiveEdge from the NeverSecret isActive/isOnGCD
+--            booleans when the cast event's spellID arrived secret (PLAN §8
+--            mitigation 2). Same predicted BestDuration window as "cast",
+--            but an "edge" entry that no plain read ever anchored never
+--            pops ready (inferred-entries rule, PLAN §3.2); it is swept in
+--            silence when its window lapses.
+--
+-- Multi-charge model (owner ruling 2026-11-01: multi-charge is MISSING in
+-- the original -- built new; the DISPLAY draws charge counts later, this
+-- layer only exposes the data):
+--  * `tracked[name].maxCharges` is set at RUNTIME by Engine:DetectCharges
+--    from the NeverSecret SpellChargeInfo.maxCharges -- no spell data.
+--  * A charge spell's entry carries `charges = { max, current, nextAt }`:
+--    `current` charges are castable right now, `nextAt` is when the NEXT
+--    charge lands (nil = bar full). `entry.rechargeEnd` mirrors `nextAt`
+--    for the display; a charge entry's start/duration/endTime describe the
+--    LAST cast's window, and the sweep reuses `duration` as the per-charge
+--    recharge length (anchored reads set it from the real charge-cooldown
+--    pair, predictions from BestDuration).
+--  * A cast consumes one charge: current = max(current - 1, 0); the first
+--    cast of a draining bar arms the recharge clock at now + BestDuration.
+--  * Sweep advances the clock: while nextAt <= now, current is incremented
+--    and nextAt += duration (nextAt = nil once current == max). The entry
+--    expires -- and, like any "edge" entry, pops ONLY once the FULL bar is
+--    back (current >= max). While current > 0 the spell is castable: the
+--    entry is NOT "on cooldown" -- the display must keep such rows off the
+--    cooling/splash treatment and use `charges`/`maxCharges`/`rechargeEnd`
+--    for the count, and the "ready" pop belongs to the full-bar moment.
+--  * Sorted() rows expose `charges` (the CURRENT count, nil = not a charge
+--    spell) and `maxCharges` alongside them.
+--  * OnReadCharges (from C_Spell.GetSpellCharges) re-anchors: `current` from
+--    the plain currentCharges, `nextAt` from the plain
+--    cooldownStartTime + cooldownDuration; any secret component leaves the
+--    clock model untouched. A plain full-bar read CLEARS the entry. For a
+--    charge spell the plain GetSpellCooldown "ready" read never clears
+--    (its last-cast window lapses mid-bar): the charge read owns the
+--    lifecycle, and OnRead only ever ANCHORS.
+--
 -- Everything here is plain Lua state + functions so it can be unit-tested
 -- under wow-ui-sim without driving real combat (see tests/).
 
@@ -29,10 +71,15 @@ local Engine = {}
 FX.Cooldown.Engine = Engine
 
 -- Below this many seconds a "cooldown" is just the global cooldown; never track it.
-Engine.MIN_COOLDOWN = 2.5
+-- 2.99 (not 2.5) matches the original ForteXorcist `FW.Default.IgnoreCooldown`:
+-- anything under a 3 s GCD band is noise, not a tracked cooldown.
+Engine.MIN_COOLDOWN = 2.99
 
-Engine.tracked = {}   -- [name] = { name, dataId, baseDuration }
-Engine.entries = {}   -- [name] = { name, start, duration, endTime, predicted }
+Engine.tracked = {}   -- [name] = { name, dataId, baseDuration, maxCharges? (runtime, DetectCharges) }
+-- [name] = { name, start, duration, endTime, predicted, source =
+--            "cast"|"read"|"edge", anchored?, charges? = {max, current,
+--            nextAt}, rechargeEnd? = nextAt } -- see file header
+Engine.entries = {}
 Engine.learned = {}   -- [name] = seconds, persisted via Engine:AttachStorage
 
 --- Point learned durations at a SavedVariables-backed table so they survive reloads.
@@ -67,6 +114,26 @@ function Engine:Build(classFile, isKnown)
     return n
 end
 
+--- Runtime multi-charge detection (owner ruling 2026-11-01: multi-charge is
+--- MISSING in the original -- nothing in the generated data says which
+--- spells have charges, so the flag is measured live, never declared).
+--- Reads the NeverSecret SpellChargeInfo.maxCharges for every tracked name;
+--- >1 marks `tracked[name].maxCharges`. `readCharges(spellName)` is
+--- injectable for tests and defaults to the live C_Spell read.
+function Engine:DetectCharges(readCharges)
+    readCharges = readCharges or FX.Compat.GetSpellCharges
+    if not readCharges then return end
+    for name, t in pairs(self.tracked) do
+        -- pcall: a live charges read can throw (secret values propagate as
+        -- a raise). The flag is best-effort; one spell blowing up is not.
+        local ok, info = pcall(readCharges, name)
+        local max = ok and info and FX.Compat.PlainOrNil(info.maxCharges)
+        if type(max) == "number" and max > 1 then
+            t.maxCharges = max
+        end
+    end
+end
+
 --- Best duration we have for a tracked spell: learned beats generated base.
 function Engine:BestDuration(name)
     local learned = self.learned[name]
@@ -75,14 +142,29 @@ function Engine:BestDuration(name)
     return t and t.baseDuration
 end
 
---- A successful cast of `name` at `now`. Starts (or restarts) a predicted entry.
---- Returns the entry, or nil if `name` isn't tracked.
+--- A successful cast of `name` at `now`. Starts (or restarts) a predicted
+--- entry. For a charge spell the cast consumes one charge: current =
+--- max(current - 1, 0), and the first cast of a draining bar arms the
+--- recharge clock at now + BestDuration (file header). A fresh cast clears
+--- any prior read-certification (`anchored`). Returns the entry, or nil if
+--- `name` isn't tracked.
 function Engine:OnCast(name, now)
-    if not self.tracked[name] then return nil end
+    local t = self.tracked[name]
+    if not t then return nil end
     local duration = self:BestDuration(name)
     if not duration then return nil end
     local e = self.entries[name] or { name = name }
     e.start, e.duration, e.endTime, e.predicted = now, duration, now + duration, true
+    e.source, e.anchored = "cast", nil
+    if t.maxCharges then
+        local c = e.charges
+        if not c then
+            c = { max = t.maxCharges, current = t.maxCharges }
+            e.charges = c
+        end
+        c.current = math.max(c.current - 1, 0)
+        if c.nextAt == nil then c.nextAt = now + duration end
+    end
     self.entries[name] = e
     return e
 end
@@ -92,7 +174,8 @@ end
 --- a plain "not on cooldown" read clears it; a secret read changes nothing.
 --- Returns "anchored", "cleared", "secret" or "ignored".
 function Engine:OnRead(name, start, duration, now)
-    if not self.tracked[name] then return "ignored" end
+    local t = self.tracked[name]
+    if not t then return "ignored" end
     start = FX.Compat.PlainOrNil(start)
     duration = FX.Compat.PlainOrNil(duration)
     if start == nil or duration == nil then return "secret" end
@@ -100,6 +183,10 @@ function Engine:OnRead(name, start, duration, now)
     if start > 0 and duration >= self.MIN_COOLDOWN then
         local e = self.entries[name] or { name = name }
         e.start, e.duration, e.endTime, e.predicted = start, duration, start + duration, false
+        -- A plain read is the certification: it re-anchors the window and
+        -- vouches for an "edge" entry, unlocking its ready pop (header).
+        -- Charges are left to OnReadCharges -- the charge read owns the bar.
+        e.source, e.anchored = "read", true
         self.entries[name] = e
         -- Learn only from a full-length read: a read whose start we did not see
         -- still carries the full duration, so this is safe either way.
@@ -111,6 +198,12 @@ function Engine:OnRead(name, start, duration, now)
     -- isn't a fresh prediction still inside its window -- the GCD can mask
     -- a just-started cooldown for a moment after the cast.
     local e = self.entries[name]
+    if t.maxCharges then
+        -- A charge spell whose plain GetSpellCooldown window lapsed is NOT
+        -- ready: it is mid-bar. The charges read (OnReadCharges) owns the
+        -- lifecycle of a charge entry -- this read only ever anchors.
+        return "ignored"
+    end
     if e and e.predicted and now < e.endTime and (now - e.start) < 1.6 then
         return "ignored"
     end
@@ -118,23 +211,134 @@ function Engine:OnRead(name, start, duration, now)
     return "cleared"
 end
 
---- Remove entries whose time ran out. Returns an array of names that just became ready.
+--- A live charges read for `name` (raw fields of C_Spell.GetSpellCharges;
+--- guard them here). Plain `currentCharges` re-anchors the bar's `current`;
+--- a plain `cooldownStartTime`/`cooldownDuration` pair re-anchors `nextAt`
+--- (when the next charge lands) and the entry window -- for a charge entry
+--- `duration` is the per-charge recharge the sweep steps by. A plain
+--- full-bar read means the spell is READY: the entry is cleared. A secret
+--- `currentCharges` leaves the clock model untouched (secret pairs keep the
+--- existing nextAt). Returns "anchored", "cleared", "secret" or "ignored".
+function Engine:OnReadCharges(name, currentCharges, cooldownStartTime, cooldownDuration, now)
+    local t = self.tracked[name]
+    if not t or not t.maxCharges then return "ignored" end
+    currentCharges = FX.Compat.PlainOrNil(currentCharges)
+    if currentCharges == nil then return "secret" end
+    if currentCharges >= t.maxCharges then
+        -- Full bar plain-visible: nothing on cooldown, nothing to model.
+        self.entries[name] = nil
+        return "cleared"
+    end
+    local e = self.entries[name]
+    if not e then
+        local bd = self:BestDuration(name)
+        if not bd then return "ignored" end
+        e = { name = name, start = now, duration = bd, endTime = now + bd }
+        self.entries[name] = e
+    end
+    local start = FX.Compat.PlainOrNil(cooldownStartTime)
+    local duration = FX.Compat.PlainOrNil(cooldownDuration)
+    local prev = e.charges
+    local c = { max = t.maxCharges, current = math.max(currentCharges, 0) }
+    e.charges = c
+    -- No MIN_COOLDOWN floor on the pair: a per-charge recharge shorter than
+    -- a GCD band is a real charge bar, not GCD noise (the floor governs
+    -- which SPELLS we track, not how a tracked bar recharges).
+    if start ~= nil and duration ~= nil and start > 0 and duration > 0 then
+        -- The Blizzard charge pair is fact: window and clock ride it.
+        c.nextAt = start + duration
+        e.start, e.duration, e.endTime = start, duration, start + duration
+        e.predicted, e.source, e.anchored = false, "read", true
+    elseif prev then
+        -- Secret pair: keep the clock model; the charges read still
+        -- certifies the bar's count.
+        c.nextAt = prev.nextAt
+    end
+    return "anchored"
+end
+
+--- The active-edge fallback (PLAN §8 mitigation 2): when a cast's spellID
+--- arrives secret, in-combat prediction has no event to ride on -- but
+--- SpellCooldownInfo.isActive / .isOnGCD are NeverSecret, so Module's read
+--- pass can see a tracked spell's cooldown RUNNING (not the GCD) and call
+--- this. It creates the same predicted BestDuration window OnCast makes,
+--- tagged source = "edge": a never-anchored "edge" entry never pops ready
+--- (inferred-entries rule, PLAN §3.2); it is swept in silence when its
+--- window lapses. Returns the entry, or nil if `name` is untracked, has a
+--- live entry, or no duration is known.
+function Engine:OnActiveEdge(name, now)
+    if not self.tracked[name] then return nil end
+    if self.entries[name] then return nil end
+    local duration = self:BestDuration(name)
+    if not duration then return nil end
+    local e = { name = name, start = now, duration = duration,
+                endTime = now + duration, predicted = true, source = "edge" }
+    self.entries[name] = e
+    return e
+end
+
+--- Remove entries whose time ran out. Returns an array of names that just
+--- became ready (file header): a plain window pops at its endTime; a charge
+--- entry pops only once the FULL bar is back; a never-anchored "edge" entry
+--- is removed in silence -- an inferred entry never claims the ready moment
+--- (PLAN §3.2).
 function Engine:Sweep(now, out)
     out = out or {}
     for name, e in pairs(self.entries) do
-        if now >= e.endTime then
+        local c, done = e.charges, nil
+        if c then
+            -- Charge clock (header): one charge lands per recharge window.
+            while c.nextAt ~= nil and c.nextAt <= now do
+                c.current = c.current + 1
+                c.nextAt = (c.current < c.max) and (c.nextAt + e.duration) or nil
+            end
+            done = c.current >= c.max
+        else
+            done = now >= e.endTime
+        end
+        if done then
             self.entries[name] = nil
-            out[#out + 1] = name
+            if not (e.source == "edge" and not e.anchored) then
+                out[#out + 1] = name
+            end
         end
     end
     return out
 end
 
---- Active entries sorted by soonest-ready first. Reuses `out` to avoid per-tick garbage.
+--- Build/reuse the display ROW view of an entry: the entry's own fields
+--- plus the charge trio flattened -- `charges` = the CURRENT castable
+--- count (nil = not a charge spell), `maxCharges`, `rechargeEnd` = when the
+--- next charge lands. Rows are cached on the entry so the 10 Hz pass
+--- allocates nothing (the row outlives its entry by design: both die on the
+--- next Build). Rows, not live entries, travel to the Display so its reads
+--- cannot mutate the bar state.
+local function rowFor(e)
+    local r = e.row
+    if not r then
+        r = {}
+        e.row = r
+    end
+    r.name, r.start, r.duration, r.endTime = e.name, e.start, e.duration, e.endTime
+    r.predicted, r.source = e.predicted, e.source
+    local c = e.charges
+    r.charges, r.maxCharges, r.rechargeEnd = c and c.current, c and c.max, c and c.nextAt
+    return r
+end
+
+--- Entries sorted by soonest-ready first. Reuses `out` to avoid per-tick
+--- garbage. An entry whose charge bar has current > 0 is NOT on cooldown
+--- (castable; header) and stays out of this cooling list -- the display
+--- reads the charge count off a charge entry only while the bar is drained
+--- (`charges` = 0, `rechargeEnd` = the next charge landing).
 function Engine:Sorted(out)
     out = out or {}
     wipe(out)
-    for _, e in pairs(self.entries) do out[#out + 1] = e end
+    for _, e in pairs(self.entries) do
+        if not (e.charges and e.charges.current > 0) then
+            out[#out + 1] = rowFor(e)
+        end
+    end
     table.sort(out, function(a, b)
         if a.endTime ~= b.endTime then return a.endTime < b.endTime end
         return a.name < b.name

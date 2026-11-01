@@ -1,0 +1,26 @@
+{
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Warrior tracks; resolved family-scoped (Family=4, verified via signature spells: Charge/Heroic Strike/Mortal Strike/Thunder Clap/Shield Wall/Berserker Rage/Battle Stance -> 4; 'Death Stance' does not exist in this build) with the CD-carrier rank pick + companion-shadow rule + uncoded-family fallback (see tools/gen_spell_data.py docstring). Selection policy (same as hunter.json): cooldowns = castable spells whose CooldownMs/CategoryCooldownMs >= 2990 (ForteXorcist 2.99 s floor); buffs = DurationMs > 0 with no cooldown (proc/proc-window, DoT and debuff windows, Cheat Death); stances = the stance toggles (shared 1 s swap category 47, permanent auras) + the shouts (no cooldown in this build: long-duration windows; the CD-bearing shouts Challenging/Intimidating Shout live in cooldowns by the >= 2990 rule); utility = movement/positional tools (Intervene, no CD row in this build). Not listable / not tracked: item set-bonus rows ('S03 - Item - ...', '1.60.0 - Item - Tier 1 - Warrior - ...' -- internal aura rows, not spells), pure passives/talent auras (Enrage, Improved *, Focused Rage, Tactical Mastery, Warbringer, Wrecking Crew, Annihilation, Frenzied Assault, Consumed By Rage, Flagellation, Vanguard, Vigilance, Booming Voice, Blood Frenzy, Deep Wounds, Dual Wield Specialization, Lingering Rage, Fresh Meat, Impale, Precise Timing, Taste for Blood companion 427067), GCD fillers per policy (Heroic Strike, Cleave, Quick Strike, Devastate, Execute (rage dump; its lv-60 row 26651 carries only a 1 s window)) are untracked; Slam IS tracked (18 s category 2412). Devastate (403195/403196, Family 4 + a Family-3 mirror row) carries no window in this build -- it is the Sunder Armor twin (Sunder Armor 11597, 30 s debuff, IS tracked). Forever renames observed vs Classic: Challenger -> Challenging Shout, Intimidation -> Intimidating Shout, Disheartening Shout -> Demoralizing Shout, Crippling Shout -> Cripple, Taunt ranks -> Taunt (category 82 shared with Challenging/Intimidating family per data); Pummel/Concussion Blow/Mocking Blow are the Cata name family. Notable Forever-new warrior spells: Rampage (120 s, Arms execute-adjacent), Rallying Cry (180 s group fear-shrug+heal), Shockwave (20 s stun, category 1201), Meathook (35 s pull), Spearing Strike (20 s), Raging Blow (8 s), Quick Strike (GCD filler, untracked), Battle Forecast / Berserker Forecast / Defensive Forecast (stance-swap proc windows, 15 s), Echoes of Defensive Stance, Gladiator Stance (4th PVP stance, category 47), Commanding Shout (5-min enemy-NPC command), Single-Minded Fury, Sword and Board, Sudden Death (10 s proc), Slammin' (15 s proc), Blood Surge (15 s proc), Gladiator's Cunning, Victorious (20 s), Taste for Blood (9 s proc), Howling Blade (30 s), Deep Wound (12 s), Retaliation (15-min CD) / Retaliate (30 s counter window), Cheat Death (5 s, its 28845 twin is a Family-5 warlock mirror -- filtered by family scoping), Shield Block (5 s block window). Recklessness carries a 30-min cooldown (1800000 ms) in this build. Re-check after each mythicsim-forever-engine pull; run with --dry first.",
+  "cooldowns": [
+    "Berserker Rage", "Bloodrage", "Bloodthirst", "Challenging Shout", "Charge",
+    "Concussion Blow", "Death Wish", "Disarm", "Enraged Regeneration", "Intercept",
+    "Intimidating Shout", "Last Stand", "Meathook", "Mocking Blow", "Mortal Strike",
+    "Overpower", "Pummel", "Raging Blow", "Rallying Cry", "Rampage", "Recklessness",
+    "Retaliation", "Revenge", "Shield Bash", "Shield Block", "Shield Slam",
+    "Shield Wall", "Shockwave", "Slam", "Spearing Strike", "Sweeping Strikes",
+    "Taunt", "Thunder Clap", "Victory Rush", "Whirlwind"
+  ],
+  "buffs": [
+    "Battle Forecast", "Berserker Forecast", "Blood Surge", "Cheat Death", "Cripple",
+    "Deep Wound", "Defensive Forecast", "Echoes of Defensive Stance", "Gladiator's Cunning",
+    "Hamstring", "Howling Blade", "Piercing Howl", "Retaliate", "Single-Minded Fury",
+    "Slammin'", "Spell Vulnerability", "Sudden Death", "Sunder Armor", "Sword and Board",
+    "Taste for Blood", "Victorious"
+  ],
+  "stances": [
+    "Battle Stance", "Berserker Stance", "Defensive Stance", "Gladiator Stance",
+    "Battle Shout", "Demoralizing Shout", "Commanding Shout"
+  ],
+  "utility": [
+    "Intervene"
+  ]
+}

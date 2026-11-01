@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .DS_Store
 /scratch/
+docs/media/
+# Century Gothic is Monotype-proprietary ("All Rights Reserved"), NOT GPL — never commit (PLAN §3.5, §9)
+**/GOTHIC*.TTF

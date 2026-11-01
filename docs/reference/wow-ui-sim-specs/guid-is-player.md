@@ -1,0 +1,45 @@
+# GUID player identity query
+
+Current Retail/PTR `C_PlayerInfo.GUIDIsPlayer` must project explicit local, active populated party and target/focus unit-model identity/player-kind facts, not GUID syntax or all offline/social catalogs. Cached `PlayerLocationDocumentation.lua` declares a required `WOWGUID`, one boolean result and `AllowedWhenUntainted`. Strict string/no-coercion and closed-world unknown handling below are simulator policy, not native validation evidence. See [API architecture](../lua-api.md).
+
+## What it must do
+
+- [x] Authenticate the original secret argument before type validation or lookup; require an actual UTF-8 string and return exactly one boolean. Missing/nil/nonstring values error without coercion.
+- [x] Return true for exact local identity and currently active populated party identities; target/focus use their explicit player-kind facts. Text prefixes never classify input.
+- [x] Reflect live identity replacement, kind changes, removal, roster activation/population and independent environments without stale results.
+- [x] Return false for unrepresented strings, including player-looking GUIDs and empty strings: “not represented as a player in current model state,” not native non-player classification.
+- [x] Preserve authentic secret wrappers/caller taint: wrapped strings allowed when untainted, wrapped hits/misses/malformed values denied when tainted; ordinary strings remain usable.
+- [x] Load the ordinary ObjectAPI addon closure and exercise original whole `PlayerLocation:CreateFromGUID`/`PlayerLocationMixin:IsValid`, with vendor source provenance. Represented players yield true; misses retain the unchanged account operand's observed result, not a native account-type claim. No account mocks or sliced consumers.
+
+## How it works
+
+- [Lua/API architecture](../lua-api.md)
+- [Client profiles](../wiki/systems/client-profiles.md)
+
+## Implementation inventory
+
+- `src/c_api/c_player_info_guid.rs` — modeled query over current identity/kind facts; current profile registration in `src/c_api/mod.rs`/`registration.rs`.
+- `src/lua_api/globals/unit_misc.rs` — existing represented identity projection.
+- `src/lua_api/globals/unit_probes.rs` — existing target/focus player-kind facts.
+- `src/lua_api/state_types/social.rs` — existing local identity constant.
+- `tests/guid_is_player.rs` — direct state/security and whole vendor consumer regressions.
+
+## Tests asserting this spec
+
+`tests/guid_is_player.rs`: local/misses, target/focus replacement, kind/removal, party lifecycle, environment isolation, strict type, authentic secret boundary and two original ObjectAPI consumer cases. Initial Retail RED at `76f405e1d`:0/9 PASS, exit101, eight missing raw-provider guards and one original whole-consumer exact-true mismatch. Ordinary closure/provenance reached; downstream query/security/account diagnostics unreached. Compile/fmt0 and source unchanged independently verified. At `d6d8de29a`, independent2929 confirms Retail9/9 and PTR9/9 PASS, two normal raw-query/startup markers with `[]`, fmt0/readability clean and four newly authenticated seals. Original whole consumer accepts represented players as true; NPC/unknown direct query is false while unchanged account operand and miss consumer return nil. Account provenance is Lua `=(string)`, not a modeled/native account classifier. Invalid UTF-8 byte rejection is source-inspected, not a separately executed regression.
+
+## Known gaps (current cycle)
+
+- [x] Genuine RED observed before producer; assertions unreached after missing-provider guards receive no behavioral credit.
+- [x] Implement and verify Retail/PTR direct/consumer/startup checks, preserve diagnostics and account predicate provenance.
+- [x] Fresh default library check, owning strict publication and current-validator gates: main-verified `d7a34be4a` check exit0, `a555f927a` strict case PASS and `d21ca3f64` validator retry9/9 plus actual validator exit0. [Current packet](../../data/patch-api/evidence/guid-is-player-current-2026-10-12/README.md) owns detailed evidence; independent2939 retention/link/privacy PASS at19988.
+- [x] Public retention/link/privacy and collision disclosure independently2939 verified at19988; raw packet unchanged.
+- [ ] Original structured RED JSON NOT_RECOVERED: GREEN overwrote generic `proof.json`; original RED report/raw/auth receipt survive. Reconstruction is not byte-exact.
+- [x] Saved d21 broad suite PASS; [broad packet](../../data/test-perf/evidence/fullsuite-d21-2026-10-12/README.md) owns phase counts, raw result/log/proof and selected outcomes, including GUID9 and original strict publication PASS. New packet retention verified by independent2944 checks/2945 semantic correction; original word-only checker FAIL preserved/rejected as noncontract; existing GUID retention independent2939 PASS unchanged. Historical533cFAIL/BA3FAIL unchanged; broad PASS is not full-handoff completion.
+- [ ] GUI authenticated-user review, native/other-profile acceptance, credits and Pi provenance remain OPEN; no successful body-timing, cache-content, historical-equivalence or causal claim.
+
+Initial publication1FAIL/exit1 and wrong101 worker guard, publication-before fixture-race/coherenceFAIL, and earlier validator8/9FAIL with standalone NOT RUN remain historical. Retry does not relabel them. Native, earlier-profile, external and whole-handoff acceptance remain OPEN.
+
+## Out of scope
+
+Native arbitrary-GUID classification/coercion/catalogs, prefix inference, new normal-session identities/seeding, account-type implementation, earlier-profile contracts, vendor/global overrides, native or full-handoff acceptance.

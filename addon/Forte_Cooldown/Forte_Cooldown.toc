@@ -1,0 +1,12 @@
+## Interface: 16001
+## Title: |cffC41F3BForte|r Cooldown
+## Notes: ForteXorcist for WoW Forever -- cooldown tracking engine and display.
+## Version: 0.1.0-dev
+## Author: Gevil
+## Dependencies: Forte_Core
+## OptionalDeps: Forte_Hunter, Forte_Warlock
+
+Core/Engine.lua
+UI/TimelineMath.lua
+UI/Timeline.lua
+Module.lua

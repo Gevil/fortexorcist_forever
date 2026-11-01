@@ -1,0 +1,40 @@
+# Retail 5.3.0 publication sweep
+
+Audit the pinned retail 2013 API page and its separately pinned diff. [Audit](../wiki/investigations/patch-5-3-0-api-audit.md) describes evidence and limits.
+
+## What it must do
+
+- [x] Probe every inventory occurrence, with reviewed non-ok IDs exactly matching the known-gap fixture.
+- [x] Apply only later retail registers; retain queued 5.4.0, 5.4.1 and 5.4.2 placeholders in that order.
+- [x] Prove existing PvP role reads follow stored selection transitions in bare and cached environments.
+- [x] Verify the two historical removal names remain absent, without adding retirement gates.
+- [x] Reproduce every saved register and preserve inherited extract failures exactly.
+
+- [x] Own historical validator passes clean checkout, unrelated later audit and own-log tamper rejection.
+
+## How it works
+
+- [Publication audit](../wiki/investigations/patch-5-3-0-api-audit.md).
+- [Validator portability](../wiki/investigations/patch-audit-validator-portability.md).
+
+## Implementation inventory
+
+- `tests/patch_5_3_0_publication_sweep.rs`: register-driven cached discovery.
+- `tests/patch_5_3_0_behavior.rs`: bounded existing role backing and absence assertions.
+- `tools/gen_patch_wikitext_register.py`: opt-in caption/transclusion/handler parsers.
+- `data/patch-api/sources/5.3.0-*`: source pins, register, extract and accounting.
+
+## Tests asserting this spec
+
+- `tests/patch_5_3_0_publication_sweep.rs`.
+- `tests/patch_5_3_0_behavior.rs`.
+- `tools/test_patch_mists_transclusion.py`.
+
+## Known gaps (current cycle)
+
+- [ ] Fifteen historical publication gaps remain explicitly reviewed in the known-gap fixture.
+- [ ] Six prose contracts remain pending: loot award policy, stable pages, support browsing, Browser domain, trade-link encoding and historical InterfaceOptions ordering.
+
+## Out of scope
+
+Historical full game-service parity, native embedded browsing, Classic 5.5.x, full integration suite, vendor edits, push and merge.

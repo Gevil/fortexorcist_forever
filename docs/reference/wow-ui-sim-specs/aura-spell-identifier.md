@@ -1,0 +1,122 @@
+# Aura spell-identifier lookup
+
+Bounded Retail 12.0.5 contract for `C_UnitAuras.GetPlayerAuraBySpellID` and `C_UnitAuras.GetUnitAuraBySpellID`, using existing numeric `AuraInfo` records and explicitly seeded `SimState.spell_id_aliases`. Existing aura publication lives in `src/lua_api/globals/auras.rs`; the C API surface belongs in `src/c_api/`. See [Lua API architecture](../lua-api.md). Epoch `retail-12-0-5` supplies C API-owned producers. Saved parent GREEN covers the twelve query fixtures and selected controls; independent310 acceptance remains pending. Checkboxes below remain pending independent verification.
+
+## What it must do
+
+### Identity and compatibility
+
+- [ ] Preserve numeric C player lookup identity and existing AuraData fields, including spell/instance IDs, display data, duration, source, applications, polarity and points.
+- [ ] Preserve C player lookup's helpful-only, unblocked collector behavior. Existing blocked-list entries must not hide matching player buffs. This is simulator compatibility, not native blocked-aura semantics.
+- [ ] Leave legacy `GetPlayerAuraBySpellID` unchanged: numeric exact lookup, helpful-only/unblocked, missing/nil default to zero, numeric fractional cast behavior. New C identifier validation and alias resolution must not leak into this global.
+- [ ] **INFERRED:** C lookups reuse existing shared C_Spell identifier semantics: lowercase public strings, finite numeric key conversion, alias-first map lookup and numeric identity absent an alias. An explicitly seeded label and its case variant resolve the numeric aura identity; a numeric alias may override an ID. No new parser or implicit label/name producer.
+- [ ] Unknown public strings and unmatched resolved IDs return nil, never a fabricated aura. Empty unseeded strings are unknown public strings, not malformed types.
+
+### Supported lookup scope
+
+- [ ] New unit lookup reads existing player and modeled party helpful/harmful records. **INFERRED order:** helpful first, then harmful, preserving record order within each polarity; first matching instance wins. Removing a helpful duplicate exposes the next helpful instance, then the first harmful instance.
+- [ ] Target lookup uses only the actual built-in collector fixture: spell `113746`, instance `1`, Weakened Armor, harmful, source `target`. Do not introduce a target aura store or claim modeled target ownership/visibility.
+- [ ] Unknown or missing units and missing party entries return nil for valid identifiers. Unit identity stays isolated: player records do not satisfy party queries or vice versa. This does not implement native visibility restrictions.
+- [ ] Returned DTOs are independent snapshots surviving full GC; Lua mutations do not alter host auras or later results. Subsequent host removal is visible to new queries; aura and alias state remain environment-local.
+
+### Validation and taint
+
+- [ ] **INFERRED strict representation policy:** missing/nil identifiers, booleans, tables, functions and nonfinite numbers raise meaningful errors before returning a DTO or absent-unit nil. This adds no numeric range/integrality policy beyond existing shared resolver semantics.
+- [ ] **INFERRED conservative secret policy:** reject actual secret identifiers in secure and addon-tainted callers, including absent-unit queries. Full GC preserves secret identity. Rejection must not unwrap/change the secret, clear/replace caller taint, or prevent later public queries. Ordinary successful calls also preserve caller taint. This is not native `AllowedWhenTainted` enforcement parity.
+
+### Exact evidence and limits
+
+Observed cached files on **2026-10-01**, under `/home/osso/.cache/wow-ui-sim/blizzard-ui/retail/AddOns/`:
+
+- `Blizzard_APIDocumentationGenerated/UnitAuraDocumentation.lua:374–389` declares player lookup's non-nilable `SpellIdentifier`, nullable AuraData, `SecretWhenUnitAuraRestricted`, `RequiresNonSecretAura`, and `SecretArguments = "AllowedWhenTainted"`.
+- Same file `:412–430` declares unit lookup's non-nilable, `NeverSecret` restricted unit token and non-nilable `SpellIdentifier`. It describes the “first instance” matching a spell and nil for no match; its not-visible example is party members on other maps. No polarity traversal order is specified.
+- `Blizzard_APIDocumentationGenerated/SpellDocumentation.lua:357–373` documents spell ID, name, name(subtext), or link for **C_Spell.GetSpellIDForSpellIdentifier**, names checking overrides and IDs returning themselves. This is not evidence that aura APIs natively share this resolver or accept each representation.
+- `Blizzard_CooldownViewer/CooldownViewerItemData.lua:1–29` scans `player` then `target`, queries unit lookup with values iterated from `cooldownInfo.linkedSpellIDs`, and requires `sourceUnit == "player"` before accepting a link. Numeric representation is inferred from that field/caller, not a demonstrated string caller or fixture source-player match.
+- Retained [`12.0.5-register.json`](../../data/patch-api/sources/12.0.5-register.json) rows `global api-C_UnitAuras-GetPlayerAuraBySpellID-392` and `global api-C_UnitAuras-GetUnitAuraBySpellID-396` record arg1/arg2 type changes from number to SpellIdentifier. Row394 concerns refresh duration and remains excluded.
+
+Current local evidence: `src/c_api/c_spell.rs::alias_key_from_input/read_spell_identifier` normalizes keys and reads the initially empty alias map; these tests explicitly populate that map. `src/lua_api/globals/auras.rs::collect_unit_auras` reads player buffs by polarity, party buffs/debuffs, and `target_fixture_auras`; it has no generic target store. Existing player lookup uses the helpful collector, not the blocked-filtering visible collector. `build_aura_table` provides existing DTO fields and forces player-query sourceUnit to `player`.
+
+**INFERRED** seeded-label reuse, numeric alias precedence on aura queries, helpful-then-harmful ordering, missing-unit policy and conservative validation/security are bounded simulator requirements. Fixture labels are not native spell names, subtext, links, localization or overrides. No native behavior was probed. Generated access/secret annotations do not establish native enforcement or justify declassification.
+
+## How it works
+
+- [Lua API architecture](../lua-api.md)
+- [Existing unit-aura enumeration contract](unit-aura-instance-enumeration.md)
+- [Public classification contract](aura-classification-flags.md)
+
+## Implementation inventory
+
+- `src/lua_api/game_data.rs`, `src/lua_api/state/sim_state.rs` — existing AuraInfo records, party stores and explicit spell alias map; no changes in this slice.
+- `src/lua_api/globals/auras.rs` — unchanged legacy numeric provider; narrow `push_aura_by_spell_id` reuses unblocked collector and DTO builder. Earlier epochs retain the numeric C player provider.
+- `src/c_api/c_spell.rs` — narrow `read_spell_identifier_at` shares the existing alias-first resolver; C_Spell arg1 behavior is unchanged.
+- `src/c_api/c_unit_aura_spell_queries.rs` — `retail-12-0-5` C providers validate public identifiers before resolution or absent-unit results. Unit nil returns nil; non-string/secret unit tokens error. Neither caller taint nor secret identity is modified.
+- `src/lua_api/globals/register.rs` — installs authoritative C spell queries after legacy aura registration, which no longer installs the C player entry at this epoch. Separate from the `aura-instance-enumeration`-gated `c_unit_auras` module; enumeration registrations do not overwrite these queries.
+- `tests/aura_spell_identifier.rs` — twelve retail-12-0-5-gated cases automatically included in the existing grouped integration target; no additional Cargo target.
+
+## Tests asserting this spec
+
+Grouped filter: `aura_spell_identifier::`, with feature `retail-12-0-5` (parent's epoch retail12-0-5 configuration).
+
+| Test | Contract |
+|---|---|
+| `numeric_player_lookup_preserves_current_dto_identity_and_fields` | Numeric control and DTO identity/fields |
+| `player_lookup_remains_helpful_only_and_ignores_existing_block_list` | Existing helpful-only/unblocked compatibility |
+| `legacy_player_global_retains_optional_numeric_input_behavior` | Unchanged legacy missing/nil/numeric behavior |
+| `explicitly_seeded_aliases_reuse_shared_spell_resolution_case_normalization` | INFERRED seeded label reuse, player and party |
+| `numeric_alias_precedence_matches_shared_resolver_without_changing_legacy` | Existing alias-first resolution vs unchanged legacy |
+| `unit_lookup_reads_modeled_party_helpful_and_harmful_aura_rows` | Party/player polarity and unit DTO fields |
+| `inferred_unit_order_prefers_first_helpful_then_first_harmful_duplicate` | INFERRED stable first-match order and live removal |
+| `unit_target_query_uses_actual_builtin_harmful_fixture_not_invented_state` | Actual target collector fixture only |
+| `missing_units_and_unmatched_public_identifiers_do_not_fabricate_auras` | Missing unit, unmatched ID/string and unit isolation |
+| `missing_and_invalid_identifiers_error_even_when_unit_has_no_aura_store` | Validation before absent-unit result |
+| `dto_snapshots_and_alias_state_are_environment_isolated_across_gc` | DTO snapshots, GC, live state and environment isolation |
+| `actual_secret_identifier_rejection_survives_gc_and_preserves_caller_taint` | Real host secret, secure/tainted rejection and public recovery |
+
+Rust eval outputs use supported `i32`, not `u8`/`usize`. Secret fixture uses `wrap_host_secret_number`, not a mocked Lua secret predicate.
+
+## Known gaps (current cycle)
+
+- Saved parent RED at `28393b01ba6bafc3d233cbc700c7b02303de1064`: `/tmp/patch-12.0.5-batch37-red-build-result.json` records build exit0 / 130.04s; corresponding `-run.json` and `-run.log` record exit101, three existing numeric/legacy controls PASS and nine FAIL. This evidence covers the pre-producer revision only.
+- [x] Parent accepts independent310 bounded proof; exact acceptance and exclusions below. Saved parent GREEN alone was not independent acceptance. Producer work itself ran formatting only; this reconciliation runs no code/tests/build/delegation.
+- Only rows392/396 gain bounded simulator credit below. Native visibility, name/link parsing, secret annotations and all-profile acceptance remain unproved.
+
+## Reconciled batch37 parent proof — 2026-10-01
+
+Saved `/tmp/patch-12.0.5-batch37-{red,green}-*` artifacts bind RED to input `28393b01ba6bafc3d233cbc700c7b02303de1064` and GREEN to producer `4b98920f0769b59b68c0dabbd9e8d9d47414fc00`; no reruns.
+
+| Proof scope | Saved result | Limit |
+|---|---|---|
+| RED integration compile/query filter | Compile exit0, 130.04s; run exit101, 3 PASS / 9 FAIL | Pre-producer numeric/legacy controls pass; nine new cases fail |
+| GREEN integration compile | Exit0, 378.90s | Producer revision only |
+| `aura_spell_identifier::` | Exit0, 12 PASS | Numeric/seeded aliases, modeled player/party and target fixture, order, snapshots/GC, strict validation and actual-secret/taint recovery |
+| `aura_api::` / `admin_buff_api::` / `c_spell_flyout_probes::` | Exit0 each; 29 / 18 / 14 PASS | Selected legacy/aura/admin/shared C_Spell controls, not generic spell-catalog coverage |
+| Normal no-addon/no-SavedVariables startup | Exit0, 11.32s; `[]` | Saved producer registration/startup only; no cached consumer closure claim |
+| Independent310 | Accepted bounded proof | 73 selected PASS, saved startup0 `[]`, fresh default fmt/check0 at `6755f0e6c`; no new readability violations; exact limits below |
+
+GREEN totals **73 PASS = 12 query + 29 aura + 18 admin + 14 C_Spell**. Build-result and run manifests share integration SHA256 `398ef0d1f5a49f8e9415021f833e37de99cba63a2a2b05819898db7b61bbb5e9`; startup manifest matches the build's wow-sim SHA256 `c11cc875d5e8b2d8b8cc995788db6a497ca77c82fb3c878f5d5b8f5752bdeaf6`. RED integration SHA256 is `58a8eba2483c6ef3f2d9d1fc6e85a17d4d8e19c63ee29f1e6624bff3855a0784`. Exact commands, timings and logs live in `-red-build-result.json`, `-red-run.json`, `-green-build-result.json`, `-green-runs.json` and `-green-startup-run.json`; startup output is `-green-startup.json`.
+
+Existing numeric AuraInfo/party stores and explicitly seeded alias map are the bounded model, not a generic spell catalog. Shared resolver reuse/alias precedence, helpful-then-harmful traversal, missing-unit and strict/secret policies remain **INFERRED simulator requirements**, even with passing fixtures. Legacy numeric/global helpful-only/unblocked behavior is preserved. No native name/link/visibility/access/secret parity or refresh-duration coverage follows from these results.
+
+Historical parent-only checkpoint: **260 pending / 88 bounded / 14 partial = 362**, rows392/396 unpromoted. Superseded by exact independent acceptance below; row394 remains pending.
+
+## Independent bounded acceptance — 2026-10-01
+
+Parent read and accepts all 95 lines of `/tmp/patch-12.0.5-aura-spell-identifier-independent-proof.md`. Source-identical producer `4b98920f0769b59b68c0dabbd9e8d9d47414fc00` has **73 selected PASS = 12 query + 29 aura + 18 admin + 14 C_Spell**, saved ordinary startup exit0 `[]`; independent fresh default fmt/check exit0 at `6755f0e6c`, no new-code readability violations. Unchanged `register_frame_context_globals` whole-file complexity warning is outside producer scope. Saved binaries/hashes above remain binding; no runtime reruns for this accounting decision.
+
+| Exact retained row | Accepted bounded simulator capability | Not established |
+|---|---|---|
+| `global api-C_UnitAuras-GetPlayerAuraBySpellID-392` | Public finite numeric and explicitly seeded string alias resolution into existing helpful/unblocked player AuraData; unmatched public identifier nil; unchanged legacy global | Native name/link parsing, alias production, visibility/access/secret acceptance |
+| `global api-C_UnitAuras-GetUnitAuraBySpellID-396` | Same bounded identifiers over existing player/party polarities and target spell113746/instance1 fixture; stable first match, live removal and independent DTO/GC snapshots | Generic target storage/ownership, source-player linked-aura consumer closure, arbitrary-unit/native visibility |
+
+Seeded-label resolver reuse, numeric alias precedence, helpful-then-harmful order, missing-unit policy and strict/conservative secret rejection remain **INFERRED**. Real secret wrapper/GC/secure-and-tainted rejection and caller-taint recovery are tested, not native `AllowedWhenTainted` acceptance or enforcement. No native name/subtext/link/localization/override, generic visibility/security parity, all-profile acceptance or whole-source/page completion credit.
+
+Existing accounting schema gains only capability `aura-spell-identifiers` and exact rows392/396 **audit-pending → bounded-coverage**: **260/88/14 → 258 pending / 90 bounded / 14 partial = 362**. Row394 remains pending; new duration inputs314 are separate. Outfit row673 remains pending: future315 verdict is not accepted.
+
+Before/after artifact `/tmp/patch-12.0.5-aura-spell-identifier-accounting-before-after.json` records exact changed rows, totals and unchanged ID/unrelated-row/capability comparisons. Register SHA256 and retained `source_sha256`: `eaea58ae8adf215587cea6de12349b3586fcb2520a4c8aefd4d7cee5406046ed`; plaintext SHA256: `4da3872aa566695f46e2dacd4e79992f5b06be9541f0d19cf0e8dba45cea8329`. Local proof ledger and ignored PLAN updated; PLAN never staged.
+
+## Out of scope
+
+- `GetRefreshExtendedDuration` / retained row394: no duration formula, provider, fixture or test in this slice.
+- Native visibility, protected/blocked semantics, real native secret/access enforcement and full audit-row completion: annotations and current fixtures cannot prove them. Only existing player blocked-list compatibility is pinned.
+- Native name/subtext/link/localization/override acceptance or alias production: map entries are explicitly seeded fixture tokens only.
+- New target storage, arbitrary units, event/combat producers, additional profiles or cached UI closure proof: reuse existing collector only.

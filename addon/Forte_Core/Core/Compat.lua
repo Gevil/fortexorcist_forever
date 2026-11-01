@@ -59,6 +59,32 @@ function Compat.GetSpellCooldown(spellID)
     return 0, 0, false, 1
 end
 
+--- The raw SpellCooldownInfo table of C_Spell.GetSpellCooldown (startTime,
+--- duration, isEnabled, isActive, modRate, activeCategory,
+--- timeUntilEndOfStartRecovery, isOnGCD), nil where absent. The NeverSecret
+--- isActive/isOnGCD booleans survive a combat lockdown of the numbers --
+--- they are what the active-edge fallback (Engine:OnActiveEdge, PLAN §8
+--- mitigation 2) keys on. Table fields may still be secret: compare the
+--- NeverSecret booleans freely, route every number through PlainOrNil.
+function Compat.GetSpellCooldownInfo(spellIdentifier)
+    if C_Spell and C_Spell.GetSpellCooldown then
+        return C_Spell.GetSpellCooldown(spellIdentifier)
+    end
+    return nil
+end
+
+--- The raw SpellChargeInfo table of C_Spell.GetSpellCharges (currentCharges,
+--- maxCharges, cooldownStartTime, cooldownDuration, chargeModRate,
+--- isActive), nil where absent. maxCharges and isActive are NeverSecret;
+--- currentCharges, cooldownStartTime, cooldownDuration and chargeModRate
+--- are secret-able in combat -- Engine:OnReadCharges guards them.
+function Compat.GetSpellCharges(spellIdentifier)
+    if C_Spell and C_Spell.GetSpellCharges then
+        return C_Spell.GetSpellCharges(spellIdentifier)
+    end
+    return nil
+end
+
 --- IsPlayerSpell across clients; stays a plain global on every flavor so far,
 --- but kept as a wrapper so a future removal only needs fixing in one place.
 function Compat.IsPlayerSpell(spellID)

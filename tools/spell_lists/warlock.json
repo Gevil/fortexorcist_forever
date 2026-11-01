@@ -1,23 +1,29 @@
 {
-  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Cooldown tracks for Warlock. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Add names here as modules grow; re-run the generator. Entries the generator can't find are reported, not silently dropped.",
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Cooldown tracks for Warlock; resolved family-scoped (Family=5, verified via signature spells: Shadow Bolt/Corruption/Create Healthstone -> 5) with the CD-carrier rank pick + companion-shadow rule + uncoded-family fallback (see tools/gen_spell_data.py docstring). Selection policy: cooldowns = castable spells whose CooldownMs/CategoryCooldownMs >= 2990 (ForteXorcist 2.99 s floor); buffs = DurationMs > 0 with no cooldown - curses/Banes, DoTs, channel windows, proc windows; shards-and-stones = Create*stone casting + stone use/apply family; demonic-utility = armor/skin toggles, CC (Banish/Fear/Subjugate Demon), pet taunt, summon rituals and portals. Re-added 2026-11-01: (a) via the uncoded-family fallback (their rows carry Family 0/absent in this build -- the stone USE spells live unflagged): Use Soulstone (-> 20761), Firestone (-> 17949), Spellstone (-> 1237159), Soul Harvest (-> 1242853; the Family-5 row 437032 is a bare companion, the uncoded row carries the 10 s window); (b) via the companion-shadow rule (the generator's rank pick now prefers the row carrying CooldownMs/DurationMs over the bare companion row whose sole Effect is ApplyAura(aura=332, points=<real id>)): Summon Felguard -> 427733 (companion 431754), Metamorphosis -> 403789 (companion 403873), Immolation Aura -> 427726 (companion 431757; lv-50 bare damage twin 427725 no longer wins), Backdraft -> 427714 (15 s proc window), Shadowflame -> 426325 (companion 426454; DoT twin 426320 at equal level loses the ID tie), Grimoire of Synergy -> 426301 (companion 426444; permanent glyph aura), Dance of the Wicked -> 412800 (lv-60 bare twin 412798 no longer wins). Pure GCD filler casts (Shadow Bolt, Searing Pain, Incinerate, Life Tap) are outside the CD/buff/stance policy and untracked. Re-check after each mythicsim-forever-engine pull; run with --dry first. Forever renames observed: Curse of Agony -> Bane of Agony, Curse of Doom -> Bane of Doom, Curse of Elements -> Curse of the Elements; Curse of Tongues/Weakness/Recklessness keep Cata names. Notable Forever-new warlock spells: Bane of Havoc, Curse of Exhaustion (lv 60), Curse of Idiocy, Shadow Cleave (AoE Shadow Bolt twin, 6 s category), Amplify Curse (now 180 s CD), Demon Charge, Demonic Howl, Demonic Grace, Demonic Brand, Decimation, Infernalist/Infernalist Armor/Infernal Armor, Vengeance, Chaos Bolt, Haunt, Wickedness, Shadow Spark, Soul Fire!, Spreading Pain, Wrack, Portal of Summoning (1 h ritual), Grimoire of Synergy, Metamorphosis, Immolation Aura, Summon Felguard (new demonology pet, lv 10).",
   "cooldowns": [
-    "Death Coil", "Shadowburn", "Soul Fire", "Conflagrate", "Howl of Terror",
-    "Amplify Curse", "Bane of Doom", "Banish", "Fear", "Ritual of Summoning",
-    "Summon Voidwalker", "Summon Felguard"
+    "Amplify Curse", "Bane of Doom", "Chaos Bolt", "Conflagrate", "Death Coil",
+    "Demon Charge", "Demonic Grace", "Demonic Howl", "Fel Domination", "Haunt",
+    "Howl of Terror", "Infernal Armor", "Metamorphosis", "Shadow Cleave",
+    "Shadowburn", "Soul Fire", "Vengeance"
   ],
-  "self_buffs": [
-    "Demon Skin", "Demon Armor"
+  "buffs": [
+    "Bane of Agony", "Bane of Havoc", "Corruption", "Curse of Exhaustion", "Curse of Idiocy",
+    "Curse of Recklessness", "Curse of the Elements", "Curse of Tongues", "Curse of Weakness",
+    "Decimation", "Demonic Brand", "Drain Life", "Drain Mana", "Drain Soul", "Health Funnel",
+    "Hellfire", "Immolate", "Infernalist", "Infernalist Armor", "Massive Destruction",
+    "Rain of Fire", "Shadow Spark", "Shadow Trance", "Shadow Vulnerability", "Siphon Life",
+    "Soul Fire!", "Spreading Pain", "Unstable Affliction", "Wickedness", "Wrack",
+    "Backdraft", "Soul Harvest", "Shadowflame", "Dance of the Wicked"
   ],
-  "warlock_tools": {
-    "healthstone_create": ["Create Healthstone"],
-    "healthstone_use": ["Healthstone"],
-    "soulstone_create": ["Create Soulstone"],
-    "soulstone_use_buff": ["Use Soulstone"]
-  },
-  "player_dots_and_curses": [
-    "Corruption", "Immolate", "Bane of Agony", "Curse of Weakness",
-    "Curse of Recklessness", "Curse of the Elements", "Curse of Tongues",
-    "Drain Life", "Drain Soul", "Health Funnel", "Life Tap", "Hellfire",
-    "Rain of Fire", "Searing Pain", "Shadow Bolt", "Incinerate"
+  "shards-and-stones": [
+    "Create Firestone", "Create Healthstone", "Create Soulstone", "Create Spellstone",
+    "Healthstone", "Minor Healthstone", "Lesser Healthstone", "Greater Healthstone",
+    "Major Healthstone", "Use Soulstone", "Firestone", "Spellstone",
+    "Grimoire of Synergy"
+  ],
+  "demonic-utility": [
+    "Demon Armor", "Demon Skin", "Banish", "Fear", "Subjugate Demon", "Menace",
+    "Summon Voidwalker", "Summon Felguard", "Immolation Aura",
+    "Ritual of Summoning", "Ritual of Doom", "Portal of Summoning"
   ]
 }

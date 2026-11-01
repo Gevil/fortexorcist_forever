@@ -45,8 +45,10 @@ GitHub: `Gevil/fortexorcist_forever`.
 ## Verification
 - Syntax: `luajit -e "assert(loadfile('<file>'))"` (no `luac` on this box).
 - Logic: luajit smoke test with stubs (PLAN.md §6), then wow-ui-sim tests:
-  `$WORK/wow-ui-sim/run.sh wow-sim --addons-path <abs>/addon run-tests <Addon>`.
-  Always use `run.sh` (it supplies the ICU 78 libs; see PLAN.md §5).
+  `$WORK/wow-ui-sim/run.sh wow-sim --allow-ui-version-mismatch --addons-path <abs>/addon run-tests <Addon>`.
+  Always use `run.sh` (ICU 78 libs, headless, install shim for the launcher's `.product.db`;
+  see PLAN.md §5). Ignore the Blizzard-side baseline errors; only `Forte_*` errors count.
+  luajit stub tests do NOT validate WoW API usage — UI/API code needs a sim run.
 - Visual: uiforever.com (`/app?flavor=forever`). Final: the real client
   (`<WoW install>/_forever_/`).
 - A change isn't done until it has run somewhere real (sim or client), not just parsed.

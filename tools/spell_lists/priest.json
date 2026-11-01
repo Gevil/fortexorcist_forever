@@ -1,0 +1,25 @@
+{
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Priest tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped. discipline_pd = Discipline/Power-Word family. Forever renames/new vs Cata: Power Word: Shield also as Power Word: Barrier (CD side), Spirit of Redemption active -> Spirit of the Redeemer, Shadow Word: Death, Shadowguard, Hex/Touch of Weakness, Eye of the Void, Void Zone/Shadowfiend/Devouring Plague + Void Plague, Chastise (the Forever smite-strike), Deliverance, Levitate as a priest buff. Circle of Healing, Eye of the Void, Homunculi, Power Word: Barrier and Void Plague also exist as Mage cross-class talent rows; the generator resolves them to Priest rows via its family-scoped rank resolution.",
+  "cooldowns": [
+    "Shadowfiend", "Confounding Flash", "Silence", "Void Zone",
+    "Circle of Healing", "Eye of the Void", "Homunculi", "Void Plague"
+  ],
+  "discipline_pd": [
+    "Power Word: Fortitude", "Power Word: Shield", "Power Word: Barrier",
+    "Shadow Word: Pain",
+    "Shadow Word: Death", "Fear Ward", "Pain Suppression", "Power Infusion",
+    "Inner Focus", "Vampiric Embrace", "Dispersion", "Spirit of the Redeemer",
+    "Divine Protection"
+  ],
+  "buffs": [
+    "Divine Spirit", "Prayer of Spirit", "Prayer of Fortitude",
+    "Shadow Protection", "Prayer of Shadow Protection", "Inner Fire",
+    "Levitate", "Shadowguard", "Spirit of Redemption", "Hex of Weakness",
+    "Touch of Weakness", "Fade", "Abolish Disease", "Armor of Faith"
+  ],
+  "utility": [
+    "Shadowform", "Dispel Magic", "Cure Disease", "Resurrection",
+    "Holy Nova", "Psychic Scream", "Shackle Undead", "Mind Soothe",
+    "Mind Vision", "Chastise", "Mana Burn", "Deliverance"
+  ]
+}

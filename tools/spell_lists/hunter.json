@@ -1,19 +1,30 @@
 {
-  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Hunter tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped -- re-check them after a mythicsim-forever-engine pull (Forever's Hunter talent tree was reworked: 14 new/26 reworked/11 unchanged of 51 talents per wowforeverguides.com, so some abilities may be talent-gated, renamed, or genuinely new and need adding here).",
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Hunter tracks; resolved family-scoped (Family=9, verified via signature spells: Rapid Fire/Feign Death/Aspect of the Wild -> 9) with the CD-carrier rank pick + companion-shadow rule + uncoded-family fallback (see tools/gen_spell_data.py docstring). Selection policy: cooldowns = castable spells whose CooldownMs/CategoryCooldownMs >= 2990 (ForteXorcist 2.99 s floor); buffs = DurationMs > 0 with no cooldown (DoTs, mark/control windows, proc windows); aspects = permanent-aura (DurationMs=-1) toggles incl. Trueshot Aura; traps = thrown trap spells (shared 30 s trap category); pet_and_utility = Feign Death, pet heals/revive, pet control CDs, hunter pet-handling tools. Re-added 2026-11-01 via the uncoded-family fallback (their rows carry Family 0/absent in this build; generator prints '<name> -> <id> (uncoded fallback)'): Black Arrow (14296, DoT -> buffs), Eagle Eye (6197), Scare Beast (14327), Tame Beast (1515), Call Pet (883), Dismiss Pet (2641), Feed Pet (6991). Dive (pet dive, rows 23145-23150 also unflagged, resolves via the same fallback) stays OUT: not requested, and its 30 s category 44 is the shared pet-dive CD. Names still NOT listable: (a) rows with no row at all in this build -- Quick Shot; (b) names whose every in-family row is a bare companion shadowing the cast/proc row and have no uncoded twin -- Rapid Killing, Lock and Load, Focus Fire, Cobra Strikes, Frenzy, Hit and Run, Expose Weakness, Backdraft-style procs, Aspect-of-the-Viper companion 415718 (lv None beats lv 1: 415423 kept), Volley channel 14295 (shadowed by lv-58 damage twin 1279715). Re-check after each mythicsim-forever-engine pull; run with --dry first. Forever renames observed: Concussion Shot -> Concussive Shot, Wyvern Sting -> Wyvern Strike, Raptor Strike family new melee-range shot, Mongoose Bite shares attack-speed category 65 with Quick Shot. Notable Forever-new hunter spells: Sniper Shot (MM signature), Chimera Shot, Steady Shot (GCD filler, untracked), Kill Shot, Raptor Strike, Wyvern Strike, Enchanted Flare (Flare lv-32 twin), Flanking Strike, Trick Shots, Rapid Recuperation, Heart of the Lion, Dismember/Strider Kick/Dust Cloud/Growl (new pet family), Mine! (mechanical pet), Aspect of the Falcon, Aspect of the Viper, Trueshot Aura.",
   "cooldowns": [
-    "Bestial Wrath", "Rapid Fire", "Deterrence", "Intimidation", "Scare Beast",
-    "Counterattack", "Mongoose Bite", "Disengage", "Flare", "Tranquilizing Shot",
-    "Distracting Shot", "Aimed Shot"
+    "Aimed Shot", "Arcane Shot", "Bestial Wrath", "Chimera Shot", "Concussive Shot",
+    "Counterattack", "Deterrence", "Disengage", "Distracting Shot", "Enchanted Flare",
+    "Flare", "Flanking Strike", "Intimidation", "Kill Shot", "Mongoose Bite",
+    "Multi-Shot", "Rapid Fire", "Raptor Strike", "Scatter Shot", "Sniper Shot",
+    "Tranquilizing Shot", "Viper Sting", "Wyvern Strike"
+  ],
+  "buffs": [
+    "Hunter's Mark", "Serpent Sting", "Scorpid Sting", "Arcane Infused",
+    "Beast of the Unseen Path", "Clever Strikes", "Heart of the Lion", "Precision",
+    "Rabid Frenzy", "Rapid Recuperation", "Trick Shots", "Stalker's Ally",
+    "Black Arrow"
   ],
   "aspects": [
-    "Aspect of the Hawk", "Aspect of the Monkey", "Aspect of the Cheetah",
-    "Aspect of the Pack", "Aspect of the Wild", "Aspect of the Beast"
+    "Aspect of the Beast", "Aspect of the Cheetah", "Aspect of the Falcon", "Aspect of the Hawk",
+    "Aspect of the Monkey", "Aspect of the Pack", "Aspect of the Viper", "Aspect of the Wild",
+    "Trueshot Aura"
   ],
   "traps": [
-    "Freezing Trap", "Immolation Trap", "Explosive Trap", "Frost Trap"
+    "Freezing Trap", "Frost Trap", "Immolation Trap", "Explosive Trap"
   ],
   "pet_and_utility": [
-    "Feign Death", "Eyes of the Beast", "Eagle Eye", "Hunter's Mark",
-    "Concussive Shot", "Wing Clip", "Viper Sting", "Black Arrow"
+    "Feign Death", "Eyes of the Beast", "Mend Pet", "Revive Pet", "Growl", "Wing Clip",
+    "Bite", "Carve", "Dismember", "Mine!", "Pinch", "Scorpid Poison", "Strider Kick",
+    "Swipe", "Tendon Rip", "Thunderstomp", "Web", "Dust Cloud",
+    "Eagle Eye", "Scare Beast", "Tame Beast", "Call Pet", "Dismiss Pet", "Feed Pet"
   ]
 }

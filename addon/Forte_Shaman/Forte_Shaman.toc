@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: |cff0070DEForte|r Shaman
+## Notes: ForteXorcist Shaman spell data (generated -- see tools/gen_spell_data.py).
+## Version: 0.1.0-dev
+## Author: Gevil
+## Dependencies: Forte_Core
+
+Data/Shaman.lua

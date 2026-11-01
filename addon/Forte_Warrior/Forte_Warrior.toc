@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: |cffC79C6EForte|r Warrior
+## Notes: ForteXorcist Warrior spell data (generated -- see tools/gen_spell_data.py).
+## Version: 0.1.0-dev
+## Author: Gevil
+## Dependencies: Forte_Core
+
+Data/Warrior.lua

@@ -1,0 +1,29 @@
+{
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Paladin tracks (class is spelled Paladin in this project; the data's item rows say 'Paladin'). gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped. Forever renames vs Cata: Divine Protection(defensive)->Templar's Bulwark, Divine Wrath->Avenging Wrath, Hammer of Justice->Voice of Truth, Redemption->Redemption, Avenging Shield proc present. No Steed spells and no Crusader Aura exist in this build's data (the classic Paladin has Righteous Fury as its tank stance). Ancestral Guidance (also Shaman), Rebuke (also Rogue) and Divine Protection (also Priest) resolve to Paladin rows via the generator's family-scoped rank resolution; the Templar's Bulwark cooldown is the paladin defensive CD side, the Divine Protection buff-window is tracked here.",
+  "cooldowns": [
+    "Divine Intervention", "Templar's Bulwark", "Avenging Wrath",
+    "Voice of Truth", "Divine Favor", "Hand of Sacrifice", "Repentance",
+    "Ancestral Guidance", "Swift Judgement", "Blessing of Freedom",
+    "Judgement", "Divine Storm", "Divine Light", "Shield of Righteousness"
+  ],
+  "buffs": [
+    "Divine Shield", "Divine Protection", "Blessing of Kings", "Blessing of Light",
+    "Blessing of Might", "Blessing of Wisdom", "Greater Blessing of Kings",
+    "Greater Blessing of Light", "Greater Blessing of Might",
+    "Greater Blessing of Wisdom", "Blessing of Sacrifice",
+    "Blessing of Protection", "Salvation", "Mass Salvation", "Turn Undead"
+  ],
+  "auras": [
+    "Seal of Fury", "Seal of Righteousness", "Seal of Command",
+    "Seal of Wisdom", "Seal of Light", "Seal of Justice",
+    "Seal of the Crusader", "Devotion Aura", "Retribution Aura",
+    "Concentration Aura", "Shadow Resistance Aura", "Frost Resistance Aura",
+    "Fire Resistance Aura"
+  ],
+  "utility": [
+    "Righteous Fury", "Cleanse", "Purify", "Revoke", "Redemption",
+    "Lay on Hands", "Exorcism", "Rebuke", "Consecration", "Crusader Strike",
+    "Hammer of Justice", "Hammer of Wrath", "Hammer of the Righteous",
+    "Righteous Judgement"
+  ]
+}

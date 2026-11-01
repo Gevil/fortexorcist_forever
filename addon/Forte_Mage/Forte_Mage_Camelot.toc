@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: |cff3FC7EBForte|r Mage
+## Notes: ForteXorcist Mage spell data (generated -- see tools/gen_spell_data.py).
+## Version: 0.1.0-dev
+## Author: Gevil
+## Dependencies: Forte_Core
+
+Data/Mage.lua

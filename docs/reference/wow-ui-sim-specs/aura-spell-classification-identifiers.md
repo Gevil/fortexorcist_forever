@@ -1,0 +1,155 @@
+# Aura spell classification identifiers
+
+Batch48 exact rows361/363 change argument1 of `C_UnitAuras.AuraIsBigDefensive` and `C_UnitAuras.AuraIsPrivate` from `number` to `SpellIdentifier` ([retained source](../../data/patch-api/sources/12.0.5-api-changes.txt), lines360–363). Cached Retail `Blizzard_APIDocumentationGenerated/UnitAuraDocumentation.lua:54–82` declares a required identifier, `SecretArguments = "AllowedWhenTainted"`, and one required boolean per API. It does **not** provide a classification catalog, acquisition mechanism or secret policy. C API-owned inputs live in `src/c_api/c_unit_aura_classification.rs`; [Lua API architecture](../lua-api.md) describes the boundary.
+
+## What it must do
+
+All model, representation, miss and security policies below are **INFERRED simulator choices**, not native-verified semantics. The bounded producer follows saved parent compiled RED. Both getters and their registration are implemented; saved parent GREEN is reconciled below. Parent accepted independent381 for exact rows361/363; tested inferred requirements below are checked. Native gaps remain unchecked.
+
+### Explicit classification input
+
+- [x] Own a public `AuraSpellClassification` record with independent `is_big_defensive: bool` and `is_private: bool` fields and `Clone`, `Copy`, `Default` (both false). Own public `AuraSpellClassifications { pub spells: HashMap<u32, AuraSpellClassification> }`, empty `Default`, under `aura-spell-classifications` (Retail12.0.5+, Forever, Era and Anniversary) with a public per-environment `SimState.aura_spell_classifications` field.
+- [x] Use only explicitly declared resolved spell-ID records. Fixture101=(true,false),202=(false,true),303=(true,true),404=(false,false) covers both flags independently. No manufactured production catalog.
+- [x] Each API returns exactly one **public boolean**, corresponding to its independent flag; missing resolved records and unseeded public strings return false.
+- [x] Host replacement/removal and alias mutation take effect immediately. Queries leave records, aliases and caller input unchanged; environments isolate their inputs.
+- [x] Generic `AuraInfo` buffs, private aura instance state and cooldown associations neither supply nor change spell classification. Private-instance presence does not imply `is_private`.
+
+### Identifier boundary
+
+- [x] Accept only actual public UTF-8 STRING or finite integral u32 NUMBER, including0/u32MAX. Reject missing/nil, bool, table, actual backing Frame table, function, thread, nonfinite/fractional/negative/out-of-range numbers and invalid UTF-8 **before alias lookup**, including values that could otherwise coerce to seeded aliases.
+- [x] Share existing `c_spell::read_spell_identifier_at` resolution semantics after validation: explicit aliases first, numeric identity otherwise; uppercase names normalize to lowercase. Strings, including numeric strings and full colored links, require seeded aliases.
+- [x] Numeric alias overrides and seeded numeric strings resolve the same key. Full colored fixture link containing101 explicitly resolves202; no automatic link parsing or implicit string catalog.
+- [x] Unknown controls remain false alongside true records; no classification inferred from generic aura, private-instance or cooldown state.
+
+### Caller context and conservative security
+
+- [x] Public numeric/name/full-link calls work in secure and tainted contexts, preserve caller taint and produce public results.
+- [x] **INFERRED conservative policy:** reject actual VM secret STRING/NUMBER, including hits and misses, and actual host-secret wrapped wrong Frame values even in secure context. This does not implement native secret `AllowedWhenTainted` permissions.
+- [x] Root real host-secret values and original Frame across allocation/GC; preserve identity, secrecy and caller taint through rejection. Subsequent public calls recover in both secure and tainted contexts. No Lua marker secrets or API replacement.
+
+## How it works
+
+- [Lua API architecture](../lua-api.md)
+- [Classification implementation](../wiki/systems/lua-api.md#retail-1205-aura-spell-classifications)
+- [Frame fixture representation](../wiki/investigations/frame-surrogate-identity-slot.md)
+- [Shared cooldown identifier contract](cooldown-aura-spell-identifiers.md)
+- [12.0.5 audit context](../wiki/investigations/patch-12-0-5-api-audit.md)
+
+## Implementation inventory
+
+- `src/c_api/c_unit_aura_classification.rs`: unchanged independent bool record/empty explicit map; sole two getters read a copied resolved-ID record or default and push the corresponding public boolean.
+- `src/lua_api/globals/register.rs`: shared capability registration after existing aura namespace/state initialization; `AuraIsPrivate` publication remains Retail12.0.5+ only.
+- `src/c_api/mod.rs`: public `aura-spell-classifications` module declaration.
+- `src/lua_api/state/sim_state.rs`: public feature-gated classification input next to cooldown associations.
+- `src/lua_api/state.rs`: empty default initializer next to cooldown associations.
+- `src/c_api/c_spell.rs`: `read_public_spell_identifier_at` shares strict public validation/conservative actual-VM secret rejection across both classification getters and the cooldown getter, then calls the unchanged alias-first `read_spell_identifier_at` resolver.
+- `src/c_api/c_unit_aura_cooldown_spells.rs`: existing getter now calls the shared validator; public number/nil results and API-specific errors preserved.
+
+## Forever publication — 2026-10-22
+
+The shared capability exposes only the existing defensive getter on Forever; other profiles and Forever's unrelated nil members retain their behavior. The [original T6 callback attribution and proof](c-namespace-nil-members.md#forever-original-opaque-timer-pair--2026-10-22) owns the stock failure boundary and original-consumer regression. No model, catalog or security policy changes.
+
+## Mists publication
+
+The pinned Mists `Blizzard_APIDocumentationGenerated/UnitAuraDocumentation.lua:50–62` declares `AuraIsBigDefensive` with a required `SpellIdentifier` and boolean result. `Blizzard_FrameXMLUtil/Blizzard_FrameXMLUtil.toc:5,14` selects `AuraUtil.lua` for Game; `AuraUtil.lua:324–332` queries the API when no edit-mode value or cached result exists. Mists uses the existing explicit classification input. An absent record returns false as a simulator scenario default; native classifications and miss behavior are unknown. No native catalog is inferred.
+
+## Era/Anniversary publication — 2026-10-25
+
+Both pinned profiles declare `AuraIsBigDefensive` in `Blizzard_APIDocumentationGenerated/UnitAuraDocumentation.lua:50`, with required `SpellIdentifier` at line55 and nonnil boolean at line60. Only these two profiles gain the existing `aura-spell-classifications` capability; `AuraIsPrivate` publication remains unchanged.
+
+The [Classic callback investigation](../wiki/investigations/classic-startup-producer-cascades.md#opaque-private-aura-timers) owns the original timer attribution. `tests/classic_startup_residuals.rs` exercises the stock queued-callback boundary; `tests/cfactory_t6_opaque.rs` preserves original AuraUtil supplied-true/miss behavior and unrelated-member absence. No new model, functions, catalog, identifier policy or native classifications.
+
+### Classic completion proof — 2026-10-25
+
+Runtime proof covers `e90dc385a` (producer `12adc03ad`; later changes are documentation only). Each test case has an exact one-test list followed by one execution. All new runtimes used a fresh byte-exact copy of current CVars; O_NOATIME guards confirm that the persisted original did not change.
+
+| Boundary | Era | Anniversary | Proof limit |
+|---|---|---|---|
+| `classic_startup_residuals::classic_original_startup_timers_complete_without_lua_errors` | RED at `91472bc52`; GREEN at `e90dc385a` | RED at `91472bc52`; GREEN at `e90dc385a` | Each RED has four erased nil calls plus four reporter echoes. Saved original-callback replay on valid `5d867ef38` seals provides Blizzard-line attribution, not a second RED selector. |
+| Original AuraUtil `original_aura_util_classifies_an_unlisted_spell` and `original_aura_util_reads_declared_defensive_classification` | Both PASS | Both PASS | Preservation: cached false, supplied true/miss, one return and unrelated/private-member absence. The stock missing-callee RED alone does not reject constant false. |
+| Stock startup against preserved master `5d867ef38` | 4 keys/10 occurrences → 2/2 | 4 keys/10 occurrences → 2/2 | Exactly eight timer/echo occurrences removed; no added keys or changed retained counts. Both cached source trees match their saved snapshots. |
+| `cargo check --all-targets`, `sound,gui,casc,tools,client-<profile>`, `-j1` | PASS | PASS | Each has only three known `dead_code` warnings: `find_original_frame`, `original_on_click`, `original_script`. Retail also PASS with zero warnings. Cargo JSON and plain-text stderr reviewed. |
+| Formatting and changed-Rust readability | PASS | PASS | Reused valid `12adc03ad` evidence; `e90dc385a` changes documentation only. |
+
+The remaining two keys are the known missing `C_TTSSettings.MarkCharacterSettingsSaved` call and its ScriptErrors echo, unchanged in both profiles. The separate TTS lane owns that repair. They are not native-unknown residue, so this lane changes no `docs/baselines` files. No GUI, full-suite, native spell-catalog or native security-policy acceptance is claimed. Canonical slot-guard receipts accepted all continuation builds/checks; no rejected artifact was executed.
+
+## Tests asserting this spec
+
+`tests/aura_spell_classification_identifiers.rs`: 16 grouped feature-gated integration fixtures under existing autodiscovery, no new Cargo target. Covers empty defaults, independent numeric flags, miss controls, uppercase names, full colored alias, no link parsing, immediate alias mutation, numeric override/string alias, replacement/removal, numeric endpoints, strict invalid representations, generic buff/cooldown independence, private-instance independence, read-only/environment isolation, public tainted calls and GC-rooted actual-secret rejection/recovery in both contexts. Fixtures remain unchanged from inputs `baf81dfec6704b80d5d17e6d42b2adac3c856bea`; saved parent compiled RED is recorded below. Saved parent GREEN below is development evidence, not independent acceptance.
+
+## Saved parent compiled RED and producer boundary — 2026-10-02
+
+Input revision `baf81dfec6704b80d5d17e6d42b2adac3c856bea`. `/tmp/patch-12.0.5-batch48-red-build-result.json` records `cargo test --test integration --no-run --message-format=json`, exit0/273.2447727450635s. `/tmp/patch-12.0.5-batch48-red-run.json` records `timeout 90 /syncthing/Sync/Projects/wow/wow-ui-sim/target/debug/deps/integration-a11e89d240f9bd0c aura_spell_classification_identifiers:: --test-threads=1`, **16 selected / 0 PASS / 16 genuine FAIL**, exit101/2.6088224769337103s. Full outputs: `/tmp/patch-12.0.5-batch48-red-build.{jsonl,log}` and `/tmp/patch-12.0.5-batch48-red-run.{stdout,stderr}`. Binary SHA256 `4bb4f34d30aee634b33b8c52c6e1d233ef27c99235087127ccc4993e19b1eb70`; saved dirty-source diff SHA256 `6967f0b47312d926c2359bd29bc1c26d4d1d523522abf8d87e067104da170a1a`. Saved evidence includes preserved unowned dirty source, not clean-revision proof; that source was not inspected or modified here.
+
+| Capability | Saved pre-producer RED | Implemented scope / proof limit |
+|---|---|---|
+| Independent flags, default/miss controls, numeric/name/link aliases, mutations, endpoints, read-only/isolation | Required boolean failures | Copied explicit record/default; exactly one corresponding public boolean; parent GREEN pending |
+| Public secure/tainted calls | Required boolean failure | Shared strict boundary without caller-taint changes; parent GREEN pending |
+| Invalid public representations and actual-secret GC/rooting/recovery | Argument rejection failures | Validation before aliases; actual VM secret rejection without unwrap/payload inspection; parent GREEN pending |
+| Generic buff/cooldown and private-instance independence | Required boolean failures | Only classification map queried; private fixture reached classification assertion, no observed setup failure; fixtures unchanged |
+
+The narrow shared validator is extracted from the existing cooldown getter because these three callbacks require the identical boundary. Other alias-resolver callers remain unchanged. No input record/map/default, parser, catalog, acquisition or state changes. Native `AllowedWhenTainted`, secret acquisition and result secrecy remain unknown; public results and conservative rejection are inferred simulator policies.
+
+## Reconciled batch48 parent GREEN — 2026-10-02
+
+Saved evidence binds unchanged 16 fixtures at input `baf81dfec6704b80d5d17e6d42b2adac3c856bea` and producer `11eca0c6d78fc148ad3f679ab43ea3df3145a17f`, **plus preserved unowned dirty source**, not clean-revision proof. Saved dirty diff SHA256 `6967f0b47312d926c2359bd29bc1c26d4d1d523522abf8d87e067104da170a1a`; source/diff contents were not inspected or modified here. Historical compiled RED exit0/273.2447727450635s and runtime exit101/2.6088224769337103s, 0PASS/16 genuineFAIL above are retained.
+
+`/tmp/patch-12.0.5-batch48-green-build-result.json` records `cargo test --test integration --no-run --message-format=json`: exit0/**289.3887384700356s**. Full outputs `/tmp/patch-12.0.5-batch48-green-build.{jsonl,log}` record successful compilation. Integration executable `/syncthing/Sync/Projects/wow/wow-ui-sim/target/debug/deps/integration-a11e89d240f9bd0c`, SHA256 `02e3962f21df0ba3ece48cdef109cec525420203e64215e4bbc70ba27d4d6c14`.
+
+`/tmp/patch-12.0.5-batch48-green-runs.json` records all16 commands as `timeout 90 /syncthing/Sync/Projects/wow/wow-ui-sim/target/debug/deps/integration-a11e89d240f9bd0c <filter> --test-threads=1`. Corresponding full outputs `/tmp/patch-12.0.5-batch48-green-run-{0..15}.{stdout,stderr}` follow table order; all exits0, all stderr empty. Saved full test names establish **16 new +210 controls +18 private anchors =244 unique PASS** with no duplicated names. Private-anchor results are controls only, not row359 or private-anchor documentation acceptance.
+
+| Exact filter | PASS | Saved seconds |
+|---|---:|---:|
+| `aura_spell_classification_identifiers::` | 16 | 3.9198297100374475 |
+| `cooldown_aura_spell_identifiers::` | 14 | 3.5792808020487428 |
+| `aura_dispel_color_arguments::` | 16 | 8.03681391198188 |
+| `unit_aura_slot_enumeration_arguments::` | 12 | 3.3598275440745056 |
+| `c_unit_auras_admin::` | 14 | 3.1972014729399234 |
+| `userdata_proxy::color_curve_` | 18 | 3.9796690000221133 |
+| `unit_aura_slot_secret_arguments::` | 12 | 3.1126869439613074 |
+| `aura_application_display_count::` | 14 | 3.2329896120354533 |
+| `next125aura::` | 12 | 2.900904139969498 |
+| `unit_aura_filter_query::` | 14 | 3.9504475500434637 |
+| `aura_table_shape::` | 7 | 1.9443296330282465 |
+| `aura_api::` | 29 | 7.60804703400936 |
+| `admin_buff_api::` | 18 | 4.789165845955722 |
+| `aura_refresh_duration::` | 18 | 5.274159140069969 |
+| `aura_spell_identifier::` | 12 | 3.225799681036733 |
+| `private_aura_anchors::` | 18 | 9.270167073933408 |
+
+Exact decimal sum of saved runtime records: **71.3813190951477735s** (binary-float sum `71.38131909514777s`), without padding or repeated executions. Startup adds9.945783533039503s for **81.3271026281872765s** total runtime, excluding compilation. This is bounded development proof, not final whole-page/goal/native acceptance.
+
+`/tmp/patch-12.0.5-batch48-green-startup-run.json` records `timeout 90 /syncthing/Sync/Projects/wow/wow-ui-sim/target/debug/wow-sim --no-addons --no-saved-vars lua-errors`: exit0/9.945783533039503s, stdout `[]`. Full `/tmp/patch-12.0.5-batch48-green-startup.{stdout,stderr}` reports zero unique/occurrence Lua errors. Simulator SHA256 `a74414bd5953a51d2e2e0747801eb30f2794fc4710f53ca9cc87cd3852b5d220`.
+
+| Capability (all policies INFERRED) | Current saved proof | Limit |
+|---|---|---|
+| Independent defensive/private flags; explicit empty map; false misses | Numeric independent records, empty-default and unknown controls PASS | No production catalog or acquisition evidence |
+| Strict identifiers, inclusive u32 endpoints, explicit name/numeric/full-link aliases | Invalid-before-alias, endpoints, uppercase, numeric override/string seed, link override/no parsing PASS | Representation/resolution policy, not native parity |
+| Immediate alias/map mutation; read-only queries; environment isolation | Mutation/removal and read-only/isolation PASS | Explicit host inputs only |
+| Public secure/tainted queries; public results | Public-query and secret recovery fixtures PASS | Native `AllowedWhenTainted` and result secrecy unknown |
+| Authentic secret/wrong Frame wrapper rejection; GC-rooted identity, secrecy, taint and recovery | Actual-secret fixture PASS in both contexts | Conservative denial, not native secret permissions |
+| Generic buff, cooldown and private-instance noninterference | Both independence fixtures PASS; refreshed cooldown14 and private-anchor18 controls PASS | No inference from instance state; no new acceptance for controls |
+
+This saved GREEN checkpoint preceded independent acceptance below. Earlier pending entries remain historical; exact Add359 acceptance is owned separately by [the anchor contract](private-aura-anchors.md#exact-add359-bounded-acceptance--2026-10-02).
+
+## Independent bounded acceptance — 2026-10-02
+
+Parent accepted independent381 [report](/tmp/patch-12.0.5-aura-classification-identifiers-independent-proof.md), exact361/363 only. This section owns classification acceptance; [saved parent GREEN](#reconciled-batch48-parent-green--2026-10-02) owns execution commands, artifact hashes and timings. Input `baf81dfec6704b80d5d17e6d42b2adac3c856bea`, compiled producer `11eca0c6d78fc148ad3f679ab43ea3df3145a17f`, docs GREEN `e6bbe2fabbc977b7f2218eaf90cdc89137a287c5`. Independent report confirms unchanged implementation at that docs checkpoint; later sound-owned changes are not new execution proof.
+
+Tested requirements above are accepted only as **INFERRED**: empty explicit host map, independent flags/default false, strict public identifiers/seeded aliases, exactly one public boolean, immediate mutation/read-only/environment isolation, no generic inference, public taint preservation, and GC-rooted conservative authentic-secret rejection/recovery. Native permissions, result secrecy, identifier parity and classification catalog/acquisition remain unknown. Source387 is separate regression only; no403/native counterexamples or365/380/371 credit.
+
+Saved **244 unique PASS =16 classification +210 prior controls +18 anchors**, all16 filters exit0, startup0 `[]`; compile289.3887384700356s and runtime71.38131909514777s. Scopedfmt0/0.17402922292239964s, dirty combined check0/67.21181862591766s without warnings; globalfmt1/44.00460445508361s on unchanged unowned source remains NOT fixed. Combined dirty proof, **not clean revision**. Numeric-guard extraction, secret-helper length and historical test-comment advisories deferred; no behavior counterexample. Bounded development acceptance, not final page/goal/native proof; parent owns full postcommit validation.
+
+Accounting snapshot `/tmp/patch-12.0.5-batch48-accounting-before.json`: only359/361/363 promoted, **238 pending/110 bounded/14 partial →235 pending/113 bounded/14 partial =362**, capabilities54→56. Ordered unique IDs,359 unrelated rows,54 prior capabilities and source/register/plaintext provenance preserved. The second new capability is [exact Add359](private-aura-anchors.md#exact-add359-bounded-acceptance--2026-10-02), not existing401 removal or structure-field credit.
+
+## Known gaps (current cycle)
+
+- [x] Parent accepted independent381 for exact361/363 inferred classification/identifier behavior; [exact Add359](private-aura-anchors.md#exact-add359-bounded-acceptance--2026-10-02) is separate. No whole-page/goal/native acceptance.
+- [ ] Native `AllowedWhenTainted` secret permissions, result secrecy, classification catalog and acquisition remain unknown. Chosen conservative rejection and public results are informed models, not native evidence.
+
+## Out of scope
+
+- Native probe gate: approved full12.0.5 audit permits explicitly informed models.
+- Production spell classifications, new catalogs/parsers, classification acquisition, deductions from generic buffs/private instances/cooldown associations.
+- Tests, builds, checks, lint, readability, coverage, deployment, operations and delegation in this producer stage; parent owns GREEN and independent gates.
+- Wiki acceptance/coverage, PLAN and proof-ledger changes; `src/c_api/aura_duration.rs` is protected and untouched.

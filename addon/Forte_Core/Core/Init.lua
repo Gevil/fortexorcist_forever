@@ -33,11 +33,22 @@ SlashCmdList["FORTEXORCIST"] = function(msg)
 end
 
 function FX.OnSlash(msg)
+    -- Let the cooldown module claim its subcommands (/fx lock|unlock|reset). It returns
+    -- true only for commands it owns; nil for everything else. Checked before our own
+    -- commands so the core never shadows a module command by accident.
+    local cd = FX.Cooldown and FX.Cooldown.Display
+    if cd and cd.Slash and cd:Slash(msg) then
+        return
+    end
     if msg == "status" then
         FX.Print(string.format("%s | class=%s | Forever=%s | modules=%d",
             FX.CONST.VERSION, tostring(FX._playerClass), tostring(FX.Compat.IS_FOREVER), #FX._moduleOrder))
         for _, name in ipairs(FX._moduleOrder) do
             FX.Print("  " .. name)
+        end
+        local cdMod = FX.Cooldown and FX.Cooldown.Module
+        if cdMod and cdMod.Status then
+            cdMod:Status()
         end
         return
     end

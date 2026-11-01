@@ -2,6 +2,7 @@
 
 Status as of 2026-11-01 (WoW Forever launches 2026-11-04). Owner: Gevil.
 Read `AGENTS.md` first for working rules; this file is the *what* and *why*.
+**Continuing as the manager? Start at §10 (stage runbook): current state, standing rules, test recipes, the work queue and what to verify for each worker report.**
 
 ---
 
@@ -116,8 +117,51 @@ Modules call `ForteXorcist.RegisterModule(name, mod)`; `mod:OnEnable()` runs at 
 - Dirty-check every style setter (texture/font/color) — they run every tick.
 - Staggered polling (~10 Hz display, ~1 Hz full rescan), not one heavy per-event handler.
 - Countdown text from our own plain computed numbers; never feed a secret number to a widget
-  (`Cooldown:SetCooldown` rejects secret values; sanctioned path is
-  `C_Spell.GetSpellCooldownDuration` → `Cooldown:SetCooldownFromDurationObject`).
+  `Cooldown:SetCooldown` rejects secret values; sanctioned path is
+  `C_Spell.GetSpellCooldownDuration` → `Cooldown:SetCooldownFromDurationObject`.
+
+### 3.5 Design law — the Classic Cooldown Timer (owner-approved 2026-11-01; corrected same day)
+Source law: `/tmp/fxref/Forte_Cooldown/Forte_Cooldown.lua` — defaults `FW.InstanceDefault.Cooldown`
+(:1801-1866), render loop (:499-642), time tags (:1233-1330). Visual truth: `docs/refs/ref2,3,4,6.png`,
+walkthrough frame `docs/media/frames/walk-000315.png`. **Correction:** the first extraction misread these
+numbers as a list of 250×24 rows; the original Cooldown Timer is **one timeline bar** (rows are the
+Spell Timer, §3.6). Rows-based `Display.lua` work was stopped 2026-11-01 (§9).
+- **One horizontal bar** 250×24: `Aluminium` fill, white α 0.20 (`BarColor`); black α 0.50 backdrop
+  `Background` + `Border` (`Backdrop = {bg, border, false, 16, 5, 3}`).
+- **Power-scale time axis:** icon at `x = W·(f1·(t/Max)^Loga + f2)`, `f1 = (W−ih)/W`, `f2 = 1−f1`
+  (:517-526); `Max = 300`, `Loga = 0.33`; `t > Max` parks at the right end. Icon size = bar height
+  (24) — `IconSize = {[0]=false, 36}` is an opt-in (:1805, :502).
+- **Time tags** `0 1 10 30 60 120 300 600` on the same curve; tags ≥ `Max` not drawn; ≥ 60 s print as
+  minutes (`2`, `5`); tag text α 0.20 (`TextColor` :1838).
+- **Overlap groups:** icons overlapping by > ½ icon merge into a group that cross-fades focus between
+  members; the group string lists `time name` per member (:556-638).
+- **End of cooldown:** at `t ≤ 0` the end effect fires; removed at `t ≤ −1` (:509-512).
+- **Category colors** (verbatim :1842-1855): Spell `1,.5,0` · Powerup `0,.75,1` · Item `1,1,0` ·
+  Potion `0,1,0` · Healthstone `0,1,.5` · Pet `1,0,.95` · Internal `0,.6,.85` · ResTimer `1,0,0` ·
+  Buff `1,1,1` · Debuff `1,0,0` · Enchant `1,1,1` · Soulstone `.64,.21,.93` (BuffOther/DebuffOther off).
+- **Flags on by default:** Splash (factor 4), Spark, Warn, IconTime, Detail, Ignore; `Alpha 0.2` /
+  `AlphaMax 1.0`; `IgnoreCooldown = 2.99` (:1796) ⇒ `Engine.MIN_COOLDOWN = 2.99` (done).
+  Exact semantics of Alpha/Warn/Spark/segment coloring: `docs/reference-functional-spec.md` §1.
+- **Font:** URW Gothic Book 11 (`Forte_Core/Fonts/URWGothic-Book.ttf`) — the libre lookalike of the
+  original's Monotype Century Gothic (owner decision 2026-11-01; comparison `docs/media/sim/font-compare.png`).
+- **Fidelity rule:** no "matches the original" claim without a side-by-side wow-ui-sim screenshot
+  (`docs/media/sim/`) against `docs/refs/`.
+- Assets vendored from the GPL-3.0 zip (textures only) with `ATTRIBUTION.md` + `gpl-3.0.txt`.
+
+### 3.6 Original module map → FX (from the options index, `docs/refs/options-panel.png`)
+The original is ~14 modules in one options window. Every row gets a Forever verdict; anything marked
+*pending* is settled by `docs/reference-functional-spec.md` (agent `FuncSpec`).
+
+| Original module | What it did | Forever ceiling | FX home · phase |
+|---|---|---|---|
+| Cooldown Timer | power-scale timeline: own spells, items, potions, pet, internal CDs | feasible: cast-predict + plain reconcile | `Forte_Cooldown` · P1 |
+| Secondary Splash | big fading icon (+glow) when a cooldown is ready | feasible (own state) | `Forte_Cooldown` · P2 |
+| Spell Timer | stacked rows: self buffs, own DoTs per target (multi-target), others' buffs/debuffs | own buffs/own casts: predicted in combat, real out of combat. Multi-target **others'** auras / tick detection: **not feasible** (combat log) | `Forte_Timer` · P4 |
+| Soulstone Tracker · Healthstone Spy · Shard Manager · Shard Spy | warlock stone/shard tools; "spy" = other players' stones | own: feasible (bags, own casts); spying on others: *pending* | `Forte_Warlock` · P5 |
+| Summon Assistant | ritual-of-summoning helper | feasible (casts, chat) — *pending* channel rules | `Forte_Warlock` · P5 |
+| Party/Raid Messages · Self Messages · Sound | announcements, local messages, sounds | feasible; which chat channels addons may use on Forever: *verify* | `Forte_Core` · P6 |
+| Talent Spy | others' talents | inspect APIs: *pending* | optional · P7 |
+| General / Advanced Options | one window, color-coded module sections, tips, per-option reset, profiles/clones | feasible (own frame, own SavedVariables) | `Forte_Core` · P6 |
 
 ---
 
@@ -132,17 +176,27 @@ No hand-typed spell IDs. Data is generated.
 | wowsims/gamedata | github.com/wowsims/gamedata | Per-build diffs (`patches/1.60.1.70707/…`) to catch drift between the mythicsim pin and live. Not cloned yet. |
 | mythicsim.com/wow-forever, wowsims.com/forever | web | Human reference only (class changes, talent rework); the websites are not data sources. |
 
-Generator: `tools/gen_spell_data.py <class>` reads `tools/spell_lists/<class>.json` (spell
-*names* grouped by purpose), picks the highest-rank row per name, writes
-`addon/Forte_<Class>/Data/<Class>.lua` (`ForteXorcist.Data.<Class>` + `…ByName`), and reports any name
-not found (never silently dropped).
+Generator: `tools/gen_spell_data.py [--dry] <class>` reads `tools/spell_lists/<class>.json` (spell
+*names* grouped by purpose) and writes `addon/Forte_<Class>/Data/<Class>.lua` (`ForteXorcist.Data.<Class>`
++ `…ByName`); unmatched names are reported, never dropped. Since 2026-11-01 (agent `GenFix`):
+candidate rows are **scoped to the class's `ClassFlags.Family`** (Mage 3, Warrior 4, Warlock 5,
+Priest 6, Druid 7, Rogue 8, Hunter 9, Paladin 10, Shaman 11; 13 = consumables; **no Death Knight in
+this build**), and the rank pick prefers **the row that carries the cooldown**, then level, then ID.
+This fixed cross-class collisions (Circle of Healing → a Mage copy, Divine Protection → Priest) and
+recovered cooldowns (Rapid Fire 3045 = 300 s, Evocation 480 s).
 
-Known data gaps to resolve (Hunter): `Rapid Fire` (row 28755 has no cooldown fields) and
-`Intimidation` (no cooldown) are generated but not tracked as cooldowns; `Misdirection`,
-`Snake Trap`, `Kill Command`, `Wyvern Sting`, `Readiness`, `Explosive Shot`, `Master's Call`,
-`Track Humanoid` had no exact-name match — likely renamed, talent-only, pet-cast or absent in
-Forever. Check via mythicsim `spell-effects.jsonl`, wowsims `sim/hunter/*.go`, and Forever's
-talent data before adding.
+Current lists (all 0 gaps, verified by independent `--dry` runs 2026-11-01): Hunter 73 · Warlock 76 ·
+Mage 51 · Paladin 56 · Priest 47 · Shaman 61 · Druid 52 · Rogue 50 · Warrior 64 · Deathknight 0
+(placeholder, no DK in this build). Total 530 spells across 9 classes.
+
+Rank-pick order now (agent `DataWave`): in-family row carrying a cooldown/duration > uncoded
+(Family 0) carrier > in-family bare > uncoded bare; never a foreign family. Bare *companion rows*
+(sole effect Type 6 / Aura 332 pointing at the real spell) lose to the row that carries the window.
+Uncoded picks are printed as `info:` lines — e.g. Black Arrow 14296, Eagle Eye 6197, Feed Pet 6991,
+Use Soulstone 20761, Firestone 17949. Mangle stays out of Druid (its only row is filed under Mage).
+
+Remaining data work: (1) re-measure spell IDs on the live client before trusting them (§8);
+(2) trinket/item/proc harvest (Phase 3+); (3) per-class tool lists beyond cooldowns/buffs.
 
 ---
 
@@ -151,16 +205,47 @@ talent data before adding.
 | Tool | Where | Use |
 |---|---|---|
 | **wow-ui-sim** v0.1.39 (Osso, GPL-3.0), Forever build | `$WORK/wow-ui-sim/` — run via `./run.sh wow-sim …` | Headless UI/API simulator with a Forever profile (incl. `spell_aura_secrecy` data). `run-tests <Addon>` runs `Interface/AddOns/<Addon>/tests/*.lua` (`test(...)`, `assertEquals`, `async_test`, `A_Admin` namespace to set combat/buffs/party). Also `lua-errors`, `dump-tree`, `screenshot`. |
-| uiforever.com | browser, `/app?flavor=forever` | Visual check: drop addon folder in, any class/race, dungeon/raid scenario, Lua stack traces, missing-API list, memory. |
+| uiforever.com | browser, `/app?flavor=forever` | Owner-interactive gate. **Tested 2026-11-01:** upload `/tmp/fx_uif.zip` (addons without `tests/`) via the page's `input[type=file]` (index 4, `.zip`), click Import, `/reload`. All 11 `Forte_*` addons load; Errors tab "No Lua errors"; Missing-APIs list empty for our calls; console runs `/fx status` and Lua one-liners (`=expr` prints). Class picker → Hunter → bar renders on the real Blizzard UI. Gotcha: the simulated player has no real cooldown state, so our own reconcile (plain read says ready) clears predicted timers — to inspect the display set `Engine.OnRead = function() end` in the console first. Captures: `docs/media/sim/uif_hunter_*.png`. |
 | luajit | `/usr/bin/luajit` | Fast syntax check + pure-logic smoke tests with stubs (no `luac` on this box). |
 | Real client | `<WoW install>/_forever_/` | Final verification only. |
+
+### 5.1 External references & MCP candidates (owner-flagged 2026-11-01, evaluation pending)
+| Ref | What | Fit for FX |
+|---|---|---|
+| **Atraeau/WoW-Addons** `docs/api/` (generated API ref, also hosted at atraeau.github.io — from client APIDocumentation build 70170, interface 16001, ~6,598 funcs) | The authoritative Forever API surface. `github.com/Atraeau/WoW-Addons` — no local clone yet; clone into `$WORK/` on first heavy use. | **Use now** for API signature lookups (worker rule already: no invented APIs). |
+| **RdyGaming/hated-wow-mcp** (`npx` MCP server, 20 tools) | In-game Lua API + Blizzard shipped UI source + CVars/FileDataIDs/texture atlases + Lua lint + TOC/XML validation + scaffolding; flavors incl. **WoW Forever**. | Strong candidate: lint/TOC-validate/API-lookup for workers. Register in `~/.config/opencode/opencode.json` after owner OK. |
+| **Geraldlol/witchcraft** (`docs/MCP.md`) | Claude Code / Codex **inside** WoW Forever: terminal tabs + WoW MCP server for character data. | Candidate for the real-client phase: live `/fx status`, Lua error capture, event probing in the running game. |
+| **uiforever.com** (Osso; browser UI simulator) | **WoW Forever flavor live**: the real Blizzard interface in-browser; drag-drop AddOns/WTF; combat scenarios (combat state, target/focus, auras, party/raid); Lua console + full stack traces; **per-addon missing-API list**; resolutions/UI-scales; Edit Mode; `/reload`; nightly compat list (~200 Forever addons). Same engine family as our headless wow-ui-sim. | Adopt as the owner-interactive pre-client gate (fight-state look, API-surface audit). Same policy as here: simulator pass ≠ compatibility; real client final. Owner-facing, no headless CLI — our `wow-ui-sim` stays the automation lane. |
+| **JBurlison/WoWAddonAPIAgents** (MIT) | Version-aware agent suite with a **Forever target**: generated API declaration catalogs from pinned client snapshots (signatures, event payloads, access annotations, snapshot manifest) + curated guides (restricted values, cooldown/damage-meter contracts, Forever identity, swing timers, aura APIs, settings registration) + UIForever/Witchcraft integration + visual-fidelity guardrails (v2.2.0: compare rendered screenshots before declaring a match). | **Importing now** (agent `ApiPack`) → `docs/api/wow-addon-api-agents/` (skills/guides/catalogs only, no plugin packaging). API ground-truth layer #1; see `docs/api/README.md` for the 3-layer trust order. |
 
 **wow-ui-sim gotcha:** the release binary needs ICU 78; Fedora here ships ICU 77.
 `$WORK/wow-ui-sim/icu-vendor/` holds only `libicui18n/libicuuc/libicudata.so.78`
 copied from the installed `org.freedesktop.Platform 26.08` flatpak runtime; `run.sh` puts that
 dir (and nothing else) on `LD_LIBRARY_PATH`. Do **not** point `LD_LIBRARY_PATH` at the whole
 flatpak lib dir (its glibc breaks the binary). No rpm-ostree layering.
-`./run.sh wow-sim --version` → `wow-sim 0.1.39` (verified). `run-tests` not yet exercised.
+`./run.sh wow-sim --version` → `wow-sim 0.1.39` (verified).
+
+**wow-ui-sim setup (all handled by `run.sh`, verified 2026-11-01):**
+- Headless by default (`unset DISPLAY WAYLAND_DISPLAY`); otherwise startup errors pop zenity
+  dialogs on the owner's desktop. `WOW_SIM_GUI=1` to opt back in.
+- This Battle.net launcher writes `.product.db` as a bare `ProductInstall` protobuf; the sim wants
+  a `Database{ repeated ProductInstall = 1 }` wrapper ("invalid wire type value: 7").
+  `run.sh` keeps `$WORK/wow-ui-sim/install-shim/` (symlinks to the real `Data/`,
+  `.build.info`, `_forever_/` + a wrapped `.product.db`, re-wrapped when the real file changes)
+  and sets `WOW_INSTALL_PATH` to it. The real install is never modified.
+- The sim release pins UI build 70532; our client is 70707 → always pass
+  `--allow-ui-version-mismatch`. Blizzard UI cache: `~/.cache/wow-ui-sim/blizzard-ui/wowforever/`
+  (4,486 files from the live client; refresh with `run.sh wow-cli casc sync-blizzard-ui
+  --allow-ui-version-mismatch` after a client patch).
+- Baseline noise: Blizzard-side Lua errors (`Blizzard_Transmog` SMART_NAV_INPUT_DIRECTION,
+  `Blizzard_GamepadSmartNavigation` invalid import) appear in every run — sim gaps, not ours.
+  Only errors from `Forte_*` paths count.
+- Test command: `run.sh wow-sim --allow-ui-version-mismatch --addons-path
+  $REPO/addon run-tests Forte_Cooldown`.
+
+**Lesson:** luajit stub tests accept any API name. A worker shipped invented APIs
+(`CreateStatusBar`, `OnDragStopped`, wrong `CreateTexture`/`CreateFontString` signatures) that
+passed stubs. UI/API code is only accepted after a wow-ui-sim run.
 
 ---
 
@@ -175,18 +260,23 @@ All addon paths below are relative to `addon/`.
 | `Forte_Core/Core/Compat.lua` | Done — `IS_FOREVER`, `HAS_COMBAT_LOG=false`, `HAS_BLIZZ_CDM=false`, `PlainOrNil`, `GetSpellCooldown`, `IsPlayerSpell` |
 | `Forte_Core/Core/Constants.lua` | Done — identity, colors, `FX.Print` |
 | `Forte_Core/Core/Init.lua` | Done — module registry, bootstrap frame, `/fx`, `/fx status`, SavedVariables |
-| `Forte_Hunter/` toc ×2 + `Data/Hunter.lua` | Generated — 30 spells |
-| `Forte_Warlock/` toc ×2 + `Data/Warlock.lua` | Generated — 34 spells (secondary) |
-| `Forte_Cooldown/Core/Engine.lua` | Done (logic only) — `Build`, `BestDuration`, `OnCast`, `OnRead`, `Sweep`, `Sorted`, `AttachStorage` |
-| `tools/gen_spell_data.py`, `tools/spell_lists/{hunter,warlock}.json` | Done |
-| `Forte_Cooldown` toc, event wiring, display, tests | **Not started** |
-| `scripts/deploy.sh` | **Not started** |
-| `README.md`, `AGENTS.md`, `PLAN.md`, `docs/` | Done (initial) |
+| `Forte_<Class>/` toc ×2 + `Data/<Class>.lua` | Generated, 0 gaps, tocs added for all nine (the earlier "toc ×2 for all" claim was wrong until 2026-11-01 — six classes were data-only and never loaded). Hunter 73 · Warlock 76 · Mage 51 · Paladin 56 · Priest 47 · Shaman 61 · Druid 52 · Rogue 50 · Warrior 64. `Forte_Deathknight` = data-only 0-spell placeholder, no tocs (no DK in this build). Sim: all ten `Forte_*` addons load, 0 Lua errors |
+| `Forte_Cooldown/Core/Engine.lua` | Done (logic only) — `Build`, `BestDuration`, `OnCast`, `OnRead`, `Sweep`, `Sorted`, `AttachStorage`; `MIN_COOLDOWN = 2.99` |
+| `tools/gen_spell_data.py` | Done — family-scoped, CD-carrier rank pick, `--dry` (agent `GenFix`); open items §4 |
+| `Forte_Cooldown` toc ×2, `Module.lua` (event wiring) | Done — reviewed |
+| `Forte_Cooldown/UI/Timeline.lua` + `TimelineMath.lua` | **Done (agent `Timeline`, manager-verified)** — 250×24 power-scale bar registered as `FX.Cooldown.Display` (same public API; `Module.lua`/`Init.lua` untouched). Icons placed at the original formula (dump-tree offsets match to <0.6 px). URW Gothic accepted by the sim font pipeline. Shots: `docs/media/sim/fx_timeline_{full,detail}.png` — owner sign-off vs `docs/refs/` pending |
+| `Forte_Cooldown/UI/Rows.lua` | Dormant (not in the toc) — the old row renderer, kept as the Phase-4 Spell Timer seed |
+| `/fx lock|unlock|reset` → `Display:Slash` hook in `Forte_Core/Core/Init.lua` | Done — verified in sim |
+| `tests/test_engine.lua` + `tests/test_timeline.lua` | **GREEN: 20 tests, 20 passed, exit 0** (manager re-run 2026-11-01). `test_display.lua` removed with the row display. The missing-data negative case now uses DEATHKNIGHT (Paladin got a toc, so it has data) |
+| `Forte_Core/Textures/*`, `gpl-3.0.txt` | Vendored unmodified (GPL-3.0, from the original zip) |
+| `Forte_Core/Fonts/URWGothic-Book.{otf,ttf}`, `URW-*.txt`, `ATTRIBUTION.md` | Vendored: `.otf` unmodified (license source) + `.ttf` converted with fontTools `cu2qu` (marked modified); AGPL-3.0 + font exception. Century Gothic moved out of the addon (git-ignored reference copy in `docs/media/fonts-reference/`) |
+| `scripts/deploy.sh` | Done — reviewed; symlinks `Forte_*` into the client AddOns; `--dest`/`DEPLOY_DEST`, `--remove`, `--list`; smoke-verified on a temp dir |
+| `docs/refs/` (owner screenshots) · `docs/media/` (videos, sheets, frames, sim shots; git-ignored) | Done — index `docs/media/README.md` |
+| `docs/reference-functional-spec.md` | **Done (agent `FuncSpec`, 513 lines, manager spot-checked)** — 201 behaviours, each with a `file:line` anchor in the original source and a Forever verdict: 172 feasible as-is · 11 out-of-combat only · 7 via cast prediction · 10 not feasible · 1 n/a. Spot-checked: `Forte_Casting.lua:858` registers exactly one combat-log event; the Cooldown module registers none; `Forte_Cooldown/Register.lua` (its spell-data file) is absent from the zip |
+| `docs/api/` (JBurlison Forever catalogs + guides) | **Done (agent `ApiPack`)** — 235 files, 20 MB, MIT; trust order in `docs/api/README.md`; findings in §8 |
 
-Verified: every Lua file parses (luajit). Engine smoke test with stubs (luajit): Hunter →
-16 tracked cooldowns; cast predicts 120 s Bestial Wrath; secret read leaves it; plain read
-anchors and learns 110 s; recast predicts 110 s; sweep pops ready; untracked cast ignored.
-**Never loaded in wow-ui-sim or the real client yet.**
+wow-ui-sim (70532 UI pin vs live 70707): all `Forte_*` addons load with no `Forte_*` Lua errors.
+**Never loaded in the real client yet. Nothing committed since `cd06b3b`.**
 
 ---
 
@@ -196,76 +286,250 @@ anchors and learns 110 s; recast predicts 110 s; sweep pops ready; untracked cas
 - Repo exists (`Gevil/fortexorcist_forever`). Commit/push only when the owner asks.
 - `README.md`: what it is, install, data regeneration, credits (CooldownMaster MIT, mythicsim MIT,
   wowsims MIT, original FX by Xus).
-- `scripts/deploy.sh`: symlink each `addon/Forte_*` folder into `<WoW>/_forever_/Interface/AddOns/`
-  (symlinks, idempotent, `--copy` and `--clean` options). Edits then need only `/reload`;
+- `scripts/deploy.sh`: symlinks each `addon/Forte_*` (toc-bearing) into
+  `<WoW>/_forever_/Interface/AddOns/` (`ln -sfn`, idempotent; `--dest`, `--remove`,
+  `--list`; refuses hand-made entries). Edits then need only `/reload`;
   new files/TOC changes need a client restart.
 
-### Phase 1 — Forte_Cooldown v1 (Hunter) — *next*
-1. `Forte_Cooldown.toc` + `_Camelot.toc`: `## Dependencies: Forte_Core`,
-   `## OptionalDeps: Forte_Hunter, Forte_Warlock` (so data loads first), files
-   `Core/Engine.lua`, `UI/Display.lua`, `Module.lua`.
-2. `Module.lua`: `FX.RegisterModule("Cooldown", …)`. In `OnEnable`:
-   - `Engine:AttachStorage(FX.db.cooldownLearned or {})` (create the table in `FX.db`).
-   - `Engine:Build(FX._playerClass, isKnown)` where `isKnown(name)` = `C_Spell.GetSpellInfo(name)`
-     non-nil and `Compat.IsPlayerSpell(info.spellID)`. Rebuild on `SPELLS_CHANGED` (debounced)
-     and on `PLAYER_REGEN_ENABLED`.
-   - `UNIT_SPELLCAST_SUCCEEDED` (player): name via `C_Spell.GetSpellInfo(spellID)` → `PlainOrNil`
-     → `Engine:OnCast(name, GetTime())`.
-   - `SPELL_UPDATE_COOLDOWN` + `PLAYER_REGEN_ENABLED` + 1 Hz safety tick: for each tracked name,
-     `Compat.GetSpellCooldown(name)` → `Engine:OnRead(...)`.
-   - 10 Hz display tick: `Engine:Sweep(now)` → ready messages; `Engine:Sorted()` → Display.
-3. `UI/Display.lua`: movable anchor frame, pooled rows (icon via `C_Spell.GetSpellTexture(name)`,
-   name, remaining time), dirty-checked, position saved in `FX.db`, `/fx lock|unlock|reset`.
-4. Ready alert: chat line + optional sound (`PlaySound`), later a splash frame.
-5. Items/trinkets: equipped trinkets (`GetInventoryItemCooldown("player", 13|14)`), potions/
-   healthstones (`C_Container.GetItemCooldown(itemID)`), bag scan via `C_Container`.
-   Pattern: CooldownMaster `Engine:PollOneItem` / `ClassifyBagItem`.
-6. Fix Hunter data gaps (§4) and regenerate.
+### Phase 1 — Classic Cooldown Timer (Hunter) — *display landed; items + sign-off remain*
+Engine + event wiring are done (§6). What remains is the display, now specified by §3.5.
+1. **Get green first:** fix `test_engine.lua:77` to the new data facts (Rapid Fire tracked, 300 s;
+   pick a genuinely cooldown-less row for the negative check); drop the exact float compare.
+2. **Timeline display** (`UI/Timeline.lua`, replaces `Display.lua` as the Cooldown view): one 250×24
+   bar, power-scale positions, custom tags, overlap groups with cross-fade, category colors,
+   end-of-cooldown effect, cast splash, drag/lock/reset + saved position (keep the `Display`
+   public API so `Init.lua`/`Module.lua` don't change). Pure math (position, tag placement,
+   grouping) in a frame-free helper so it is unit-testable in luajit *and* the sim.
+3. Keep the current row renderer as `UI/Rows.lua` (unused by Cooldown; Phase 4 seed).
+4. Items/trinkets/potions/healthstones (`GetInventoryItemCooldown`, `C_Container.GetItemCooldown`,
+   bag scan; CooldownMaster `PollOneItem`/`ClassifyBagItem` pattern) — category colors Item/Potion/
+   Healthstone.
 
-**Acceptance:** in wow-ui-sim, `run-tests Forte_Cooldown` passes (tests below) and
-`lua-errors` shows nothing from `Forte_*`; on uiforever.com as a Hunter the frame appears and
-`/fx status` lists the modules; on the real client a Hunter casting e.g. Disengage/Concussive
-Shot sees a timer that ends when the button is ready, in and out of combat, with zero Lua errors.
+**Acceptance:** sim `run-tests Forte_Cooldown` green incl. new timeline tests (positions at
+t = 0/1/10/30/60/120/300/600 match the formula; groups form at > ½ icon overlap); `lua-errors`
+clean for `Forte_*`; side-by-side `docs/media/sim/fx_timeline_*.png` vs `docs/refs/ref2,3,6`
+reviewed by the owner; uiforever.com Hunter shows the bar; real client: Disengage/Concussive Shot
+slide to 0 and end, in and out of combat, zero Lua errors.
 
-### Phase 2 — tests
-- `addon/Forte_Cooldown/tests/test_engine.lua` (wow-ui-sim format): port the luajit smoke test above
-  to `test(...)` cases; add GCD-masking case (`OnRead` "ready" within 1.6 s of a cast is ignored),
-  learned-duration persistence, rebuild on class change.
-- Use `A_Admin` to toggle combat and secret state for an integration test.
-- Optional: GitHub Action `osso/wow-ui-sim` once the repo is on GitHub.
+### Phase 2 — Cooldown polish
+Secondary Splash (big fading icon + glow, `SecondSplashMax 4`), Warn (failed cast on a cooling
+spell → attention on its icon), Spark, Alpha/AlphaMax idle-vs-active, Min/Max range and remaining
+filters, Hide/HideCombat, vertical/flip — each against `reference-functional-spec.md` §1.
+Combat/secret integration test via `A_Admin`.
 
 ### Phase 3 — Hunter class tools (`Forte_Hunter` gains code)
 - Aspect reminder (missing aspect out of combat), trap timers (cast-predicted, arming/duration),
   Hunter's Mark / sting timers on target (cast-predicted only, reconciled out of combat),
   auto-shot / swing timer via `PLAYER_SWING`, range / dead-zone light (8–35 yd, range APIs plain).
   Reference: charles-hood/wow-forever-addons `HunterHUD` (MIT) for measured facts.
-- Pet: happiness/feed reminder, pet ability cooldowns.
+- Pet: feed reminder, pet ability cooldowns (needs the uncoded-family data fallback, §4).
 
-### Phase 4 — Spell Timer (own buffs)
+### Phase 4 — Spell Timer (`Forte_Timer`, rows — `docs/refs/ref4.png`, demo3 2:45)
+- Row look from the original: icon, time left, target name or spell name, category color, grouped
+  per target with a header row; sections for self / target / others.
+- **Reconciliation law already exists in the original** (spec §3.4, `Forte_Timer.lua:33`, `:1147-1204`):
+  a cast creates an *uncertain* prediction (`guid == ""`); a later real observation within a tolerance
+  window (`maxlag = 1.00`, a user option) is **adopted** into it; longer remaining → extend, shorter →
+  refresh. Port this as the Spell Timer's reconcile rule instead of inventing one. The original also
+  defers a cast's effect by 0.2 s and flushes its queue after 3 s (spec §2.1).
+- **Hidden cooldowns** (spec §1.2, `Forte_Cooldown.lua:149-154`): a proc *buff* synthesises a cooldown
+  starting at `expire − duration` (e.g. internal cooldowns of trinkets/procs) — Phase 2, out-of-combat
+  reads only on Forever.
+- **Does not carry over:** resist classification, DoT tick detection, summon/death combat-log rows, Talent
+  Spy, weapon-enchant timers, world-map sampling by the Summon Assistant (spec §10). Swing mode and
+  multi-charge display are **absent** from the original source despite the changelog — treat as new work.
 - Out of combat: `C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")` learn name→duration.
-- In combat: cast-predicted entries keyed by name (CooldownMaster `_buffByName` / `RestartBuffFromCast`),
-  `UNIT_SPELLCAST_SENT` target name to detect casts on others (don't claim them as yours).
-- Proc buffs (no cast to predict from) can only be shown out of combat — document per proc.
+- In combat: cast-predicted entries keyed by name (CooldownMaster `_buffByName` /
+  `RestartBuffFromCast`); own DoTs per target from `UNIT_SPELLCAST_SENT` target name + cast success.
+- **Ceiling (state it in the UI):** no tick detection, no others' auras, no refresh/clip truth in
+  combat; predicted rows are marked as predicted. Procs without a cast: out of combat only.
 
-### Phase 5 — all other classes
-For each class: write `tools/spell_lists/<class>.json` (cooldowns, buffs, class tools), generate,
-add `Forte_<Class>` tocs, add class tools. Suggested order after Hunter: Warlock (FX's heritage:
-Soulstone/Healthstone/Shard/Summon), then Mage, Priest, Druid, Rogue, Warrior, Shaman, Paladin.
-Use wowsims `sim/<class>/*.go` and mythicsim fixtures to find procs/talent spells per spec.
+### Phase 5 — Warlock tools + remaining classes
+Soulstone Tracker, Healthstone, Shard Manager, Summon Assistant (own state; "spy" features per
+`FuncSpec` verdicts). Then per-class tools in the order Mage, Priest, Druid, Rogue, Warrior,
+Shaman, Paladin, using wowsims `sim/<class>/*.go` for procs/talent spells.
 
-### Phase 6 — options & polish
-Options panel (Settings API), profiles, sounds, splash/ready frame, Masque, raid/party messages
-(`SendChatMessage` — verify which channels Forever allows from addons), localization.
+### Phase 6 — Options window, messages, sound
+One options window in the original's shape (`docs/refs/options-panel.png`): title bar with version,
+module index buttons color-coded per module, collapsible sections (Some Tips / Basics / Specifics /
+Frame Sizing / Coloring / Appearance), per-option reset, profiles/clones. Party/Raid + Self Messages
+(`SendChatMessage` — verify which channels Forever allows from addons), sounds, localization.
 
 ---
 
 ## 8. Risks / open questions
 - Launch build may differ from 70707; re-check `.build.info`, regenerate data after a
   mythicsim/wowsims pull, scan `wowsims/gamedata` diffs.
+- **Spell IDs are build-sensitive** (measured 2026-11-01 in `test_engine.lua`): the sim's profile
+  spell DB (70532) resolves every name-resolvable data row to a *different* spellID than our
+  70425-pinned data, incl. collisions (data id 603 "Bane of Doom" = "Doom" in the sim DB;
+  1223963 "Corruption" → 172). The sim profile DB is not a Forever ID oracle. Consequences:
+  (a) our runtime resolves spells **by name** (`Module.isKnown`, `GetSpellInfo(name)`) — keep it;
+  (b) never trust hard-coded IDs across client patches — regenerate data per build;
+  (c) `test_engine.lua` asserts name-equality hard, ID-equality as warnings only.
+  Coverage: the sim profile DB sees only 12/30 Hunter + 13/34 Warlock rows (incl. "Deterrence")
+  — sim profile gaps, not data defects; the live client is the ID ground truth.
 - Exactly which cooldown reads are secret in combat on live is not measured by us yet — log it
   (count `"secret"` vs `"anchored"` results from `Engine:OnRead`) in the first real session.
+- **Core premise, unproven at source level (found by `ApiPack`, 2026-11-01):** the pinned Forever
+  catalog annotates `UNIT_SPELLCAST_SUCCEEDED` (and every sibling cast event) with
+  `SecretWhenUnitSpellCastRestricted`; only `castBarID` is `NeverSecret`, and the vendor's own audit
+  says "no blanket promise that a self-cast event is always plain"
+  (`docs/api/wow-addon-api-agents/docs/audit/FOREVER-FINDINGS.md:41`). "Our own spellID is plain in
+  combat" is an observation from CooldownMaster, not a guarantee. Today's handler is safe either way
+  (`Module.lua:87-95` does no arithmetic on the id and acts only on a plain name) but a secret id
+  would **silently disable in-combat prediction**. Mitigations, in order:
+  (1) instrument — `/fx status` reports casts seen / plain / secret, so the first real session
+  answers it; (2) fallback — `SpellCooldownInfo.isActive` and `isOnGCD` are `NeverSecret`
+  (`SpellSharedDocumentation.lua:18`), so a tracked spell's cooldown *starting* can be detected by
+  polling the boolean even when the numbers are secret, then anchored with the learned duration;
+  (3) the handler must tolerate the 4-field payload (`unit, castGUID, spellID, castBarID`).
+- Item/trinket cooldown APIs (`C_Item.GetItemCooldown`, `C_Container.GetItemCooldown`) carry no
+  `SecretWhen…` annotation at the 70532 pin — probe before Phase 1 relies on them. Pin drift
+  70532 → 70707 is not covered by any local evidence.
+- Swing timer contract: `PLAYER_SWING` is `(swingDuration, swingType)` — duration first — while
+  `PLAYER_SWING_RANGE_UPDATE` leads with `swingType`; two handlers, never one unpack order.
 - Earlier beta reports: SavedVariables were not loaded back (fixed later?). The installed client's
   `WTF/Account/*/SavedVariables/` has real files with `.bak`, which suggests saving works now —
   verify `ForteXorcistDB` survives a full client restart.
 - `_Camelot.toc` + plain `.toc` both present: confirm the client loads exactly one copy.
 - wow-ui-sim is GPL-3.0: use it as a tool only, don't vendor its code into FX.
+- **Font licensing — resolved 2026-11-01:** `GOTHIC.TTF` is Monotype Century Gothic ("All Rights
+  Reserved"); bundling it in 2012 did not make it GPL. Owner chose URW Gothic (AGPL-3.0 with a
+  PostScript/PDF font exception, per `/usr/share/licenses/urw-base35-fonts/LICENSE`). Still to verify:
+  the **real client** accepts the converted TTF (the sim result comes from agent `Timeline`).
+- **Repo license — resolved 2026-11-01:** `LICENSE` at the repo root is GPL-3.0 (byte-identical to
+  `addon/Forte_Core/gpl-3.0.txt`). It covers our code and is compatible with the vendored GPL-3.0
+  textures and the AGPL-3.0 font (GPL-3.0 §13). Per-asset terms: `addon/Forte_Core/ATTRIBUTION.md`.
+- **Original vintage:** every reference video is Cata/MoP-era (v1.959–1.980.8); the Forever client is
+  Retail 12.x. Faithful means *look and interaction*, not the 2012 data model.
+- **Spell Timer expectations:** the multi-target DoT view in the media (demo3 2:45) was combat-log
+  driven; on Forever it can only show our own casts, predicted. Say so in the UI and docs.
+
+---
+
+## 9. Decision & correction log
+Append-only; newest last. Every owner decision and every correction of an earlier claim lands here.
+
+| Date | Entry |
+|---|---|
+| 2026-11-01 | Owner: 1:1 Classic skin; vendor the identity subset of the GPL-3.0 zip with attribution. |
+| 2026-11-01 | Owner: research all classes' spells/cooldowns/procs/items → agents `DataA/B/C` (8 classes done; Warrior was never assigned — gap found in manager review). |
+| 2026-11-01 | Data: Forever 1.60.1.70425 has 9 class families, **no Death Knight**; cross-class shared cooldown categories exist (Stealth↔Prowl 38, Kidney Shot↔Between the Eyes 270, shocks 19). |
+| 2026-11-01 | Generator hardened (`GenFix`): family scoping + cooldown-carrier rank pick; uncoded-family fallback still to do. |
+| 2026-11-01 | Owner: keep all media and sim screenshots in the repo folder → `docs/refs/`, `docs/media/` (git-ignored for weight). |
+| 2026-11-01 | Owner: adopt uiforever.com as the interactive pre-client gate; import JBurlison/WoWAddonAPIAgents Forever catalogs (agent `ApiPack`). |
+| 2026-11-01 | Owner: main session on Opus 5.5; subagents stay on basalt (`fx-worker`/`fx-scout` pin `basalt/qwen3.8-flash-next-nvfp4-basalt` in their own frontmatter, independent of the session model). |
+| 2026-11-01 | **Correction:** the Cooldown Timer is one power-scale timeline bar, not a list of rows (§3.5). Found once the session could see the reference images; `ClassicSkin` agent stopped, its rows work reclassified as the Spell Timer seed. |
+| 2026-11-01 | **Correction:** the default icon size is the bar height (24), not 36 (36 is an opt-in). |
+| 2026-11-01 | **Correction:** `GOTHIC.TTF` is not GPL (Monotype). Owner chose **URW Gothic** (AGPL-3.0 + font exception) as the libre lookalike; vendored as unmodified `.otf` + converted `.ttf`; `ATTRIBUTION.md` rewritten with per-asset licenses; Century Gothic removed from the addon, `**/GOTHIC*.TTF` git-ignored. |
+| 2026-11-01 | **Correction (process):** a `.gitignore` overwrite dropped 4 rules (restored); the first walkthrough "contact sheets" were single frames (rebuilt with timestamps); the 720p cap on the first video was not a verified geo-block (yt-dlp lacked a JS runtime). |
+| 2026-11-01 | Owner: add the license file → GPL-3.0 `LICENSE` at the repo root (see §8). Owner switched the main session to Sonnet 5.5; subagents stay on basalt. |
+| 2026-11-01 | **Correction:** the state table said every class had tocs; six did not, so their data never loaded. Found by `DataWave`, fixed by the manager (toc pairs for Mage/Paladin/Priest/Shaman/Druid/Rogue; Warrior's title color fixed from the Death Knight color to its own). |
+| 2026-11-01 | `Timeline` agent found two source details that refine §3.5: minute labels apply only above 60 s (`v > 60`, so 60 prints "60", 120 prints "2"), and the original always draws a trailing tag at `Max`. Both implemented per source. |
+| 2026-11-01 | **Correction:** the timeline agent reported 20/20 tests, but the manager's re-run found 19/20 — my own toc addition made Paladin a class *with* data, breaking the "missing class data" test. Fixed (negative case → DEATHKNIGHT), re-run green. Rule kept: manager re-runs every gate, never relays a worker's number. |
+| 2026-11-01 | `ApiPack` landed `docs/api/` (235 files, 20 MB, MIT, upstream commit `f9269081`; three-layer trust order in `docs/api/README.md`). Finding logged in §8: the cast-event premise is observed, not source-guaranteed; instrumentation + an `isActive` fallback are Phase 1 work. |
+| 2026-11-01 | `FuncSpec` landed the functional spec. **Owner rulings needed** (spec §14): (1) `Register.lua` is missing from the zip — accept our generated data as its replacement, or supply the original zip's file; (2) multi-charge: changelog says shipped, source says absent — build it new?; (3) weapon-enchant timers need a replacement for `GetWeaponEnchantInfo`; (4) five dead or buggy paths in the original (e.g. Warlock `spell`/`s` at `Forte_Class/Warlock/Warlock.lua:191`): replicate shipped behaviour, advertised behaviour, or fix. |
+| 2026-11-01 | **Owner rulings on the spec's open questions:** (1) our generated data replaces the original's missing `Register.lua` (original zip targets an older WoW); (2) multi-charge: verified absent from the original source → **build it new** (done as engine work, then display); (3) weapon-enchant timers: replacement exists — `C_Item.GetWeaponEnchantInfo` + `WEAPON_ENCHANT_CHANGED` (Forever catalog) — use it; (4) **do not fix or replicate the original's broken paths; build what we actually need.** Owner also asked: do a second UI pass on the timeline (found missing: per-cooldown colored segment fills, `Forte_Cooldown.lua:1403-1448`), test in uiforever (done), and work out the remaining findings. |
+| 2026-11-01 | Owner asked about item proc lists per class: none existed. `items.jsonl` holds 1,155 item effects (238 on-use with cooldowns, 400 procs with buff + duration); procs are mostly class-agnostic and have no cast to predict from. Harvest dispatched (agent `ItemData`). |
+
+---
+
+## 10. Stage runbook — manager handoff (written 2026-11-01 ~19:00, for a cheaper model to continue)
+
+You are the **manager** of this project: you plan, delegate to basalt workers, verify, integrate, and report to the
+owner (Gevil). You do not need to be clever; you need to be **rigorous**. Read §10.2 before doing anything.
+
+### 10.1 Where we are
+- **Done and verified** (see §6): spell data for 9 classes (530 spells, 0 gaps), generator hardened, Classic timeline bar
+  v1 (`UI/Timeline.lua`, 20/20 sim tests), functional spec of the original (`docs/reference-functional-spec.md`),
+  API references (`docs/api/`), media corpus (`docs/media/`), GPL-3.0 `LICENSE`, URW Gothic font, deploy script.
+- **Tested on uiforever.com** (§5 table): addons load, no Lua errors, no missing APIs, `/fx status` works, bar renders.
+- **Nothing is committed** since `cd06b3b`; **nothing has run in the real client**. Do not commit/push until the owner says so.
+- **Four workers are running on basalt right now** (read `proc://` for live state; results arrive as notices):
+
+| Agent | Owns (files) | Doing | Done when |
+|---|---|---|---|
+| `Timeline` | `Forte_Cooldown/UI/*`, `tests/test_timeline.lua`, `tests/test_engine.lua`, `docs/media/sim/fx_timeline_v2_*`, `compare_timeline_v2.png` | UI pass 2: **per-cooldown coloured segment fills** (`Forte_Cooldown.lua:1403-1448` of the original), thin icon border (no permanent glow), icon time text, chrome | gate green + side-by-side image + dump-tree segment extents reported |
+| `Reconcile` | `Forte_Cooldown/Core/Engine.lua`, `Module.lua`, NEW `tests/test_reconcile.lua` | (A) cast-secrecy counter in `/fx status`; (B) `isActive`-edge fallback (`Engine:OnActiveEdge`, entry `source='edge'`); (C) multi-charge engine model (`entry.charges`, `rechargeEnd`) — data only | gate green incl. its new tests; API list reported |
+| `ItemData` | NEW `tools/gen_item_data.py`, NEW `addon/Forte_Items/` (+ both tocs), `docs/item-procs.md` | on-use / proc / consumable lists from `items.jsonl` keyed by NAME | counts + loads in sim with 0 `Forte_*` errors |
+| `Options` | NEW `addon/Forte_Options/` (+ both tocs), one additive edit to `Forte_Core/Core/Init.lua` (`FX.RegisterSlash`) | the original-style options window: framework + General / Cooldown / About pages | `run-tests Forte_Options` green + `fx_options_*.png` |
+
+### 10.2 Standing rules (non-negotiable)
+1. **Re-run every gate yourself.** Never relay a worker's test numbers. (Learned 2026-11-01: a worker said 20/20, the re-run was 19/20.)
+2. **Gate command** (sim = the only API proof; luajit stubs prove syntax only):
+   `cd /tmp && $WORK/wow-ui-sim/run.sh wow-sim --allow-ui-version-mismatch --addons-path $REPO/addon run-tests Forte_Cooldown` (swap the addon name for `Forte_Options`, etc.).
+   The shell blocks `grep`/redirection, and the output is huge Blizzard noise. Read the result with Python: `subprocess.run([...], capture_output=True, errors="replace")`, strip ANSI (`re.sub(r"\x1b\[[0-9;]*m","",out)`), then regex `\d+ tests?, \d+ passed, \d+ failed`, list lines containing `✗`, and `Forte_\w+/[^ ]*:\d+:` for our errors. **Exit code 0 and no `✗` = green.**
+   Only `Forte_*` errors count; Blizzard-side noise (Transmog `SMART_NAV_INPUT_DIRECTION`, Gamepad*, `PromptedBinding`, `LootHistory`, `GroupLootFrame`, `IsPetOrderMoveToPending`) is baseline.
+3. **Look at every screenshot a worker produces** with `read <png>` if your model can see images. **If it cannot, say so to the owner** and rely on `dump-tree` numbers — never claim a visual match you did not see. Visual acceptance = side-by-side image vs `docs/refs/` (original) — see `compare_timeline_v2.png`.
+4. **One owner per file.** The table in §10.1 is the lock list. Before dispatching anything new, check it; if a task needs a file another agent owns, wait or `write agent://<name>`.
+5. **Basalt agents only** for workers (`fx-worker` implement, `fx-scout` read-only research; both pinned to `basalt/qwen3.8-flash-next-nvfp4-basalt` in their own frontmatter). The owner may change the main model; workers stay on basalt.
+6. **No git writes** until the owner authorizes. No deploy to the real client until the owner asks (`scripts/deploy.sh` is ready).
+7. **Do not fix or replicate the original ForteXorcist's broken code** (owner ruling §9). Build what we actually need, driven by `reference-functional-spec.md` verdicts.
+8. **Never use hard-coded spell IDs at runtime** — resolve by NAME (IDs drift per build, §8).
+9. **Log every owner decision and every correction** in §9 the moment it happens; update §6 state rows after each accepted worker. Keep the todo list current (one `in_progress`).
+10. **Edit-tool discipline:** after every `edit`, use the returned tag; to touch lines you never displayed, `read` them first. Never overwrite a whole config file with `write` without reading it (a `.gitignore` overwrite already cost 4 rules).
+
+### 10.3 Recipes
+**uiforever.com test loop** (managed Chromium, never the owner's Chrome):
+1. Zip the addons without tests/otf: `cd addon && zip -r -q /tmp/fx_uif.zip Forte_* -x '*/tests/*' '*.otf'` (re-zip after every code change).
+2. `browser.open({name:"uif", url:"https://uiforever.com/app?flavor=forever", app:{relay:false,tern:false}, viewport:{width:1600,height:900}})`; wait ~8 s for the 3D scene.
+3. Upload: the ZIP input is the 5th file input (`accept=".zip"`, inside "Drop addons here"): tag it with `data-fxzip` via `tab.evaluate`, then `tab.uploadFile('input[data-fxzip="1"]','/tmp/fx_uif.zip')`. A dialog lists the addons: click the button whose text is `Import`. Replacing already-imported addons: remove the old ones (✕ per addon) or reset first.
+4. `Later` closes the rename prompt; `Let's go` closes the tips; then click `/reload` (the header button) and wait ~15 s.
+5. Bottom tabs: `Errors` (must say "No Lua errors."), `Missing APIs`, `Lua Console`. Console input = `input[placeholder="print(UnitName('player'))"]`; `tab.fill(sel, cmd)` then `tab.press("Enter",{selector: sel})`. Slash commands work (`/fx status`); `=expr` prints a value. Read chat back with `ChatFrame1:GetNumMessages()` / `ChatFrame1:GetMessageInfo(i)` and `print`. Console output is DOM text (`document.body.innerText`).
+6. Class picker: header button "<race> · <class>" opens a popover; set the `<select>` whose options include `Hunter` (Warrior, Hunter, Rogue, Mage, Druid are the only classes offered), dispatch `change`, click `Apply`, wait ~15 s. Scenarios: `Solo`/`Dungeon`/`Raid` buttons; `No combat` toggles combat state; `Target`/`ToT`/`Focus`. Resolution select: 1920×1080 … 5120×1440; `Fit`, `100 %`, UI-scale field.
+7. The game canvas is a `<canvas>` (about 1300×577 CSS px at x=300,y=79); `tab.screenshot({format:"png"})` saves at 1.25× scale — crop the bar with ffmpeg (`crop=700:240:837:470,scale=2100:-1:flags=lanczos` found it at default scale). Save captures into `docs/media/sim/uif_*.png`.
+8. **Gotcha:** the simulated player has no real cooldown state, so our own reconcile (plain read says "ready") clears predicted timers within ~2 s. To inspect the display, first run in the console `ForteXorcist.Cooldown.Engine.OnRead=function() end`, then start entries: `local E=ForteXorcist.Cooldown.Engine; E:AttachStorage({}); E:Build("HUNTER",function() return true end); ... E:OnCast(name, GetTime()-offset)` choosing names whose `E.tracked[name].baseDuration >= offset+15`.
+
+**Sim screenshot** (headless, for worker comparisons): `... run.sh wow-sim --allow-ui-version-mismatch --addons-path <addon dir> --class Hunter --delay 3500 --exec-lua '<inline lua only>' screenshot --png -o <out.png> --width 1280 --height 1024`. `--exec-lua @file` is silently ignored; `print`/`io` are swallowed — create named frames and read them with `dump-tree`. The sim world is black; add a warm backdrop frame in the scenario only when comparing against the originals.
+
+### 10.4 Work queue (in order; each item = dispatch → verify → record)
+**A. Receive and verify the four running workers** (per-item checks in §10.5). Then update §6, §9.
+**B. uiforever test battery** (owner request: "test all functionality, UI pristine, options screens, behaviour"). Run after A so it tests the new build. Record pass/fail per row in a table in this section.
+| # | Test | Expect | Status |
+|---|---|---|---|
+| T1 | `/fx`, `/fx status` | version line + `Cooldown: N tracked` (+ casts counter line after `Reconcile`) | **PASS** 2026-11-01 (`class=HUNTER | Forever=true | modules=1`, `Cooldown: 18 tracked, 0 active`) |
+| T2 | `/fx unlock` → drag bar → `/fx lock` → `/reload` | bar moves, position persists | todo |
+| T3 | `/fx reset` | bar returns to default anchor | todo |
+| T4 | each class (Warrior, Hunter, Rogue, Mage, Druid): tracked count in `/fx status` | matches data counts for names the sim player "knows" (isKnown) | todo |
+| T5 | resolutions 1920×1080, 2560×1440, 3440×1440, 4K and UI scales 0.64 / 1.0 | bar legible, not clipped, position sane | todo |
+| T6 | Solo / Dungeon / Raid scenarios + `No combat` toggle | no Lua errors; bar survives scenario reload | todo |
+| T7 | in-combat behaviour: patch the cast/read seams (`PlainOrNil`→secret) and watch counter + `isActive` fallback | counter shows secret>0; edge entries appear | todo (needs `Reconcile`) |
+| T8 | options window: open via `/fx options`; every widget (CHK/NUM/SLD/COL/STR), reset icons, section collapse, module index (dimmed unbuilt pages), ESC close, drag, position memory | all behave; matches `docs/refs/options-panel.png` | todo (needs `Options`) |
+| T9 | options → Cooldown page changes (width/height/Max/Loga/colours) apply live | bar updates; list unwired keys | todo |
+| T10 | Edit Mode + Game Menu + other Blizzard windows with FX loaded | no taint/Lua errors | todo |
+| T11 | memory/time: Developer tab | FX load time and memory reasonable (report numbers) | todo |
+| T12 | items/trinkets row on the bar (after item polling is built) | on-use trinket cooldown appears | todo |
+**C. Follow-up builds, in this order** (each needs a worker task with the standard gate + screenshots):
+1. **Segments + icon polish accepted** (from `Timeline`) → then **item/potion/trinket cooldowns on the timeline**: Module polls equipped trinkets (slots 13/14) and bag consumables using `Forte_Items` data by NAME; category colours Item/Potion/Healthstone; item cooldown reads are not marked secret at the 70532 pin (§8) — probe first. Owners: `Timeline` (UI) + `Reconcile` (Module) → run sequentially, not in parallel.
+2. **Multi-charge display**: show `current/max` on the icon (data from `Reconcile`'s `entry.charges`); charge spells stay on the bar while recharging.
+3. **Weapon-enchant timers**: `C_Item.GetWeaponEnchantInfo` + `WEAPON_ENCHANT_CHANGED` (Forever catalog) → Enchant category colour.
+4. **Hunter class tools** (`Forte_Hunter` gains code): aspect reminder (out of combat), trap timers (cast-predicted), auto-shot/swing timer — `PLAYER_SWING` payload is `(swingDuration, swingType)` with **duration first**; `PLAYER_SWING_RANGE_UPDATE` leads with `swingType`; two separate handlers (§8).
+5. **Spell Timer** (`Forte_Timer`): revive `UI/Rows.lua` (dormant seed); port the original's reconcile rule (spec §3.4: uncertain prediction adopted by a later observation within `maxlag = 1.0 s`; longer → extend, shorter → refresh); own casts only, predicted rows marked as predicted.
+6. **Warlock tools** (Soulstone/Healthstone/Shard/Summon) and per-class tools in the order Mage, Priest, Druid, Rogue, Warrior, Shaman, Paladin.
+7. **Options expansion**: remaining module pages as their modules exist; profiles/clones last.
+**D. First real-client session** (owner must run WoW; do not start until the owner asks): `scripts/deploy.sh`, log in as Hunter, `/fx status`, `/fx unlock`, drag, `/fx lock`, cast cooldowns in and out of combat, read the counter line (`casts seen | plain | secret | unresolved`) — this answers the biggest open risk (§8: is our own cast `spellID` plain in combat?). Also confirm the client loads exactly one of `X.toc`/`X_Camelot.toc` and that `ForteXorcistDB` survives a full restart.
+
+### 10.5 What to verify when each worker reports
+- **Timeline (pass 2):** gate green + count; `compare_timeline_v2.png` exists and, if you can see it, shows coloured segments left of/between icons like `docs/refs/ref6.png` and the enlarged original (`docs/media/frames/walk-000315-timeline-zoom.png`); no permanent glow ring; icon time text readable; report lists deltas fixed / not fixed. Ask the owner to eyeball it.
+- **Reconcile:** gate green with its new `test_reconcile.lua`; `/fx status` prints the casts line; API names/signatures recorded in §6; confirm no existing behaviour changed except `source` field; **re-run T1 + T7 on uiforever.**
+- **ItemData:** counts reported (onUse / procs / consumables / enchants); `lua-errors` shows `Forte_Items` loaded, 0 `Forte_*` errors; skim `docs/item-procs.md`; remember procs are **out-of-combat only** on Forever (no cast to predict, aura reads secret).
+- **Options:** `run-tests Forte_Options` + `Forte_Cooldown` green; the two screenshots viewed (or flagged unseen); the report's **unwired keys** list → turn each into a `Timeline` task; ColorPicker API that worked recorded in §8.
+- After accepting any worker: update §6 row, §9 log row, todo list; re-zip and re-test on uiforever if the addon changed.
+
+### 10.6 Known pitfalls
+- The shell blocks `grep`, `cat`, redirection (`>`), `head/tail`; use the `grep`/`read`/`write` tools, or Python via `eval`.
+- `edit` needs the file's current tag; `PUT >$` appends; lines you did not read are rejected.
+- `wow-ui-sim --exec-lua @file` is ignored; `print` is swallowed; `--class` takes `Hunter` etc.
+- Class data resolves by NAME; the sim profile's spell IDs differ from our pinned data — never assert ID equality.
+- `Engine.MIN_COOLDOWN = 2.99` hides short cooldowns (matches the original).
+- `Forte_Deathknight` has data but **no tocs** on purpose (no DK in this build).
+- A basalt worker cannot view images; you (or the owner) must judge visuals and send **numeric** deltas back.
+- Basalt workers can run long; check `proc://` stage lines rather than waiting blindly; if one is at ~80% context without writing its deliverable, message it to write to disk now (worked for `FuncSpec`).
+
+### 10.7 Open owner decisions / not yet asked
+- Authorize the first commit and push of this batch (large: 11 addons + tools + docs).
+- When to run the first real-client session.
+- Spell Timer scope for v1 (own casts predicted only — confirm that is acceptable).
+- Whether to adopt `RdyGaming/hated-wow-mcp` (lint/TOC validation) and `Geraldlol/witchcraft` (live in-client error capture) for the real-client phase (§5.1 candidates).
+- Trinket/proc list review: after `ItemData` lands, ask which proc buffs the owner actually wants shown (procs are out-of-combat-only on Forever).

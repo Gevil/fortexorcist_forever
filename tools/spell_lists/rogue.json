@@ -1,0 +1,19 @@
+{
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Rogue tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped -- re-check them after a mythicsim-forever-engine pull. Forever notes: the rogue base kit includes spells Cata-era rogues would not know -- Shadowstep (30 s core mobility), Between the Eyes (stun, shares kidney-shot category 270), Blade Flurry, Premeditation, Main Gauche, Redirect, Revealed Flaw, Ghostly Strike, Riposte, Rebuke, Blade Dance -- and the poison line has Forever-flavoured names (Atrophic, Sebacious, Venomhide, Occult, Glimpse of Madness, Blood Corruption). Vanish/Blind/Evasion/Sprint carry 5-min category cooldowns; Stealth sits in the shared stealth category 38 with druid Prowl; there is NO Shadow Dance, Shadowstrike and Mutilate have no cooldown fields in this build. Adrenaline Rush/Rebuke/Vigor name rows collide with pet/paladin/general rows; the generator picks the highest-rank row globally, fine for name-keyed cast tracking. Poisons are tracked at the highest craftable rank name only.",
+  "cooldowns": [
+    "Adrenaline Rush", "Blade Flurry", "Blind", "Cold Blood", "Distract", "Evasion",
+    "Feint", "Ghostly Strike", "Gouge", "Kick", "Kidney Shot", "Between the Eyes",
+    "Main Gauche", "Premeditation", "Preparation", "Rebuke", "Redirect",
+    "Revealed Flaw", "Riposte", "Shadowstep", "Sprint", "Tease", "Vigor"
+  ],
+  "buffs": [
+    "Blade Dance", "Cheating Death", "Deadly Poison V", "Crippling Poison",
+    "Mind-numbing Poison III", "Numbing Poison", "Wound Poison", "Atrophic Poison",
+    "Sebacious Poison", "Venomhide Poison", "Occult Poison II", "Expose Armor",
+    "Garrote", "Hemorrhage", "Rupture", "Slice and Dice", "Punch Harder",
+    "Glimpse of Madness", "Remorseless", "Resilient", "Blood Corruption"
+  ],
+  "stealth_utilities": [
+    "Stealth", "Vanish", "Sap", "Cheap Shot", "Pick Pocket", "Disarm Trap"
+  ]
+}

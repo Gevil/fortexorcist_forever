@@ -1,0 +1,63 @@
+# Script-object environment crossings
+
+Retail 12.1+ and Forever secure Blizzard functions use a distinct object-table partition for frame-private state. Public addon code must not obtain private mixin methods by overriding similarly named public fields. [XML mixin bindings](../xml-template-system.md) and the native AuraContainer frame provider exercise this boundary.
+
+## Bounded non-secret identity and field-isolation policy
+
+`PrivateIdentity` and `InaccessiblePublicKeys` can describe simulator partition behavior without claiming native private-object identity or security. The selected policy is:
+
+- Public and private projections are distinct Lua values for one underlying simulator frame; repeated private projection is interned and idempotent.
+- Private fields remain independent between frames and from same-named public assignments. Private XML key values/mixin methods are absent publicly unless explicitly exported or delegated; this is partition separation, not a universal inaccessible-key list.
+- Native frame methods and parent arguments accept the private projection as the same underlying frame. Ordinary tables cannot impersonate that identity.
+- Actual AuraContainer provider callbacks retain their public view; public overrides do not replace private implementations.
+- Under `forbidden-aspects`, XML mixins with `secureDelegates="true"` and `inboundPartition="forbidden"` project direct native-frame arguments, including ordinary Cooldown, Texture and FontString children, into canonical forbidden views. They invoke the native delegate through `securecallfunction`: caller taint is suspended during the call and restored on return/error; addon callback closure taint remains effective. Other arguments retain identity, position and nil slots; nested tables are not traversed. Ordinary secure calls and other XML delegate modes retain their existing argument behavior.
+
+Focused proof must cover projection identity, field isolation, native parent/method behavior, spoof rejection, and the unmodified provider boundary. Caller authority, secret accessibility, hooks, handler-storage isolation, and native security remain unverified.
+
+## What it must do
+
+- [x] Preserve simulator frame identity in the forbidden partition: native parent arguments recognize the same frame while public and forbidden Lua tables remain distinct.
+- [x] Convert direct references to XML-partitioned frames across the covered secure-environment boundary; ordinary frame fields remain public and nested data is not recursively rewritten.
+- [x] Keep explicit native `GetObjectTable` results public for covered outbound addon initializers.
+- [x] Pass the mixed-argument XML delegate and unchanged native AuraContainer initializer regressions after scoped inbound argument projection.
+- [x] Intern forbidden views and make repeated `GetForbiddenObjectTable` projection idempotent.
+- [ ] Engine proxy tables and bound-method adapters do not inherit the caller that creates or reads them. Invocation still preserves the active caller and underlying method's own addon taint.
+- [x] Run AuraContainer provider creation and inbound child ownership validation without publishing private methods or invoking public overrides of private methods.
+- [x] Expose XML parentKey children to private frame mixins under forbidden-object-table scope while keeping ordinary public Lua fields isolated.
+
+## How it works
+
+- `rilua` optional environment-transfer hook, pinned to `b6387563c8cd7882194cec368e626ebc72a17b81`.
+- `src/lua_api/script_object_transfer.rs` registers a host conversion callback after secure-environment creation. Canonical registry mappings identify partitions, not user-controlled backlink fields alone.
+- `src/lua_api/env_init/shared_bootstrap.lua` constructs and interns forbidden tables. Its XML delegate wrapper uses a registered native argument projector only for the explicit forbidden secure-delegate boundary.
+- `src/lua_api/env_init/bootstrap.rs` registers that helper before either environment can use the wrapper and passes the compile-time capability into the bootstrap chunk; older profiles retain receiver-only XML behavior without a missing-helper fallback.
+
+## Implementation inventory
+
+- `src/lua_api/script_object_transfer.rs` — direct frame-reference conversion.
+- `src/lua_api/methods.rs` — parentKey publication to public and scoped forbidden frame views.
+- `src/lua_api/env_init/mod.rs`, `src/lua_api/mod.rs` — installation under the shared `forbidden-aspects` capability.
+- `src/lua_api/frame/methods/button_anchor_hierarchy/hierarchy.rs` — parent return projection under the same capability.
+- `src/lua_api/env_init/shared_bootstrap.lua` — partition identity and projection.
+- `Cargo.toml`, `Cargo.lock` — published runtime dependency pin.
+
+## Tests asserting this spec
+
+- `tests/userdata_proxy.rs` — native parent acceptance, spoof rejection, real provider acquisition, initializer ownership, private/public isolation, and method-origin preservation across addon-created projections.
+- `tests/click_targeting/forever_regressions.rs` — full startup, target-player aura tick, private Count access, and ordinary public-field isolation.
+- `tests/xml_secure_delegates.rs` — secure entry, addon callback taint, caller restoration after return/error, and receiver-only negative control. At `9476efcf5`, both cases pass.
+- Runtime environment-transfer tests cover arguments, varargs, multiple results, tail returns, native callbacks, reentry and error propagation.
+
+## Known gaps
+
+- [x] Focused retail proof at `8787273ad`: six `forbidden_partition_` cases cover interned projection/field isolation, native parent identity, spoof rejection, ordinary frame transfer, and real AuraContainer provider/initializer boundaries.
+- [x] Three earlier-12.0.7 controls pass, preserving focused partition behavior outside 12.1.
+- [x] At `9476efcf5`, `secure-chain-tests-ledger.json` records the native AuraContainer initializer/partition group 8/8, `forever_forbidden_consumers` 3/3, and `xml_secure_delegates` 2/2. This closes the scoped transfer/delegate proof, not full GUI aura acceptance.
+- [x] Bounded integration after the separate secret-number ordering pin: 2/2 original-boundary regressions pass with zero Lua errors — full-startup target-player tick and PlayerFrame `PLAYER_ENTERING_WORLD` → ComboFrame `3 → 0` with CVar setup before `OnLoad` (`/tmp/wow-unit-frame-bug/aura-combo-green-20260925.log`). Final local GUI evidence records zero hook/final errors, Combo CVar `1` reporting `0`, and Aura ID `1` hover displaying `Arcane Intellect`; see [[final-unit-frame-click-aura-proof]]. This does not claim exact original screenshot reproduction or native-client conformance.
+- [ ] Full GUI aura acceptance beyond the bounded hover/error observations remains outside this proof.
+- Coroutine yield/resume conversion and recursive conversion of table contents are not implemented by this facility.
+- Conditional aura-secrecy access enforcement is separate from partition conversion and remains unmodeled.
+
+## Out of scope
+
+Vendor Lua changes, private-method stubs in the public table, or equating distinct Lua tables through a universal equality override.

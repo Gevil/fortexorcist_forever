@@ -1,0 +1,25 @@
+{
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Mage tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped. Forever spellings are verbatim (Darnassus, Thunder Bluff, Orgrimmar). Forever renames/new vs Cata: Arcane Channel->Evocation, Blink->Displacement, Cauterize->Rewind Time, Cold Blood(frost)->Icy Veins, Time Warp->Temporal Anomaly, Arcane Spirit->Arcane Brilliance (Arcane Intellect also present), new fire armor Molten Armor, new spells Frozen Orb / Living Flame / Arcane Surge / Mass Regeneration / Netherwind Focus / Chronostatic Preservation / Evoker / Regeneration. The priest-side spells Circle of Healing / Eye of the Void / Homunculi / Power Word: Barrier / Void Plague also exist here as cross-class Mage talent rows; the generator's family-scoped rank resolution keeps them on the Priest lists.",
+  "cooldowns": [
+    "Cold Snap", "Evocation", "Arcane Power", "Icy Veins", "Arcane Surge",
+    "Frozen Orb", "Rewind Time", "Living Flame", "Displacement",
+    "Temporal Anomaly", "Mass Regeneration", "Netherwind Focus", "Arcane Wrath",
+    "Arcane Barrage",
+    "Portal: Stormwind", "Portal: Ironforge", "Portal: Orgrimmar",
+    "Portal: Undercity", "Portal: Darnassus", "Portal: Thunder Bluff",
+    "Portal: Karazhan"
+  ],
+  "buffs": [
+    "Arcane Brilliance", "Arcane Intellect", "Fire Ward", "Frost Ward",
+    "Mana Shield", "Amplify Magic", "Dampen Magic", "Slow Fall", "Ice Barrier",
+    "Ice Block", "Searing Blast", "Frigid Power", "Evoker",
+    "Chronostatic Preservation", "Regeneration"
+  ],
+  "utility": [
+    "Mage Armor", "Frost Armor", "Ice Armor", "Molten Armor",
+    "Blink", "Counterspell", "Remove Lesser Curse", "Remove Greater Curse",
+    "Teleport: Dalaran", "Teleport: Stormwind", "Teleport: Thunder Bluff",
+    "Teleport: Ironforge", "Teleport: Undercity", "Teleport: Orgrimmar",
+    "Teleport: Darnassus"
+  ]
+}
