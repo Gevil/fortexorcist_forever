@@ -1,0 +1,23 @@
+{
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Cooldown tracks for Warlock. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Add names here as modules grow; re-run the generator. Entries the generator can't find are reported, not silently dropped.",
+  "cooldowns": [
+    "Death Coil", "Shadowburn", "Soul Fire", "Conflagrate", "Howl of Terror",
+    "Amplify Curse", "Bane of Doom", "Banish", "Fear", "Ritual of Summoning",
+    "Summon Voidwalker", "Summon Felguard"
+  ],
+  "self_buffs": [
+    "Demon Skin", "Demon Armor"
+  ],
+  "warlock_tools": {
+    "healthstone_create": ["Create Healthstone"],
+    "healthstone_use": ["Healthstone"],
+    "soulstone_create": ["Create Soulstone"],
+    "soulstone_use_buff": ["Use Soulstone"]
+  },
+  "player_dots_and_curses": [
+    "Corruption", "Immolate", "Bane of Agony", "Curse of Weakness",
+    "Curse of Recklessness", "Curse of the Elements", "Curse of Tongues",
+    "Drain Life", "Drain Soul", "Health Funnel", "Life Tap", "Hellfire",
+    "Rain of Fire", "Searing Pain", "Shadow Bolt", "Incinerate"
+  ]
+}

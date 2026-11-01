@@ -1,0 +1,19 @@
+{
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Hunter tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped -- re-check them after a mythicsim-forever-engine pull (Forever's Hunter talent tree was reworked: 14 new/26 reworked/11 unchanged of 51 talents per wowforeverguides.com, so some abilities may be talent-gated, renamed, or genuinely new and need adding here).",
+  "cooldowns": [
+    "Bestial Wrath", "Rapid Fire", "Deterrence", "Intimidation", "Scare Beast",
+    "Counterattack", "Mongoose Bite", "Disengage", "Flare", "Tranquilizing Shot",
+    "Distracting Shot", "Aimed Shot"
+  ],
+  "aspects": [
+    "Aspect of the Hawk", "Aspect of the Monkey", "Aspect of the Cheetah",
+    "Aspect of the Pack", "Aspect of the Wild", "Aspect of the Beast"
+  ],
+  "traps": [
+    "Freezing Trap", "Immolation Trap", "Explosive Trap", "Frost Trap"
+  ],
+  "pet_and_utility": [
+    "Feign Death", "Eyes of the Beast", "Eagle Eye", "Hunter's Mark",
+    "Concussive Shot", "Wing Clip", "Viper Sting", "Black Arrow"
+  ]
+}
