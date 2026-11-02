@@ -360,6 +360,41 @@ test("OnReady pulses the left end and dies after PulseSeconds", function()
     assertFalse(s.frame:IsShown())
 end)
 
+-- CodeReview2 N1 (manager-verified 2026-11-02): the LIVE order is Sweep pops
+-- the entry (gone from the feed) THEN OnReady(name). The pulse must still fire
+-- from the departing slot; the test above masks this by keeping the row live.
+test("a popped entry (gone from the feed) still pulses via OnReady", function()
+    local function activePulses()
+        local n = 0
+        for _, p in ipairs(Display.pulsePool) do if p.frame:IsShown() then n = n + 1 end end
+        return n
+    end
+    Display:Update({}, 199) -- clear any slots from earlier tests
+    Display:Update({ { name = "Aimed Shot", start = 194, duration = 6, endTime = 200 } }, 199.5)
+    local before = activePulses()
+    Display:OnReady("Aimed Shot", 200)   -- Module order: entry already swept
+    Display:Update({}, 200.05)           -- the feed no longer carries it
+    assertEquals(before + 1, activePulses(), "the departing slot must spawn the ready pulse")
+    assertNil(Display._ready["Aimed Shot"], "the queued pulse is consumed")
+    Display:Update({}, 200 + S.PulseSeconds + 0.2)
+    assertEquals(0, activePulses())
+end)
+
+-- CodeReview2 n2: spent pulse frames are reused; 20 sequential pops must not
+-- grow the pool by 20.
+test("ready pulses reuse spent pool frames (bounded pool)", function()
+    Display:Update({}, 300)
+    local t = 300
+    for i = 1, 20 do
+        Display:Update({ { name = "Multi-Shot", start = t - 6, duration = 6, endTime = t } }, t - 0.5)
+        Display:OnReady("Multi-Shot", t)
+        Display:Update({}, t + 0.05)                       -- live order: popped, then pulse
+        Display:Update({}, t + S.PulseSeconds + 0.2)       -- pulse spent
+        t = t + 10
+    end
+    assertTrue(#Display.pulsePool <= 3, "pool grew to " .. #Display.pulsePool)
+end)
+
 test("Fewer entries hides spare slots; pool never shrinks", function()
     -- Pool-relative and slot-agnostic: the splash-law tests grew the pool
     -- and the free list hands out slots in release order, so asserting on

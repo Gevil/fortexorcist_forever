@@ -1014,7 +1014,12 @@ end
 --- fading alpha 1 -> 0 linear over PulseSeconds. Grow-only pool.
 function D:SpawnPulse(name, texPath, col, endAt)
     local pool = self.pulsePool
-    local s = pool[#pool + 1]
+    local s
+    -- Reuse a spent entry first, like the splash pool (CodeReview2 n2: the old
+    -- `pool[#pool + 1]` was always nil, so every pulse grew the pool forever).
+    for i = 1, #pool do
+        if not pool[i]._endAt then s = pool[i] break end
+    end
     if not s then
         local f = CreateFrame("Frame", nil, UIParent)
         local tex = f:CreateTexture(nil, "ARTWORK")
@@ -1285,6 +1290,16 @@ function D:Update(entries, now)
     -- next cast of the name splashes and fades in again.
     for name in pairs(byName) do
         if not seen[name] then
+            -- The live path: the Module pops a name in Sweep (entry removed)
+            -- and calls OnReady, so a ready name is never in `entries` again.
+            -- Its departing slot still knows the texture/colour: pulse here.
+            -- (CodeReview2 N1, 2026-11-02 -- the pulse never fired live.)
+            local endAt = self._ready[name]
+            if endAt and endAt > now then
+                local slot = byName[name]
+                self._ready[name] = nil
+                self:SpawnPulse(name, slot._texPath, slot._col, endAt)
+            end
             self:ReleaseSlot(byName[name])
         end
     end

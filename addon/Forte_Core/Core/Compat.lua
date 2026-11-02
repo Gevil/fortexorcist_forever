@@ -42,9 +42,15 @@ Compat.HAS_BLIZZ_CDM = false
 --- issecretvalue runs FIRST: even `v == nil` is a comparison, and a secret
 --- may wrap nil ("Secret NIL is not public nil", wow-ui-sim spec
 --- base-spell-specialization-security.md:19). A plain nil passes through as nil.
+--- issecretvalue itself runs in a pcall and fails CLOSED: if it raises we
+--- cannot know, so the value is treated as unusable (nil). The guards that
+--- call this run outside any pcall (CodeReview2 n5).
 function Compat.PlainOrNil(v)
     local iss = _G.issecretvalue
-    if iss and iss(v) then return nil end
+    if iss then
+        local ok, secret = pcall(iss, v)
+        if not ok or secret then return nil end
+    end
     return v
 end
 
