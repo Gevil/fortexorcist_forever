@@ -644,12 +644,29 @@ that wave. Each behaviour change ships with a test proven to fail on the old cod
 | H4s Class port survey | `fx-scout` `ClassScout` | `docs/class-port.md` only | For Druid, Mage, Paladin, Priest, Rogue, Shaman, Warrior: every feature in `/tmp/fxref/Forte_Class/<C>/<C>.lua` (cooldown masters, timer registrations, fade/break rows, stance/GCD tables, special cast times, buff/debuff tracking) with: legality on 12.x, whether the spell exists in Forever data (`spells.jsonl`, family), what we already cover, and a port verdict (port / port-adapted / not feasible / already done) | table per class with file:line cites; feeds wave 2 |
 | H5s Perf survey | `fx-scout` `PerfScout` | `docs/perf.md` only | Measure in the sim: per-tick work of every OnUpdate/C_Timer loop (Cooldown 10 Hz, Timer, Hunter swing, Warlock, Banner), garbage per tick (`collectgarbage("count")` deltas), and the memory of each addon's data; rank the top 5 savings (e.g. Items data split/lazy, table reuse) with estimates | numbers, not guesses; feeds wave 2 |
 
-**Wave 2 (after wave 1 is accepted)**
-- H4 Class tools: one `fx-worker` per 2–3 classes porting the `port` verdicts from `docs/class-port.md` (new files in `Forte_<Class>/`, data via the generator), verified on uiforever (all classes but Warlock).
-- H1b Localization fixes in Hunter/Warlock/Messages/Timer files from the H1 audit list.
-- H5 Perf fixes (top items from `docs/perf.md`).
-- H6 Group Warlock tools (Healthstone Spy, Shard Spy, Summon queue) via `C_ChatInfo.SendAddonMessage`, gated like Announce; solo-testable halves only, multiplayer parts flagged for launch.
-- H7 Proc display behind an off-by-default flag per `docs/design-combat-procs.md` (new files in `Forte_Cooldown`).
+**Wave 1 results (accepted 2026-11-02):** H1 Locale (`55c1ebc`; the manager fixed an undefined `FX:CallSafe` in the
+late-name path), H1r (Forever ships **10 client languages**; item names can be uncached at login), H2 LaunchKit
+(`e3de949`; deploy kept deleting ForeverSVFix's data link — fixed), `uif_battery.js` (`9a9bf86`, **14/14 live**),
+H3 Settings (`55c1ebc`; live: schema v1, per-character profile, a setting survives `/reload`), H5s perf, H4s class
+survey, D1/D2 data research. Gate PASS 458. **Correction:** the **live 70707 build HAS the Succubus/Felhunter kit**
+(wowsims store: Seduction 6358/6359, Mesmerize 24594, Devour Magic, Spell Lock, Soothing Kiss); the Iteration G
+"no Seduction on Forever" verdict was measured on 70425 data + the sim client only. Pet-cast rows are back in scope.
+
+**Wave 2a (parallel, now; disjoint files)**
+
+| Slice | Agent | Owns | Deliverable | Acceptance |
+|---|---|---|---|---|
+| D3 Data refresh | `fx-worker` `DataRefresh` | `tools/gen_spell_data.py`, `tools/gen_item_data.py`, NEW `tools/overrides_70707.*` + the extractor that builds it from `/tmp/wowsims-forever`, `tools/spell_lists/*.json`, every generated `addon/Forte_*/Data/*.lua`, the per-class data tests | keep mythicsim (70425) as base, overlay 70707 values from wowsims (both MIT; record source + licence + build in headers): D1's 16 deltas, the 5 removed Paladin rows, new ranks (Charge VI, Cower VI), **trainer-rank pick** for the 13 AQ20-book-rank spells (mythicsim `89aa382`: no AQ20 book ranks on Forever), **ICD columns** (`icdMs`) for item procs + spells (D2 G2; beware the sibling-rank trap), the Warlock pet kit names (Seduction, Spell Lock, Devour Magic, …) added to `warlock.json`; the 70425→70707 change list in each generated header | gate PASS incl. determinism; every D1 must-regenerate row changed as listed; Shifting Power 8 s |
+| H1b Locale sweep | `fx-worker` `LocaleB` | `Forte_Cooldown/Module.lua` (the name-keyed live reads `:119,:154,:379` + charges/edge pass), `Forte_Hunter/Core/Tools.lua`, `Forte_Warlock/Core/Tools.lua`, `Forte_Core/Core/Constants.lua`, `Forte_Messages/Module.lua` + `Pages/RaidMsg.lua` (FADE_ROWS keys, soulstone family — and the Seduction rows' "inert" note corrected to "live on 70707, needs pet-cast rows"), `Forte_Timer/Core/Registry.lua` (kind terms), tests | every lookup-critical English name from `docs/localization.md` resolved through the data id (`FX.L`/`Locale.RankIDsForName`), name-keyed `C_Spell` reads switched to ids | German-stub tests per file fail on old code; gate PASS |
+| H5 Perf | `fx-worker` `PerfFix` | `Forte_Timer/UI/Rows.lua`, `Forte_Timer/Core/Reconcile.lua`, `Forte_Timer/Core/Rows.lua` (sort closure only) | `docs/perf.md` fixes 2–5 (numeric dirty keys, no per-tick re-anchoring, de-closured aura sweep, upvalue-free comparator); fix 1 (Items procs split) waits for D3 + H7 | before/after numbers with the PerfScout harness; visuals unchanged (manager captures); gate PASS |
+
+**Wave 2b (after 2a; needs D3's data and LocaleB's files)**
+- T1 seven-class spell-list cutover (`docs/class-port.md` §6.1, the 64 names) — **owner's Q1 answer decides the scope**; also Q6 family-less rows (Dash, Thrash, Freeze, Heroism, Dismantle: manager ruling add).
+- T2 cast-announce + label framework and the 20 Druid/Paladin/Warrior announce rows (Messages + Registry), plain names for Druid forms (Q5 ruling).
+- T3 Shaman totem slots + `tickEvery`/`noTarget`/`MaxStack` feeds (Registry, Timer page, Forte_Shaman, generator); the per-group filter layer deferred (Q2 ruling).
+- PetRows v2: Spell Timer rows for the pet's casts (Seduction etc. on 70707 data), Seduction fade/break live.
+- H6 group Warlock tools; H7 proc display behind an off flag (uses D3's ICDs); Items procs split (perf fix 1) with H7's load path.
+- Rulings recorded: Q3 combat procs stay after the launch-day probes, Rapture dead (no spell row); Q4 PvP durations out of scope.
 
 **Wave 3**
 - H8 Options fidelity pass vs the original option tree (after class pages exist).
