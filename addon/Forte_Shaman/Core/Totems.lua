@@ -200,6 +200,17 @@ function TotemTracker:OnTotemUpdate(slot)
         if old then rows:removeAt(index) end
     end
 
+    -- F-B (the totem dedupe, PLAN §11.1): the shaman's own cast of this totem
+    -- spell put a PREDICTION row on the panel a moment ago, keyed by the cast's
+    -- target ("none"), which the slot law above can not see (`rows:Find(name,
+    -- element)` keys on the element). One totem, one row: hand the slot over --
+    -- Forte_Timer's spine retires its own prediction of this spell, the
+    -- Shaman.lua:84 `ST.ST:remove(i)` law, and the slot's row is what stands.
+    local casts = FX.Timer and FX.Timer.Casts
+    if casts and casts.RetireOwnedRows then
+        casts:RetireOwnedRows(name, element, now)
+    end
+
     local row, verdict = rows:InsertFromAura(name, element, record.expireAt,
         record.total, nil, nil, nil, now)
     if not row then return "no-window" end
@@ -207,6 +218,20 @@ function TotemTracker:OnTotemUpdate(slot)
     if known and known.name ~= name then return "replaced" end
     if known then return "refreshed" end
     return verdict == "inserted" and "inserted" or "refreshed"
+end
+
+--- True while this tracker is drawing `name` in one of its slots -- the answer
+--- Forte_Timer's cast spine asks for before it draws a row of its own (the
+--- `DeclareRows` probe). A slot the engine sealed is NOT this: the tracker
+--- keeps the row it has and knows nothing new, and a totem the player cast 0.2
+--- s ago has the prediction as its only in-combat signal.
+function TotemTracker:IsShowing(name)
+    if type(name) ~= "string" then return false end
+    for slot = 1, self:SlotCount() do
+        local known = self.slots[slot]
+        if known and known.name == name then return true end
+    end
+    return false
 end
 
 --- The load seed: Shaman.lua:96-104 (RegisterDelayedLoadEvent) reads every
@@ -265,6 +290,56 @@ function M:EnableEvents()
     -- clears the row table it trails).
     f:RegisterEvent("PLAYER_LEAVING_WORLD")
     self._eventsEnabled = true
+    -- F-B (the totem dedupe): the same wiring that lets the slots move rows is
+    -- what tells Forte_Timer's cast spine those rows are spoken for.
+    self:DeclareRows()
+end
+
+--- The totem-summon spells of THIS CLASS'S OWN generated list: every English
+--- data row whose name is a `… Totem` (the element slots' windows -- `Earth
+--- Shock`, `Call of Flames`, `Astral Shift` are not; `Magma Totem`, `Stoneskin
+--- Totem`, `Mudfish Totem` are). The data file is the source, never a hand list
+--- (AGENTS.md: spell names/ids come from the generated data), and the list
+--- rides every future generator run.
+function M:SlotSpellNames()
+    local names = {}
+    local data = FX.Data and FX.Data.Shaman
+    if type(data) ~= "table" then return names end
+    for _, row in pairs(data) do
+        local name = (type(row) == "table") and row.name or nil
+        if type(name) == "string" and string.find(name, "Totem%d*$") then
+            names[#names + 1] = name
+        end
+    end
+    table.sort(names)
+    return names
+end
+
+--- Tell Forte_Timer's cast spine which windows THIS module draws, so one
+--- signal of a totem (the player's own cast, the second the client's slot
+--- state) does not put two rows on the panel: while a slot of the tracker shows
+--- the spell, the spine draws nothing (`Casts:DeclareOwnedRows`,
+--- Forte_Timer/Core/Casts.lua). The answer the spine asks is the tracker's
+--- CURRENT one, read through `self.tracker`, so a tracker being replaced needs
+--- no re-declaration.
+function M:DeclareRows()
+    local casts = FX.Timer and FX.Timer.Casts
+    if not casts or not casts.DeclareOwnedRows then return 0 end
+    local self_ = self
+    return casts:DeclareOwnedRows(self:SlotSpellNames(), "Shaman",
+        function(name)
+            local t = self_.tracker
+            return t ~= nil and t:IsShowing(name) or false
+        end)
+end
+
+--- The mirror: a shaman who stops being one (Core's class-change path) stops
+--- gating the casts of the class he is not.
+function M:UndeclareRows()
+    local casts = FX.Timer and FX.Timer.Casts
+    if casts and casts.UndeclareOwnedRows then
+        casts:UndeclareOwnedRows("Shaman")
+    end
 end
 
 function M:DisableEvents()
@@ -277,6 +352,7 @@ function M:DisableEvents()
         end
         f:SetScript("OnEvent", nil)
     end
+    self:UndeclareRows()
     self._eventsEnabled = false
 end
 

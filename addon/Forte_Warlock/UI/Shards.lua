@@ -15,15 +15,37 @@
 -- plates share (Forte_Soulstone.xml:122-146), the label formats are the ones
 -- those three files print.
 --
--- All STATE lives in Core/Tools.lua's ShardCounter; this file is a pure
--- renderer of `FX.Warlock.Tools.Shards:Count()` (the
--- Forte_Hunter/UI/Swing.lua shape). The count is DISPLAYED and never gates
--- anything (docs/warlock-tools.md: the two shard sources are trusted for a
--- count only).
+-- All STATE lives in Core/Tools.lua's ShardCounter (the own count) and
+-- Core/Group.lua's roster model (the raid's counts, bound through `SetSpy`,
+-- Core/Comms.lua owning the live instance); this file is a pure renderer of
+-- `FX.Warlock.Tools.Shards:Count()` plus `Spy:ShardRows()`/`Spy:ShardTotal()`
+-- (the Forte_Hunter/UI/Swing.lua shape). The counts are DISPLAYED and never
+-- gate anything (docs/warlock-tools.md: the two shard sources are trusted
+-- for a count only).
+--
+-- THE SHARD SPY ROWS (F-A, 2026-11-02; the models and the wire went live with
+-- H6 and are documented in docs/warlock-tools.md "Open"): the roster's
+-- WARLOCK column (`Group:ShardRows`, the `SG1`/`SH1` pair feeding it) rides
+-- the plate's extra rows, one per known warlock, sorted by name (the model
+-- is deterministic); the second line, row 0, becomes the spy's TOTAL row
+-- (the raid's shards over the warlocks that report, the Healthstone Spy's
+-- Total-bar law, Forte_Healthstone.lua:197-199), and the right Info slot
+-- carries the badge — the warlocks that report in but never answered the
+-- shard query (the Healthstone Spy's Amount2, Forte_Healthstone.lua:165).
+-- A warlock that never answered prints `?` in her row (the `/fx status`
+-- unread law: a value never read is printed, never guessed). The Shard Spy
+-- module itself is FE-35 REMOVED (`FX_Saved.Shards = nil; -- module removed`,
+-- Forte_Core.lua:1531 — "the removed module has no reference law"), so the
+-- geometry is the plate law (the shared ExtraRow run of UI/Frame.lua) and
+-- the row cap is the Summon Assistant's `SummonMax` (Forte_Summon.lua:590):
+-- five rows, the plate bounded.
 --
 -- Show law: the plate is on screen while a shard count is KNOWN (`Count()`
--- non-nil). A count changes on bag events, never with time, so this frame
--- never asks the driver for a tick. No read yet, nothing to show.
+-- non-nil) OR the roster lists warlocks (a roster with warlocks is a claim
+-- of its own — the Healthstone plate's H6 law; an empty roster is NO claim,
+-- so a solo player's plate is bit-for-bit the pre-H6 shape). A count changes
+-- on bag events and a roster on chat/roster events, never with time, so this
+-- frame never asks the driver for a tick. No read, no roster, nothing to show.
 --
 -- Skin/position/settings/lock/clock: the shared law in UI/Frame.lua.
 -- Settings (module "Warlock"): ShardSize (the plate width), ShardColor, plus
@@ -94,6 +116,63 @@ end
 --- label, Forte_Healthstone/Localization.lua:48).
 function Shards:FormatInfo(count)
     return string.format("%d total", count)
+end
+
+-- ----------------------------------------------------------------- the spy --
+
+--- The Shard Spy's row cap: the removed module left no geometry of its own,
+--- so the row run is bounded by the Summon Assistant's queue cap (`SummonMax`
+--- default 5, Forte_Summon.lua:590) — the plate grows by whole row steps and
+--- stops at five rows.
+Shards.MAX_ROWS = 5
+
+--- The spy's row-0 label (FWL.TOTAL, Forte_Healthstone/Localization.lua:48,
+--- printed by the Healthstone Spy's Total bar, Forte_Healthstone.lua:197).
+Shards.TOTAL = "Total"
+
+--- The "this warlock never answered" marker: the `/fx status` `?` law — a
+--- value that was never read is printed as unread, never guessed.
+Shards.UNREAD = "?"
+
+--- The Group model seam (a Core/Group.lua instance; Core/Comms.lua owns the
+--- live one, UI/Module.lua's `_InitViews` binds it, tests inject their own —
+--- the Healthstone `SetSpy` convention).
+function Shards:SetSpy(group)
+    self.Spy = group
+    self._count, self._info, self._source = nil, nil, nil
+    self._amount, self._frac = nil, nil
+end
+
+--- The Shard Spy's rows, one per known warlock (`Group:ShardRows(max)`:
+--- the roster's WARLOCK column, sorted by name, so the draw order is
+--- deterministic). The reported count rides the row's right label and its
+--- bar is the share of the fullest reporting warlock (the row's StatusBar
+--- value, HS_DrawHealthstone's `Bar:SetValue(val)`,
+--- Forte_Healthstone.lua:148 — the removed Shard Spy left no scale of its
+--- own, and a bar is a comparison, which is what the raid's maximum is).
+--- A warlock that never answered the query prints the `?` marker at an
+--- empty bar.
+function Shards:RenderSpyRows(rows)
+    local n = 0
+    local max = 0
+    for _, row in ipairs(rows or {}) do
+        if type(row.shards) == "number" and row.shards > max then
+            max = row.shards
+        end
+    end
+    for i, row in ipairs(rows or {}) do
+        local e = self:ExtraRow(i)
+        if e then
+            self:SetExtraRowText(e, row.name,
+                type(row.shards) == "number" and tostring(row.shards)
+                    or self.UNREAD)
+            self:SetExtraRowFraction(e,
+                (max > 0 and type(row.shards) == "number")
+                    and (row.shards / max) or 0)
+            n = i
+        end
+    end
+    self:SetExtraRowsShown(n)
 end
 
 -- ------------------------------------------------------------- label fit --
@@ -179,8 +258,9 @@ end
 
 -- ------------------------------------------------------------------ update --
 
---- One render pass. A count is not time-driven, so the return is always
---- false (the driver stops ticking on this frame's account).
+--- One render pass. Neither a shard count nor a roster is time-driven, so
+--- the return is always false (the driver stops ticking on this frame's
+--- account).
 function Shards:Update(_now)
     local show = false
     local count, source
@@ -190,39 +270,89 @@ function Shards:Update(_now)
         -- launch-day probe reading that rides the same read.
         count, source = t:Count()
     end
-    if type(count) == "number" and self:Enabled() then
-        show = true
+    -- The spy half (F-A): the roster rides the Core/Group.lua model; the
+    -- warlocks it lists are a claim the plate must render even with no own
+    -- read, and an EMPTY roster is no claim at all (the H6 law of the
+    -- Healthstone plate).
+    local rows, total
+    local spy = self.Spy
+    if spy and self:Enabled() then
+        rows = spy:ShardRows(self.MAX_ROWS)
+        total = spy:ShardTotal()
     end
+    local warlocks = (total and total.warlocks) or 0
+    if (type(count) == "number")
+        or (rows ~= nil and #rows > 0) then show = true end
     self:SetShown(show)
-    if not show then return false end
-    local n = Frame.FormatAmount(count)
+    if not show then
+        self:SetExtraRowsShown(0)
+        return false
+    end
+    local n = Frame.FormatAmount(type(count) == "number" and count
+        or self.UNREAD)
     if n ~= self._count then
         self._count = n
         self.amountFS:SetText(n)
     end
-    local info = self:FormatInfo(count)
+    -- The right label: with a roster it is the spy's BADGE — the warlocks
+    -- that report in but never answered the shard query (the Healthstone
+    -- Spy's Amount2 `"x"..active-stones`, Forte_Healthstone.lua:165);
+    -- without one it is the own count's `<n> total` (the plate's Info slot,
+    -- Forte_Soulstone.xml:140-146).
+    local info
+    if warlocks > 0 then
+        info = "x" .. (warlocks - total.known)
+    elseif type(count) == "number" then
+        info = self:FormatInfo(count)
+    else
+        info = ""
+    end
     if info ~= self._info then
         self._info = info
         self.infoFS:SetText(info)
         -- The label's size rides its text (the fit law, label fit section).
         self:ApplyInfoFont()
     end
-    -- The second line: the source label; it rides ShowTime (label text),
-    -- keyed by its own text.
-    local src = source ~= nil and tostring(source) or ""
-    local rowOn = self.state.showTime and src ~= ""
-    self:SetRowShown(rowOn)
-    self:SetFillFraction(0)
-    if rowOn and src ~= self._source then
-        self._source = src
-        self.nameFS:SetText(src)
+    -- The second line, row 0: with the spy live it is the spy's TOTAL row —
+    -- the raid's shards over the warlocks that report (the Healthstone
+    -- Spy's Total bar, Forte_Healthstone.lua:197-199 with the value
+    -- `t1/t2` at :140); without one it is the source label line (`bag`/
+    -- `power`, the ShowTime-owned text keyed by its own text).
+    local rowOn, rowName, rowTime, frac
+    if warlocks > 0 then
+        rowOn = true
+        rowName = self.TOTAL
+        rowTime = tostring(total.total)
+        frac = total.known / warlocks
+    else
+        local src = source ~= nil and tostring(source) or ""
+        rowOn = self.state.showTime and src ~= ""
+        rowName = src
+        rowTime = ""
+        frac = 0
     end
+    self:SetRowShown(rowOn)
+    if rowOn and rowName ~= self._source then
+        self._source = rowName
+        self.nameFS:SetText(rowName)
+    end
+    if rowTime ~= self._amount then
+        self._amount = rowTime
+        self.timeFS:SetText(rowTime)
+    end
+    if frac ~= self._frac then
+        self._frac = frac
+        self:SetFillFraction(frac)
+    end
+    self:RenderSpyRows(rows)
     self:ApplyTextVisibility()
     return false
 end
 
---- The plate's count and the `<n> total` label law: the count always shows;
---- the Info label and the source second line are the ShowTime-owned text.
+--- The plate's count and the spy rows are the module's core readout; the
+--- Info label and the source second line (the no-spy shape) are the
+--- ShowTime-owned text. The spy's TOTAL row is the plate's own readout, so
+--- its two labels ride the row, not ShowTime (the Healthstone plate's law).
 function Shards:ApplyTextVisibility()
     if not self._shown then return end
     if self.amountFS then self.amountFS:Show() end
@@ -232,30 +362,46 @@ function Shards:ApplyTextVisibility()
     if self.nameFS then
         if self._rowShown then self.nameFS:Show() else self.nameFS:Hide() end
     end
-    if self.timeFS then self.timeFS:Hide() end
+    if self.timeFS then
+        if self._rowShown and self._amount ~= nil and self._amount ~= "" then
+            self.timeFS:Show()
+        else
+            self.timeFS:Hide()
+        end
+    end
 end
 
 function Shards:RenderIdle()
     self._count, self._info, self._source = nil, nil, nil
+    self._amount, self._frac = nil, nil
+    self:SetExtraRowsShown(0)
     self:SetRowShown(false)
     self:SetShown(false)
     self.amountFS:SetText("")
     self.infoFS:SetText("")
     self.nameFS:SetText("")
+    self.timeFS:SetText("")
 end
 
 function Shards:StatusLine()
     local count, source
     if self.Tracker then count, source = self.Tracker:Count() end
-    return string.format("Shard Manager: %s%s | %dx%d | %s",
+    local spy = ""
+    if self.Spy then
+        local total = self.Spy:ShardTotal()
+        spy = string.format(" | spy %d/%d warlocks, %d shards",
+            total.known, total.warlocks, total.total)
+    end
+    return string.format("Shard Manager: %s%s | %dx%d | %s%s",
         type(count) == "number" and tostring(count) or "unread",
         source ~= nil and ("[" .. tostring(source) .. "]") or "",
         self.skin.Width, self.skin.Height,
-        self:Enabled() and "on" or "off")
+        self:Enabled() and "on" or "off", spy)
 end
 
 --- The injected-tracker seam (tests, launch-day probes).
 function Shards:SetTracker(tracker)
     self.Tracker = tracker
     self._count, self._info, self._source = nil, nil, nil
+    self._amount, self._frac = nil, nil
 end

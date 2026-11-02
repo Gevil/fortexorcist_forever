@@ -30,6 +30,15 @@
 -- No frame and no RegisterEvent lives here: the events belong to Init.lua's
 -- bootstrap frame (AGENTS.md: no top-level RegisterEvent outside the
 -- bootstrap).
+--
+-- The listing law (F-B, 2026-11-02): `C_AddOns.IsAddOnLoaded` is the ADD-ON
+-- LIST's answer, and a runner can list an add-on it never parsed -- under
+-- `run-tests Forte_<Class>` the add-on under test is listed while its Lua has
+-- not run. Every "already in?" decision therefore also asks the add-on's
+-- liveness probe (`FX.ADDON_MARKERS`: the data table its own first file
+-- defines), and a listed-but-not-run add-on goes through `LoadAddOn` like any
+-- other. That is what lets a class suite state its subject with
+-- `FX.LoadClassAddOn("<CLASS>")` and nothing else.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -56,10 +65,54 @@ FX.CLASS_ADDONS = {
 -- already brought in costs the feature that asks for it next nothing.
 FX._loadedAddOns = FX._loadedAddOns or {}
 
+--- name -> count of times the add-on LIST said "in" while the add-on's own
+--- probe said its files had not run (the `run-tests` shape; see the listing
+--- law at the top). A diagnostic, never a decision.
+FX._listedNotRun = FX._listedNotRun or {}
+
 --- The add-on that carries this class token's data, or nil.
 function FX.ClassAddOnFor(classToken)
     if type(classToken) ~= "string" then return nil end
     return FX.CLASS_ADDONS[classToken:upper()]
+end
+
+--- The liveness probe of every load-on-demand add-on we ask for: a function
+--- answering true when the add-on's FILES have actually run. `IsAddOnLoaded`
+--- reports the add-on list's state, not the Lua machine's, and the two can
+--- disagree: under `run-tests Forte_<Class>` the runner puts the add-on under
+--- test in its add-on list -- `C_AddOns.IsAddOnLoaded("Forte_Shaman")` answers
+--- true, `C_AddOns.IsAddOnLoadOnDemand` answers true -- while NONE of its
+--- files have been parsed (measured in the sim: `FX.Data.Shaman` absent, the
+--- module unregistered). Trusting the listing settles the idempotence ledger
+--- on `true` and the add-on's data and modules never arrive, which is why
+--- Forte_Shaman's suite had to call the raw loader behind our back.
+---
+--- A probe is the add-on's own file-load side effect -- the data table its
+--- first file defines -- so the question "is its data usable right now" is
+--- answered from the Lua state, the only state that has to be right. The nine
+--- class add-ons are derived from CLASS_ADDONS (their file defines
+--- `FX.Data.<Class>`); a new class add-on needs no second entry. An add-on
+--- with NO probe (an always-loaded split, a third-party name) answers true:
+--- there is nothing to check, so the listing is all we have and is trusted.
+FX.ADDON_MARKERS = {}
+for token, name in pairs(FX.CLASS_ADDONS) do
+    local dataKey = name:gsub("^Forte_", "")
+    FX.ADDON_MARKERS[name] = function()
+        return FX.Data ~= nil and FX.Data[dataKey] ~= nil
+    end
+end
+FX.ADDON_MARKERS.Forte_ItemProcs = function()
+    return FX.Data ~= nil and FX.Data.ItemProcs ~= nil
+end
+
+--- True when the add-on `name`'s files have run (no probe: the loader's
+--- listing is the only evidence and is believed).
+function FX.AddOnFilesRan(name)
+    if type(name) ~= "string" then return false end
+    local probe = FX.ADDON_MARKERS[name]
+    if probe == nil then return true end
+    local ok, ran = pcall(probe)
+    return (ok and ran) and true or false
 end
 
 local function notice(text)
@@ -103,10 +156,21 @@ function FX.LoadAddOnOnDemand(name)
     -- removed) and an add-on someone else (a /fx probe, another addon, a
     -- test file that needs its data) loaded first. IsAddOnLoaded returns
     -- (loadedOrLoading, loaded).
-    local loaded = api.IsAddOnLoaded and api.IsAddOnLoaded(name)
-    if loaded then
-        FX._loadedAddOns[name] = true
-        return true
+    --
+    -- LISTED IS NOT RUN: the listing is the add-on list's answer, so it is
+    -- accepted only when the add-on's own probe says its files ran (see
+    -- FX.ADDON_MARKERS). A listed-but-never-parsed add-on -- exactly the
+    -- `run-tests Forte_<Class>` shape, where the runner lists the add-on under
+    -- test -- falls through to the loader below, which is idempotent and runs
+    -- the files. Counted, so a test harness is visible from `/fx status`.
+    local listed = api.IsAddOnLoaded and api.IsAddOnLoaded(name)
+    if listed then
+        if FX.AddOnFilesRan(name) then
+            FX._loadedAddOns[name] = true
+            return true
+        end
+        FX._listedNotRun = FX._listedNotRun or {}
+        FX._listedNotRun[name] = (FX._listedNotRun[name] or 0) + 1
     end
 
     local ok, value = api.LoadAddOn(name)
@@ -122,14 +186,18 @@ end
 
 --- True when the add-on `name` is in the running session (loaded on demand by
 --- us, loaded eagerly, or not load-on-demand at all -- the question the caller
---- asks is "is its data usable right now").
+--- asks is "is its data usable right now"). The add-on's own probe is part of
+--- the answer: a listed-but-never-parsed add-on's data is NOT usable, so this
+--- says false and the caller asks `LoadAddOnOnDemand` for it (which loads it
+--- for real, the listing being no obstacle).
 function FX.IsAddOnLoadedOnDemand(name)
     if type(name) ~= "string" then return false end
     local api = _G.C_AddOns
     if type(api) ~= "table" or type(api.IsAddOnLoaded) ~= "function" then
         return FX._loadedAddOns[name] == true
     end
-    return (api.IsAddOnLoaded(name)) and true or false
+    if not api.IsAddOnLoaded(name) then return false end
+    return FX.AddOnFilesRan(name)
 end
 
 --- Bring the add-on that carries `classToken` into the running session.

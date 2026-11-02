@@ -340,6 +340,93 @@ test("Shard Manager: ShowTime off drops the labels, not the count", function()
     assertTrue(Shards.row:IsShown())
 end)
 
+-- The Shard Spy's rows (F-A, the HS6 half of docs/warlock-tools.md "Open"):
+-- the roster's WARLOCK column on the plate. The group here is INJECTED
+-- (`SetSpy`, the `SetTracker` convention) so this is the plate's OWN law --
+-- the comms-driven path, the SU1/SE1-SH1 wire through the comms frame's real
+-- OnEvent, is proven in tests/test_warlock_group.lua.
+test("Shard Manager: the spy rows, the Total row, the badge, the row cap",
+function()
+    ensureBuilt()
+    local savedCounter = Shards.Tracker
+    -- No own read at all: only a roster can put this plate on screen.
+    Shards:SetTracker(WK.NewShardCounter({
+        countReader = function() return nil end,
+        powerReader = function() return nil end,
+    }))
+    -- An EMPTY roster is NO claim: the solo plate is the pre-H6 shape.
+    Shards:SetSpy(WK.NewGroup())
+    Shards:RenderIdle()
+    assertFalse(Shards:Update(1000))
+    assertFalse(Shards.anchor:IsShown())
+    local g = WK.NewGroup()
+    g:SetRoster({
+        { name = "Alice", class = "WARLOCK", present = true, alive = true },
+        { name = "Cara", class = "WARLOCK", present = true, alive = true },
+    })
+    g:MarkAddon("Alice")
+    g:MarkAddon("Cara")
+    g:SetCount("Alice", "shards", 4)
+    Shards:SetSpy(g)
+    assertFalse(Shards:Update(1000))      -- a roster is no countdown
+    assertTrue(Shards.anchor:IsShown(), "a roster of warlocks is a claim")
+    -- No own read is PRINTED as unread, never guessed.
+    assertEquals("x?", Shards.amountFS:GetText())
+    -- Row 0 is the spy's TOTAL row (the Healthstone Spy's Total bar,
+    -- Forte_Healthstone.lua:197-199): the raid's shards, the fill the share
+    -- of the warlocks that answered (one of two).
+    assertTrue(Shards.row:IsShown())
+    assertEquals("Total", Shards.nameFS:GetText())
+    assertEquals("4", Shards.timeFS:GetText())
+    assertTrue(Shards.timeFS:IsShown())
+    nearpx(Shards.fill:GetWidth(), 0.5 * (SS.Width - 2 * SS.Border))
+    -- The rows: one per warlock, sorted by name, the count at the right,
+    -- `?` for the one that never answered.
+    local e1 = Shards.extraRows and Shards.extraRows[1]
+    assertNotNil(e1, "the first spy row is built")
+    assertTrue(e1.row:IsShown())
+    assertEquals("Alice", e1.nameFS:GetText())
+    assertEquals("4", e1.timeFS:GetText())
+    assertTrue(e1.nameFS:IsShown() and e1.timeFS:IsShown())
+    assertEquals("Cara", Shards.extraRows[2].nameFS:GetText())
+    assertEquals("?", Shards.extraRows[2].timeFS:GetText())
+    assertVisibleLabel(e1.nameFS, "shards.spy1.name", 60)
+    assertVisibleLabel(e1.timeFS, "shards.spy1.time", 38)
+    -- The badge: the warlocks that report in unanswered, in the Info slot
+    -- (the Healthstone Spy's Amount2, Forte_Healthstone.lua:165).
+    assertEquals("x1", Shards.infoFS:GetText())
+    assertVisibleLabel(Shards.infoFS, "shards.badge", 56)
+    -- The plate grows with the row run: the header, the TOTAL row, the two
+    -- spy rows (Forte_Soulstone.lua:235 with Forte_Healthstone.lua:204-208).
+    assertEquals(20 + 13 + 2 * 13, Shards.body:GetHeight())
+    -- The row cap: `SummonMax` (Forte_Summon.lua:590) bounds the run.
+    local many = { { name = "Alice", class = "WARLOCK", present = true } }
+    for i = 1, 7 do
+        many[#many + 1] = { name = "W" .. i, class = "WARLOCK",
+                            present = true }
+    end
+    local g2 = WK.NewGroup()
+    g2:SetRoster(many)
+    Shards:SetSpy(g2)
+    Shards:Update(1000)
+    assertEquals(Shards.MAX_ROWS, Shards._extraShown)
+    assertEquals(20 + 13 + Shards.MAX_ROWS * 13, Shards.body:GetHeight())
+    -- ShowTime owns the labels, not the roster: the badge goes, the spy
+    -- rows and their TOTAL row stay (the plate's core readout).
+    ST:Set("Warlock", "ShowTime", false)
+    Shards:Update(1000)
+    assertFalse(Shards.infoFS:IsShown())
+    assertTrue(Shards.row:IsShown())
+    assertTrue(Shards.extraRows[1].row:IsShown())
+    ST:Set("Warlock", "ShowTime", true)
+    -- RenderIdle retires the rows with the plate.
+    Shards:RenderIdle()
+    assertFalse(Shards.anchor:IsShown())
+    assertFalse(Shards.extraRows[1].row:IsShown())
+    Shards:SetSpy(nil)
+    Shards:SetTracker(savedCounter)
+end)
+
 -- --------------------------------------------------------- soulstone plate --
 
 test("Soulstone plate: no ss up, the live pair, the depleting bar", function()
@@ -506,6 +593,89 @@ test("Summon: the channel runs the bar and retires with the cast", function()
     assertEquals("(target unread)", Summon.nameFS:GetText())
     assertEquals("0:05", Summon.timeFS:GetText())
     Summon:RenderIdle()
+end)
+
+-- The summon queue's rows (F-A, the SU-03/04 half of docs/warlock-tools.md
+-- "Open"): the raid's active rituals on this plate. The group is INJECTED
+-- (`SetSpy`); the SU1/SE1 wire through the comms frame's real OnEvent is
+-- proven in tests/test_warlock_group.lua.
+test("Summon: the queue rows, the count, my channel keeping the first row",
+function()
+    ensureBuilt()
+    local savedTracker = Summon.Tracker
+    local box = { 40000 }
+    Summon:SetTracker(WK.NewSummonTracker({
+        now = function() return box[1] end, channelSeconds = 5,
+    }))
+    -- No queue, no channel: no plate (the pre-F-A law is untouched).
+    Summon:SetSpy(nil)
+    Summon:RenderIdle()
+    assertFalse(Summon:Update(box[1]))
+    assertFalse(Summon.anchor:IsShown())
+    local g = WK.NewGroup()
+    g:SetRoster({
+        { name = "Alice", class = "WARLOCK", present = true, alive = true },
+        { name = "Cara", class = "WARLOCK", present = true, alive = true },
+    })
+    Summon:SetSpy(g)
+    Summon:Update(box[1])
+    assertFalse(Summon.anchor:IsShown(), "an empty queue is no plate")
+    g:SummonStart("Alice", "Bob")
+    assertFalse(Summon:Update(box[1]), "a queue row is no countdown")
+    assertTrue(Summon.anchor:IsShown(),
+        "the raid's ritual is a claim of its own (SU-03/04)")
+    assertFalse(Summon.row:IsShown(),
+        "no own channel: the channeling row stays off (SU-09)")
+    -- The count: the rituals in flight (Forte_Summon.lua:165).
+    assertEquals("x1", Summon.amountFS:GetText())
+    -- The row: the person being summoned as its name (`Name` = `t1`,
+    -- Forte_Summon.lua:152-160), the warlock running it as its right label
+    -- (`su[index][7] = "<"..player..">"`, Forte_Summon.lua:322-340).
+    local e = Summon.extraRows and Summon.extraRows[1]
+    assertNotNil(e, "the queue row is built")
+    assertTrue(e.row:IsShown())
+    assertEquals("Bob", e.nameFS:GetText())
+    assertEquals("<Alice>", e.timeFS:GetText())
+    assertTrue(e.nameFS:IsShown() and e.timeFS:IsShown())
+    assertVisibleLabel(e.nameFS, "su.queue.name", 60)
+    assertVisibleLabel(e.timeFS, "su.queue.warlock", 38)
+    assertTrue(e.fill:GetWidth() == 0,
+        "the wire says a ritual runs, never how far: no bar fill")
+    -- A second ritual stacks the run (Forte_Summon.lua:296-301).
+    g:SummonStart("Cara", "Cara")
+    Summon:Update(box[1])
+    assertEquals("x2", Summon.amountFS:GetText())
+    assertEquals("Cara", Summon.extraRows[2].nameFS:GetText())
+    assertEquals("<Cara>", Summon.extraRows[2].timeFS:GetText())
+    assertEquals(20 + 2 * 13, Summon.body:GetHeight())
+    -- My OWN ritual joins the plate and keeps the FIRST row (the plate's
+    -- second line): the bar runs forward, the clocks are mine, the count
+    -- counts me in, and the plate asks for the 10 Hz pass again.
+    Summon.Tracker:OnCastSent("Ritual of Summoning", "Zed")
+    assertTrue(Summon:Update(box[1]))
+    assertTrue(Summon.row:IsShown())
+    assertEquals("Zed", Summon.nameFS:GetText())
+    assertEquals("0:05", Summon.timeFS:GetText())
+    assertEquals("0:05", Summon.infoFS:GetText())
+    assertEquals("x3", Summon.amountFS:GetText())
+    assertEquals(20 + 3 * 13, Summon.body:GetHeight())
+    -- The queue empties under a live channel: the plate is my channel alone.
+    g:SummonEnd("Alice", "Bob")
+    g:SummonEnd("Cara", "Cara")
+    box[1] = 40002
+    assertTrue(Summon:Update(box[1]))
+    assertEquals("x1", Summon.amountFS:GetText())
+    assertTrue(Summon.row:IsShown())
+    assertEquals("0:03", Summon.timeFS:GetText())
+    -- My channel ends: no channel, no queue, no plate (SU-09), the clocks
+    -- gone with it.
+    Summon.Tracker:End("Ritual of Summoning", "succeeded")
+    assertFalse(Summon:Update(40006))
+    assertFalse(Summon.anchor:IsShown())
+    Summon:RenderIdle()
+    assertFalse(Summon.extraRows[1].row:IsShown())
+    Summon:SetSpy(nil)
+    Summon:SetTracker(savedTracker)
 end)
 
 -- ------------------------------------------------------------------ kick --

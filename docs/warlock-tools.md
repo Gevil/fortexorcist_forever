@@ -454,19 +454,51 @@ no spam). (4) `UnitIsConnected`/`UnitIsDeadOrGhost` secret answers under
 combat. (5) Cross-version: an FX2-era Forte client's `HG`/`HS` lines are a
 foreign prefix — confirm the counters ignore them cleanly.
 
-**Open (models + wire are LIVE; the plates are the remaining half).**
-- **Shard Spy rows** (`HS6`): `Group:ShardRows`/`ShardTotal` + `SG1`/`SH1`
-  are wired end to end; `UI/Shards.lua` needs the rows: bind
-  `Shards.Spy` in `_InitViews` (done by the seam), and in `Update` render
-  each known-warlock row (`ExtraRow(i)`, `<name>` + the count, sorted —
-  the model is deterministic) under the own-count row; the badge law
-  (warlocks reporting without an answer) rides the right Info slot.
-- **Summon queue rows** (`SU-03/04`): `Group:Queue` + `SU1`/`SE1` are wired
-  (own cast → announce, inbound → model); `UI/Summon.lua` needs the queue
-  rows on `Summon.Spy` (`ExtraRow(i)`, one row per active
-  `<warlock> → <target>` claim, sorted by time) — the plate's own
-  channeling row keeps the first row.
-- Both halves share the Frame extra-row geometry + the `_InitViews`
-  SetSpy seam already in place; each needs its Update/RenderIdle spy-law
-  pair (a roster with claims is a claim; `RenderIdle` zeroes the rows) and
-  one sim test riding the stubbed-message path, exactly as Healthstone's.
+**The Shard Spy rows and the Summon queue rows (F-A, 2026-11-02, agent
+`SpyRows`) — the plates are live, the "Open" list below is closed.**
+
+- **Shard Spy rows** (`UI/Shards.lua`): `Shards.Spy` is bound by the
+  `_InitViews` seam, and `Update` renders `Spy:ShardRows(MAX_ROWS)` — one
+  `ExtraRow(i)` per known warlock, sorted by name (the model's order), the
+  reported count at the row's right, `?` for the warlock that never answered
+  (the `/fx status` unread law) and a bar scaled to the raid's own maximum
+  (the removed module left no scale; `HS_DrawHealthstone`'s `Bar:SetValue`,
+  `Forte_Healthstone.lua:148`). Row 0 becomes the spy's **Total** row
+  (`FWL.TOTAL`; the raid's shards, the fill the share of the warlocks that
+  answered — the Healthstone Spy's Total bar, `Forte_Healthstone.lua:197-199`),
+  and the right Info slot carries the **badge** `x<warlocks-known>`
+  (the Amount2 law, `Forte_Healthstone.lua:165`). No own read prints `x?`.
+  Row cap `MAX_ROWS = 5` (the Summon Assistant's `SummonMax`,
+  `Forte_Summon.lua:590` — the removed Shard Spy left no geometry). Show law:
+  an own count **or** a roster with warlocks; an empty roster is no claim, so
+  the solo plate is bit-for-bit the pre-H6 shape. ShowTime owns the badge,
+  not the roster rows.
+- **Summon queue rows** (`UI/Summon.lua`): `Summon.Spy` rides the same seam
+  and `Update` renders `Spy:Queue(MAX_ROWS)` — one row per active ritual,
+  the person being summoned as the row's name (`SU_DrawSummon`'s
+  `Name = t1`, `Forte_Summon.lua:152-160`) and the warlock running it as its
+  right label (`su[index][7] = "<"..player..">"`, `:322-340`), the plate's
+  count slot the rituals in flight (`FWSUFrameAmount:SetText("x"..n)`,
+  `:165`). The rows carry **no bar fill**: the wire says a ritual runs, never
+  how far along it is (the sender's own 5 s channel is the sender's own read;
+  the original's far/all pair is the dropped `SU-02` distance sampling). My
+  own channeling row keeps the first row (the plate's second line) with its
+  bar and clocks, and it alone asks for the 10 Hz pass — a queue row is no
+  countdown. The plate shows for the raid's rituals; an empty queue with no
+  channel is no plate (`SU-09`).
+- Both halves ride the Frame extra-row geometry + the `_InitViews` SetSpy
+  seam, each with its Update/RenderIdle spy-law pair (`RenderIdle` retires
+  the rows with the plate), and each is proven by a sim test that drives a
+  stubbed `CHAT_MSG_ADDON` through the **comms frame's own `OnEvent`** with
+  the catalog payload order (prefix, text, channel, sender, ...) — the sender
+  the 4th — so the plate renders on the comms' own `KickViews` path, and by a
+  plate-law test on an injected `NewGroup` (`tests/test_warlock_group.lua`
+  8, `tests/test_warlock_ui.lua` 22; all four new tests proved to fail on the
+  pre-F-A plates).
+
+**Open.** The H6 trio's three plates (Healthstone, Shards, Summon) and the
+comms are live; what is left is the multiplayer launch probe list above —
+plus (6) the plates' on-screen shape with a real roster (the Shard Spy row
+texts, the `x<badge>`, the `<warlock>` queue labels at the shipped 106-wide
+plate: the names are the longest strings the slots carry, and the shard
+plate's Info slot is the narrowest of the three).

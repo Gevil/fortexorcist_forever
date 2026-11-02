@@ -13,21 +13,15 @@
 -- enables against a PALADIN profile here: its class gate (Core/Totems.lua's
 -- OnEnable, the Forte_Hunter/Core/Tools.lua:467 shape) must keep the event
 -- wiring off, and that is the state the rest of this suite asserts from.
+--
+-- One call is the whole bootstrap: Core/Loader.lua does not accept the runner's
+-- `IsAddOnLoaded` listing as proof that the files ran (its own probe is the
+-- add-on's data table), so the listed-but-not-parsed add-on goes through
+-- `C_AddOns.LoadAddOn` for real -- the gap that used to need a hand-written
+-- loader call here (F-B, 2026-11-02).
 local FX = ForteXorcist
 
 FX.LoadClassAddOn("SHAMAN")
-
-if not (FX.Data and FX.Data.Shaman) then
-    -- The `run-tests Forte_Shaman` runner has the Forte_Shaman folder in its
-    -- add-on list, so the loader's own "already in?" probe answers true and
-    -- Core/Loader.lua's idempotence ledger settles the name WITHOUT the
-    -- files having run (the LoD-adapter gap). Ask the real loader directly,
-    -- through the same ledger entry, and let the assertions below report a
-    -- load that still fails.
-    FX._loadedAddOns["Forte_Shaman"] = nil
-    local api = _G.C_AddOns
-    if api and api.LoadAddOn then api.LoadAddOn("Forte_Shaman") end
-end
 
 test("the add-on under test is loaded, and its module is enabled", function()
     assertNotNil(FX.Data and FX.Data.Shaman, "Forte_Shaman's data did not load")

@@ -51,7 +51,7 @@ gate, as of this build:
 | Sap | `Sap` (Rogue data) | live |
 | Polymorph | `Polymorph` (12826, added to `tools/spell_lists/mage.json` for this) | live |
 | Enslave | **`Subjugate Demon`** (11726) — Forever renamed the source's `Enslave Demon` (1098/11725/11726, `ClassFlags.Family` 5); the row keys on the Forever name and the TEXTS stay the original's (`">> Enslave on %s …"`) | live |
-| Seduction (+ the `Mesmerize` alias) | `Seduction` | **can not fire on this build: the spell does not exist in the Forever data.** Searched all **7503** rows of `mythicsim-forever-engine/data/spells.jsonl` (client_build `1.60.1.70425`) for the names `Seduction`, `Seduction`, `Mesmerize` (plus the Succubus' other tools `Devour Magic`, `Spell Lock`, `Clamp`, `Grip of the Dead` and the source's `Enslave Demon`): **no row of any of them** — the file's families are `3,4,5,6,7,8,9,10,11,13` plus 3525 uncoded rows, the Warlock family (5) has no Charm-mechanic spell at all, and the source's ids `6358`/`6359` (Seduction), `115268`/`115269` (Mesmerize), `19505` (Devour Magic), `19647` (Spell Lock), `20707`/`21017` (Enslave Demon) are all absent; the file's only Succubus row is the form `Perm. Illusion Succubus` (8315). The client's live table agrees: `C_Spell.GetSpellInfo(6358)`/`(6359)`/`(115268)` answer **nil**, and a scan of ids `1..1500000` finds no name containing `Seduction`, `Seduction` or `Mesmeriz` (the scan is proven live: `Charm` 8 hits, `elguard` 2, `oomguard` 2). With no data row the registry's `durationMs > 0` gate never sees the name, so no Timer row of it can exist, its fade threshold is never read, and the section can not fire. The texts ship so the pair is visible on the page (the census, review 4 **E2**). Behind that gate sits the second one: these are the Succubus **pet's** casts, and Forte_Timer registers its cast spine for `player` only (`Core/Module.lua`) — the day the client's data carries the spell, pet-cast tracking is what lights it |
+| Seduction (+ the `Mesmerize` alias) | `Seduction` | **LIVE through the pet-cast feed** (wave 2b "PetRows v2", 2026-11-02). The pair is the Succubus' own casts (`AddSpell(6358, 30, "Pet")` / `AddSpell(115268, 30, "Pet") -- Mesmerize`, Warlock.lua:73-74), so the window opens on a **pet** cast: `Forte_Timer` now registers its cast spine for the `pet` unit too (`Forte_Timer/Module.lua`'s `f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "pet")` pair plus the pet half of its `Core/Casts.lua` feed), a pet Seduction inserts the row off the generated Warlock data (`6358`, `durationMs` 15000 — the D3 70707 refresh put the kit in `addon/Forte_Warlock/Data/Warlock.lua`: the client's own spell store names Seduction 6358/6359 and Mesmerize 24594), and the row's FADING/BROKEN ride the SAME shared sites as every other row, so the pair's two announces light when the boxes are ticked. `Forte_Timer/tests/test_pet_rows.lua` pins the whole spine (a pet SUCCEEDED → one 15 s `Crowds` row, the pet's target as the row key, the fade firing ONCE at 3 s of window left, the Mesmerize name row NOT tracked — it carries no `durationMs`, so it has no row of its own and shares the Seduction keys through `P.FADE_SPELL_KEYS`). The Iteration G verdict printed below measured the **70425** data pull plus the simulator, and is SUPERSEDED — kept as the record of what was searched and why the pair looked dead. The texts ship so the pair is visible on the page (the census, review 4 **E2**). The remaining half of the old note stands as history: the 70425 search found no `Seduction`/`Mesmerize` row in `mythicsim-forever-engine/data/spells.jsonl` (all **7503** rows; families `3,4,5,6,7,8,9,10,11,13` plus 3525 uncoded; ids `6358`/`6359`, `115268`/`115269`, `19505`, `19647`, `20707`/`21017` all absent; the file's only Succubus row the form `Perm. Illusion Succubus` 8315), and `C_Spell.GetSpellInfo(6358)`/`(6359)`/`(115268)` answered nil on that build |
 
 `Corruption` is deliberately absent (the source registered no fade for it), and
 that absence is a test (`test_announce.lua`: a bare expiry of an unregistered
@@ -324,6 +324,123 @@ The legal surface (all of it catalog-pinned or live-client-observed):
   cast event's names, the spell names from the player's own engine/events —
   `UnitAurasUnitIsNotUnit`-class surfaces are untouched).
 
+## The 20 cast announce rows (wave 2b T2)
+
+The third family of opt-in sends on `Pages/RaidMsg.lua`: the source's
+`CA:RegisterOnSelfCastSuccess` + `CA:CastShow` **raid warnings of the
+player's own casts** — the 20 rows of `Forte_Class/Druid/Druid.lua:190-227`,
+`Forte_Class/Paladin/Paladin.lua:125-168` and
+`Forte_Class/Warrior/Warrior.lua:79-104` (`docs/class-port.md` S17). They ride
+`P.CAST_ROWS`, the `P.FADE_ROWS` shape, and the **same** cast frame and
+legality gate as the soulstone row above: `Module.lua`'s
+`M:OnCastForAnnounce` on the player's own `UNIT_SPELLCAST_SENT` /
+`UNIT_SPELLCAST_SUCCEEDED` pair (SENT carries `(unit, targetName, castGUID,
+spellID)` and stamps the target; SUCCEEDED carries `(unit, castGUID,
+spellID)` and is where the announce goes — the payload order is the catalog's,
+the Hunter swing bug's class of error), the spellID resolved to a **name** by
+`spellNameFor` (a `C_Spell` read, pcall'd, `PlainOrNil` on every field, never
+compared), the name canonicalized through `FX.Locale.CanonicalName` so a
+German `Schildwall` meets the Shield Wall row, then sent through
+`Announce:Group` / `Announce:Channel` on the row's own
+`<Prefix>CastParty` / `<Prefix>CastChannel` gate keys. `counts.cast` counts
+the fires for `/fx messages`; `M:CastRowArmed` is the cheap pre-gate (40
+reads of the live config per cast event, before any spell resolve).
+
+**All 20 rows ship OFF** — every one of the 40 boxes (20 group + 20 channel)
+defaults `false`, so a fresh install is mute in the raid (review 4 **E2**,
+the owner ruling of 2026-11-02; the page's own tip says it: *"the 40
+cast-announce boxes"*). **All 20 texts are the source's verbatim**, in the
+`<Prefix>CastText` string keys (row defaults from `row.text`, so the recycle
+icon restores the original's line). The source's own party bits ride each
+row's `bits` field (19 rows party-ON, `Warrior Vigilance` the one row the
+source ships silent at `Warrior.lua:104`) and each row's section tip names
+them — *"the source ships this ON — tick to restore"*.
+
+| # | Prefix (the key root) | Class | Key the hook matches (the Forever name) | Source | Group | Text (verbatim) | Targ. | bits |
+|---|---|---|---|---|---|---|---|---|
+| 1 | `Barkskin` | Druid | `Barkskin` | Druid.lua:213 | Self Damage Reduction | `+++ Barkskin (10 sec) +++` | | 1 |
+| 2 | `SurvivalInstincts` | Druid | `Survival Instincts` | Druid.lua:216 | Self Damage Reduction | `+++ Survival Instincts (12 sec) +++` | | 1 |
+| 3 | `FrenziedRegeneration` | Druid | `Frenzied Regeneration` | Druid.lua:219 | Self Damage Reduction | `+++ Frenzied Regeneration (20 sec) +++` | | 1 |
+| 4 | `Rebirth` | Druid | `Rebirth` | Druid.lua:223 | Other | `>>> Rebirth on %s <<<` | ✔ | 1 |
+| 5 | `Innervate` | Druid | `Innervate` | Druid.lua:226 | Other | `>>> Innervate on %s <<<` | ✔ | 1 |
+| 6 | `Tranquility` | Druid | `Tranquility` | Druid.lua:229 | Other | `>>> Tranquility up <<<` | | 1 |
+| 7 | `AuraMastery` | Paladin | `Aura Mastery` (the 2012 id 31821 has no row; the **name** does — 409932 in the 70707 store's Names) | Paladin.lua:151 | Raid Damage Reduction | `+++ Aura Mastery (6sec) +++` | | 1 |
+| 8 | `Salvation` | Paladin | `Salvation` — **INERT ON THIS BUILD**: 1038 is a 70425 row, REMOVED on 70707 (the generated Paladin data's header records the drop), so no cast of the name can reach the hook | Paladin.lua:154 | Hands | `+++ Salvation on %s (10sec) +++` | ✔ | 1 |
+| 9 | `Sacrifice` | Paladin | `Hand of Sacrifice` (462853), with the 2012 id 6940's Forever name `Blessing of Sacrifice` (20729) aliasing onto the same row in `P.CAST_SPELL_KEYS` | Paladin.lua:156 | Hands | `+++ Sacrifice on %s (12sec) +++` | ✔ | 1 |
+| 10 | `Freedom` | Paladin | `Blessing of Freedom` (1044) — the 2012 Hand of Freedom | Paladin.lua:158 | Hands | `+++ Freedom on %s (6sec) +++` | ✔ | 1 |
+| 11 | `HandOfProtection` | Paladin | `Blessing of Protection` (10278) — the 2012 Hand of Protection | Paladin.lua:160 | Hands | `+++ Hand of Protection on %s (12sec) +++` | ✔ | 1 |
+| 12 | `DivineProtection` | Paladin | `Divine Protection` | Paladin.lua:162 | Self Damage Reduction | `+++ Divine Protection (10sec) +++` | | 1 |
+| 13 | `GuardianOfAncientKings` | Paladin | `Avenging Wrath` (407788/409934) — the Paladin's own DR of the 2012 Guardian of Ancient Kings family (86659/86669, no row on either build); the **spec-gated** row, see the note below | Paladin.lua:164 | Self Damage Reduction | `+++ Guardian of Ancient Kings (12sec) +++` | | 1 |
+| 14 | `ArdentDefender` | Paladin | `Ardent Defender` — **INERT ON THIS BUILD**: the 2012 31850 has no row in the 70425 pull and no name in the 70707 store's Names table | Paladin.lua:166 | Self Damage Reduction | `+++ Ardent Defender (10sec) +++` | | 1 |
+| 15 | `ShieldWall` | Warrior | `Shield Wall` | Warrior.lua:100 | Self Damage Reduction | `+++ Shield Wall (12 sec) +++` | | 1 |
+| 16 | `LastStand` | Warrior | `Last Stand` | Warrior.lua:101 | Self Damage Reduction | `+++ Last Stand (20 sec) +++` | | 1 |
+| 17 | `RallyingCry` | Warrior | `Rallying Cry` | Warrior.lua:98 | Raid Damage Reduction | `+++ Rallying Cry (10 sec) +++` | | 1 |
+| 18 | `EnragedRegeneration` | Warrior | `Enraged Regeneration` (the 2012 55694's Forever row is 402913 of the same name) | Warrior.lua:102 | Self Damage Reduction | `+++ Enraged Regeneration (10 sec) +++` | | 1 |
+| 19 | `Intervene` | Warrior | `Intervene` | Warrior.lua:99 | Raid Damage Reduction | `+++ Intervene on %s (10 sec) +++` | ✔ | 1 |
+| 20 | `Vigilance` | Warrior | `Vigilance` | Warrior.lua:104 | Other | `>>> Vigilance on %s (12 sec) <<<` | ✔ | **0** |
+
+Targ. = the row's text carries `%s` and the hook hands it the target stamped
+from the SENT payload's plain target name (`"?"` when no stamp is in hand,
+the soulstone law); the rows without a tick never see a target word. The
+**Source** column is each row's own recorded `src` citation, a line of the
+`FW:AddOption` / `FW.Default.<Key>Start = {[0]=bits,"<text>"}` pair in
+`/tmp/fxref/Forte_Class/<Class>/<Class>.lua` — the `{[0]=bits}` literal is
+the **bits** column and the string is the **Text** column. The 20 texts and
+the 20 bits values were re-checked against those files on 2026-11-03 and all
+20 match verbatim (the Druid six and `Warrior`'s set are defined in the
+`FW.Default` block a little above the cited lines — the citations are the
+rows', warts and all).
+`P.CAST_ROW_CLASS` is the split of the census — **6 Druid, 8 Paladin, 6
+Warrior** — and `Forte_Messages/tests/test_cast_announce.lua` fails the suite
+if the table drifts (a row dropped, a class left short, a text not the
+source's, a box not OFF, an `.text` carrying a `%s` on a non-target row, a
+Druid name wearing a form suffix).
+
+**The Paladin spec note (row 13, the one gated row).** The source gated
+Guardian of Ancient Kings on the specialization
+(`Paladin.lua:139`, `GetSpecialization(...) == 2`). The 2012 globals
+`GetSpecialization` / `GetActiveSpecGroup` are absent from the pinned
+catalog, so the gate is re-expressed on its pinned pair,
+`C_SpecializationInfo.GetSpecialization` +
+`C_SpecializationInfo.GetActiveSpecGroup`
+(`@SpecializationInfoDocumentation.lua:236` / `:40`), and it rides the row's
+`spec = 2` field as the **recorded** gate. **No gate is enforced on this
+build**, for one named reason: the row's Forever key spell — `Avenging Wrath`
+— is itself spec-specific (the Retribution paladin's own DR), so a cast of
+that name already *means* the specialization and a gate would filter nothing.
+It is an OPEN item for a build whose name is shared: the day a name of the
+family is castable out of the spec, the `spec` field is the gate to enforce,
+and the field plus the pinned pair are why no research is needed to do it.
+
+The announce itself is **name-keyed and class-blind** (the soulstone family
+pattern's law): a Warrior who somehow casts a `Blessing of Freedom` meets the
+Paladin row. The key table is `P.CAST_SPELL_KEYS` (the Forever name → the
+prefix, built off `P.CAST_ROWS` plus the one alias), and the two rows whose
+key the client's spell set does not carry — `Salvation` and `Ardent Defender`
+— are **inert by that gate**, each naming its own reason in its own note (the
+review 4 **E4** gate in its cast form). Q5 (the owner ruling of 2026-11-02):
+the six Druid rows carry **plain spell names** — the source's
+`FWL._FERAL/_BEAR/_CAT` suffixes (`Druid/Localization.lua:73-88`) label the
+form-paired BAR rows (the S16 `SetCustomName` seam), are not announce labels,
+and none of the six is form-paired.
+
+`Forte_Messages/tests/test_cast_announce.lua` drives all of this through the
+real cast frame's `OnEvent` with client payloads (the test law), over the
+injected `Announce.readers` seam (its `send` collecting the chat wire, its
+lockdown readers flipping on demand) and a stubbed `C_Spell.GetSpellInfo`
+supplying the cast names: the 20-row table
+SHAPE (the 6 Druid / 8 Paladin / 6 Warrior census, unique prefixes), the
+verbatim texts of all 20, the OFF shipped defaults (20 casts, nothing on the
+chat wire), the one send per SUCCEEDED with the SENT stamp in the line, the
+channel half behind `OutputChannel`, a cast of no row (Fireball) and a
+foreign unit's cast both silent, the source's `bits` recorded with the ONE
+bits-0 row named, the two rows that can not fire on this build naming their
+reason, the Q5 plain Druid names, the soulstone watch untouched by the general
+hook, and the page's 20 sections × 3 controls. The localized-name half of the
+hook is pinned in `test_locale_messages.lua` (a German `Schildwall` cast
+meeting the Shield Wall row, and the German name of `Blessing of Freedom`
+reaching the FOREVER key).
+
 ## Files
 
 * `Core/Sounds.lua` — the FE-18 play law; `Sounds.playFn` is the test seam.
@@ -344,8 +461,10 @@ The legal surface (all of it catalog-pinned or live-client-observed):
 * `Module.lua` — the four bus subscriptions (`_SubscribeToBus`:
   `FX_COOLDOWN_READY` / `FX_TIMER_FADING` / `FX_TIMER_BROKEN` /
   `FX_TIMER_EXPIRED`, each Off-before-On so a re-enable cannot double it), the
-  soulstone cast watch (reading `FX.SoulstonePatterns`), the banner pump,
-  `/fx messages`. There is no Timer wrap any more (`E3`): the
+  soulstone cast watch (reading `FX.SoulstonePatterns`), the **own-cast
+  announce hook** over the same frame (`M:OnCastForAnnounce` + the
+  `M:CastRowArmed` pre-gate + `counts.cast`, the 20 rows above), the banner
+  pump, `/fx messages`. There is no Timer wrap any more (`E3`): the
   `FX_TIMER_EXPIRED` fire lives in `Forte_Timer/Core/Rows.lua`'s Sweep.
 * The soulstone family's one home is `Forte_Core/Core/Constants.lua`'s
   `FX.SoulstonePatterns` (`m7`); the two watchers — Forte_Warlock's buff scan

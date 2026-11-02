@@ -15,6 +15,15 @@
 -- (:1808/:1809/:1815/:1821) and with the original's own labels
 -- (Localization.lua :108-111, :158-159, :510-511). All four are live through
 -- Display:ApplySettings -> SetVertical / SetFlip / SetHideZero / SetWarn.
+--
+-- F-C (2026-11-03): the SPECIFICS block also carries
+-- "Item proc timers (experimental)" = `Cooldown.Procs`, the one public face
+-- of Forte_Cooldown/Core/Procs.lua. It is the ONLY key of this page the
+-- Display does not consume: Forte_Cooldown's own `Procs:_WireSettings`
+-- listener is the consumer (the module must work with Forte_Options
+-- uninstalled), which is why the key is absent from the Display's KEYMAP by
+-- design. Default OFF; the first enable loads the load-on-demand
+-- Forte_ItemProcs data add-on.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -41,15 +50,17 @@ FX.Settings:Register(M, {
     PowerScale = 0.33,                 -- Loga
     TimeTags = "0 1 10 30 60 120 300 600",
     IgnoreShort = 2.99,                -- Engine.MIN_COOLDOWN
-    -- The item/weapon proc ICD windows (Core/Procs.lua). NO PAGE ROW (the
-    -- 2026-11-02 ruling: the feature ships behind the flag, not behind a
-    -- checkbox): the key is registered so the store owns the default -- OFF,
-    -- per docs/design-combat-procs.md P-B -- and so `/fx procs on` writes it
-    -- through FX.Settings:Set like every other key. The switch is live
-    -- through Procs:_WireSettings' listener; Procs:ApplyStoredSettings
-    -- applies it at login. Flipping it on loads the load-on-demand
-    -- Forte_ItemProcs data add-on (docs/perf.md §4 fix 1), which is the
-    -- whole reason it is not on by default.
+    -- The item/weapon proc ICD windows (Core/Procs.lua). The key is
+    -- registered so the store owns the default -- OFF -- per
+    -- docs/design-combat-procs.md P-B, so the SPECIFICS row "Item proc timers
+    -- (experimental)" (added 2026-11-03, slice F-C) writes it through
+    -- FX.Settings:Set like every other key of this page, and so the
+    -- Cooldown module's `/fx status` line ("Procs: on/off, N watched")
+    -- reports the very state the box drives. The switch is live through
+    -- Procs:_WireSettings' listener, and ApplyStoredSettings applies it at
+    -- login. Flipping it on loads the load-on-demand Forte_ItemProcs data
+    -- add-on (docs/perf.md §4 fix 1), which is the whole reason it is not on
+    -- by default.
     Procs = false,
     -- Coloring (Forte_Cooldown.lua :1842-1855, verbatim)
     ColorSpell     = { 1.00, 0.50, 0.00, 1 },
@@ -181,10 +192,25 @@ O:RegisterPage({
             s.NUM({ module = M, key = "IgnoreShort", label = "Ignore shorter than",
                 min = 0, max = 60, step = 0.01,
                 tip = "Cooldowns shorter than this are ignored (default 2.99 s). Engine.MIN_COOLDOWN, tracked set rebuilt live." })
+            -- EXPERIMENTAL (slice F-C, 2026-11-03; the H7 flag gains its row):
+            -- `Cooldown.Procs` is the one switch of
+            -- Forte_Cooldown/Core/Procs.lua, and this box writes it through
+            -- FX.Settings:Set -- the SAME store the Cooldown module's
+            -- `/fx status` line reports ("Procs: on/off, N watched").
+            -- Forte_Cooldown's own Procs:_WireSettings listener is what makes
+            -- the write live (this page has no hand in it: Forte_Cooldown must
+            -- work with Forte_Options uninstalled), and the first enable asks
+            -- FX.LoadAddOnOnDemand for the load-on-demand Forte_ItemProcs
+            -- data (docs/perf.md §4 fix 1), which is the whole reason the
+            -- default is OFF.
+            s.CHK({ module = M, key = "Procs",
+                label = "Item proc timers (experimental)",
+                tip = "EXPERIMENTAL, off by default. Puts an item or weapon proc's internal cooldown on the bar: when one of the proc's auras is SEEN on you, a window runs the data's ICD (docs/design-combat-procs.md P-A/P-B). The proc data add-on loads with this box, which is why it is off. Out of combat the read net sees the aura directly; IN-COMBAT proc detection is a LAUNCH-DAY PROBE - the client seals aura reads in combat, so the two seen-routes (the out-of-combat sweep, the UNIT_AURA events) are only proven on the live client (PLAN §11.1 Q3 ruling, docs/launch-day.md). Live: the change is applied the moment you tick it." })
         end, {
             module = M,
-            keys = { "Warn", "Width", "Height", "MaxTime", "PowerScale", "TimeTags", "IgnoreShort" },
-            tip = "The spell-on-cooldown warning and the power-scale timeline geometry (PLAN §3.5).",
+            keys = { "Warn", "Width", "Height", "MaxTime", "PowerScale", "TimeTags",
+                "IgnoreShort", "Procs" },
+            tip = "The spell-on-cooldown warning, the power-scale timeline geometry (PLAN §3.5) and the experimental item proc timers.",
         })
         b.Section("Coloring", function(s)
             local rows = {

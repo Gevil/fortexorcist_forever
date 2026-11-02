@@ -74,10 +74,13 @@ local Laws = FX.Timer.Laws
 Casts.queue = {}
 --- The deferred work (the SETTLE / CANCEL_SETTLE band).
 Casts.pending = {}
+--- The rows a CLASS tracker draws: `[spellName] = { owner = "Shaman",
+--- live = fn }` (F-B, 2026-11-02, the totem dedupe). See `DeclareOwnedRows`.
+Casts.owners = {}
 --- The instrument (PLAN §8 mitigation 1).
 Casts.status = { seen = 0, plain = 0, secret = 0, resolved = 0,
     unresolved = 0, rows = 0, untracked = 0, evicted = 0, flushed = 0,
-    failed = 0 }
+    failed = 0, owned = 0, retired = 0 }
 Casts.rows = nil
 Casts.options = nil
 --- The injectable seams (tests).
@@ -179,7 +182,8 @@ function Casts:InitStatus()
         d = self.status
     end
     for _, k in ipairs({ "seen", "plain", "secret", "resolved", "unresolved",
-        "rows", "untracked", "evicted", "flushed", "failed" }) do
+        "rows", "untracked", "evicted", "flushed", "failed", "owned",
+        "retired" }) do
         if type(d[k]) ~= "number" then d[k] = 0 end
     end
     self.status = d
@@ -193,6 +197,108 @@ function Casts:Init(rows, options)
     self.cancelSettle = self.cancelSettle or Laws.CANCEL_SETTLE
     self.flushAfter = self.flushAfter or Laws.QUEUE_FLUSH
     self:InitStatus()
+end
+
+-- ------------------------------------------------- the class slot owners --
+--- Declare that a CLASS tracker draws the Spell Timer rows of `names`, and
+--- asks for the cast spine to leave those spells alone while its own row is on
+--- the panel (F-B, 2026-11-02; the Shaman totem case of PLAN §11.1 T3/F-B).
+---
+--- The shape of the problem: a Shaman's `Magma Totem` produces TWO signals of
+--- ONE window -- the player's own cast of the spell (this spine) and the
+--- client's slot state (`PLAYER_TOTEM_UPDATE` + `GetTotemInfo`, which the
+--- Forte_Shaman tracker renders as the element-slot row, ported from
+--- `/tmp/fxref/Forte_Class/Shaman/Shaman.lua:77-93`, whose `ST.ST:remove(i)`
+--- law is "one row per SLOT"). The tracker's in-place replacement can only see
+--- rows keyed by the element (`Rows:Find(name, "Fire")`); the cast row is
+--- keyed by the cast target (`"none"`, the SENT payload carries no target
+--- unit), so the slot row landed BESIDE the prediction: two rows for one totem.
+---
+--- The dedupe keeps the tracker's row (the read is the confirmed half) and
+--- keeps the spine's half where the tracker is blind: a `GetTotemInfo` read the
+--- engine seals answers NOTHING (TotemDocumentation.lua:62,
+--- `SecretWhenTotemSlotSecret`), and out of a plain read the cast prediction is
+--- the only signal a shaman has in combat. So the rule is per spell and per
+--- instant, asked of the owner itself:
+---
+---   the owner's row is on the panel   -> the spine draws nothing  (one row)
+---   the owner's row is not            -> the spine draws its prediction
+---   the spine's prediction is on first -> `RetireOwnedRows` hands the slot over
+---
+--- `names` an array of English data names (the cast spine keys on the
+--- canonical name, `NameOf`), `owner` a label for the instrument, `isLive(name)`
+--- the owner's answer at the instant a cast settles.
+function Casts:DeclareOwnedRows(names, owner, isLive)
+    if type(names) ~= "table" or type(owner) ~= "string" then return 0 end
+    local n = 0
+    for _, name in ipairs(names) do
+        if type(name) == "string" and name ~= "" then
+            self.owners[name] = { owner = owner, live = isLive }
+            n = n + 1
+        end
+    end
+    return n
+end
+
+--- Forget every declaration of one owner (a tracker being rebuilt).
+function Casts:UndeclareOwnedRows(owner)
+    local n = 0
+    for name, rec in pairs(self.owners) do
+        if rec.owner == owner then
+            self.owners[name] = nil
+            n = n + 1
+        end
+    end
+    return n
+end
+
+--- The owner's row for `name` is on the panel right now, so the spine must not
+--- draw a second one. A pcall: a tracker that cannot answer is a tracker that
+--- is not drawing anything, and the cast row rides (the row we can draw beats
+--- the row we hope exists).
+function Casts:RowIsOwned(name)
+    local rec = type(name) == "string" and self.owners[name] or nil
+    if not rec then return false end
+    local live = rec.live
+    if type(live) ~= "function" then return true end
+    local ok, v = pcall(live, name)
+    return (ok and v) and true or false
+end
+
+--- Hand the window over: the owner (the Shaman slot tracker) is drawing its row
+--- for `name`, so the spine's own PREDICTION of the same spell retires --
+--- `Shaman.lua:84`'s `ST.ST:remove(i)` law (the slot keeps one row, removed, not
+--- faded, so the new icon owns the slot's fade). `keepKey` is the key the
+--- owner's row rides (the element token), which is never touched; a row that a
+--- plain aura read already CONFIRMED is not ours to remove -- a prediction is
+--- the only thing the spine may retire. Returns how many went.
+function Casts:RetireOwnedRows(name, keepKey, now)
+    if type(name) ~= "string" then return 0 end
+    local rows = self.rows
+    if not rows then return 0 end
+    local keys = {}
+    local all, n = rows:AllForName(name)
+    for i = 1, n do
+        local row = all[i]
+        if row.predicted == true and row.targetKey ~= keepKey then
+            keys[#keys + 1] = row.targetKey
+        end
+    end
+    if #keys == 0 then return 0 end
+    now = now or self:Clock()
+    local removed = 0
+    for i = 1, #keys do
+        local row, idx = rows:Find(name, keys[i])
+        if row then
+            rows:removeAt(idx)
+            removed = removed + 1
+        end
+    end
+    if removed > 0 then
+        self:InitStatus()
+        self.status.retired = self.status.retired + removed
+    end
+    return removed
 end
 
 -- ---------------------------------------------------------------- SENT ----
@@ -217,6 +323,15 @@ function Casts:OnSent(target, spellID, now)
     st.resolved = st.resolved + 1
     if not FX.Timer.Registry.IsTracked(name) then
         st.untracked = st.untracked + 1
+        return
+    end
+    -- A class tracker is drawing this spell's row (the Shaman's element slot,
+    -- DeclareOwnedRows): no record, no row, counted. The gate is a snapshot of
+    -- the owner's panel at this instant -- the slot's row going empty later is
+    -- what lets the NEXT cast through, and a sealed slot read (the owner
+    -- drawing nothing) is exactly the state the prediction is for.
+    if self:RowIsOwned(name) then
+        st.owned = st.owned + 1
         return
     end
     -- A fresh SENT evicts the records of casts that never started (the
@@ -298,6 +413,14 @@ function Casts:OnSucceeded(spellID, now, pet)
     end
     local duration = FX.Timer.Registry.BestDuration(rec.name)
     if type(duration) ~= "number" or duration <= 0 then return end
+    -- The settle half of the same gate (a SUCCEEDED whose SENT never arrived,
+    -- and the last word before the row is drawn): the owner's element slot is
+    -- on the panel, so one row is already there.
+    if self:RowIsOwned(rec.name) then
+        self:InitStatus()
+        self.status.owned = self.status.owned + 1
+        return
+    end
     self:_schedule(now + (self.settle or Laws.SETTLE), "insert", rec.name,
         rec.targetKey, duration, now, self:HasteFactor(rec.name))
 end
@@ -553,7 +676,15 @@ end
 --- The `/fx status` line.
 function Casts:StatusLine()
     local s = self.status
-    return string.format(
+    local line = string.format(
         "Timer casts: seen %d | plain %d | secret %d | unresolved %d | rows %d | untracked %d",
         s.seen, s.plain, s.secret, s.unresolved, s.rows, s.untracked)
+    -- The class slot owners (DeclareOwnedRows): casts the spine left to a
+    -- tracker's row, and predictions a tracker's row retired. Quiet while it is
+    -- all zero, which is every non-shaman session.
+    if (s.owned or 0) > 0 or (s.retired or 0) > 0 then
+        line = line .. string.format(
+            " | slot rows %d, retired %d", s.owned or 0, s.retired or 0)
+    end
+    return line
 end

@@ -20,9 +20,15 @@
  *   zip            the release zip to import (default /tmp/fx_uif.zip)
  *   fresh          true = first clear the Forte_ rows of a previous import
  *                  (per-row ✕, 350 ms apart, until none remain). The row
- *                  FAILS when the add-on list shows Forte rows (text
- *                  `Forte` in the left panel) but 0 were removed — a dead
- *                  \u2715 selector must not read as "nothing to clean"
+ *                  FAILS when the ADDON LIST PANEL — the container of the
+ *                  per-addon rows, each a checkbox + a ✕ — shows Forte rows
+ *                  while 0 were removed: a dead \u2715 selector must not
+ *                  read as "nothing to clean". The count is scoped to that
+ *                  panel (defect 4, 2026-11-02: the page-wide count let the
+ *                  Lua console's `ForteXorcist...` lines pose as rows); the
+ *                  panel's `visible` is -1 when it cannot be located, which
+ *                  fails the row. Mock-tested by
+ *                  scripts/uif_battery_mock_test.js.
  *   expectMarker   Lua expression string (e.g. `ForteXorcist.Hunter and
  *                  ForteXorcist.Hunter.Tools and
  *                  ForteXorcist.Hunter.Tools.Swing.CycleState ~= nil`),
@@ -81,6 +87,122 @@
 // this to null and the CODE row skips with a note.
 const DEFAULT_CODE_MARKER =
   '(ForteXorcist.CONST and ForteXorcist.CONST.VERSION) == "0.1.0-dev"';
+
+// ------------------------------------------------------- fx-clear-forte ----
+// The fresh-clear sweep, at module scope on purpose: the mock harness
+// scripts/uif_battery_mock_test.js drives THESE EXACT BYTES against a fake
+// DOM. Both known false-PASS classes of this sweep are COUNTING bugs, so a
+// transcribed copy of the body in a test would prove nothing.
+//
+// It is handed to `uifTab.evaluate`, which serialises it into the page, so it
+// may touch only its own locals plus the document it is passed (the battery
+// passes the page's own `document` from inside the page expression; the mock
+// harness passes its fake one).
+async function forteClearSweep(docArg) {
+  // fx-clear-forte
+  const doc = docArg || (typeof document === 'undefined' ? null : document);
+  const nap = (ms) => new Promise((r) => setTimeout(r, ms));
+  const xText = (b) => (b.textContent || '').trim() === '\u2715';
+  const xButtonsIn = (n) => Array.from(n.querySelectorAll('button')).filter(xText);
+  const allX = () => xButtonsIn(doc.body || doc.documentElement || doc);
+  const rowOf = (b) => {
+    // Widest ancestor that still contains exactly this one \u2715: the row.
+    let n = b.parentElement; let last = null;
+    while (n) {
+      const xs = Array.from(n.querySelectorAll('button')).filter(xText);
+      if (xs.length !== 1) break;
+      last = n; n = n.parentElement;
+    }
+    return last || b.parentElement;
+  };
+  const targets = () => allX().filter((b) => {
+    const row = rowOf(b);
+    return /\bForte_/.test((row && row.textContent) || '');
+  });
+  // Defect 3 (2026-11-02): this sweep once removed 0 of 15 rows and PASSED,
+  // because "0 targets" and "nothing to clean" are the same number to a
+  // count-only check. Count the Forte rows visible in the add-on list
+  // independently of the \u2715 selector, so the caller can fail a 0-removal
+  // sweep that ran while rows stood on screen.
+  // Defect 4 (2026-11-02, slice F-C): that count asked the WHOLE page for the
+  // smallest `Forte`-bearing elements, so the Lua CONSOLE printing
+  // `ForteXorcist...` lines fed it — 70 console lines read as 70 visible rows
+  // over an empty list (and, inverted, a console that happened to be quiet
+  // masked a dead \u2715 selector). The count belongs to the ADDONS LIST
+  // PANEL: the left panel's `ADDONS` header plus the per-addon rows under it
+  // (each row = a checkbox + a \u2715), which makes the Lua console a SIBLING
+  // of what is counted. A panel that cannot be located at all reports
+  // -1, which the caller's 0-removed gate fails LOUDLY instead of passing.
+  const deepestCommonAncestor = (nodes) => {
+    let n = nodes[0] ? nodes[0].parentElement : null;
+    while (n && !nodes.every((x) => n.contains(x))) n = n.parentElement;
+    return n;
+  };
+  const addonsHeader = () => {
+    const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const hits = Array.from(doc.querySelectorAll('body *'))
+      .filter((n) => /^ADDONS\b/i.test(norm(n.textContent)));
+    return hits[hits.length - 1] || null;   // document order: last = innermost
+  };
+  const panelOf = () => {
+    const xs = allX();
+    const hdr = addonsHeader();
+    // THE HEADER ANCHORS THE PANEL. Climb from the `ADDONS` header to the
+    // SMALLEST element that also contains a \u2715: that element is the left
+    // add-on panel (header + its rows), and the console / right panes are its
+    // SIBLINGS, out of the count by construction. Anchoring on the \u2715 set
+    // alone would let one \u2715 outside the list (a dialog's close control)
+    // widen the anchor to the whole document and put the console back in the
+    // count.
+    if (hdr) {
+      for (let n = hdr; n; n = n.parentElement) {
+        const inPanel = xButtonsIn(n).length;
+        if (inPanel > 0) {
+          return { panel: n,
+            kind: `${inPanel} of ${xs.length} \u2715 in the header's panel` };
+        }
+      }
+      // The header with no \u2715 under it anywhere: an empty list. Count
+      // inside the header's own container.
+      const p = hdr.parentElement || hdr;
+      return { panel: p, kind: 'empty list, ADDONS header anchor' };
+    }
+    // No header on the page: fall back to the SMALLEST element holding every
+    // \u2715 (the list container), and name the weaker anchor in the row.
+    const p = deepestCommonAncestor(xs);
+    return { panel: p, kind: p
+      ? `no ADDONS header: ${xs.length} \u2715 common ancestor`
+      : 'no \u2715, no ADDONS header' };
+  };
+  const forteRowsVisible = (panel) => {
+    if (!panel) return -1;
+    const has = (n) => /Forte/.test(n.textContent || '');
+    const leaves = Array.from(panel.querySelectorAll('*'))
+      .filter((n) => has(n) && !Array.from(n.children).some(has));
+    // The panel with no separate leaf under it (a site that puts the add-on
+    // name right on the row element): the panel's own text is the row.
+    if (!leaves.length && has(panel)) leaves.push(panel);
+    return leaves.length;
+  };
+  const where = panelOf();
+  const visible = forteRowsVisible(where.panel);
+  const matched = targets().length;
+  let removed = 0;
+  for (let guard = 0; guard < 80; guard++) {
+    const t = targets()[0];
+    if (!t) break;
+    t.click();
+    removed += 1;
+    await nap(350);
+  }
+  return { visible, matched, removed, left: targets().length, panel: where.kind };
+}
+
+// The IMPORT-cleared row's verdict: `left === 0` (nothing left to clean) and
+// a 0-removal sweep is honest ONLY when the panel showed no Forte row to
+// remove (`visible === 0`); an unlocatable panel reports -1 and fails.
+const forteClearVerdict = (cleared) => cleared.left === 0
+  && (cleared.removed > 0 || cleared.visible === 0);
 
 async function uifBattery(options) {
   const opt = options || {};
@@ -173,56 +295,21 @@ async function uifBattery(options) {
       // 350 ms apart, rescanning until no Forte_ row carries one (the manager's
       // live recipe 2026-11-02; the old one-shot sweep never emptied the list,
       // so the re-import never landed: the site showed `ADDONS · 0/0 active`).
-      const cleared = await uifTab.evaluate(async () => {
-        // fx-clear-forte
-        const nap = (ms) => new Promise((r) => setTimeout(r, ms));
-        const xText = (b) => (b.textContent || '').trim() === '\u2715';
-        const rowOf = (b) => {
-          // Widest ancestor that still contains exactly this one ✕: the row.
-          let n = b.parentElement; let last = null;
-          while (n) {
-            const xs = Array.from(n.querySelectorAll('button')).filter(xText);
-            if (xs.length !== 1) break;
-            last = n; n = n.parentElement;
-          }
-          return last || b.parentElement;
-        };
-        const targets = () => Array.from(document.querySelectorAll('button'))
-          .filter(xText).filter((b) => {
-            const row = rowOf(b);
-            return /\bForte_/.test((row && row.textContent) || '');
-          });
-        // Defect 3 (2026-11-02): this sweep once removed 0 of 15 rows and
-        // PASSED, because "0 targets" and "nothing to clean" are the same
-        // number to a count-only check. Count the Forte rows visible in the
-        // add-on list independently of the \u2715 selector — the SMALLEST
-        // elements whose text carries `Forte` — so the caller can fail a
-        // 0-removal sweep that ran while rows stood on screen.
-        const forteRowsVisible = () => {
-          const has = (n) => /Forte/.test(n.textContent || '');
-          return Array.from(document.querySelectorAll('body *')).filter(
-            (n) => has(n) && !Array.from(n.children).some(has)).length;
-        };
-        const visible = forteRowsVisible();
-        const matched = targets().length;
-        let removed = 0;
-        for (let guard = 0; guard < 80; guard++) {
-          const t = targets()[0];
-          if (!t) break;
-          t.click();
-          removed += 1;
-          await nap(350);
-        }
-        return { visible, matched, removed, left: targets().length };
-      }).catch(() => ({ visible: -1, matched: 0, removed: 0, left: -1 }));
+      // The sweep's bytes live at module scope (forteClearSweep) so the mock
+      // harness scripts/uif_battery_mock_test.js can drive the SAME code
+      // against a fake DOM; `evaluate` serialises the function itself, and
+      // inside the page it runs on the page's own document (docArg unset).
+      const cleared = await uifTab.evaluate(forteClearSweep)
+        .catch(() => ({ visible: -1, matched: 0, removed: 0, left: -1,
+          panel: 'sweep evaluate failed' }));
       // 0 removed is honest only when no Forte row was visible to remove.
-      const clearOk = cleared.left === 0
-        && (cleared.removed > 0 || cleared.visible === 0);
+      const clearOk = forteClearVerdict(cleared);
       add('IMPORT cleared previous Forte_ imports', clearOk,
         'every Forte_ row removed (per-row \u2715, none left); 0 removed '
-        + 'only allowed with no Forte row visible',
+        + 'only allowed with no Forte row visible IN THE ADDON LIST PANEL',
         'selector: button text \'\u2715\' inside a row matching /Forte_/ | '
-        + `Forte rows visible before: ${cleared.visible} | `
+        + `panel: ${cleared.panel} | `
+        + `Forte rows visible in the panel before: ${cleared.visible} | `
         + `${cleared.removed} of ${cleared.matched} matched removed, `
         + `${cleared.left} left`);
       await sleep(1500);
@@ -481,7 +568,13 @@ function report(zip, rows) {
 }
 
 // Kernel-friendly publication: the file evaluates to the function, and the
-// name is reachable as a global for kernels that eval-then-call.
+// name is reachable as a global for kernels that eval-then-call. The clear
+// sweep and its verdict ride along as properties so the mock harness
+// (scripts/uif_battery_mock_test.js) drives the shipped bytes.
 if (typeof globalThis !== 'undefined') globalThis.uifBattery = uifBattery;
-if (typeof module !== 'undefined' && module.exports) module.exports = uifBattery;
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = uifBattery;
+  module.exports.forteClearSweep = forteClearSweep;
+  module.exports.forteClearVerdict = forteClearVerdict;
+}
 uifBattery;

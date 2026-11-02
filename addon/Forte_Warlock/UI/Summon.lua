@@ -11,29 +11,44 @@
 -- (Forte_Summon.lua:597), and runs FORWARD with the channel (the bar fills
 -- as the cast proceeds).
 --
--- All STATE lives in Core/Tools.lua's SummonTracker; this file is a pure
+-- All STATE lives in Core/Tools.lua's SummonTracker (the own ritual) and
+-- Core/Group.lua's roster model (the raid's active rituals, bound through
+-- `SetSpy`, Core/Comms.lua owning the live instance); this file is a pure
 -- renderer of `:Channeling()`, `:Progress()` (the assignment's names) plus
 -- the channel window (PLAN §3.4 "pure renderer").
 --
 -- The original's Summon Assistant was a raid chat conductor (spec §6,
 -- SU-01…SU-09: the portal/summon queues, whisper traffic, the role map, the
--- "SUMMON ME" spam). docs/warlock-tools.md deliberately drops ALL of it: the
--- v1 keeps the state machine — the channel, the target, the success and the
--- cancel — and the one widget that state machine needs: the channel plate.
--- Nothing is announced, nothing is queued.
+-- "SUMMON ME" spam). docs/warlock-tools.md drops the map sampling (SU-02
+-- NOT-feasible), the whisper queueing (SU-06) and the spam; the QUEUE half
+-- is live since H6/F-A (2026-11-02): the `SU1 <by> <target>` / `SE1` pair
+-- rides Core/Comms.lua into `Group:Queue()`, and the queue rows ride this
+-- plate in the original's SU_DrawSummon layout — one row per active ritual,
+-- the person being summoned as the row's name (`FWSUBar<i>Name` = `t1`,
+-- Forte_Summon.lua:152-160) and the warlock running it as its right label
+-- (the re-keyed priority `su[index][7] = "<"..player..">"`,
+-- Forte_Summon.lua:322-340), the plate's count slot the rituals in flight
+-- (`FWSUFrameAmount:SetText("x"..n)`, Forte_Summon.lua:165). The rows carry
+-- NO bar fill: the wire says a ritual is running, never how far along it is
+-- (the 5 s channel is the SENDER's own read, and the sender draws its own
+-- row), and the original's far/all pair is the dropped distance sampling.
+-- My own channel keeps the first row (the plate's second line), the queue
+-- rows stack under it, the run capped at `SummonMax` (default 5,
+-- Forte_Summon.lua:590).
 --
--- The channel law: the plate lives only while the channel does — SU-09's
--- "the indicator retires the moment the cast ends", no lingering. Unlike the
--- Soulstone plate (a standing readout), the original's Summon frame rides
--- the live summons (`SU_DrawSummon` prints counts of CURRENT summoners,
--- Forte_Summon.lua:156-166), and an idle Summon plate would claim a ritual
--- that is not running: no channel, no plate.
+-- The channel law: the plate's OWN channeling half lives only while the
+-- channel does — SU-09's "the indicator retires the moment the cast ends",
+-- no lingering. The queue half lives while a claim is in the model, so the
+-- plate shows for the raid's rituals too (SU-03/04: a queue plate is the
+-- module's whole point); an EMPTY roster and an empty queue retire it.
 --
 -- The target law: the tracker hands over ONE string it owns (captured at the
 -- channel's first signal, from the combat-log payload,
 -- docs/spell-sweep-2026-11-01.md); an unread target prints `(target unread)`.
 --
--- The 10 Hz law: `Update` returns TRUE while a channel is live.
+-- The 10 Hz law: `Update` returns TRUE while a channel is live — a queue row
+-- is not time-driven (the pair is the whole truth), so the queue alone asks
+-- for no tick.
 --
 -- Skin/position/settings/lock/clock: the shared law in UI/Frame.lua.
 -- Settings (module "Warlock"): SummonWidth (the plate width), SummonHeight
@@ -83,10 +98,53 @@ function Summon:SizeChangedHook()
     self:SetFillFraction(self._fillFrac or 0)
 end
 
+-- ----------------------------------------------------------------- the spy --
+
+--- The queue's row cap: the original's `SummonMax` (default 5,
+--- Forte_Summon.lua:590) — the plate grows by whole row steps and stops
+--- there.
+Summon.MAX_ROWS = 5
+
+--- The warlock label of a queue row: the original's re-keyed priority,
+--- `su[index][7] = "<"..player..">"` (Forte_Summon.lua:322-340, drawn as
+--- `FWSUBar<i>Info` at :154).
+function Summon:FormatWarlock(by)
+    return "<" .. tostring(by) .. ">"
+end
+
+--- The Group model seam (a Core/Group.lua instance; Core/Comms.lua owns the
+--- live one, UI/Module.lua's `_InitViews` binds it, tests inject their own —
+--- the Healthstone `SetSpy` convention).
+function Summon:SetSpy(group)
+    self.Spy = group
+    self._count, self._frac, self._timeKey, self._target = nil, nil, nil, nil
+end
+
+--- The summon queue (SU-03/04): one row per active ritual of the raid,
+--- `Group:Queue(max)` — the claims sorted by warlock name, so the draw
+--- order is deterministic (the original sorts by class/distance/name,
+--- Forte_Summon.lua:27, and the distance half is SU-02 NOT-feasible). The
+--- target is the row's name (`Name` = `t1`, Forte_Summon.lua:152-160), the
+--- warlock its right label, and the bar carries no fill (the header law).
+function Summon:RenderQueueRows(rows)
+    local n = 0
+    for i, row in ipairs(rows or {}) do
+        local e = self:ExtraRow(i)
+        if e then
+            self:SetExtraRowText(e, row.target,
+                self:FormatWarlock(row.warlock))
+            self:SetExtraRowFraction(e, 0)
+            n = i
+        end
+    end
+    self:SetExtraRowsShown(n)
+end
+
 -- ------------------------------------------------------------------ update --
 
---- One render pass; TRUE while a channel is live.
-function Summon:Update(now)
+--- One render pass; TRUE while MY channel is live (a queue row is not
+--- time-driven).
+function Summon:Update(_now)
     local t = self.Tracker
     local live, frac, remaining = false, 0
     if t and self:Enabled() and t:Channeling() then
@@ -99,36 +157,59 @@ function Summon:Update(now)
             remaining = r
         end
     end
-    self:SetShown(live)
-    if not live then return false end
-    self:SetRowShown(true)
-    if frac ~= self._frac then
-        self._frac = frac
-        self:SetFillFraction(frac)
+    -- The queue half (F-A): the raid's active rituals, from the Core/Group
+    -- model the SU1/SE1 pair feeds. Claims are a claim of their own; an
+    -- empty queue with no channel is none.
+    local rows
+    local spy = self.Spy
+    if spy and self:Enabled() then rows = spy:Queue(self.MAX_ROWS) end
+    local queued = rows and #rows or 0
+    local show = live or queued > 0
+    self:SetShown(show)
+    if not show then
+        self:SetExtraRowsShown(0)
+        return false
     end
-    -- The count: one ritual channeling (the plate's count slot,
-    -- Forte_Summon.lua:165).
-    if self.amountFS:GetText() ~= "x1" then
-        self.amountFS:SetText("x1")
+    -- The plate's own channeling row keeps the first row (the plate's
+    -- second line); it lives exactly as long as the channel (SU-09).
+    self:SetRowShown(live)
+    if live then
+        if frac ~= self._frac then
+            self._frac = frac
+            self:SetFillFraction(frac)
+        end
+        local who = Frame.FormatTarget(t:Snapshot().target)
+        if who ~= self._target then
+            self._target = who
+            self.nameFS:SetText(who)
+        end
     end
-    local key = Frame.ClockKey(remaining)
+    -- The count: the rituals in flight — the queue's plus my own
+    -- (the plate's count slot, Forte_Summon.lua:165).
+    local amount = "x" .. (queued + (live and 1 or 0))
+    if amount ~= self._count then
+        self._count = amount
+        self.amountFS:SetText(amount)
+    end
+    -- The clocks: the channel's mm:ss at the bar's right and in the plate's
+    -- Info slot (Forte_Summon.xml:107-111); no channel, no clock (the
+    -- original's far/all pair is the dropped distance sampling).
+    local key = live and Frame.ClockKey(remaining) or -1
     if key ~= self._timeKey then
         self._timeKey = key
-        local clock = Frame.FormatClock(remaining)
+        local clock = live and Frame.FormatClock(remaining) or ""
         self.timeFS:SetText(clock)
-        self.infoFS:SetText(clock)               -- the plate's Info slot,
-    end                                          -- Forte_Summon.xml:107-111
-    local who = Frame.FormatTarget(t:Snapshot().target)
-    if who ~= self._target then
-        self._target = who
-        self.nameFS:SetText(who)
+        self.infoFS:SetText(clock)
     end
+    self:RenderQueueRows(rows)
     self:ApplyTextVisibility()
-    return true
+    return live
 end
 
 function Summon:RenderIdle()
     self._frac, self._timeKey, self._target = nil, nil, nil
+    self._count = nil
+    self:SetExtraRowsShown(0)
     self:SetRowShown(false)
     self:SetShown(false)
     self.amountFS:SetText("")
@@ -141,15 +222,19 @@ end
 function Summon:SetTracker(tracker)
     self.Tracker = tracker
     self._frac, self._timeKey, self._target = nil, nil, nil
+    self._count = nil
 end
 
 function Summon:StatusLine()
     local t = self.Tracker
     local live = t and t:Channeling()
     local remaining = live and (select(2, t:Progress()))
-    return string.format("Summon Assistant: %s%s | %dx%d | %s",
+    local queue = 0
+    if self.Spy then queue = self.Spy:QueueCount() end
+    return string.format("Summon Assistant: %s%s | queue %d | %dx%d | %s",
         live and "channel" or "idle",
         live and (" " .. Frame.FormatClock(remaining)) or "",
+        queue,
         self.skin.Width, self.skin.Height,
         self:Enabled() and "on" or "off")
 end

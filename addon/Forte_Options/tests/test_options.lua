@@ -1374,3 +1374,89 @@ test("Cooldown page: the Basics / Specifics section recycles restore the new row
     assertEquals(250, S:Get("Cooldown", "Width"))
     assertEquals(2.99, S:Get("Cooldown", "IgnoreShort"))
 end)
+
+-- ============================ F-C: the "Item proc timers (experimental)" row
+-- The `Cooldown.Procs` flag (H7) got its page row on slice F-C (2026-11-03).
+-- The box is the ONLY public face of Forte_Cooldown/Core/Procs.lua, and its
+-- live half is THAT module's own `Procs:_WireSettings` listener (the
+-- Forte_Cooldown-must-work-without-Forte_Options law): the box writes the
+-- store through FX.Settings, the listener runs `Procs:SetEnabled`, and the
+-- first enable asks `FX.LoadAddOnOnDemand("Forte_ItemProcs")` for the
+-- load-on-demand proc data (docs/perf.md §4 fix 1) -- the reason the default
+-- is OFF. The row is looked up by key in SPECIFICS, so on the pre-F-C page
+-- (no Procs widget, no SPECIFICS key) this test fails at the lookup: that IS
+-- the fails-on-the-old-code proof. `C_AddOns` is stubbed for the cycle, so
+-- "the data add-on loads once" is a COUNT and the suite never really pulls
+-- the 400 proc rows into the session; the shipped OFF default, the real
+-- loader and the load ledger are restored before the test returns.
+test("Cooldown page: the Item proc timers box is the live Cooldown.Procs switch",
+function()
+    local P = FX.Cooldown and FX.Cooldown.Engine and FX.Cooldown.Engine.Procs
+    assertNotNil(P, "the proc tracker of the cooldown engine is live")
+    O:Open("Cooldown")
+    local page = O.pagesBuilt["Cooldown"]
+    local function widget(section, key)
+        for _, wd in ipairs(section.widgets) do
+            if wd.spec.key == key then return wd end
+        end
+    end
+    local procs = widget(page.sections[3], "Procs")
+    assertNotNil(procs, "SPECIFICS carries the Item proc timers row")
+    local label = procs.spec.label or ""
+    assertTrue(label:find("Item proc timers") ~= nil, "the row names the feature")
+    assertTrue(label:find("%(experimental%)") ~= nil, "and says experimental")
+    local tip = (procs.spec.tip or ""):lower()
+    assertTrue(tip:find("experimental") ~= nil, "the tip says experimental")
+    assertTrue(tip:find("launch%-day probe") ~= nil,
+        "the tip names in-combat proc detection a launch-day probe")
+
+    -- The shipped default, and the box reading it.
+    assertEquals(false, S:GetDefault("Cooldown", "Procs"))
+    assertEquals(false, S:Get("Cooldown", "Procs"))
+    assertEquals(false, P:IsEnabled(), "the tracker starts off")
+    procs.refresh()
+    assertEquals(false, procs.obj:GetChecked())
+
+    local savedAPI = _G.C_AddOns
+    local savedLedger = FX._loadedAddOns["Forte_ItemProcs"]
+    local calls = 0
+    FX._loadedAddOns["Forte_ItemProcs"] = nil
+    _G.C_AddOns = {
+        LoadAddOn = function(name)
+            assertEquals("Forte_ItemProcs", name, "the loader is asked for the proc data")
+            calls = calls + 1
+            return true
+        end,
+        IsAddOnLoaded = function() return false, false end,
+    }
+    local ok, why = pcall(function()
+        -- ON: the real widget's click. The enable must be live on the next
+        -- statement -- no reload, no re-open: the OnChange path is the wire.
+        procs.obj:GetScript("OnClick")(procs.obj, "LeftButton")
+        assertEquals(true, S:Get("Cooldown", "Procs"))
+        assertTrue(P:IsEnabled(), "the click enabled the tracker")
+        assertEquals(1, calls, "the load-on-demand data add-on was asked for")
+        procs.refresh()
+        assertTrue(procs.obj:GetChecked(), "the box reads the store back")
+        -- OFF: the same box, the flag down, the watched set gone, and no
+        -- second ask of the loader.
+        procs.obj:GetScript("OnClick")(procs.obj, "LeftButton")
+        assertEquals(false, S:Get("Cooldown", "Procs"))
+        assertFalse(P:IsEnabled(), "the same click disables it")
+        assertEquals(0, (P:Counts()), "and drops every watched proc")
+        assertEquals(1, calls, "no second load across the cycle")
+        procs.refresh()
+        assertEquals(false, procs.obj:GetChecked())
+        -- ON a second time: the ledger settles the name, so the feature
+        -- comes up with NO loader call at all.
+        procs.obj:GetScript("OnClick")(procs.obj, "LeftButton")
+        assertTrue(P:IsEnabled(), "the box drives the tracker again")
+        assertEquals(1, calls, "the loader is idempotent: never asked twice")
+    end)
+    -- Restore, on the success path AND on a failed assert inside the pcall.
+    _G.C_AddOns = savedAPI
+    FX._loadedAddOns["Forte_ItemProcs"] = savedLedger
+    S:Set("Cooldown", "Procs", false)
+    assertFalse(P:IsEnabled(), "the session leaves with the shipped OFF flag")
+    assertTrue(ok, "the box drives the tracker: " .. tostring(why))
+end)

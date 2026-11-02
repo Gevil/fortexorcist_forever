@@ -14,6 +14,33 @@ headless interface simulator and on uiforever.com — not in a live game.
 
 ## Unreleased — 2026-11-02 (Iteration H: the launch kit)
 
+- **Item proc timers have a switch.** The Cooldown Timer page's Specifics
+  block gains **Item proc timers (experimental)**: tick it and the internal
+  cooldown of an item or weapon proc rides the bar (the tracker of
+  `Forte_Cooldown/Core/Procs.lua`); untick it and the feature, and the
+  load-on-demand proc data add-on that only it pulls in, go away. The tip says
+  what it is: experimental, off by default, and in-combat proc detection is a
+  launch-day probe. The change is live the moment you tick it, and
+  `/fx status` prints the state the box just set.
+- **20 cast announces on the Raid Messages page.** The Druid, Paladin and
+  Warrior raid warnings of the original (Barkskin, Survival Instincts,
+  Frenzied Regeneration, Rebirth, Innervate, Tranquility; Aura Mastery,
+  Salvation, Sacrifice, Freedom, Hand of Protection, Divine Protection,
+  Guardian of Ancient Kings, Ardent Defender; Shield Wall, Last Stand,
+  Rallying Cry, Enraged Regeneration, Intervene, Vigilance) are back as 20
+  sections of three controls — the text (the original's, verbatim), a group
+  send, a channel send. **Every one ships OFF**: a fresh install never talks
+  to a party about a cooldown you never asked it to talk about, and each
+  section tip says what the original shipped on so you can restore it. The
+  two Paladin rows whose spell the current build dropped (Salvation, Ardent
+  Defender) say so on the page.
+- **Pet-cast timer rows are back.** Iteration G removed them because the
+  1.60.1.70425 data pull had no Succubus kit; the live 1.60.1.70707 spell store
+  has it (Seduction 6358/6359, Mesmerize 24594, Spell Lock, Soothing Kiss), so
+  the Spell Timer now also follows the **pet's** own casts: a pet Seduction
+  draws its 15-second crowd-control row, and its fading and early-break
+  announces — the pair the original shipped party-ON — light with the boxes
+  ticked.
 - **Probe results are copyable.** `/fx probe` still prints its lines in chat,
   and now also opens a text window holding the whole run: clicking in the
   text selects all of it for Ctrl-C, and the `X` button (or `Esc`) closes it.
@@ -44,7 +71,14 @@ headless interface simulator and on uiforever.com — not in a live game.
   shipped `ForteXorcist.CONST.VERSION`, option `expectMarker` for a newer
   build's symbol); and a `fresh` clear that removed 0 rows while Forte rows
   stood in the add-on list now fails, logging the selector, the matched
-  count and the visible row count.
+  count, the panel it counted and the visible row count. The visible-row
+  count reads the **ADDONS list panel** — the left panel's header plus the
+  per-addon rows under it — so the Lua console printing `ForteXorcist...`
+  lines can no longer pose as add-on rows (70 console lines over an empty
+  list used to read as 70 rows and fail the row); `scripts/uif_battery_mock_test.js`
+  runs the shipped sweep against six fake pages (console noise over an empty
+  panel, 16 rows, one row, a dead `✕`, a stray `✕` outside the panel,
+  an unlocatable panel) and fails on the pre-fix counting.
 
 ## 2026-11-02 (Iteration G)
 

@@ -357,3 +357,187 @@ function()
     hs.present, hs.count = saved[1], saved[2]
     hs.cdStart, hs.cdDuration = saved[3], saved[4]
 end)
+
+-- ==================================================== shard spy rows (F-A) --
+-- The remaining half of docs/warlock-tools.md "Open": the plate half of the
+-- Shard Spy. The stubbed CHAT_MSG_ADDON rides the comms frame's OWN OnEvent
+-- script with the catalog payload order (prefix, text, channel, sender, ...)
+-- of ChatInfoDocumentation.lua:800 — the sender is the 4th — and the plate
+-- renders through the comms' own KickViews, so the test drives the same
+-- path the live client's chat line does. No Update call in this test.
+
+test("the Shard Spy rows ride the Shards plate through the comms frame",
+function()
+    local Shards = FX.Warlock.Shards
+    UI:_InitViews()                     -- the ensureBuilt convention
+    resetComms()
+    C.readers.selfName = function() return "Me" end
+    local group = C.group
+    group:SetRoster({
+        { name = "Alice", class = "WARLOCK", present = true, alive = true },
+        { name = "Cara", class = "WARLOCK", present = true, alive = true },
+        { name = "Bob", class = "WARRIOR", present = true, alive = true },
+    })
+    -- NO own read: the roster alone has to be the plate's claim.
+    local savedCounter = Shards.Tracker
+    Shards:SetTracker(WK.NewShardCounter({
+        countReader = function() return nil end,
+        powerReader = function() return nil end,
+    }))
+    Shards:SetSpy(group)
+    Shards:RenderIdle()
+    assertFalse(Shards.anchor:IsShown(), "idle before the first word")
+    C:EnableEvents()
+    local f = C._eventFrame
+    local handler = f:GetScript("OnEvent")
+    assertEquals("function", type(handler))
+    handler(f, "CHAT_MSG_ADDON", "FXWK", "SH1 12", "party", "Alice")
+    assertTrue(Shards.anchor:IsShown(),
+        "a warlock reporting shards is a claim, through the real frame")
+    -- No own read is printed as unread, never guessed (the `/fx status` ?).
+    assertEquals("x?", Shards.amountFS:GetText())
+    -- Row 0 is the spy's TOTAL row (the Healthstone Spy's Total bar,
+    -- Forte_Healthstone.lua:197-199): the raid's shards.
+    assertTrue(Shards.row:IsShown())
+    assertEquals("Total", Shards.nameFS:GetText())
+    assertEquals("12", Shards.timeFS:GetText())
+    -- The rows: one per known warlock, sorted by name (Group:ShardRows).
+    local e1 = Shards.extraRows and Shards.extraRows[1]
+    assertNotNil(e1, "the first row is built")
+    assertTrue(e1.row:IsShown())
+    assertEquals("Alice", e1.nameFS:GetText())
+    assertEquals("12", e1.timeFS:GetText())
+    assertTrue(e1.nameFS:IsShown(), "the row's name is on screen")
+    assertTrue(e1.timeFS:IsShown(), "and its count")
+    -- Cara has answered nothing: her row carries the marker and an empty
+    -- bar, and the right Info slot carries the badge (the Amount2 law,
+    -- Forte_Healthstone.lua:165: x<the ones that report in unanswered>).
+    local e2 = Shards.extraRows[2]
+    assertTrue(e2.row:IsShown())
+    assertEquals("Cara", e2.nameFS:GetText())
+    assertEquals("?", e2.timeFS:GetText())
+    assertEquals("x1", Shards.infoFS:GetText())
+    assertTrue(e2.fill:GetWidth() == 0, "an unread count draws no bar")
+    -- The second answer: the badge clears, the total sums, and the bars
+    -- scale to the raid's own maximum (HS_DrawHealthstone's Bar:SetValue,
+    -- Forte_Healthstone.lua:148).
+    handler(f, "CHAT_MSG_ADDON", "FXWK", "SH1 30", "party", "Cara")
+    assertEquals("42", Shards.timeFS:GetText())
+    assertEquals("x0", Shards.infoFS:GetText())
+    assertEquals("30", Shards.extraRows[2].timeFS:GetText())
+    assertTrue(Shards.extraRows[2].fill:GetWidth()
+        > Shards.extraRows[1].fill:GetWidth(),
+        "the fuller warlock draws the longer bar")
+    -- A non-warlock's line counts in the roster, never as a row: the
+    -- Shard Spy's row set is the roster's WARLOCK column.
+    handler(f, "CHAT_MSG_ADDON", "FXWK", "SH1 9", "party", "Bob")
+    assertEquals(2, #(Shards.Spy:ShardRows(Shards.MAX_ROWS)))
+    assertEquals("42", Shards.timeFS:GetText())
+    -- Leaving the group: the model clears, an empty roster is NO claim, the
+    -- plate retires (a solo player's plate is the pre-H6 shape).
+    handler(f, "GROUP_LEFT")
+    assertTrue(not Shards.anchor:IsShown(), "the roster left with the group")
+    assertTrue(not Shards.extraRows[1].row:IsShown(), "and the rows with it")
+    Shards:RenderIdle()
+    Shards:SetSpy(nil)
+    Shards:SetTracker(savedCounter)
+    -- The comms kicks rode the Healthstone plate through its HS1/HS2/HS3
+    -- art law; restore the vendored module art the suite's icon census
+    -- expects (the convention of the spy-rows test above).
+    HS:RenderIdle()
+    HS._iconArt = nil
+    HS.icon:SetTexture(HS.skin.IconTexture)
+    C:DisableEvents()
+    C.readers = {}
+    resetComms()                        -- the singleton leaves clean state
+end)
+
+-- =================================================== summon queue rows (F-A) --
+-- SU-03/04, the other half of the same "Open" list: the queue rows on the
+-- Summon plate, same driven path. The row layout is the original's
+-- SU_DrawSummon (the target as the row's name, Forte_Summon.lua:152-160;
+-- the `<warlock>` priority label, :322-340) and the plate's count slot is
+-- `x<the rituals in flight>` (:165).
+
+test("the summon queue rows ride the Summon plate through the comms frame",
+function()
+    local Summon = FX.Warlock.Summon
+    UI:_InitViews()
+    resetComms()
+    C.readers.selfName = function() return "Me" end
+    local group = C.group
+    group:SetRoster({
+        { name = "Alice", class = "WARLOCK", present = true, alive = true },
+        { name = "Cara", class = "WARLOCK", present = true, alive = true },
+    })
+    local savedTracker = Summon.Tracker
+    local box = { 30000 }
+    Summon:SetTracker(WK.NewSummonTracker({
+        now = function() return box[1] end, channelSeconds = 5,
+    }))
+    Summon:SetSpy(group)
+    Summon:RenderIdle()
+    assertFalse(Summon.anchor:IsShown(),
+        "no channel and no queue is no plate (SU-09)")
+    C:EnableEvents()
+    local f = C._eventFrame
+    local handler = f:GetScript("OnEvent")
+    assertEquals("function", type(handler))
+    handler(f, "CHAT_MSG_ADDON", "FXWK", "SU1 Alice Bob", "party", "Alice")
+    assertTrue(Summon.anchor:IsShown(),
+        "the raid's ritual is a claim, through the real frame")
+    assertFalse(Summon.row:IsShown(),
+        "no own channel: my channeling row stays off")
+    assertEquals("x1", Summon.amountFS:GetText(),
+        "the rituals in flight (:165)")
+    local e = Summon.extraRows and Summon.extraRows[1]
+    assertNotNil(e, "the queue row is built")
+    assertTrue(e.row:IsShown())
+    assertEquals("Bob", e.nameFS:GetText())        -- the target, :152-160
+    assertEquals("<Alice>", e.timeFS:GetText())    -- the warlock, :322-340
+    assertTrue(e.nameFS:IsShown() and e.timeFS:IsShown())
+    assertTrue(e.fill:GetWidth() == 0,
+        "the wire says a ritual runs, never how far (SU-02) — no bar")
+    assertFalse(Summon:Update(box[1]),
+        "a queue row is no countdown: the plate asks for no tick")
+    -- A second ritual stacks the run (the original's bar run,
+    -- Forte_Summon.lua:296-301).
+    handler(f, "CHAT_MSG_ADDON", "FXWK", "SU1 Cara Cara", "party", "Cara")
+    assertEquals("x2", Summon.amountFS:GetText())
+    assertEquals("Cara", Summon.extraRows[2].nameFS:GetText())
+    assertEquals("<Cara>", Summon.extraRows[2].timeFS:GetText())
+    -- My OWN ritual joins the plate: my channel keeps the first row (the
+    -- plate's second line), the clocks come back, and the count counts it.
+    box[1] = 30001
+    Summon.Tracker:OnCastSent("Ritual of Summoning", "Zed")
+    assertTrue(Summon:Update(box[1]), "my channel asks for the 10 Hz pass")
+    assertTrue(Summon.row:IsShown())
+    assertEquals("Zed", Summon.nameFS:GetText())
+    assertEquals("0:05", Summon.timeFS:GetText())
+    assertEquals("0:05", Summon.infoFS:GetText())
+    assertEquals("x3", Summon.amountFS:GetText())
+    -- The ends: my channel self-retires (SU-09, its clocks with it), the
+    -- SE1 pair clears the claims, and an empty queue is no plate.
+    box[1] = 30006
+    Summon.Tracker:End("Ritual of Summoning", "succeeded")
+    handler(f, "CHAT_MSG_ADDON", "FXWK", "SE1 Alice Bob", "party", "Alice")
+    assertEquals("x1", Summon.amountFS:GetText())
+    assertEquals("", Summon.infoFS:GetText(), "no channel, no clock")
+    handler(f, "CHAT_MSG_ADDON", "FXWK", "SE1 Cara Cara", "party", "Cara")
+    assertFalse(Summon.anchor:IsShown(), "the queue emptied, the plate goes")
+    assertTrue(not Summon.extraRows[1].row:IsShown())
+    handler(f, "GROUP_LEFT")
+    assertFalse(Summon.anchor:IsShown())
+    Summon:RenderIdle()
+    Summon:SetSpy(nil)
+    Summon:SetTracker(savedTracker)
+    -- The comms kicks rode the Healthstone plate through its HS1/HS2/HS3
+    -- art law; restore the vendored module art the suite's icon census
+    -- expects (the convention of the spy-rows test above).
+    HS:RenderIdle()
+    HS._iconArt = nil
+    HS.icon:SetTexture(HS.skin.IconTexture)
+    C:DisableEvents()
+    C.readers = {}
+    resetComms()                        -- the singleton leaves clean state
+end)

@@ -369,3 +369,100 @@ function()
     assertFalse(junkNum)
     assertEquals(1, calls, "a junk name never reaches the loader")
 end)
+
+-- ------------------------------------------------ listed is not parsed (F-B)
+-- `run-tests Forte_<Class>` puts the add-on under test in the runner's add-on
+-- list: `C_AddOns.IsAddOnLoaded` answers TRUE for it while none of its files
+-- have been parsed (measured in the sim: `FX.Data.Shaman` absent, its module
+-- unregistered, `IsAddOnLoadOnDemand` true). Trusting the listing settles the
+-- ledger on true and the class's data never arrives -- the hole Forte_Shaman's
+-- suite used to patch by calling the raw loader itself. The loader's own probe
+-- is the add-on's data table, so the listing can not hide an unparsed add-on.
+
+test("a listed add-on whose files never ran is loaded for real", function()
+    local savedAddOns, savedLedger = _G.C_AddOns, FX._loadedAddOns
+    local savedProbe = FX.ADDON_MARKERS.Forte_Mage
+    local calls, probes = 0, 0
+    FX._loadedAddOns = {}
+    FX.ADDON_MARKERS.Forte_Mage = function()
+        probes = probes + 1
+        return false                       -- the files have not run
+    end
+    _G.C_AddOns = {
+        IsAddOnLoaded = function() return true, true end,   -- the runner's list
+        IsAddOnLoadOnDemand = function() return true end,
+        LoadAddOn = function(name)
+            calls = calls + 1
+            assertEquals("Forte_Mage", name)
+            return true
+        end,
+    }
+
+    local ok = FX.LoadClassAddOn("MAGE")
+    local usable = FX.IsAddOnLoadedOnDemand("Forte_Mage")
+    local again = FX.LoadClassAddOn("MAGE")
+
+    _G.C_AddOns = savedAddOns
+    FX._loadedAddOns = savedLedger
+    FX.ADDON_MARKERS.Forte_Mage = savedProbe
+
+    assertTrue(ok, "the listed-but-unparsed add-on reports a load")
+    assertEquals(1, calls,
+        "the listing did not excuse the loader: LoadAddOn ran once")
+    assertTrue(probes > 0, "the loader asked the add-on's own probe")
+    assertFalse(usable,
+        "is-its-data-usable says NO while the files have not run")
+    assertTrue(again, "the second call rides the ledger, not the loader")
+    assertEquals(1, calls, "the loader ran exactly once")
+    assertEquals(1, FX._listedNotRun.Forte_Mage,
+        "the listed-not-parsed shape is counted for /fx status")
+end)
+
+test("a listed add-on whose probe says its files ran is not re-loaded", function()
+    local savedAddOns, savedLedger = _G.C_AddOns, FX._loadedAddOns
+    local calls = 0
+    FX._loadedAddOns = {}
+    -- Forte_Paladin (the profile class) is listed AND parsed: its probe is the
+    -- real `FX.Data.Paladin`, so the listing is the whole truth.
+    local own = FX.ClassAddOnFor(FX._playerClass)
+    _G.C_AddOns = {
+        IsAddOnLoaded = function(name)
+            if name == own then return true, true end
+            return false, false
+        end,
+        IsAddOnLoadOnDemand = function() return true end,
+        LoadAddOn = function() calls = calls + 1; return true end,
+    }
+    local ok = FX.LoadAddOnOnDemand(own)
+    local usable = FX.IsAddOnLoadedOnDemand(own)
+    local noProbe = FX.IsAddOnLoadedOnDemand("Forte_Someone_Elses")
+    _G.C_AddOns = savedAddOns
+    FX._loadedAddOns = savedLedger
+    assertTrue(ok, "a genuinely loaded add-on reports true")
+    assertTrue(usable)
+    assertEquals(0, calls, "an add-on that is in is never handed to the loader again")
+    assertFalse(noProbe, "a name the session does not carry is false, not an error")
+    assertNil(FX._listedNotRun[own], "the honest listing costs no count")
+end)
+
+test("AddOnFilesRan reads the add-on's own probe, and trusts an unknown name",
+function()
+    local savedProbe = FX.ADDON_MARKERS.Forte_Mage
+    -- No probe registered for a name (an always-loaded split, a third-party
+    -- add-on): the listing is all the loader has, so it is believed.
+    FX.ADDON_MARKERS.Forte_Mage = nil
+    assertTrue(FX.AddOnFilesRan("Forte_Mage"), "no probe: the listing is believed")
+    assertFalse(FX.AddOnFilesRan(nil), "a junk name is false")
+    FX.ADDON_MARKERS.Forte_Mage = function() error("FXTEST-PROBE-RAISE", 0) end
+    assertFalse(FX.AddOnFilesRan("Forte_Mage"), "a raising probe is not a run")
+    FX.ADDON_MARKERS.Forte_Mage = savedProbe
+    -- The derived class probes: the profile class's own data table is in.
+    local ownAddOn = FX.ClassAddOnFor(FX._playerClass)
+    assertTrue(FX.AddOnFilesRan(ownAddOn),
+        "a class probe reads that class's generated data table")
+    local other = FX.ClassAddOnFor("MAGE")
+    if other ~= ownAddOn then
+        assertFalse(FX.AddOnFilesRan(other),
+            "a class the session has not parsed fails its own probe")
+    end
+end)
