@@ -9,15 +9,34 @@ textures).
 > first real-client session is launch day (see [`docs/launch-day.md`](docs/launch-day.md)).
 > Plan, decisions and the full test record: [`PLAN.md`](PLAN.md).
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/demo/live-cooldown-bar.gif" alt="Cooldown bar and Spell Timer running live: icons slide along the power-scale bar, a ready cooldown pops as a Secondary Splash, timer rows count down" width="600"><br>
+  <em>Live in a Forever-style client (uiforever.com): cooldowns slide along the power-scale bar, Kick pops ready as the
+  Secondary Splash, Spell Timer rows count down per target. (<a href="docs/demo/live-cooldown-bar.mp4">MP4</a>)</em>
+</p>
+
+| Cooldown Timer + Spell Timer | Warlock plates |
+|---|---|
+| <img src="docs/demo/cooldown-bar-and-timer.png" alt="Cooldown bar with time tags above two Spell Timer target groups" width="420"> | <img src="docs/demo/warlock-plates.png" alt="The four purple Warlock plates: shards, soulstone, summon, healthstone" width="420"> |
+
+<p align="center">
+  <img src="docs/demo/options-window.png" alt="The original-style options window with its 16-cell module index" width="620"><br>
+  <em>The options window in the original's style: profile tabs, module index, every setting applies live.</em>
+</p>
+
 ## What it does today
 | Module | What you see |
 |---|---|
-| **Cooldown Timer** (`Forte_Cooldown`) | One horizontal bar on a power-scale time axis; icons slide left as cooldowns burn, overlapping icons cross-fade, coloured segment fills, cast splash and ready pulse, charge counts, trinkets/potions (`Forte_Items`) and weapon enchants |
-| **Spell Timer** (`Forte_Timer`) | Stacked rows per spell and target, grouped by target, coloured by kind, with the original's reconciliation rules (own casts predicted; corrected from real auras out of combat) |
+| **Cooldown Timer** (`Forte_Cooldown`) | One horizontal bar on a power-scale time axis; icons slide left as cooldowns burn, overlapping icons cross-fade, coloured segment fills, cast splash and ready pulse, charge counts, a failed-cast warning flash, vertical/flipped/hide-when-empty modes, trinkets/potions (`Forte_Items`) and weapon enchants |
+| **Secondary Splash** | The original's big pop of a cooldown's icon the moment it comes ready |
+| **Spell Timer** (`Forte_Timer`) | Stacked rows per spell and target, grouped by target, coloured by kind, with the original's reconciliation rules (own and pet casts predicted; corrected from real auras out of combat); Shaman totems by element |
+| **Messages & Sound** (`Forte_Messages`) | The original's crowd-control fade/break warnings and sounds (Banish, Fear, Polymorph, Sap, Seduction…), self messages, and party/raid announcements — all chat to other players is opt-in and respects Forever's chat restrictions |
 | **Hunter tools** (`Forte_Hunter`) | Auto Shot swing bar, aspect-missing reminder |
-| **Warlock tools** (`Forte_Warlock`) | Shard Manager, Soulstone Tracker, Healthstone Spy, Summon Assistant plates |
-| **Options** (`Forte_Options`) | The original-style options window: General, Cooldown Timer, Spell Timer, Hunter Tools and Warlock pages; every setting applies live |
-| **Spell data** (`Forte_<Class>`) | Generated cooldown/duration data for all nine Forever classes (530 spells) |
+| **Warlock tools** (`Forte_Warlock`) | Shard Manager, Soulstone Tracker, Healthstone Spy (shares stone counts with your group), Summon Assistant plates |
+| **Options** (`Forte_Options`) | The original-style options window with per-character or shared profiles; every setting applies live |
+| **Spell data** (`Forte_<Class>`) | Generated cooldown/duration data for all nine Forever classes (~590 spells, live build 1.60.1.70707), loaded only for your own class, working on localized clients |
 
 ### Why some things are predicted
 On Forever (Retail 12.x engine) addons cannot read the combat log, and most buff/cooldown
