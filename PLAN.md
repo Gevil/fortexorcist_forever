@@ -618,3 +618,40 @@ Status at `156392e`: `scripts/gate.py` PASS — Forte_Cooldown 75, Forte_Hunter 
 
 Every slice: worker owns its files only; manager re-runs `scripts/gate.py`, views every screenshot, re-tests on uiforever when behaviour changed, commits + pushes.
 
+### 11.1 Iteration H — everything that can be done before anyone can log in (owner-approved 2026-11-02)
+
+Baseline: `e41e308`, gate PASS 412 tests. All implementation and research runs on the **basalt lane** (`fx-worker` / `fx-scout`,
+pinned in `~/.omp/agent/agents/fx-*.md`); the manager plans, reviews, re-runs the gate, views captures, runs uiforever checks,
+commits + pushes after each verified slice. Same laws as §10.2. Each slice owns the files listed; nobody else edits them in
+that wave. Each behaviour change ships with a test proven to fail on the old code.
+
+**Facts the plan rests on (checked 2026-11-02):**
+- Name matching is English-only today: `Forte_Cooldown/Core/Items.lua:222,243` look up `OnUseByName[<localized item name>]`;
+  `Forte_Cooldown/Module.lua:74` asks `C_Spell.GetSpellInfo(<English name>)`; every cast path resolves `spellID → localized
+  name` and keys our English tables with it. A non-English client would track nothing. The original solved this by resolving
+  names from IDs at load (`FW:SpellName(id)`, per-class `Localization.lua` in `/tmp/fxref/Forte_Class/*/`).
+- The original class modules are 100–231 lines each (Priest 105, Shaman 119, Mage 123, Warrior 131, Paladin 172, Druid 231).
+- `Forte_Items/Data/Items.lua` is 220 KB of Lua (686 KB resident on uiforever), always loaded.
+
+**Wave 1 (parallel, now)**
+
+| Slice | Agent | Owns | Deliverable | Acceptance |
+|---|---|---|---|---|
+| H1 Localization | `fx-worker` `Locale` | NEW `Forte_Core/Core/Locale.lua` (+ Core tocs), `Forte_Cooldown/Module.lua` (`isKnown` + cast name resolve only), `Forte_Cooldown/Core/Items.lua`, `Forte_Timer/Core/Casts.lua` + `Registry.lua` (name keys only), tests | At load, map every data row's ID → the client's localized name (`C_Spell.GetSpellInfo(id).name`, items `C_Item.GetItemNameByID` / `Item:CreateFromItemID` + `ContinueOnItemLoad` for uncached items) and add localized aliases to the `*ByName` tables; `isKnown` by data ID; an `FX.L(englishName)` helper for hard-coded English names. Audit list of every hard-coded English spell/item name in all addons (Hunter aspects, soulstone patterns, fade registry…) written to `docs/localization.md` — fixes in files outside this slice go to wave 2 | stubbed German client (`GetSpellInfo`/`GetItemNameByID` return German names): Rapid Fire cast, trinket use and Polymorph row all track; English client unchanged; gate PASS |
+| H1r Locale research | `fx-scout` `LocaleScout` | `docs/research/forever-locales.md` only | Does WoW Forever ship non-English clients/locales (`GetLocale()` values), and do item names arrive uncached at login on 12.x (`GET_ITEM_INFO_RECEIVED`)? Cited sources | answers with citations; feeds H1 |
+| H2 Launch kit + release | `fx-worker` `LaunchKit` | `scripts/deploy.sh`, NEW `scripts/release.py`, NEW `scripts/uif_battery.js`, `Forte_Core/Core/Probe.lua` (output only), `docs/launch-day.md`, `CHANGELOG.md` | `deploy.sh --copy --verify` (copies, diffs installed vs repo, never touches ForeverSVFix files); `release.py` builds `dist/ForteXorcist-<version>.zip` (no tests/otf/docs), version stamped into tocs' `## Version`; `/fx probe` output also shown in a copyable edit box; `uif_battery.js` = the manager's uiforever import + checks (load set, errors, splash, messages defaults) as one function the manager runs; changelog from §9 | dry-run release zip listed; probe copy box test; battery runs green when the manager executes it |
+| H3 Settings | `fx-worker` `Settings` | the settings store/registry files in `Forte_Core` + `Forte_Options` (worker locates them), NEW profile page, tests | `ForteXorcistDB.version` + ordered migrations; per-character vs account-wide profile choice (default per-character, like the original's instances); `/fx reset [module]` with confirmation; corrupt/unknown keys dropped safely | migration from today's shape tested; reset per module; profile switch live; gate PASS |
+| H4s Class port survey | `fx-scout` `ClassScout` | `docs/class-port.md` only | For Druid, Mage, Paladin, Priest, Rogue, Shaman, Warrior: every feature in `/tmp/fxref/Forte_Class/<C>/<C>.lua` (cooldown masters, timer registrations, fade/break rows, stance/GCD tables, special cast times, buff/debuff tracking) with: legality on 12.x, whether the spell exists in Forever data (`spells.jsonl`, family), what we already cover, and a port verdict (port / port-adapted / not feasible / already done) | table per class with file:line cites; feeds wave 2 |
+| H5s Perf survey | `fx-scout` `PerfScout` | `docs/perf.md` only | Measure in the sim: per-tick work of every OnUpdate/C_Timer loop (Cooldown 10 Hz, Timer, Hunter swing, Warlock, Banner), garbage per tick (`collectgarbage("count")` deltas), and the memory of each addon's data; rank the top 5 savings (e.g. Items data split/lazy, table reuse) with estimates | numbers, not guesses; feeds wave 2 |
+
+**Wave 2 (after wave 1 is accepted)**
+- H4 Class tools: one `fx-worker` per 2–3 classes porting the `port` verdicts from `docs/class-port.md` (new files in `Forte_<Class>/`, data via the generator), verified on uiforever (all classes but Warlock).
+- H1b Localization fixes in Hunter/Warlock/Messages/Timer files from the H1 audit list.
+- H5 Perf fixes (top items from `docs/perf.md`).
+- H6 Group Warlock tools (Healthstone Spy, Shard Spy, Summon queue) via `C_ChatInfo.SendAddonMessage`, gated like Announce; solo-testable halves only, multiplayer parts flagged for launch.
+- H7 Proc display behind an off-by-default flag per `docs/design-combat-procs.md` (new files in `Forte_Cooldown`).
+
+**Wave 3**
+- H8 Options fidelity pass vs the original option tree (after class pages exist).
+- H9 Review 5 over all wave 1–2 code (`fx-scout`), fixes, full uiforever battery via `scripts/uif_battery.js`, PLAN §6 refresh.
+
