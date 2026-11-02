@@ -580,6 +580,55 @@ function W.INFO(parent, spec)
     return w
 end
 
+-- ------------------------------------------------------------------- BTN --
+--- An action row: label + a real push button on the right (the original's
+--- BTN option type, spec OP-02 -- the Profiles page's Use/Delete/Create
+--- rows). spec.text is the button's caption (defaults to the label),
+--- spec.onPress() runs on the click, spec.enabled (default true, re-read by
+--- refresh) gates it: the profile rows are built by the page, so enabling
+--- rides the page's state, not a stored key. No key is bound, so the row
+--- carries no recycle icon.
+function W.BTN(parent, spec)
+    local w = newWidget(parent, spec, spec.width)
+    local btn = CreateFrame("Button", nil, w.row, spec.name)
+    anchorControl(w, btn, spec.buttonWidth or 96)
+    local art = btn:CreateTexture(nil, "BACKGROUND")
+    art:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+    art:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
+    art:SetTexture(TEX .. "Aluminium")
+    local caption = W.fontString(btn, "GameFontHighlightSmall",
+        spec.text or spec.label or "", C.GOLD)
+    caption:SetJustifyH("CENTER")
+    caption:SetPoint("CENTER", btn, "CENTER", 0, 0)
+    w.caption = caption
+    local function enabledNow()
+        local e = spec.enabled
+        if type(e) == "function" then e = e() end
+        return (e == nil) and true or (not not e)
+    end
+    local function repaint()
+        local on = enabledNow()
+        if on then
+            btn:Enable()
+            art:SetVertexColor(0.30, 0.33, 0.45, 0.95)
+            caption:SetTextColor(C.GOLD[1], C.GOLD[2], C.GOLD[3], C.GOLD[4])
+        else
+            btn:Disable()
+            art:SetVertexColor(0.14, 0.15, 0.20, 0.85)
+            caption:SetTextColor(C.GREY_DARK[1], C.GREY_DARK[2],
+                C.GREY_DARK[3], C.GREY_DARK[4])
+        end
+    end
+    btn:SetScript("OnClick", function()
+        if not enabledNow() then return end
+        if spec.onPress then spec.onPress() end
+    end)
+    W.attachTip(btn, spec.tip, spec.label)
+    w.refresh = repaint
+    repaint()
+    return w
+end
+
 -- ------------------------------------------------------------------ TIPS --
 --- One help line (polish pass defect 2): plain text, LEFT-justified at
 --- TIPS_INSET inside the section, white, no marker glyph, word-wrapped

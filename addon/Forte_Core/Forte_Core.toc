@@ -7,7 +7,9 @@
 
 Core/Compat.lua
 Core/Constants.lua
+Core/Database.lua
 Core/Init.lua
 Core/Events.lua
 Core/Loader.lua
+Core/Locale.lua
 Core/Probe.lua

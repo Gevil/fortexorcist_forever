@@ -45,6 +45,13 @@ O.C = {
     HEAD_SCALE_RANGE = { 0.2, 5.0 },   -- OP-06 clamps
     HEAD_ALPHA_RANGE = { 0.1, 1.0 },
 
+    -- Profile tabs (RefreshProfileTabs): the row under the title bar.
+    TAB_INSET = 4,          -- tab height = TABS_H - 2 * TAB_INSET
+    TAB_PAD = 5,            -- gap between tabs
+    TAB_TEXT_PAD = 14,      -- caption padding inside a tab
+    TAB_MIN_W = 40,
+    MAX_TABS = 6,           -- more profiles -> a "..." tab onto the page
+
     WHEEL_STEP = 40,
 
     -- scroll indication (2026-11-01 defect pass): a 6px track on the
@@ -242,30 +249,19 @@ function O:Build()
     W.attachTip(close, "Close the options window")
     self.closeBtn = close
 
-    -- ---- profile tabs row (one tab for this character) -----------------
+    -- ---- profile tabs row (FX.Profiles: one tab per profile) ----------
+    -- The original's profile switcher is exactly here: the tab row of the
+    -- General category (Forte_Core/Options.lua:4849-4901 builds one tab per
+    -- root.Data entry from the tab_actions handed to SetMainCategory at
+    -- :5535, select/delete/rename/create at :5454-5469). Same place, same
+    -- job: the active profile is gold, a tab click switches live, and the
+    -- first tab opens the Profiles page (create/delete/reset live there --
+    -- the original's tab popups, Options.lua:5471-5500).
     local tabs = CreateFrame("Frame", nil, f)
     tabs:SetSize(C.WIN_W - 16, C.TABS_H)
     tabs:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -C.TITLE_H)
-    local classFile = (UnitClass and select(2, UnitClass("player")))
-        or FX._playerClass or "?"
-    classFile = tostring(classFile)
-    local classLabel = classFile:sub(1, 1) .. classFile:sub(2):lower()
-    local tabText = W.fontString(tabs, "GameFontHighlightSmall",
-        string.format("%s: %s", classLabel, name), C.TAB_GOLD)
-    tabText:SetPoint("LEFT", tabs, "LEFT", 6, 0)
-    local tabX = W.fontString(tabs, "GameFontHighlightSmall",
-        W.glyph("common-icon-redx", 10), C.ACCENT_RED)
-    tabX:SetPoint("LEFT", tabText, "RIGHT", 6, 0)
-    local function tabTip()
-        GameTooltip:SetOwner(tabs, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Profile tabs", 1, 1, 1)
-        GameTooltip:AddLine("profile switching is not built yet", nil, nil, nil, true)
-        GameTooltip:Show()
-    end
-    tabs:EnableMouse(true)
-    tabs:SetScript("OnEnter", tabTip)
-    tabs:SetScript("OnLeave", function() GameTooltip:Hide() end)
     self.tabs = tabs
+    self:RefreshProfileTabs()
 
     -- ---- content viewport + scrollable child --------------------------
     local vpX, vpY, vpW, vpH = self:getContentBox()
@@ -410,6 +406,107 @@ function O:BuildIndex(f)
     self:RefreshIndexCells()
 end
 
+-- --------------------------------------------------------------- profiles --
+--- One tab in the row under the title bar: Aluminium art, gold (active) or
+--- grey (inactive) caption, its own OnClick and tooltip. Rebuilt by
+--- RefreshProfileTabs (a handful of frames, on profile changes only).
+function O:MakeTab(parent, text, active, onClick, tip)
+    local tab = CreateFrame("Button", nil, parent)
+    local art = tab:CreateTexture(nil, "BACKGROUND")
+    art:SetPoint("TOPLEFT", tab, "TOPLEFT", 0, 0)
+    art:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", 0, 0)
+    art:SetTexture("Interface\\AddOns\\Forte_Core\\Textures\\Aluminium")
+    local caption = W.fontString(tab, "GameFontHighlightSmall", text,
+        active and C.TAB_GOLD or C.GREY)
+    caption:SetJustifyH("CENTER")
+    caption:SetPoint("CENTER", tab, "CENTER", 0, 0)
+    local w = (caption.GetUnboundedStringWidth
+        and caption:GetUnboundedStringWidth()) or 60
+    tab:SetSize(math.max(C.TAB_MIN_W, w + C.TAB_TEXT_PAD), C.TABS_H - 2 * C.TAB_INSET)
+    art:SetVertexColor(active and 0.30 or 0.13, active and 0.30 or 0.14,
+        active and 0.52 or 0.22, 0.95)
+    tab:SetScript("OnClick", onClick)
+    W.attachTip(tab, tip, text)
+    tab.art, tab.caption = art, caption
+    return tab
+end
+
+--- The profile tab row: `Profiles` (opens the page) + one tab per profile
+--- name, the active one gold. A tab click switches profiles LIVE
+--- (FX.Profiles.Select -> Settings:Set -> every consumer). Profiles past
+--- C.MAX_TABS collapse into a `...` tab onto the page (the row is one line
+--- of 22px; the page is the full list).
+function O:RefreshProfileTabs()
+    local row = self.tabs
+    if not row then return end
+    for _, tab in ipairs(self.profileTabs or {}) do tab:Hide() end
+    self.profileTabs = {}
+    local P = FX.Profiles
+    local x = 0
+    local function place(tab)
+        tab:ClearAllPoints()
+        tab:SetPoint("TOPLEFT", row, "TOPLEFT", x, -C.TAB_INSET)
+        x = x + tab:GetWidth() + C.TAB_PAD
+        self.profileTabs[#self.profileTabs + 1] = tab
+    end
+    local function openPage() self:Open("Profiles") self:SetPage("Profiles") end
+    place(self:MakeTab(row, "Profiles", self.pageId == "Profiles", openPage,
+        "Profiles: which settings this character uses, and the resets."))
+    local names = (P and P.List()) or {}
+    local active = P and P.Active()
+    for i, name in ipairs(names) do
+        if i > C.MAX_TABS then
+            place(self:MakeTab(row, "...", self.pageId == "Profiles", openPage,
+                string.format("%d profiles: the rest are on the Profiles page",
+                    #names)))
+            break
+        end
+        local isActive = name == active
+        local tab = self:MakeTab(row, name, isActive, function()
+            if P and not isActive then
+                P.Select(name)
+                self:OnProfileChanged()
+            end
+        end, isActive and "the profile this character is using"
+            or "use this profile (applies immediately)")
+        tab.profile = name
+        place(tab)
+    end
+end
+
+--- Everything the window has built that shows a setting, re-read from the
+--- store: the widgets of every built page, the header scale/alpha boxes and
+--- the tab row. The pages' own OnChange wiring already moved the live
+--- modules; this moves the window.
+function O:RefreshAllPages()
+    if self.pagesBuilt then
+        for _, page in pairs(self.pagesBuilt) do self:RefreshPage(page) end
+    end
+    if self.header and self.header.refreshLock then
+        self.header.refreshLock()
+    end
+end
+
+--- The one profile-change hook (a tab click, the page's Use buttons).
+function O:OnProfileChanged()
+    self:RefreshAllPages()
+    self:RefreshProfileTabs()
+end
+
+--- Drop a built page so the next SetPage runs its build again. The Profiles
+--- page calls it after a create/delete/switch: its rows are the list of
+--- profiles, which no widget refresh can re-shape. The dropped page's frame
+--- stays hidden (no frame teardown on Forever); a page rebuilds once per
+--- change, which is the rate of a player clicking.
+function O:InvalidatePage(pageId)
+    local built = self.pagesBuilt
+    if not built then return end
+    local page = built[pageId]
+    if not page then return end
+    page.frame:Hide()
+    built[pageId] = nil
+end
+
 -- ------------------------------------------------------------- page glue --
 --- The page builder passed to a page's build(b): owns the vertical cursor
 --- over the page frame and the section bookkeeping.
@@ -523,7 +620,8 @@ local function newBuilder(o, page)
         end
 
         local s = {}
-        for _, kind in ipairs({ "CHK", "NUM", "SLD", "COL", "STR", "INFO" }) do
+        for _, kind in ipairs({ "CHK", "NUM", "SLD", "COL", "STR", "INFO",
+            "BTN" }) do
             s[kind] = function(spec) return addWidget(kind, spec) end
         end
         --- Full-width help line (Tips law): plain left text inside the
@@ -586,6 +684,10 @@ function O:SetPage(pageId)
     end
     self:LayoutPage(page)
     self:BuildHeader(def)
+    -- The tab row carries the page state (the `Profiles` opener is gold on
+    -- that page), and the first Open builds the shell before the page is
+    -- known: the row is redrawn with every page change.
+    self:RefreshProfileTabs()
     self._scroll = 0
     self:ApplyScroll()
 end

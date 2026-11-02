@@ -156,6 +156,12 @@ bootstrap:SetScript("OnEvent", function(_, event, addonName)
         if addonName ~= FX.CONST.ADDON_NAME then return end
         _G[FX.CONST.SV_KEY] = _G[FX.CONST.SV_KEY] or {}
         FX.db = _G[FX.CONST.SV_KEY]
+        -- The schema ladder (Core/Database.lua, FE-22): runs on the raw
+        -- SavedVariables table here -- after every Forte_* file has been
+        -- parsed (ADDON_LOADED) and before any module reads FX.db -- so a
+        -- migration never races a reader and a broken step can not take the
+        -- login down. Never raises; it prints and stops.
+        FX.DB.Migrate(FX.db)
     elseif event == "PLAYER_ENTERING_WORLD" then
         -- Zone-in re-read (the login capture below is the first one): the
         -- uiforever T4 artifact class guard, see FX.RefreshPlayerClass.

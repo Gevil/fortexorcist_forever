@@ -71,10 +71,26 @@ end
 --- IsPlayerSpell filters out name-squatters like trinket procs and trade
 --- skills that share a name with a class spell.
 local function isKnown(name)
+    -- H1 Localization: the name path (C_Spell.GetSpellInfo("Rapid Fire"))
+    -- resolves against the CLIENT's localized name table, so on a non-enUS
+    -- client it returns nil and every known filter dies. The generated data
+    -- rows carry the ids: try the data row's own ids first (locale-
+    -- independent, every rank row of the name), then keep the name path
+    -- (it works on enUS clients and for names the data set does not carry).
+    local ids = FX.Locale and FX.Locale.RankIDsForName(name)
+    if ids then
+        for i = 1, #ids do
+            if FX.Compat.IsPlayerSpell(ids[i]) then return true end
+        end
+    end
     local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(name)
     local spellID = FX.Compat.PlainOrNil(info and info.spellID)
     return spellID ~= nil and FX.Compat.IsPlayerSpell(spellID)
 end
+-- Test seam (tests/test_locale_cooldown.lua): the gate's build path
+-- needs the module's own isKnown, and it is module-local by law.
+M.IsKnown = isKnown
+
 
 --- LuaDurationObject probes, hoisted so the 1 Hz pass allocates nothing.
 --- Every one runs inside a pcall at the call site: a client object may lack
@@ -340,7 +356,8 @@ function M:RecordCastEvent(spellID, inCombat)
     if name then
         d.resolved = d.resolved + 1
         if inCombat then d.inResolved = d.inResolved + 1 end
-        Engine:OnCast(name, GetTime())
+        Engine:OnCast(FX.Locale and FX.Locale.CanonicalName(name)
+                    or name, GetTime())
         -- Item path: a resolved name that is some tracked item's use spell
         -- starts its predicted window (shared potion category included);
         -- a class spell is inert here (not in byCastSpell).

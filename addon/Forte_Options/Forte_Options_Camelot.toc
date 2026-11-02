@@ -10,6 +10,7 @@ Core/Settings.lua
 Core/Widgets.lua
 UI/Window.lua
 Pages/General.lua
+Pages/Profiles.lua
 Pages/Cooldown.lua
 Pages/Splash.lua
 Pages/About.lua

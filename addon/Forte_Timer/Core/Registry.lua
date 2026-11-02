@@ -352,6 +352,22 @@ function Registry:Build(classFile, filter)
             n = n + 1
         end
     end
+    -- H1 Localization: alias rows for the client's localized names (the
+    -- pairs Forte_Core/Core/Locale.lua built from the generated row ids).
+    -- The alias row IS the canonical entry table, so kind/duration/noTarget
+    -- can not drift: KindFor("Verwandlung") reaches the Polymorph row. The
+    -- alias rows deliberately do not join `n` (the row count keeps its
+    -- English meaning). enUS client: no pairs, no extra rows.
+    local aliases = FX.Locale and FX.Locale.SpellAliasesFor(data)
+    if aliases then
+        for i = 1, #aliases do
+            local pair = aliases[i]
+            local canonical = self.entries[pair.english]
+            if canonical and self.entries[pair.localized] == nil then
+                self.entries[pair.localized] = canonical
+            end
+        end
+    end
     return n
 end
 

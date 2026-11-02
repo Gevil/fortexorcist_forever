@@ -155,6 +155,39 @@ function Items:Rescan(readers)
         pruneUntracked()
         return 0
     end
+    -- H1 Localization: the bag/equipment readers hand back the CLIENT's
+    -- localized item names; the generated rows key on the English data
+    -- name. The alias map (built from the data ids; empty on an enUS
+    -- client) resolves the lookup, and uncached ids are requested -- the
+    -- GET_ITEM_INFO_RECEIVED/ITEM_DATA_LOAD_RESULT reply re-runs this scan
+    -- (Forte_Core/Core/Locale.lua).
+    local Locale = FX.Locale
+    if Locale then
+        Locale.WatchItemLoads()
+        Locale.BuildItemAliases(data)
+        if not self._localeWired then
+            self._localeWired = true
+            Locale.SubscribeLateNames(function()
+                if self._lateRescan then return end
+                self._lateRescan = true
+                if type(C_Timer) == "table" and C_Timer.After then
+                    C_Timer.After(0.5, function()
+                        self._lateRescan = nil
+                        self:Rescan()
+                    end)
+                end
+            end)
+        end
+    end
+    local function lookup(nameTable, name)
+        local row = (type(name) == "string") and nameTable[name] or nil
+        if row == nil and Locale and type(name) == "string" then
+            local english = Locale.CanonicalName(name)
+            if english ~= name then row = nameTable[english] end
+        end
+        return row
+    end
+
     readers = readers or {}
     local getEquippedItemID = readers.getEquippedItemID or (FX.Compat and FX.Compat.GetEquippedItemID)
     local getItemName = readers.getItemName or (FX.Compat and FX.Compat.GetItemInfoName)
@@ -180,6 +213,20 @@ function Items:Rescan(readers)
         if row.name and cd and cd >= self.MIN_CATEGORY_CD
             and not byConsumableName[row.name] then
             byConsumableName[row.name] = row
+        end
+    end
+    if Locale then
+        -- The consumable index is local to this scan, so its localized
+        -- keys are added here (identity on an enUS client: no aliases).
+        for _, row in ipairs(data.consumables) do
+            local stored = row.name and byConsumableName[row.name]
+            if stored then
+                local localized = Locale.LocalizedName(row.name)
+                if localized ~= row.name
+                    and byConsumableName[localized] == nil then
+                    byConsumableName[localized] = stored
+                end
+            end
         end
     end
 
@@ -219,7 +266,10 @@ function Items:Rescan(readers)
     for _, eslot in ipairs(TRINKET_SLOTS) do
         local itemId = call(getEquippedItemID, eslot)
         local name = itemId and call(getItemName, itemId)
-        local row = (type(name) == "string") and data.OnUseByName[name] or nil
+        if Locale and itemId and type(name) ~= "string" then
+            Locale.RequestItemName(itemId)
+        end
+        local row = lookup(data.OnUseByName, name)
         if row and classAllows(row, token) and row.cooldownMs then
             track(row, itemId, "item", eslot, "Item", row.cooldownMs / 1000)
         end
@@ -235,12 +285,12 @@ function Items:Rescan(readers)
                 local itemId = call(getContainerItemID, bag, slot)
                 local name = itemId and call(getItemName, itemId)
                 if type(name) == "string" then
-                    local cons = byConsumableName[name]
+                    local cons = lookup(byConsumableName, name)
                     if cons then
                         track(cons, itemId, "potion", nil, "Potion",
                             categoryDurationS(cons))
                     else
-                        local row = data.OnUseByName[name]
+                        local row = lookup(data.OnUseByName, name)
                         if row and classAllows(row, token) and row.cooldownMs then
                             track(row, itemId, "item", nil, "Item",
                                 row.cooldownMs / 1000)

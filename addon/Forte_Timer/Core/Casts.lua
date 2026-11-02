@@ -88,16 +88,24 @@ Casts.InCombat = inCombat
 --- comparison on the id; the info table's truth test stays inside the
 --- protected call (the Forte_Cooldown/Module.lua:326-334 law).
 function Casts:NameOf(spellID)
-    if self.resolveName then return self.resolveName(spellID) end
-    if not (C_Spell and C_Spell.GetSpellInfo) then return nil end
-    local ok, resolved = pcall(function()
-        local info = C_Spell.GetSpellInfo(spellID)
-        return info and FX.Compat.PlainOrNil(info.name)
-    end)
-    if ok and type(resolved) == "string" and resolved ~= "" then
-        return resolved
+    local resolved
+    if self.resolveName then
+        resolved = self.resolveName(spellID)
+    elseif C_Spell and C_Spell.GetSpellInfo then
+        local ok, value = pcall(function()
+            local info = C_Spell.GetSpellInfo(spellID)
+            return info and FX.Compat.PlainOrNil(info.name)
+        end)
+        resolved = ok and value or nil
     end
-    return nil
+    if type(resolved) ~= "string" or resolved == "" then return nil end
+    -- H1 Localization: the row key space is the generated data's English
+    -- names, so the client's localized cast name canonicalizes back to it
+    -- (identity on enUS, where no aliases exist). The localized name still
+    -- resolves in the Registry through ITS alias table, so a row keyed by
+    -- the English name reaches the localized name's kind (`KindFor`).
+    if FX.Locale then return FX.Locale.CanonicalName(resolved) end
+    return resolved
 end
 
 function Casts:Clock()
