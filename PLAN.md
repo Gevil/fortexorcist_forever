@@ -661,7 +661,7 @@ survey, D1/D2 data research. Gate PASS 458. **Correction:** the **live 70707 bui
 | H5 Perf | `fx-worker` `PerfFix` | `Forte_Timer/UI/Rows.lua`, `Forte_Timer/Core/Reconcile.lua`, `Forte_Timer/Core/Rows.lua` (sort closure only) | `docs/perf.md` fixes 2–5 (numeric dirty keys, no per-tick re-anchoring, de-closured aura sweep, upvalue-free comparator); fix 1 (Items procs split) waits for D3 + H7 | before/after numbers with the PerfScout harness; visuals unchanged (manager captures); gate PASS |
 
 **Wave 2b (after 2a; needs D3's data and LocaleB's files)**
-- T1 seven-class spell-list cutover (`docs/class-port.md` §6.1, the 64 names) — **owner's Q1 answer decides the scope**; also Q6 family-less rows (Dash, Thrash, Freeze, Heroism, Dismantle: manager ruling add).
+- T1 seven-class spell-list cutover (`docs/class-port.md` §6.1) — **owner Q1 ruling (2026-11-02): add the ~44 spells the player casts (CC, DoTs, HoTs, cooldowns) now; the ~20 proc buffs / passive effects (Clearcasting, Brain Freeze, Fingers of Frost, Infusion of Light, Maelstrom Weapon, Ignite, Deep Wounds, Chilled, Forbearance, …) are added together with H7 after the launch-day probes.** Runs after D3 (same files). Also Q6 family-less rows (Dash, Thrash, Freeze, Heroism, Dismantle: manager ruling add).
 - T2 cast-announce + label framework and the 20 Druid/Paladin/Warrior announce rows (Messages + Registry), plain names for Druid forms (Q5 ruling).
 - T3 Shaman totem slots + `tickEvery`/`noTarget`/`MaxStack` feeds (Registry, Timer page, Forte_Shaman, generator); the per-group filter layer deferred (Q2 ruling).
 - PetRows v2: Spell Timer rows for the pet's casts (Seduction etc. on 70707 data), Seduction fade/break live.
