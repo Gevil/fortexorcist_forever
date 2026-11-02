@@ -426,6 +426,10 @@ function D:StartTicking()
         self._acc = 0
         self:Update(GetTime())
     end)
+    -- A hidden frame never receives OnUpdate, and the anchor is hidden while
+    -- idle: render once now so the anchor is shown before its own OnUpdate is
+    -- relied on (found live on uiforever 2026-11-02 -- the bar never appeared).
+    self:Update(GetTime())
 end
 
 function D:StopTicking()

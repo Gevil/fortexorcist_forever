@@ -158,6 +158,30 @@ test("the 10 Hz OnUpdate exists only while a swing runs", function()
     assertNil(Swing.anchor:GetScript("OnUpdate"))
 end)
 
+-- Manager regression, found live on uiforever 2026-11-02: a hidden frame never
+-- receives OnUpdate, so a bar that waits for its own OnUpdate to Show() itself
+-- never appears in a client. The kick path alone (no Update call here) must
+-- leave the bar shown with the right fill.
+test("a kick on a live swing shows the bar immediately (no OnUpdate needed)", function()
+    -- Real clock, exactly like the production tracker (StartTicking renders at GetTime()).
+    local t = FX.Hunter.NewSwingTracker({
+        now = function() return GetTime() end,
+        speedReader = function() return nil end,
+        rangedType = 2,
+    })
+    Swing:SetTracker(t)
+    Swing:RenderIdle()
+    assertFalse(Swing.anchor:IsShown())
+    t:OnSwingStart(600, 2)                            -- a long, live swing
+    Swing:Kick()                                      -- the event path, nothing else
+    assertTrue(Swing.anchor:IsShown(), "the kick must render the bar itself")
+    assertTrue(Swing.fill:GetWidth() >= 0)
+    -- Same cleanup as the ticker test: idle again, script gone, text cleared.
+    t.active = false
+    Swing:RenderIdle()
+    assertNil(Swing.anchor:GetScript("OnUpdate"))
+end)
+
 test("ShowTime off drops the text; the fill keeps running", function()
     local clock = { 1000 }
     local t = fakeTracker(clock)
