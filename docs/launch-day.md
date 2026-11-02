@@ -68,6 +68,7 @@ a screenshot of anything that looks wrong is worth more than a description.
 | F9 | `/fx unlock`, drag the cooldown bar, the timer panel and the swing bar; `/fx lock`; `/reload` | all three stay where you put them |
 | F10 | (Warlock alt, if you have one) log in | four purple plates: shards `x<n>  <n> total`, soulstone `x0  no ss up`, healthstone, summon; cast Create Soulstone/Soulstone on someone → the soulstone plate shows the target and a timer |
 | F11 | Any Lua error popup at all | screenshot it; `/fx status` output too |
+| F12 | `/run local L={} for _,c in ipairs({"Druid","Hunter","Mage","Paladin","Priest","Rogue","Shaman","Warlock","Warrior"}) do if C_AddOns.IsAddOnLoaded("Forte_"..c) then L[#L+1]=c end end print(table.concat(L,","))` | prints **only your class** (load-on-demand class data; every other class's data must not be loaded) |
 
 
 ## Reading the output (one line per probe group)
