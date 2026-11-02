@@ -1247,3 +1247,128 @@ test("title: player-realm from GetRealmName, never a dangling dash", function()
     end
     O:Close()
 end)
+
+-- ================================== CD-35 geometry + CD-31 Warn page rows ==
+-- CD-35 (spec §1.5) the original's BASICS rows `Vertical` (:1705 "Flip to
+-- vertical"), `Flip` (:1706 "Flip bar direction") and its auto-hide row
+-- (:1707 "Auto-hide when no cooldowns"), plus CD-31's SPECIFICS `Warn` row
+-- (:1714 "Spell on cooldown Warning"): the page must REGISTER the shipped
+-- defaults (:1808, :1809, :1815, :1821), BUILD the row, and drive the live bar
+-- through the FX.Settings -> Display:ApplySettings seam. The bar laws
+-- themselves belong to Forte_Cooldown/tests/test_timeline.lua; what is proven
+-- here is the page, the defaults and the live wiring.
+test("Cooldown page: Vertical/Flip/HideZero/Warn register at the shipped defaults and drive the bar",
+function()
+    local D = FX.Cooldown.Display
+    local skin = FX.Cooldown.TimelineSkin
+    assertNotNil(D, "the Cooldown Display is live")
+    O:Open("Cooldown")
+    -- Defaults verbatim from FW.InstanceDefault.Cooldown.
+    assertEquals(false, S:GetDefault("Cooldown", "Vertical"))   -- :1808
+    assertEquals(false, S:GetDefault("Cooldown", "Flip"))        -- :1809
+    assertEquals(false, S:GetDefault("Cooldown", "HideZero"))    -- :1815
+    assertEquals(true, S:GetDefault("Cooldown", "Warn"))         -- :1821
+    local page = O.pagesBuilt["Cooldown"]
+    local function widget(section, key)
+        for _, wd in ipairs(section.widgets) do
+            if wd.spec.key == key then return wd end
+        end
+    end
+    local basics, specifics = page.sections[2], page.sections[3]
+    local vertical = widget(basics, "Vertical")
+    local flip = widget(basics, "Flip")
+    local hideZero = widget(basics, "HideZero")
+    local warn = widget(specifics, "Warn")
+    assertNotNil(vertical, "BASICS carries the Vertical row")
+    assertNotNil(flip, "BASICS carries the Flip row")
+    assertNotNil(hideZero, "BASICS carries the auto-hide row")
+    assertNotNil(warn, "SPECIFICS carries the Warn row")
+
+    -- Vertical: the frame swaps its width and height (Forte_Cooldown.lua
+    -- :1476-1479: SetWidth(Height + 2*d) / SetHeight(Width + 2*d)) straight
+    -- from the checkbox click. The measured pair is the page's live Width /
+    -- Height settings swapped (a sibling test may have moved them).
+    local wpx, hpx = S:Get("Cooldown", "Width"), S:Get("Cooldown", "Height")
+    vertical.refresh()
+    assertEquals(false, vertical.obj:GetChecked())
+    vertical.obj:GetScript("OnClick")(vertical.obj, "LeftButton")
+    assertEquals(true, S:Get("Cooldown", "Vertical"))
+    assertEquals(true, skin.Vertical)
+    assertEquals(hpx, D.anchor:GetWidth())
+    assertEquals(wpx, D.anchor:GetHeight())
+    S:Set("Cooldown", "Vertical", false)
+    assertEquals(false, skin.Vertical)
+    assertEquals(wpx, D.anchor:GetWidth())
+    assertEquals(hpx, D.anchor:GetHeight())
+
+    -- Flip: the icons run from the far end. The live witness is a slot's
+    -- anchor point, so feed the bar through the Module's own seam.
+    flip.obj:GetScript("OnClick")(flip.obj, "LeftButton")
+    assertEquals(true, skin.Flip)
+    local now = 210000
+    D:Update({ { name = "FlipRow", start = 0, duration = 999,
+        endTime = now + 120 } }, now)
+    local slot = D._byName["FlipRow"]
+    assertNotNil(slot)
+    assertEquals("RIGHT", slot.frame:GetPoint())
+    S:Set("Cooldown", "Flip", false)
+    D:Update({ { name = "FlipRow", start = 0, duration = 999,
+        endTime = now + 120 } }, now)
+    assertEquals("LEFT", D._byName["FlipRow"].frame:GetPoint())
+    D:Update({}, now + 1)
+
+    -- HideZero: the visibility gate (Draw :1348). With nothing on the bar the
+    -- bar itself goes away, and comes straight back.
+    hideZero.obj:GetScript("OnClick")(hideZero.obj, "LeftButton")
+    assertEquals(true, D.frameState.hideZero)
+    D:Update({}, 210002)
+    assertFalse(D.anchor:IsShown(), "an empty bar auto-hides")
+    S:Set("Cooldown", "HideZero", false)
+    D:Update({}, 210003)
+    assertTrue(D.anchor:IsShown())
+
+    -- Warn: the source registers / unregisters the UNIT_SPELLCAST_FAILED
+    -- handler on exactly this flag (:953-960), so the box's live witness is
+    -- the Display's own event frame.
+    assertEquals(true, skin.Warn)
+    assertNotNil(D._eventFrame:GetScript("OnEvent"))
+    warn.obj:GetScript("OnClick")(warn.obj, "LeftButton")
+    assertEquals(false, S:Get("Cooldown", "Warn"))
+    assertNil(D._eventFrame:GetScript("OnEvent"), "the handler is unregistered")
+    warn.obj:GetScript("OnClick")(warn.obj, "LeftButton")
+    assertEquals(true, S:Get("Cooldown", "Warn"))
+    assertNotNil(D._eventFrame:GetScript("OnEvent"), "and registered again")
+end)
+
+test("Cooldown page: the Basics / Specifics section recycles restore the new rows", function()
+    O:Open("Cooldown")
+    local D = FX.Cooldown.Display
+    local skin = FX.Cooldown.TimelineSkin
+    local page = O.pagesBuilt["Cooldown"]
+    local basics, specifics = page.sections[2], page.sections[3]
+    S:Set("Cooldown", "Vertical", true)
+    S:Set("Cooldown", "Flip", true)
+    S:Set("Cooldown", "HideZero", true)
+    S:Set("Cooldown", "Warn", false)
+    basics.bar.recycle:GetScript("OnClick")(basics.bar.recycle)
+    assertEquals(false, S:Get("Cooldown", "Vertical"))
+    assertEquals(false, S:Get("Cooldown", "Flip"))
+    assertEquals(false, S:Get("Cooldown", "HideZero"))
+    -- The section's other keys are intact, and so is the bar's geometry.
+    assertEquals(true, S:Get("Cooldown", "Enable"))
+    assertEquals(false, S:Get("Cooldown", "HideCombat"))
+    assertEquals(false, skin.Vertical)
+    assertEquals(false, skin.Flip)
+    assertEquals(S:Get("Cooldown", "Width"), D.anchor:GetWidth())
+    assertEquals(S:Get("Cooldown", "Height"), D.anchor:GetHeight())
+    assertEquals(false, D.frameState.hideZero)
+    assertTrue(D.anchor:IsShown())
+    -- Specifics recycles Warn back to its shipped on-state, and leaves the
+    -- neighbouring geometry keys of its own section alone.
+    specifics.bar.recycle:GetScript("OnClick")(specifics.bar.recycle)
+    assertEquals(true, S:Get("Cooldown", "Warn"))
+    assertEquals(true, skin.Warn)
+    assertNotNil(D._eventFrame:GetScript("OnEvent"))
+    assertEquals(250, S:Get("Cooldown", "Width"))
+    assertEquals(2.99, S:Get("Cooldown", "IgnoreShort"))
+end)

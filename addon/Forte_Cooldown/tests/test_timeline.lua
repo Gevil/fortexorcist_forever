@@ -1309,3 +1309,402 @@ test("n6: the template-font fallback caches (no SetFontTemplate re-run)", functi
         assertTrue(sets >= 1, "a real BarFont after the sentinel re-applies")
     end
 end)
+
+-- ==================================================== CD-31 Warn (attention) ==
+-- CD-31 (spec §1.5): UNIT_SPELLCAST_FAILED for the player, mapped spellID ->
+-- name, grabs attention on that spell's live cooldown row -- "you tried to
+-- cast something that is cooling": the icon flashes (the source's
+-- bar.icon.attentionspark, Forte_Cooldown.lua :1412-1416: the ADD-blend Spark2
+-- shown while cd[i][20] > 1 at size 2.2*ih*t20, tinted FixIntensity(category))
+-- and steals the group's cross-fade focus (CD_FocusTimer :860-877: the warned
+-- row gets cd[i][15] = 1 and cd[i][14] = 1, EVERY other member of the group
+-- cd[i][14] = cd[i][15] = 0). The window is `local focustime = 0.5` (:32)
+-- stamped as cd[i][20] = 1 + focustime (:874) and decayed by the ELAPSED
+-- SECONDS at 1/s (:540-542), so t20 rides 1.5 -> 1.0 over 0.5 s.
+--
+-- The event dispatch is the suite's established pattern (test_tiers.lua:619-
+-- 640, test_enchants.lua:433-446): the module frame's own OnEvent handler,
+-- called as the engine calls it, frame first (PLAN §10.2).
+
+local WARN_ID = 410001          -- the spellID the stub resolves to "WarnB"
+
+local function stubSpellInfo(map)
+    local real = C_Spell and C_Spell.GetSpellInfo
+    if C_Spell then C_Spell.GetSpellInfo = function(id) return map[id] end end
+    return function() if C_Spell then C_Spell.GetSpellInfo = real end end
+end
+
+local function dispatchFailed(spellID)
+    local f = Display._eventFrame
+    assertNotNil(f, "Init registers the Display's own event frame")
+    local handler = f:GetScript("OnEvent")
+    assertEquals("function", type(handler), "Warn is on => the handler is installed")
+    -- The pinned catalog's payload (@UnitDocumentation.lua:4713):
+    -- unitTarget, castGUID, spellID, castBarID.
+    handler(f, "UNIT_SPELLCAST_FAILED", "player", "FXTEST-GUID", spellID, 12)
+end
+
+local function liveAlerts()
+    local n = 0
+    for i = 1, #Display.slots do
+        if Display.slots[i].alert:IsShown() then n = n + 1 end
+    end
+    return n
+end
+
+test("CD-31: the Warn checkbox installs / removes the UNIT_SPELLCAST_FAILED handler", function()
+    Display:Init()
+    assertNotNil(Display._eventFrame, "the frame exists after Init")
+    assertNotNil(Display._eventFrame:GetScript("OnEvent"), "Warn defaults ON (:1821)")
+    assertEquals(true, S.Warn)
+    Settings:Set("Cooldown", "Warn", false)
+    assertNil(Display._eventFrame:GetScript("OnEvent"),
+        "the source's UnregisterToEvent branch (:957-959)")
+    Settings:Set("Cooldown", "Warn", true)
+    assertNotNil(Display._eventFrame:GetScript("OnEvent"), "back on (:956)")
+end)
+
+test("CD-31: a failed cast of a cooling spell flashes that icon and steals the focus", function()
+    local now = 41000
+    local A = { name = "WarnA", start = 0, duration = 999, endTime = now + 20.0 }
+    local B = { name = "WarnB", start = 0, duration = 999, endTime = now + 20.35 }
+    local feed = { A, B }
+    local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
+    local dx = math.abs(TM.pos(20.35, W, H, Max, Loga) - TM.pos(20.0, W, H, Max, Loga))
+    assertTrue(dx < H * 0.5, "the two icons share one cross-fade group")
+
+    Display:Update({}, 40900)
+    assertEquals(0, liveAlerts(), "clean slate")
+    Display:Update(feed, now)
+    -- The fade-in completes over FadeSeconds; at exactly one CrossfadeSeconds
+    -- the focus has handed off, so B is the lit member and A the dark one.
+    Display:Update(feed, now + 1.0)
+    local a, b = slotOf("WarnA"), slotOf("WarnB")
+    near3(a.frame:GetAlpha(), 0.0, "A is the dark member")
+    near3(b.frame:GetAlpha(), 1.0, "B holds the focus")
+
+    -- The failed cast of B (the spell the player reached for, mid-cooldown).
+    local restore = stubSpellInfo({ [WARN_ID] = { name = "WarnB" } })
+    dispatchFailed(WARN_ID)
+    restore()
+
+    local t = now + 1.05
+    Display:Update(feed, t)
+    -- (1) THE FLASH: only B's attention spark is up, at the source's size
+    -- 2.2*ih*t20 with t20 = 1 + (the seconds left of focustime) = 1.5 here.
+    assertTrue(b.alert:IsShown(), "the warned icon flashes")
+    assertFalse(a.alert:IsShown(), "the other icon does not")
+    assertEquals(1, liveAlerts())
+    near3(b.alert:GetWidth(), S.AttentionScale * S.Height * 1.5)
+    near3(b.alert:GetHeight(), S.AttentionScale * S.Height * 1.5)
+    -- The tint is FixIntensity(category) (:1412-1413 rides the r,g,b the
+    -- running spark got at :1417).
+    local sc = S.Colors.Spell
+    local er, eg, eb = 0.7 * sc[1] + 0.3, 0.7 * sc[2] + 0.3, 0.7 * sc[3] + 0.3
+    local r, g, b2 = b.alert:GetVertexColor()
+    near3(r, er); near3(g, eg); near3(b2, eb)
+    -- (2) THE FOCUS STEAL: B is drawn FULL and every other member of the
+    -- group is driven to zero (CD_FocusTimer :867-871), i.e. the alpha that
+    -- the plain rotation would have given B (frac = 0.05) is replaced by 1.
+    near3(b.frame:GetAlpha(), 1.0, "the warned icon took the focus")
+    near3(a.frame:GetAlpha(), 0.0, "and the group's other members go dark")
+    -- The window is focustime long: 0.25 s in the spark has contracted by
+    -- 0.25 of the 2.2*ih base, and at 0.5 s it is gone (:1415 Hide).
+    Display:Update(feed, t + S.WarnSeconds * 0.5)
+    near3(b.alert:GetWidth(), S.AttentionScale * S.Height * 1.25)
+    Display:Update(feed, t + S.WarnSeconds + 0.01)
+    assertFalse(b.alert:IsShown(), "the attention window is focustime = 0.5 s")
+    assertEquals(0, liveAlerts())
+    Display:Update({}, t + 1.0)
+end)
+
+test("CD-31: Warn off, an unknown spellID and a spell that is NOT cooling all flash nothing", function()
+    local now = 42000
+    local feed = { { name = "WarnSolo", start = 0, duration = 999, endTime = now + 40 } }
+    Display:Update({}, 41900)
+    Display:Update(feed, now)
+    local solo = slotOf("WarnSolo")
+    assertTrue(solo.frame:IsShown())
+    local restore = stubSpellInfo({ [WARN_ID] = { name = "WarnSolo" } })
+
+    -- Warn OFF: the handler is gone (the source unregisters it, :957-959),
+    -- and the handler body itself refuses to record the request.
+    Settings:Set("Cooldown", "Warn", false)
+    Display:CastFailed(WARN_ID)
+    Display:Update(feed, now + 0.1)
+    assertEquals(0, liveAlerts(), "the Warn gate is the flash's only door")
+    Settings:Set("Cooldown", "Warn", true)
+
+    -- An unresolvable spellID (a secret read / an unknown spell): no name,
+    -- nothing to warn about.
+    Display:CastFailed(999999999)
+    Display:Update(feed, now + 0.2)
+    assertEquals(0, liveAlerts(), "an unresolvable spellID is inert")
+
+    -- A RESOLVED name that is not on the bar is not "cooling" (:938 scans the
+    -- live rows only): the cast was of something else entirely.
+    Display:CastFailed(-1)     -- resolves to nil through the stub map
+    Display:Update(feed, now + 0.3)
+    assertEquals(0, liveAlerts())
+    restore()
+
+    local restore2 = stubSpellInfo({ [WARN_ID] = { name = "NotOnTheBar" } })
+    Display:CastFailed(WARN_ID)
+    Display:Update(feed, now + 0.4)
+    assertEquals(0, liveAlerts(), "only a live entry on the bar can flash")
+    restore2()
+
+    -- The same spell, live on the bar: the flash fires (the gate is what is
+    -- under test, so this is the positive control).
+    local restore3 = stubSpellInfo({ [WARN_ID] = { name = "WarnSolo" } })
+    Display:CastFailed(WARN_ID)
+    Display:Update(feed, now + 0.5)
+    assertEquals(1, liveAlerts(), "a singleton takes the flash too (no group to steal)")
+    restore3()
+    Display:Update({}, now + 2.0)
+    assertEquals(0, liveAlerts())
+end)
+
+test("CD-31: a BUFF / DEBUFF category row is excluded from the attention (:939)", function()
+    local now = 43000
+    Display:Update({}, 42900)
+    Display:Update({
+        { name = "WarnBuff", start = 0, duration = 999, endTime = now + 40,
+          category = "Buff" },
+    }, now)
+    local restore = stubSpellInfo({ [WARN_ID] = { name = "WarnBuff" } })
+    Display:CastFailed(WARN_ID)
+    Display:Update({
+        { name = "WarnBuff", start = 0, duration = 999, endTime = now + 40,
+          category = "Buff" },
+    }, now + 0.1)
+    assertEquals(0, liveAlerts(), "the source skips FLAG_BUFF / FLAG_DEBUFF rows")
+    restore()
+    Display:Update({}, now + 1.0)
+end)
+
+-- ================================================= CD-30 right-click = options ==
+-- CD-30 (spec §1.5): the bar's mouse release with the right button opens the
+-- options window scrolled to this module (`FW:ScrollTo(FWL.COOLDOWN_TIMER)`,
+-- Forte_Cooldown.lua :901-909), guarded by `FW:Moved()` (:902) so a drag never
+-- opens it. FW:Moved() is the press-to-release cursor compare
+-- (Forte_Core/Options.lua:659-662 against the stamp at :649-656).
+
+test("CD-30: a right-button release on the bar opens the Cooldown page; a drag does not", function()
+    Display:Init()
+    local O = FX.Options
+    assertNotNil(O, "Forte_Options loads in every gate run")
+    local release = Display.anchor:GetScript("OnMouseUp")
+    assertNotNil(release, "the bar carries the release handler")
+    O:Close()
+
+    -- A press and a release on the same pixel: the page opens on Cooldown.
+    Display:_StampPress()
+    release(Display.anchor, "RightButton")
+    assertEquals(true, O:IsOpen())
+    assertEquals("Cooldown", O.pageId)
+    O:Close()
+    assertFalse(O:IsOpen())
+
+    -- A DRAG: the cursor travelled between the press stamp and the release,
+    -- so Moved() is true and the window stays shut (:902).
+    local realPos = GetCursorPosition
+    Display:_StampPress()
+    assertEquals(false, Display:Moved(), "no travel yet")
+    _G.GetCursorPosition = function() return 400, 400 end
+    Display._downX, Display._downY = 300, 300
+    assertEquals(true, Display:Moved(), "the cursor travelled")
+    release(Display.anchor, "RightButton")
+    assertEquals(false, O:IsOpen(), "a drag never opens the options window")
+    _G.GetCursorPosition = realPos
+
+    -- The left button is the drag button, not the options button (:903).
+    Display._downX, Display._downY = 100, 100
+    _G.GetCursorPosition = function() return 100, 100 end
+    release(Display.anchor, "LeftButton")
+    assertEquals(false, O:IsOpen())
+    _G.GetCursorPosition = realPos
+    Display._downX, Display._downY = nil, nil
+end)
+
+-- ==================================================== CD-35 geometry modes ==
+-- CD-35 (spec §1.5): `Vertical` (the icons bottom -> top along the bar) and
+-- `Flip` (right -> left, tags mirrored). The source's draw loop picks the
+-- icon's anchor POINT from exactly these two flags (:1427-1450), the tag pass
+-- the same four points (:1260-1263), and the frame size swaps in frame.Update
+-- (:1476-1479) -- the POSITION on the axis is TimelineMath.pos in all four
+-- modes, which is what these tests measure.
+
+test("CD-35 Vertical: the frame swaps to 24x250 and the icons run bottom -> top on pos()", function()
+    Display:Init()
+    local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
+    local now = 44000
+    local feed = {
+        { name = "VertA", start = 0, duration = 999, endTime = now + 60 },
+        { name = "VertB", start = 0, duration = 999, endTime = now + 120 },
+    }
+    Settings:Set("Cooldown", "Vertical", true)
+    Display:Update(feed, now)
+
+    -- frame.Update :1476-1479: SetWidth(Height + 2*d) / SetHeight(Width + 2*d)
+    -- (the port keeps the 250x24 axis itself and insets the backdrop).
+    assertEquals(H, Display.anchor:GetWidth())
+    assertEquals(W, Display.anchor:GetHeight())
+
+    for _, e in ipairs(feed) do
+        local slot = slotOf(e.name)
+        local point, _, relPoint, xoff, yoff = slot.frame:GetPoint()
+        -- The source's non-flip Vertical branch: icon CENTER -> bar BOTTOM,
+        -- offset (0, +t10) (:1446-1448).
+        assertEquals("BOTTOM", point)
+        assertEquals("BOTTOM", relPoint)
+        near3(xoff, 0)
+        near3(yoff, TM.pos(e.endTime - now, W, H, Max, Loga),
+            e.name .. " rides pos() up the bar")
+    end
+
+    -- The time tags ride the same axis: the "60" tag (index 5 of the default
+    -- list 0 1 10 30 60 120 + the Max tag) sits at its pos value on y.
+    local tagY = { Display.tagFS[5]:GetPoint() }
+    near3(tagY[5], S.Inset + TM.pos(60, W, H, Max, Loga) - W * 0.5)
+    near3(tagY[4], 0)
+
+    -- The segment slice runs up the bar: the first group spans the bar's
+    -- BOTTOM (leftX = 0) to its own centre (:1433-1435).
+    local segPoint, _, segRel, sx, sy = slotOf("VertA").seg:GetPoint()
+    assertEquals("TOPLEFT", segPoint)
+    assertEquals("TOPLEFT", segRel)
+    near3(sx, 0)
+    near3(sy, TM.pos(60, W, H, Max, Loga) + H * 0.5 - (W - 2 * S.Inset))
+    local p2, _, _, _, y2 = slotOf("VertA").seg:GetPoint(2)
+    assertEquals("BOTTOMRIGHT", p2)
+    near3(y2, 0)
+
+    -- The ready pulse rides the axis' origin end too (:1176-1181 anchor law).
+    Display:OnReady("VertA", now + 1)
+    Display:Update(feed, now + 1.05)
+    local pulse
+    for i = 1, #Display.pulsePool do
+        local p = Display.pulsePool[i]
+        if p._name == "VertA" and p._endAt then pulse = p end
+    end
+    assertNotNil(pulse, "the ready pulse is live")
+    -- The splash/pulse frames are CENTRE-anchored (axisOffset lays the
+    -- centre offset out on the current axis), not origin-anchored.
+    local pp, _, _, px, py = pulse.frame:GetPoint()
+    assertEquals("CENTER", pp)
+    near3(px, 0)
+    near3(py, S.Inset + TM.pos(0, W, H, Max, Loga) + H * 0.5 - W * 0.5)
+
+    Settings:Reset("Cooldown", "Vertical")
+    Display:Update({}, now + 3)
+    -- Back to the horizontal law: the size and the anchors swap right back.
+    assertEquals(W, Display.anchor:GetWidth())
+    assertEquals(H, Display.anchor:GetHeight())
+end)
+
+test("CD-35 Flip: the icons run right -> left, mirrored exactly about the bar centre", function()
+    Display:Init()
+    local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
+    local now = 45000
+    local feed = {
+        { name = "FlipA", start = 0, duration = 999, endTime = now + 60 },
+        { name = "FlipB", start = 0, duration = 999, endTime = now + 120 },
+    }
+    local function centreX(obj)
+        return (obj:GetLeft() + obj:GetRight()) * 0.5
+    end
+    -- The unflipped reference: the centres of the icons and of the "60" tag.
+    Display:Update(feed, now)
+    local baseA, baseB = centreX(slotOf("FlipA").frame),
+        centreX(slotOf("FlipB").frame)
+    local baseTag = centreX(Display.tagFS[5])
+    local barCentre = centreX(Display.bar)
+    Display:Update({}, now + 1)
+
+    Settings:Set("Cooldown", "Flip", true)
+    Display:Update(feed, now)
+    for _, e in ipairs(feed) do
+        local slot = slotOf(e.name)
+        local point, _, relPoint, xoff, yoff = slot.frame:GetPoint()
+        -- The source's Flip branch: icon CENTER -> bar RIGHT, (-t10, 0)
+        -- (:1440-1442).
+        assertEquals("RIGHT", point)
+        assertEquals("RIGHT", relPoint)
+        near3(xoff, -TM.pos(e.endTime - now, W, H, Max, Loga),
+            e.name .. " rides pos() measured from the RIGHT end")
+        near3(yoff, 0)
+        -- The numeric mirror: the flipped centre is the unflipped centre
+        -- reflected in the bar's centre.
+        local base = (e.name == "FlipA") and baseA or baseB
+        near3(centreX(slot.frame) - barCentre, -(base - barCentre))
+    end
+    -- The tags are mirrored the same way (:1263: "RIGHT",-d,0).
+    near3(centreX(Display.tagFS[5]) - barCentre, -(baseTag - barCentre))
+    local segPoint, _, _, sx = slotOf("FlipA").seg:GetPoint()
+    assertEquals("TOPRIGHT", segPoint)
+    near3(sx, 0)                       -- the first group's left border = 0
+    local p2, _, _, x2 = slotOf("FlipA").seg:GetPoint(2)
+    assertEquals("BOTTOMLEFT", p2)
+    near3(x2, (W - 2 * S.Inset) - (TM.pos(60, W, H, Max, Loga) + H * 0.5))
+    Settings:Reset("Cooldown", "Flip")
+    Display:Update({}, now + 2)
+end)
+
+test("CD-35 Vertical + Flip: the axis runs top -> bottom with negated offsets", function()
+    Display:Init()
+    local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
+    local now = 46000
+    local feed = { { name = "VF", start = 0, duration = 999, endTime = now + 120 } }
+    Settings:Set("Cooldown", "Vertical", true)
+    Settings:Set("Cooldown", "Flip", true)
+    Display:Update(feed, now)
+    local point, _, relPoint, xoff, yoff = slotOf("VF").frame:GetPoint()
+    -- The source's Vertical+Flip branch: icon CENTER -> bar TOP, (0, -t10)
+    -- (:1427-1429).
+    assertEquals("TOP", point)
+    assertEquals("TOP", relPoint)
+    near3(xoff, 0)
+    near3(yoff, -TM.pos(120, W, H, Max, Loga))
+    assertEquals(H, Display.anchor:GetWidth())
+    assertEquals(W, Display.anchor:GetHeight())
+    Settings:Reset("Cooldown", "Vertical")
+    Settings:Reset("Cooldown", "Flip")
+    Display:Update(feed, now + 1)
+    local p3, _, _, x3, y3 = slotOf("VF").frame:GetPoint()
+    assertEquals("LEFT", p3)
+    -- The pass ran at now + 1, so this row has 119 s left on the axis.
+    near3(x3, TM.pos(119, W, H, Max, Loga))
+    near3(y3, 0)
+end)
+
+-- CD-35's third mode: `Hide` -- "Auto-hide when no cooldowns"
+-- (Localization.lua :110-111; the Draw test at Forte_Cooldown.lua :1348,
+-- `s.Hide and not cd:find(0,17)`, hides the whole scale while the cooldown
+-- table is empty). The gate rides the Module's normal 10 Hz feed: the bar
+-- shows again on the pass its first entry lands on, driven by nothing but
+-- that feed.
+test("CD-35 HideZero: no entries hides the bar, the first entry in the feed shows it", function()
+    Display:Init()
+    local now = 47000
+    local feed = { { name = "ZeroA", start = 0, duration = 999, endTime = now + 90 } }
+    Display:Update({}, now)
+    assertTrue(Display.anchor:IsShown(), "the flag is OFF by default (:1815)")
+    Settings:Set("Cooldown", "HideZero", true)
+    Display:Update({}, now + 0.1)
+    assertFalse(Display.anchor:IsShown(), "an empty bar is no bar at all")
+    -- The Module's normal feed: the first entry arriving is what shows it.
+    Display:Update(feed, now + 0.2)
+    assertTrue(Display.anchor:IsShown())
+    assertTrue(slotOf("ZeroA").frame:IsShown())
+    -- The entry leaves -> the bar goes away again.
+    Display:Update({}, now + 0.3)
+    assertFalse(Display.anchor:IsShown())
+    -- A SetEnabled/SetHideZero-style refresh between passes keeps the empty
+    -- bar hidden (it reads the last feed size, not a stale "shown").
+    Display:SetHideZero(true)
+    assertFalse(Display.anchor:IsShown())
+    Settings:Reset("Cooldown", "HideZero")
+    Display:Update({}, now + 0.4)
+    assertTrue(Display.anchor:IsShown())
+end)

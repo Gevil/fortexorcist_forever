@@ -1,0 +1,479 @@
+-- addon/Forte_Messages/tests/test_announce.lua
+-- The legality gate (docs/messages-sounds.md is the evidence trail): an
+-- announce SENDS through C_ChatInfo.SendChatMessage when nothing reports a
+-- lockdown, and is SILENTLY SKIPPED AND COUNTED when one does -- the
+-- C_RestrictedActions Chat=5 snapshot on FX.SecretState.chat (the Compat.lua
+-- RESTRICTION_TYPES seam), C_ChatInfo.InChatMessagingLockdown, the
+-- C_ChatInfo.AreOutgoingAddonChatMessagesRestricted pair NeedRoll gates on.
+-- Only a PLAIN true skips (the SecretState consumer law); a raising send is
+-- counted, never propagated. Routing is the original's ToGroup/ToChannel
+-- (Forte_Core.lua:2046-2071); the soulstone row is the Warlock family's
+-- SoulstoneSuccess text (Forte_Class/Warlock/Warlock.lua:365) driven off the
+-- PLAYER's own cast events with the family name patterns (Forte_Warlock/
+-- Core/Tools.lua:142).
+--
+-- The lockdown readers are the documented seam (Announce.readers) and
+-- FX.SecretState.chat is set directly -- the sim ships no
+-- C_RestrictedActions, and the CONTRACT under test is what a true/false/
+-- nil answer does to the send, not the client's plumbing.
+
+local FX = ForteXorcist
+local M = FX.Messages.Module
+local Announce = FX.Messages.Announce
+local Sounds = FX.Messages.Sounds
+local ST = FX.Settings
+
+local function enable()
+    if not M.cfg then M:OnEnable() end
+end
+
+local sent
+local function installReaders(extra)
+    local r = {
+        inLockdown = function() return false end,
+        outgoingRestricted = function() return false end,
+        isRaid = function() return false end,
+        groupCount = function() return 4 end,
+        send = function(text, chatType)
+            sent[#sent + 1] = { text = text, chatType = chatType }
+        end,
+    }
+    for k, v in pairs(extra or {}) do r[k] = v end
+    Announce.readers = r
+    sent = {}
+end
+local function restoreAll()
+    Announce.readers = {}
+    if FX.SecretState then FX.SecretState.chat = nil end
+end
+
+test("unrestricted: '<spell> ready' goes to PARTY in a party and RAID in "
+.. "a raid (the ToGroup routing)", function()
+    enable()
+    installReaders({})
+    ST:Set("RaidMsg", "OutputRaid", true)
+    ST:Set("RaidMsg", "ReadyAnnounce", true)
+    local s0 = Announce.counts.sent
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 1.0, nil, nil)
+    assertEquals(1, #sent)
+    assertEquals("PARTY", sent[1].chatType)
+    assertEquals(">> Rapid Fire is ready <<", sent[1].text)
+    installReaders({ isRaid = function() return true end })
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 2.0, nil, nil)
+    assertEquals("RAID", sent[1].chatType)
+    assertEquals(s0 + 2, Announce.counts.sent)
+    ST:Set("RaidMsg", "ReadyAnnounce", false)
+    restoreAll()
+end)
+
+test("locked (FX.SecretState.chat = the C_RestrictedActions Chat=5 read): "
+.. "the send is silently skipped and counted", function()
+    enable()
+    installReaders({})
+    ST:Set("RaidMsg", "ReadyAnnounce", true)
+    -- The Refresh freeze: on a real client Refresh REcomputes chat from
+    -- C_RestrictedActions (the truth); the sim has no surface, so the
+    -- injected snapshot is what the gate must read.
+    local realRefresh = FX.SecretState.Refresh
+    FX.SecretState.Refresh = function() end
+    FX.SecretState.chat = true
+    local skipped0, sent0 = Announce.counts.lockedSkipped, Announce.counts.sent
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 3.0, nil, nil)
+    assertEquals(0, #sent, "nothing went")
+    assertEquals(skipped0 + 1, Announce.counts.lockedSkipped)
+    assertEquals(sent0, Announce.counts.sent)
+    FX.SecretState.chat = nil
+    FX.SecretState.Refresh = realRefresh
+    ST:Set("RaidMsg", "ReadyAnnounce", false)
+    restoreAll()
+end)
+
+test("locked (C_ChatInfo.InChatMessagingLockdown true): skip + count",
+function()
+    enable()
+    installReaders({ inLockdown = function() return true end })
+    ST:Set("RaidMsg", "ReadyAnnounce", true)
+    local s0 = Announce.counts.lockedSkipped
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 4.0, nil, nil)
+    assertEquals(0, #sent)
+    assertEquals(s0 + 1, Announce.counts.lockedSkipped)
+    ST:Set("RaidMsg", "ReadyAnnounce", false)
+    restoreAll()
+end)
+
+test("locked (C_ChatInfo.AreOutgoingAddonChatMessagesRestricted true): the "
+.. "NeedRoll pair, skip + count", function()
+    enable()
+    installReaders({ outgoingRestricted = function() return true end })
+    ST:Set("RaidMsg", "ReadyAnnounce", true)
+    local s0 = Announce.counts.lockedSkipped
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 5.0, nil, nil)
+    assertEquals(0, #sent)
+    assertEquals(s0 + 1, Announce.counts.lockedSkipped)
+    ST:Set("RaidMsg", "ReadyAnnounce", false)
+    restoreAll()
+end)
+
+test("an UNKNOWN lockdown state (nil from every reader) does NOT suppress "
+.. "-- the SecretState consumer law", function()
+    enable()
+    installReaders({
+        inLockdown = function() return nil end,
+        outgoingRestricted = function() error("FXTEST-NO-SURFACE", 0) end,
+    })
+    ST:Set("RaidMsg", "ReadyAnnounce", true)
+    local s0 = Announce.counts.sent
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 6.0, nil, nil)
+    assertEquals(1, #sent)
+    assertEquals(s0 + 1, Announce.counts.sent)
+    ST:Set("RaidMsg", "ReadyAnnounce", false)
+    restoreAll()
+end)
+
+test("a raising send is counted as failed and never propagates", function()
+    enable()
+    installReaders({
+        send = function() error("FXTEST-SEND-BLOCKED", 0) end,
+    })
+    ST:Set("RaidMsg", "ReadyAnnounce", true)
+    local f0 = Announce.counts.sendFailed
+    local ok = pcall(FX.Fire, FX.EVENTS.COOLDOWN_READY, "Rapid Fire",
+        7.0, nil, nil)
+    assertTrue(ok, "the bus's pcall holds the line: the fire survives")
+    assertEquals(f0 + 1, Announce.counts.sendFailed)
+    ST:Set("RaidMsg", "ReadyAnnounce", false)
+    restoreAll()
+end)
+
+test("no group: the announce echoes locally (the ToGroup FW:Show law), no send",
+function()
+    enable()
+    installReaders({
+        isRaid = function() return false end,
+        groupCount = function() return 0 end,
+    })
+    -- The echo lands on the chat layer (the original's FW:Show -- the
+    -- DEFAULT_CHAT_FRAME stub is the capture; FX.Print is its only
+    -- fallback).
+    local echo
+    local realChat = _G.DEFAULT_CHAT_FRAME
+    _G.DEFAULT_CHAT_FRAME = {
+        AddMessage = function(_, text) echo = text end,
+    }
+    ST:Set("RaidMsg", "ReadyAnnounce", true)
+    local g0 = Announce.counts.noGroup
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 8.0, nil, nil)
+    _G.DEFAULT_CHAT_FRAME = realChat
+    assertEquals(0, #sent)
+    assertEquals(g0 + 1, Announce.counts.noGroup)
+    assertNotNil(echo, "the line echoed locally")
+    assertTrue(echo:find("Rapid Fire") ~= nil)
+    ST:Set("RaidMsg", "ReadyAnnounce", false)
+    restoreAll()
+end)
+
+test("the master switch and the channel routing: SAY/YELL normalise, a "
+.. "stray channel string is refused", function()
+    enable()
+    installReaders({})
+    ST:Set("RaidMsg", "ReadyChannel", true)
+    ST:Set("RaidMsg", "OutputChannel", "yell")
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 9.0, nil, nil)
+    assertEquals("YELL", sent[1].chatType)
+    ST:Set("RaidMsg", "OutputChannel", "CHANNEL3")
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 10.0, nil, nil)
+    assertEquals(2, #sent)
+    assertEquals("CHANNEL3", sent[2].chatType)
+    local off0 = Announce.counts.offSkipped
+    ST:Set("RaidMsg", "OutputChannel", "PIZZA")
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 11.0, nil, nil)
+    assertEquals(2, #sent, "the stray string sent nothing")
+    assertEquals(off0 + 1, Announce.counts.offSkipped)
+    -- The master switch mutes the whole channel half.
+    ST:Set("RaidMsg", "OutputEnable", false)
+    ST:Set("RaidMsg", "OutputChannel", "SAY")
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 12.0, nil, nil)
+    assertEquals(2, #sent)
+    ST:Set("RaidMsg", "OutputEnable", true)
+    ST:Set("RaidMsg", "ReadyChannel", false)
+    ST:Set("RaidMsg", "OutputChannel", "SAY")
+    restoreAll()
+end)
+
+-- ------------------------------------------------------------- soulstone --
+
+local function withSpellNames(names)
+    local real = C_Spell and C_Spell.GetSpellInfo
+    _G.C_Spell = _G.C_Spell or {}
+    C_Spell.GetSpellInfo = function(id)
+        local n = names[id]
+        return n and { spellID = id, name = n } or nil
+    end
+    return real
+end
+local function restoreSpellNames(real)
+    if C_Spell then C_Spell.GetSpellInfo = real end
+end
+
+local function dispatch(event, a1, a2, a3, a4)
+    local f = M._eventFrame
+    assertNotNil(f)
+    local onEvent = f:GetScript("OnEvent")
+    assertNotNil(onEvent)
+    -- The frame is argument 1 (the binding law; the Forte_Hunter bug class).
+    onEvent(f, event, a1, a2, a3, a4)
+end
+
+test("soulstone: the family cast announces the original's line to the "
+.. "group, and stays silent when opt-in is off", function()
+    enable()
+    installReaders({})
+    local real = withSpellNames({
+        [706] = "Create Soulstone",
+        [999] = "Fireball",
+    })
+    ST:Set("RaidMsg", "SoulstoneAnnounce", true)
+    local s0 = Announce.counts.sent
+    dispatch("UNIT_SPELLCAST_SENT", "player", "Vile Poacher", "G:1", 706)
+    dispatch("UNIT_SPELLCAST_SUCCEEDED", "player", "G:1", 706)
+    assertEquals(1, #sent)
+    -- The original's text verbatim (Warlock.lua:365).
+    assertEquals("Soulstoned >> Vile Poacher << Use it well!", sent[1].text)
+    assertEquals("PARTY", sent[1].chatType)
+    assertEquals(s0 + 1, Announce.counts.sent)
+    -- A non-family cast: silence.
+    dispatch("UNIT_SPELLCAST_SENT", "player", "Vile Poacher", "G:2", 999)
+    dispatch("UNIT_SPELLCAST_SUCCEEDED", "player", "G:2", 999)
+    assertEquals(1, #sent)
+    -- Opt-in OFF is the shipped default: the same cast, total silence.
+    ST:Set("RaidMsg", "SoulstoneAnnounce", false)
+    dispatch("UNIT_SPELLCAST_SENT", "player", "Vile Poacher", "G:3", 706)
+    dispatch("UNIT_SPELLCAST_SUCCEEDED", "player", "G:3", 706)
+    assertEquals(1, #sent)
+    ST:Set("RaidMsg", "SoulstoneAnnounce", false)
+    restoreSpellNames(real)
+    restoreAll()
+end)
+
+test("the family pattern is the Warlock tools' law: Create Soulstone / "
+.. "Soulstone Resurrection in, Use Soulstone out", function()
+    enable()
+    installReaders({})
+    local real = withSpellNames({
+        [706] = "Create Soulstone",
+        [1001] = "Soulstone Resurrection",
+        [1002] = "Use Soulstone",
+        [1003] = "Soulstone",          -- the stone's own use spell name
+    })
+    ST:Set("RaidMsg", "SoulstoneAnnounce", true)
+    for _, id in ipairs({ 1001 }) do
+        dispatch("UNIT_SPELLCAST_SENT", "player", "Dead Peer", "G:R", id)
+        dispatch("UNIT_SPELLCAST_SUCCEEDED", "player", "G:R", id)
+    end
+    assertEquals(1, #sent)
+    dispatch("UNIT_SPELLCAST_SENT", "player", "Self", "G:U", 1002)
+    dispatch("UNIT_SPELLCAST_SUCCEEDED", "player", "G:U", 1002)
+    assertEquals(1, #sent, "Use Soulstone is not a family cast (Tools.lua "
+        .. "family: Create/resurrection only)")
+    ST:Set("RaidMsg", "SoulstoneAnnounce", false)
+    restoreSpellNames(real)
+    restoreAll()
+end)
+
+test("a SUCCEEDED with no stamped SENT carries the '?' target, never a nil",
+function()
+    enable()
+    installReaders({})
+    local real = withSpellNames({ [706] = "Create Soulstone" })
+    ST:Set("RaidMsg", "SoulstoneAnnounce", true)
+    dispatch("UNIT_SPELLCAST_SUCCEEDED", "player", "G:LOST", 706)
+    assertEquals(1, #sent)
+    assertEquals("Soulstoned >> ? << Use it well!", sent[1].text)
+    ST:Set("RaidMsg", "SoulstoneAnnounce", false)
+    restoreSpellNames(real)
+    restoreAll()
+end)
+
+-- ------------------------------------------------------------------ fade --
+-- The FX_TIMER_FADING / FX_TIMER_BROKEN chain (the review correction of
+-- 2026-11-02): the fires live in Forte_Timer's own passes (the Sweep fade
+-- block, the :1049-1056 law; OnAuraAbsent's removal, the :1207 law), the
+-- thresholds are parsed here from the fade texts (the ST_GetFadeTime law,
+-- Forte_Timer.lua:1590-1603), and the ORIGINAL plays its bell + message at
+-- the FADE, never at a bare expiry.
+
+local function enableTimer()
+    enable()
+    local TM = FX.Timer.Module
+    if not TM.options then TM:OnEnable() end
+    return FX.Timer.Rows
+end
+
+test("the shipped CC defaults are the original's rows and bits verbatim",
+function()
+    enable()
+    local D = FX.Messages.Pages.DEFAULTS.RaidMsg
+    assertEquals(">> Banish on %s Fading in 3 seconds! <<", D.BanishFadeText)
+    assertEquals(">> Seduction on %s Broke Early! <<", D.SeductionBreakText)
+    assertEquals(">> Enslave on %s Fading in 3 seconds! <<", D.EnslaveFadeText)
+    -- bit 1 = party/raid ON (Warlock.lua:387-391):
+    assertEquals(true, D.BanishFadeParty)
+    assertEquals(true, D.BanishBreakParty)
+    assertEquals(true, D.EnslaveFadeParty)
+    assertEquals(true, D.SeductionFadeParty)
+    -- bit 0 = silent (Fear :387 first row, Mage.lua:122, Rogue.lua:102):
+    assertEquals(false, D.FearFadeParty)
+    assertEquals(false, D.PolymorphFadeParty)
+    assertEquals(false, D.SapFadeParty)
+    -- bit 2 (channel) is 0 for every shipped row:
+    assertEquals(false, D.BanishFadeChannel)
+    assertEquals(false, D.SeductionBreakChannel)
+    -- The threshold registry: 3 from the texts (the leading number law),
+    -- Mesmerize shares the Seduction rows, Corruption is absent.
+    assertEquals(3, FX.Timer.FadeWarnings.Banish)
+    assertEquals(3, FX.Timer.FadeWarnings.Mesmerize)
+    assertNil(FX.Timer.FadeWarnings.Corruption)
+end)
+
+test("FADING: a Banish row fires the event EXACTLY ONCE crossing 3.0 s, "
+.. "the fade bell rings x2, the fade line goes to the party", function()
+    local Rows = enableTimer()
+    installReaders({})
+    local clock = { 40000 }
+    FX.Timer.Casts.now = function() return clock[1] end
+    local row = Rows:InsertFromAura("Banish", "Vile Poacher",
+        clock[1] + 10, 10, 0, nil, 0, clock[1])
+    assertNotNil(row)
+    assertEquals(3, row.fadeWarn, "the insert-time column-12 stamp")
+    local events = {}
+    local h = FX.On(FX.EVENTS.TIMER_FADING, function(s, t, k, left)
+        events[#events + 1] = { s, t, k, left }
+    end)
+    local plays = {}
+    Sounds.playFn = function(path) plays[#plays + 1] = path end
+    local fade0 = M.counts.fading
+    clock[1] = clock[1] + 2                    -- 8 s left: silence
+    Rows:Sweep(clock[1])
+    assertEquals(0, #events)
+    assertEquals(0, #plays)
+    clock[1] = clock[1] + 5.1                 -- 2.9 s left: the threshold
+    Rows:Sweep(clock[1])
+    assertEquals(1, #events)
+    assertEquals("Banish", events[1][1])
+    assertEquals("Vile Poacher", events[1][2])
+    assertEquals(fade0 + 1, M.counts.fading)
+    clock[1] = clock[1] + 0.5                 -- pumping more: no second fire
+    Rows:Sweep(clock[1])
+    assertEquals(1, #events)
+    -- The original's TimerFadeSound law (Forte_Timer.lua:3297, x2).
+    assertEquals(2, #plays)
+    assertEquals("Sound\\Spells\\ShaysBell.wav", plays[1])
+    -- The fade message, bit 1 = the party line (verbatim).
+    assertEquals(1, #sent)
+    assertEquals("PARTY", sent[1].chatType)
+    assertEquals(">> Banish on Vile Poacher Fading in 3 seconds! <<",
+        sent[1].text)
+    Sounds.playFn = nil
+    FX.Off(h)
+    Rows:Clear()
+    restoreAll()
+end)
+
+test("a bare expiry of an UNREGISTERED spell (Corruption) fires no FADING "
+.. "and plays no bell (no per-expiry defaults -- the review law)",
+function()
+    local Rows = enableTimer()
+    installReaders({})
+    local clock = { 41000 }
+    FX.Timer.Casts.now = function() return clock[1] end
+    local row = Rows:InsertFromAura("Corruption", "Vile Poacher",
+        clock[1] + 9, 9, 0, nil, 0, clock[1])
+    assertEquals(0, row.fadeWarn)
+    local events = {}
+    local h = FX.On(FX.EVENTS.TIMER_FADING, function()
+        events[#events + 1] = true end)
+    local h2 = FX.On(FX.EVENTS.TIMER_EXPIRED, function()
+        events[#events + 1] = "e" end)
+    local plays = {}
+    Sounds.playFn = function(path) plays[#plays + 1] = path end
+    for _ = 1, 10 do
+        clock[1] = clock[1] + 1.0
+        Rows:Sweep(clock[1])
+    end
+    for _, e in ipairs(events) do
+        assertTrue(e ~= true, "the fade event never rides an expiry")
+    end
+    assertEquals(0, #plays,
+        "the true-expiry bell is opt-in and default OFF (the fade is the "
+        .. "original's warning)")
+    Sounds.playFn = nil
+    FX.Off(h); FX.Off(h2)
+    Rows:Clear()
+    restoreAll()
+end)
+
+test("BROKEN: the aura sweep's early removal fires the event, the break "
+.. "sound x4, and the break line to the party", function()
+    local Rows = enableTimer()
+    installReaders({})
+    local clock = { 42000 }
+    FX.Timer.Casts.now = function() return clock[1] end
+    local row = Rows:InsertFromAura("Banish", "Vile Poacher",
+        clock[1] + 10, 10, 0, nil, 0, clock[1])
+    local events = {}
+    local h = FX.On(FX.EVENTS.TIMER_BROKEN, function(s, t, k)
+        events[#events + 1] = { s, t, k } end)
+    local plays = {}
+    Sounds.playFn = function(path) plays[#plays + 1] = path end
+    local broken0 = M.counts.broken
+    -- PAST the BUFF_DELAY grace with 5 s (> MAXLAG) of window left: the
+    -- absence fact is the break (the :1207 site).
+    assertEquals("removed", Rows:OnAuraAbsent(row, clock[1] + 5))
+    assertEquals(1, #events)
+    assertEquals("Banish", events[1][1])
+    assertEquals("Vile Poacher", events[1][2])
+    assertEquals(broken0 + 1, M.counts.broken)
+    assertEquals(4, #plays, "the original's TimerBreakSound x4, :3298")
+    assertEquals("Sound\\Spells\\SimonGame_Visual_LevelStart.wav", plays[1])
+    assertEquals(">> Banish on Vile Poacher Broke Early! <<", sent[1].text)
+    assertEquals("PARTY", sent[1].chatType)
+    -- Inside the last-MAXLAG band the absence is NOT a break: refused, no
+    -- event, no sound.
+    local n0 = #events
+    local row2 = Rows:InsertFromAura("Banish", "River Crocolisk",
+        clock[1] + 20, 20, 0, nil, 0, clock[1])
+    Rows:OnAuraAbsent(row2, row2.castTime + 19.5)
+    assertEquals(n0, #events)
+    Sounds.playFn = nil
+    FX.Off(h)
+    Rows:Clear()
+    restoreAll()
+end)
+
+test("the threshold parses from the EDITED fade text (Fading in 5 -> 5), "
+.. "and the fallback is 0.1", function()
+    enable()
+    ST:Set("RaidMsg", "BanishFadeText",
+        ">> Banish on %s Fading in 5 seconds! <<")
+    assertEquals(5, FX.Timer.FadeWarnings.Banish)
+    ST:Set("RaidMsg", "BanishFadeText", ">> Banish fades soon! <<")
+    assertEquals(0.1, FX.Timer.FadeWarnings.Banish,
+        "no number in the text: the ST_GetFadeTime fallback 0.1 "
+        .. "(Forte_Timer.lua:1597)")
+    ST:Set("RaidMsg", "BanishFadeText",
+        ">> Banish on %s Fading in 3 seconds! <<")
+    assertEquals(3, FX.Timer.FadeWarnings.Banish)
+end)
+
+test("a foreign unit's cast is ignored (the player filter)", function()
+    enable()
+    installReaders({})
+    local real = withSpellNames({ [706] = "Create Soulstone" })
+    ST:Set("RaidMsg", "SoulstoneAnnounce", true)
+    dispatch("UNIT_SPELLCAST_SENT", "party1", "Vile Poacher", "G:F", 706)
+    dispatch("UNIT_SPELLCAST_SUCCEEDED", "party1", "G:F", 706)
+    assertEquals(0, #sent)
+    ST:Set("RaidMsg", "SoulstoneAnnounce", false)
+    restoreSpellNames(real)
+    restoreAll()
+end)

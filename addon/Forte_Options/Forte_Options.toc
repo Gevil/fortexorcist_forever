@@ -11,4 +11,5 @@ Core/Widgets.lua
 UI/Window.lua
 Pages/General.lua
 Pages/Cooldown.lua
+Pages/Splash.lua
 Pages/About.lua

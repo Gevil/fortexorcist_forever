@@ -57,6 +57,19 @@
 -- the accepted path, nil = every string on the template fallback.
 --
 -- Position + lock state live in FX.db.cooldownDisplay.
+--
+-- CD-30/CD-31/CD-35 (Phase 2, 2026-11-02): the bar's own right-button release
+-- opens the options window on the Cooldown page, dropped when the cursor
+-- travelled between press and release (the source's `FW:Moved()` guard,
+-- Forte_Core/Options.lua :659-662); a `UNIT_SPELLCAST_FAILED` of a spell that
+-- already has a live entry takes attention on that icon -- the ADD-blend
+-- Spark2 pulse at 2.2*ih*t20 and the group's cross-fade focus (the source's
+-- CD_CastFailed + CD_FocusTimer, :933-946 / :860-877), gated by the `Warn`
+-- setting; and the bar draws in three geometry modes -- Vertical (the icons
+-- bottom->top up the bar's height), Flip (right->left, tags and segment
+-- gradients mirrored), HideZero (the bar hides itself while the feed carries
+-- nothing) -- all sharing the one TimelineMath.pos axis through the
+-- axisPoint/axisOffset/segmentPoints helpers.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -131,6 +144,27 @@ FX.Cooldown.TimelineSkin = {
                                               -- law: linear 1->0); 0 = the
                                               -- spark rides a constant alpha
 
+    -- CD-35 frame geometry modes (CD-31's Warn rides the same option block).
+    -- The axis runs left -> right by default; Vertical turns it into a
+    -- bottom -> top column AND swaps the frame size (frame.Update
+    -- :1476-1479: SetWidth(Height + 2*d) / SetHeight(Width + 2*d)), Flip runs
+    -- it right -> left (icons :1440-1443, tags :1263, segments' TexCoord
+    -- mirrored :1441). Defaults: Vertical = false (:1808), Flip = false
+    -- (:1809). CD-35's third mode, HideZero (hide the bar while no cooldown
+    -- is on it), is a VISIBILITY gate, so it rides D.frameState.hideZero
+    -- below (the source's `Hide` row, default false :1815).
+    Vertical = false,
+    Flip = false,
+    Warn = true,                              -- s.Warn (:1821): a failed cast
+                                              -- of a cooling spell flashes
+                                              -- that icon (CD-31)
+    WarnSeconds = 0.5,                        -- `local focustime = 0.5` (:32):
+                                              -- cd[i][20] = 1 + focustime,
+                                              -- decayed -1/s (:540-542), the
+                                              -- attention pulse window
+    AttentionScale = 2.2,                     -- the attention spark is
+                                              -- `2.2*ih*(t20)` (:1412-1413)
+
     -- Category colours, verbatim :1842-1855 (BuffOther/DebuffOther default
     -- off in the original). Default class is Spell (orange); per-spell
     -- override via FX.Cooldown.Engine.tracked[name].fxClass = "<key>".
@@ -172,6 +206,8 @@ D.frameState = {
     scale = 1.0, alpha = 1.0,          -- the Cooldown page's Scale / Alpha
     globalScale = 1.0, globalAlpha = 1.0,   -- General FrameScale / FrameAlpha
     enabled = true, hideCombat = false,     -- Basics: Enable / HideCombat
+    hideZero = false,                       -- CD-35 `Hide` (:1815): the bar is
+                                            -- auto-hidden while cd is empty
 }
 local FS = D.frameState
 
@@ -301,9 +337,112 @@ local function rowColor(row)
     return S.Colors[rowClass(row)] or S.Colors.Spell
 end
 
+-- ------------------------------------------------------- geometry modes --
+-- CD-35 (`Vertical`, `Flip`). The bar has ONE axis coordinate: `a`, the
+-- position TimelineMath.pos produced, counted from the axis's ORIGIN end --
+-- the bar's LEFT end horizontally, its BOTTOM end vertically (the source
+-- branches on exactly these two flags in NewBar.Update :1176-1189, in the
+-- tag path :1260-1263 / :1279-1282 / :1319-1322 and in the draw loop's
+-- icon/segment block :1427-1450). Anchoring an icon to the bar's origin-end
+-- point with offset `+a` is the source's
+-- `bar.icon:SetPoint("CENTER", bar, "LEFT", t10, 0)` (:1450); Flip mirrors
+-- the whole axis (the source moves the anchor to the far end and negates
+-- the offset), which is why every one of the four modes is this one pair of
+-- helpers. The axis SPAN (the inset bar layer's length along the axis) is
+-- S.Width - 2*S.Inset in both orientations, because SetSize swaps the frame
+-- size (the source's frame.Update :1476-1479).
+
+--- The anchor triple for a bar-anchored object at axis position `a`: the
+--- frame point, the relative (same) point and the x/y offsets.
+local function axisPoint(a)
+    if S.Vertical then
+        if S.Flip then return "TOP", 0, -a end
+        return "BOTTOM", 0, a
+    end
+    if S.Flip then return "RIGHT", -a, 0 end
+    return "LEFT", a, 0
+end
+
+--- The anchor offsets for a CENTRE-anchored object (the time tags, the cast
+--- splash, the ready pulse) whose axis offset `o` is measured from the
+--- frame's centre.
+local function axisOffset(o)
+    if S.Vertical then
+        if S.Flip then return 0, -o end
+        return 0, o
+    end
+    if S.Flip then return -o, 0 end
+    return o, 0
+end
+
+--- The segment's two anchor pairs (:1427-1450): the slice spans the axis
+--- from `leftX` (its group's left border) to `rightX` (the icon's own
+--- centre), so the two points are the bar's two CORNER pairs; the far one is
+--- expressed from the far end, which is what the source's `s.Width - t9`
+--- offsets say, in the bar layer's own span. Returns
+--- p1, x1, y1, p2, x2, y2.
+local function segmentPoints(leftX, rightX)
+    local span = S.Width - 2 * S.Inset
+    if S.Vertical then
+        if S.Flip then
+            return "TOPRIGHT", 0, -leftX, "BOTTOMLEFT", 0, span - rightX
+        end
+        return "TOPLEFT", 0, rightX - span, "BOTTOMRIGHT", 0, leftX
+    end
+    if S.Flip then
+        return "TOPRIGHT", -leftX, 0, "BOTTOMLEFT", span - rightX, 0
+    end
+    return "TOPLEFT", leftX, 0, "BOTTOMRIGHT", rightX - span, 0
+end
+
+--- The segment's TexCoord slice (:1429-1450): the Aluminium gradient runs
+--- along the axis, so Vertical swaps the u/v pairs and Flip swaps which of
+--- the two uv values rides the left corner pair. 8-arg order:
+--- (ulX,ulY, llX,llY, urX,urY, lrX,lrY).
+local function setSegmentUV(seg, uvL, uvR)
+    if S.Vertical then
+        if S.Flip then
+            seg:SetTexCoord(uvL, 0, uvR, 0, uvL, 1, uvR, 1)
+        else
+            seg:SetTexCoord(uvR, 0, uvL, 0, uvR, 1, uvL, 1)
+        end
+    elseif S.Flip then
+        seg:SetTexCoord(uvR, 0, uvR, 1, uvL, 0, uvL, 1)
+    else
+        seg:SetTexCoord(uvL, 0, uvL, 1, uvR, 0, uvR, 1)
+    end
+end
+
+--- The identity of the current geometry mode, for the dirty checks that must
+--- re-run when only the MODE moved (the segment TexCoord slice).
+local function geoKey()
+    return (S.Vertical and "V" or "H") .. (S.Flip and "F" or "")
+end
+
+--- The frame size of the current geometry mode: the source's frame.Update
+--- (:1476-1482) swaps width and height (and flips the backdrop's TexCoord)
+--- for Vertical, so the 250-long axis is the frame's HEIGHT there.
+function D:ApplyBarSize()
+    if not self.anchor then return end
+    if S.Vertical then
+        self.anchor:SetSize(S.Height, S.Width)
+    else
+        self.anchor:SetSize(S.Width, S.Height)
+    end
+    if self.fill and self.fill.SetTexCoord then
+        if S.Vertical then
+            self.fill:SetTexCoord(1, 0, 0, 0, 1, 1, 0, 1)  -- :1479
+        else
+            self.fill:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)  -- :1481
+        end
+    end
+end
+
 -- ------------------------------------------------------------------- init --
---- One tag fontstring by index; grow-only pool.
-function D:_TagSlot(i, text, xoff)
+--- One tag fontstring by index; grow-only pool. `axisOff` is the tag's
+--- offset from the frame centre ALONG the axis (CD-35: axisOffset lays it
+--- out on the current axis, mirroring the sign for Flip).
+function D:_TagSlot(i, text, axisOff)
     local fs = self.tagFS[i]
     if not fs then
         fs = self.anchor:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -315,7 +454,8 @@ function D:_TagSlot(i, text, xoff)
     local c = S.TextColor
     fs:SetTextColor(c[1], c[2], c[3], c[4])
     fs:ClearAllPoints()
-    fs:SetPoint("CENTER", self.anchor, "CENTER", xoff, 0)
+    local ox, oy = axisOffset(axisOff)
+    fs:SetPoint("CENTER", self.anchor, "CENTER", ox, oy)
     fs:Show()
     return fs
 end
@@ -344,7 +484,6 @@ function D:Init()
 
     local f = CreateFrame("Frame", "ForteXorcistCooldownAnchor", UIParent,
         BackdropTemplateMixin and "BackdropTemplate" or nil)
-    f:SetSize(S.Width, S.Height)
     if f.SetBackdrop then
         -- FW Backdrop = { Background, Border, tile=false, 16, 5, 3 } (:1857).
         local bd, ins = S.BackdropEdgeSize, S.Inset
@@ -382,11 +521,26 @@ function D:Init()
     -- note): locking only flips SetMovable/EnableMouse.
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStart", function(fr, button)
+        -- FW:StartMoving (Forte_Core/Options.lua:649-656) stamps the cursor
+        -- at press; FW:Moved() (:659-662) is the release-time compare that
+        -- makes CD-30's right-click skip a drag.
+        self:_StampPress()
+        fr.StartMoving(fr, button)
+    end)
     f:SetScript("OnDragStop", function(fr)
         fr:StopMovingOrSizing()
         self:SavePosition(fr)
     end)
+    -- CD-30: a right-button release on the bar opens the options window on
+    -- this module's page. The source wires the release on the frame itself
+    -- (Forte_Cooldown.lua :1226-1227: OnMouseDown = FW:StartMoving, OnMouseUp
+    -- = FW:StopMoving + Frame_OnClick(button) -> FW:ScrollTo(COOLDOWN_TIMER),
+    -- :901-909). "OnMouseUp" is also the script this engine accepts on a
+    -- plain Frame ("OnClick" is a Button-only slot here -- the sim rejects
+    -- it on a Frame), and its payload is (frame, mouseButtonName) exactly as
+    -- in the Blizzard UI's own OnMouseUp handlers.
+    f:SetScript("OnMouseUp", function(_, button) self:OnMouseUp(button) end)
 
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     title:SetText("Forte Cooldowns")
@@ -394,6 +548,10 @@ function D:Init()
     title:SetPoint("BOTTOM", f, "TOP", 0, 2)
 
     self.anchor, self.title, self.bar, self.fill = f, title, bar, fill
+    self._geoMode = geoKey()
+    -- The frame size follows the geometry mode (CD-35; the source sizes the
+    -- frame in frame.Update :1476-1482, i.e. after the settings are read).
+    self:ApplyBarSize()
     self.slots = {}        -- grow-only icon-slot pool
     self._byName = {}      -- name -> slot bound to it (names on the bar)
     self._free = {}        -- stack of released slots (release pops, O(1))
@@ -406,6 +564,20 @@ function D:Init()
     self._gitems = {}    -- scratch for grouping (entries are engine-owned)
     self._groupsScratch = {}   -- TM.group's caller-owned scratch (m5)
     self._ready = {}
+    -- CD-31: names whose last failed cast asked for attention, pending the
+    -- pass that draws them (the stamp needs the render clock, so the
+    -- handler only records the intent).
+    self._steal = {}
+
+    -- CD-31 Warn: the Display's OWN event frame (created here inside Init,
+    -- which runs at PLAYER_LOGIN -- never at chunk scope), registered for
+    -- the player's failed casts. The source registers/unregisters the
+    -- handler on the Warn checkbox itself (:953-960); SetWarn does the same
+    -- through the script slot (the Forte_Hunter/Warlock UI convention).
+    local ef = CreateFrame("Frame", nil, UIParent)
+    ef:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
+    self._eventFrame = ef
+    self:_BindWarnEvents()
 
     -- Login apply FIRST (Init runs at PLAYER_LOGIN): saved settings resize
     -- the skin, then BuildTags/Build draw in the saved geometry. Live
@@ -517,12 +689,16 @@ function D:SetSize(w, h)
     if type(w) == "number" and w > 0 then S.Width = w end
     if type(h) == "number" and h > 0 then S.Height = h end
     if not self.anchor then return end
-    self.anchor:SetSize(S.Width, S.Height)
+    self:ApplyBarSize()
     for i = 1, #self.slots do
         local slot = self.slots[i]
         slot.frame:SetSize(S.Height, S.Height)
         slot.tex:SetSize(S.Height, S.Height)
         slot.spark:SetSize(S.Height * S.SparkScale, S.Height * S.SparkScale)
+        -- The attention spark rides 2.2 x the icon at REST (:1412); an
+        -- armed one is resized by the next attention pass.
+        slot.alert:SetSize(S.Height * S.AttentionScale, S.Height * S.AttentionScale)
+        slot._alertSize = nil
     end
     for i = 1, #self.splashPool do
         local sp = self.splashPool[i]
@@ -538,7 +714,32 @@ function D:SetSize(w, h)
         p.spark:SetSize(S.Height * S.SparkScale, S.Height * S.SparkScale)
     end
     self:InvalidateLayout()
+    self:ReflowEffects()
     self:BuildTags()
+end
+
+--- Re-anchor the live splash / ready-pulse frames on the axis: a Width
+--- change (SetSize) or a geometry-mode change (SetVertical/SetFlip) moves
+--- every centre-relative offset, and these frames animate on their own
+--- clock, not on an entry, so nothing else would move them.
+function D:ReflowEffects()
+    if not self.anchor then return end
+    for i = 1, #self.splashPool do
+        local s = self.splashPool[i]
+        if s._off then
+            s.frame:ClearAllPoints()
+            local ox, oy = axisOffset(s._off)
+            s.frame:SetPoint("CENTER", self.anchor, "CENTER", ox, oy)
+        end
+    end
+    for i = 1, #self.pulsePool do
+        local p = self.pulsePool[i]
+        if p._off then
+            p.frame:ClearAllPoints()
+            local ox, oy = axisOffset(p._off)
+            p.frame:SetPoint("CENTER", self.anchor, "CENTER", ox, oy)
+        end
+    end
 end
 
 --- Max time / power scale move every icon and tag on the curve.
@@ -569,8 +770,10 @@ function D:InvalidateLayout()
     for i = 1, #(self.slots or {}) do
         local slot = self.slots[i]
         slot._cx = nil
+        slot._cp = nil          -- the geometry mode's anchor point
         slot._segSetL, slot._segSetR = nil, nil
         slot._segSetVL, slot._segSetV = nil, nil
+        slot._segSetMode = nil
     end
 end
 
@@ -590,6 +793,7 @@ function D:SetCategoryColor(key, col)
             slot._segCol = c
             slot.spark:SetVertexColor(fr, fg, fb)
             slot.timeFS:SetTextColor(fr, fg, fb)
+            slot.alert:SetVertexColor(fr, fg, fb)   -- :1412-1413 tint
         end
     end
 end
@@ -700,6 +904,133 @@ function D:SetHideCombat(on)
     self:UpdateVisibility()
 end
 
+--- CD-35 `HideZero` (the source's `Hide` row of the geometry-mode block,
+--- :1815 + the auto-hide term of Draw :1348): the bar hides itself while the
+--- cooldown table carries nothing. The gate is the live feed size, so it
+--- self-heals on the Module's 10 Hz pass with no extra event.
+function D:SetHideZero(on)
+    FS.hideZero = not not on
+    self:UpdateVisibility()
+end
+
+--- CD-35 `Vertical`: the axis becomes the frame's HEIGHT, icons stacking
+--- bottom -> top (the source's "BOTTOM" anchor branch :1446-1448 and the
+--- frame-size swap :1476-1479). Everything that keys on the axis -- tags,
+--- segments, the icon anchors, the live splash/pulse centres -- is rebuilt
+--- from the same TimelineMath.pos numbers, mirrored onto the new axis.
+function D:SetVertical(on)
+    S.Vertical = not not on
+    self._geoMode = geoKey()
+    self:ApplyBarSize()
+    self:InvalidateLayout()
+    self:ReflowEffects()
+    self:BuildTags()
+end
+
+--- CD-35 `Flip`: the axis runs from the far end (right -> left, or top ->
+--- bottom when Vertical), with the tags and the segment gradients mirrored
+--- (:1440-1443, :1263, :1441).
+function D:SetFlip(on)
+    S.Flip = not not on
+    self._geoMode = geoKey()
+    self:InvalidateLayout()
+    self:ReflowEffects()
+    self:BuildTags()
+end
+
+--- CD-31 `Warn` (:1821, default on): the source's CD_SpellFailed (:953-960)
+--- registers / unregisters the UNIT_SPELLCAST_FAILED handler on exactly
+--- this flag. Registering it in this engine means (re)installing the frame's
+--- OnEvent script -- with the script off the frame is inert, which is the
+--- Forte_Hunter / Forte_Warlock UI convention for a silent module.
+function D:SetWarn(on)
+    S.Warn = not not on
+    self:_BindWarnEvents()
+end
+
+--- Install / remove the Warn handler (idempotent; safe before Init).
+function D:_BindWarnEvents()
+    local f = self._eventFrame
+    if not f then return end
+    if S.Warn then
+        f:SetScript("OnEvent", function(_, event, unit, castGUID, spellID, castBarID)
+            self:CastFailed(spellID)
+        end)
+    else
+        f:SetScript("OnEvent", nil)
+    end
+end
+
+--- CD-31 (Forte_Cooldown.lua :933-946 `CD_CastFailed`): a failed cast of a
+--- spell that is ALREADY on the bar is the "you tried to cast something that
+--- is cooling" warning -- the icon takes attention. `unit == "player"` is
+--- the frame's own RegisterUnitEvent filter (the source also accepted
+--- "pet", :936; Forever's payload carries the unit token, verified in the
+--- pinned catalog @UnitDocumentation.lua:4713).
+---
+--- The spellID -> name resolve is Module:RecordCastEvent's law verbatim:
+--- the pcall wraps the whole C_Spell.GetSpellInfo read, PlainOrNil classifies
+--- the field (a combat-secret spellID resolves to nil, and NOTHING is ever
+--- compared or counted on a raw payload field), and only a plain string
+--- leaves the protected call.
+function D:CastFailed(spellID)
+    if not S.Warn then return end
+    local name
+    if C_Spell and C_Spell.GetSpellInfo then
+        local ok, resolved = pcall(function()
+            local info = C_Spell.GetSpellInfo(spellID)
+            return info and FX.Compat.PlainOrNil(info.name)
+        end)
+        if ok and type(resolved) == "string" then name = resolved end
+    end
+    if not name then return end
+    -- "a spell that has a live entry on the bar" (:938 `for i=cd.rows,1,-1
+    -- do if cd[i][1] == spell ...`): a name with no slot is not cooling, so
+    -- nothing flashes. The source also excludes its BUFF/DEBUFF rows from
+    -- the attention (:939); in this port that category rides the slot.
+    local slot = self._byName and self._byName[name]
+    if not slot then return end
+    local class = slot._colorClass
+    if class == "Buff" or class == "Debuff" then return end
+    self._steal[name] = true
+end
+
+--- FW:StartMoving's press stamp (Forte_Core/Options.lua:649-656): the cursor
+--- position at the moment the bar started moving.
+function D:_StampPress()
+    if type(GetCursorPosition) ~= "function" then return end
+    local x, y = GetCursorPosition()
+    self._downX, self._downY = x, y
+end
+
+--- FW:Moved() (Forte_Core/Options.lua:659-662): did the cursor travel
+--- between press and release? A drag must never open the options window
+--- (CD-30). No cursor read (no press stamp, no cursor on this client) means
+--- no travel, i.e. a click.
+function D:Moved()
+    if type(GetCursorPosition) ~= "function" then return false end
+    local dx, dy = self._downX, self._downY
+    if dx == nil or dy == nil then return false end
+    local x, y = GetCursorPosition()
+    if x == nil or y == nil then return false end
+    return x ~= dx or y ~= dy
+end
+
+--- CD-30 (the source's `Frame_OnClick`, Forte_Cooldown.lua :901-909, wired on
+--- the frame's own mouse release at :1226-1227): a right-button release on
+--- the bar opens the options window on this module's page; a release that
+--- followed a drag is dropped by the Moved guard. The source's matching
+--- `PlaySound("igMainMenuOptionCheckBoxOn")` (:907 -- the panel's only
+--- sound, spec CD-33) is Forte_Options' own UI click and lives with its
+--- widgets, not on the bar.
+function D:OnMouseUp(button)
+    if button ~= "RightButton" then return end
+    if self:Moved() then return end
+    local O = FX.Options
+    if not O or not O.Open then return end
+    pcall(O.Open, O, "Cooldown")
+end
+
 function D:SetTimeFormatAlt(on)
     S.TimeFormatAlt = not not on
     -- The displayed string identity changes -> force one repaint pass.
@@ -708,15 +1039,23 @@ function D:SetTimeFormatAlt(on)
     end
 end
 
---- Enable gates everything; HideCombat ("Hide when not in combat") hides
---- the bar OUT of combat. Dirty-checked; Update refreshes it every pass,
---- which is how the combat transitions self-heal without event wiring.
+--- Enable gates everything; HideCombat ("Hide when not in combat") hides the
+--- bar OUT of combat; HideZero (CD-35's `Hide` row, Draw :1348) hides it
+--- while the feed carries no cooldown. Dirty-checked; Update refreshes it
+--- every pass, which is how the combat transitions self-heal without event
+--- wiring -- and how the bar shows again the moment its first entry lands.
+--- `_lastCount` is the size of the last feed Update saw, so a visibility
+--- refresh from a setter (Init, SetEnabled, SetHideZero) between passes reads
+--- the state the bar is actually in.
 function D:UpdateVisibility()
     if not self.anchor then return end
     local show = FS.enabled
     if show and FS.hideCombat then
         show = (type(InCombatLockdown) == "function")
             and InCombatLockdown() and true or false
+    end
+    if show and FS.hideZero and (self._lastCount or 0) <= 0 then
+        show = false
     end
     if self._shown == show then return end
     self._shown = show
@@ -740,6 +1079,11 @@ local KEYMAP = {
     Enable = "SetEnabled",
     HideCombat = "SetHideCombat",
     Lock = "SetLocked",
+    -- CD-35 geometry modes + CD-31 Warn
+    Vertical = "SetVertical",
+    Flip = "SetFlip",
+    HideZero = "SetHideZero",
+    Warn = "SetWarn",
     Width = "SetWidth",
     Height = "SetHeight",
     MaxTime = "SetMaxTime",
@@ -780,7 +1124,8 @@ function D:SetIgnoreShort(v) self:IgnoreShortChanged(v) end
 --- The stored shape of every wired key (the pages' defaults are the
 --- canonical source; Get returns them unmodified when the store is empty).
 local STORED = {
-    Cooldown = { "Enable", "HideCombat", "Width", "Height", "MaxTime",
+    Cooldown = { "Enable", "HideCombat", "HideZero", "Vertical", "Flip",
+        "Warn", "Width", "Height", "MaxTime",
         "PowerScale", "TimeTags", "IgnoreShort", "BarColor", "BgColor",
         "Spark", "Scale", "Alpha",
         "ColorSpell", "ColorPowerup", "ColorItem", "ColorPotion",
@@ -864,6 +1209,19 @@ function D:AcquireSlot()
     -- it on the whole pool (SetSparkOn) and on freshly built slots.
     if not S.SparkOn then spark:Hide() end
 
+    -- The ATTENTION spark (CD-21/CD-31): the source creates it per bar
+    -- (:1100-1103, Spark2, ADD, centred on the icon) and shows it, sized
+    -- 2.2*ih*t20, while t20 > 1 (:1412-1416). It is the "you tried to cast
+    -- this while it was cooling" flash -- NOT the running spark, and the
+    -- source never gates it on Spark[0], so it is built shown-off and the
+    -- attention pass owns its visibility.
+    local alert = frame:CreateTexture(nil, "OVERLAY")
+    alert:SetTexture(S.Spark)
+    alert:SetBlendMode("ADD")
+    alert:SetPoint("CENTER", frame, "CENTER", 0, 0)
+    alert:SetSize(S.Height * S.AttentionScale, S.Height * S.AttentionScale)
+    alert:Hide()
+
     -- IconTime text: IconFont = font, size-1, OUTLINE (:1806), anchored
     -- BOTTOMLEFT of the icon (NewBar :1120-1122).
     local timeFS = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -886,8 +1244,8 @@ function D:AcquireSlot()
     -- at the top of the function dies at its branch). Functional, pure
     -- hygiene: a trivially collidable name in the environment every addon
     -- shares.
-    local slot = { frame = frame, tex = tex, spark = spark, timeFS = timeFS,
-                   chargeFS = chargeFS, seg = seg }
+    local slot = { frame = frame, tex = tex, spark = spark, alert = alert,
+                   timeFS = timeFS, chargeFS = chargeFS, seg = seg }
     self.slots[i] = slot
     return slot
 end
@@ -911,6 +1269,11 @@ function D:ReleaseSlot(slot)
         slot._chargeShown = false
         slot.chargeFS:Hide()
     end
+    -- A released icon can not be "the spell you just tried to cast" any
+    -- more: the attention window leaves with it (the pending request in
+    -- self._steal is pruned by name in the same Update pass).
+    slot._alertEnd, slot._alertShown = nil, false
+    slot.alert:Hide()
     local free = self._free
     free[#free + 1] = slot
 end
@@ -939,6 +1302,11 @@ function D:BindSlot(slot, e, cx, now)
     local fr, fg, fb = fixIntensity(col[1], col[2], col[3])
     slot.spark:SetVertexColor(fr, fg, fb)   -- FixIntensity (:1407, :1417)
     slot.timeFS:SetTextColor(fr, fg, fb)    -- IconTextColor off -> FixIntensity
+    -- The attention spark rides the SAME FixIntensity tint as the running
+    -- spark (:1412-1413: r,g,b = FixIntensity(ColorVal(...)) right before the
+    -- t20 > 1 branch); it is re-armed by the Warn pass, hidden at rest.
+    slot.alert:SetVertexColor(fr, fg, fb)
+    slot._alertEnd, slot._alertShown, slot._alertSize = nil, false, nil
     -- The charge number is per-tick state (Update): drop the previous
     -- name's cached text/colour so the first pass always repaints it.
     slot._chargeText, slot._chargeCol = nil, nil
@@ -1012,9 +1380,13 @@ function D:SpawnSplash(cx, texPath, col, now)
         s.spark:Hide()
     end
     s.frame:ClearAllPoints()
-    -- cx is icon-centre x relative to the bar/anchor centre (both are at the
-    -- same screen point: the bar layer is inset symmetrically).
-    s.frame:SetPoint("CENTER", self.anchor, "CENTER", cx, 0)
+    -- cx is the icon-centre offset on the bar AXIS, relative to the
+    -- bar/anchor centre (both sit on the same screen point: the bar layer is
+    -- inset symmetrically); axisOffset lays it out for the geometry mode and
+    -- ReflowEffects re-anchors it when the mode or the size moves.
+    s._off = cx
+    local ox, oy = axisOffset(cx)
+    s.frame:SetPoint("CENTER", self.anchor, "CENTER", ox, oy)
     s._endAt = now + S.SplashSeconds
     self:_SplashCurve(s, 1)              -- t = 0: size 0, alpha SplashAlpha
     s.frame:Show()
@@ -1057,8 +1429,14 @@ function D:SpawnPulse(name, texPath, col, endAt)
     s.spark:SetVertexColor(fixIntensity(col[1], col[2], col[3]))  -- :1407, :1418
     if texPath and S.SparkOn then s.spark:Show() else s.spark:Hide() end
     s.frame:ClearAllPoints()
-    s.frame:SetPoint("CENTER", self.anchor, "CENTER",
-        S.Inset + TM.pos(0, S.Width, S.Height, S.Max, S.Loga) + S.Height * 0.5 - S.Width * 0.5, 0)
+    -- The pulse rides the bar's ORIGIN end (CD_EndCooldown parks the row at
+    -- t = 0, so pos(0) is that axis position) on the current geometry axis.
+    local off = S.Inset
+        + TM.pos(0, S.Width, S.Height, S.Max, S.Loga)
+        + S.Height * 0.5 - S.Width * 0.5
+    s._off = off
+    local ox, oy = axisOffset(off)
+    s.frame:SetPoint("CENTER", self.anchor, "CENTER", ox, oy)
     s._name = name
     s._endAt = endAt
     s.frame:Show()
@@ -1198,25 +1576,30 @@ end
 --- border to the icon's own centre (original bar.texture, :1441-1450:
 --- TOPLEFT +t12 / BOTTOMRIGHT t9-Width, TexCoord (t8,0, t8,1, t7,0, t7,1),
 --- VertexColor = raw category rgb, alpha AlphaMax-(AlphaMax-Alpha)*t7
---- :1404-1406; frame alpha rides the bar visibility, :1402). The applied
---- values are cached in _segSet*; the CURRENT values are mirrored to
---- _segL/_segR/_segVL/_segV/_segA for the tests.
+--- :1404-1406; frame alpha rides the bar visibility, :1402). The two anchor
+--- pairs and the TexCoord slice come from the CD-35 helpers, so the slice
+--- runs up the bar in Vertical and mirrors in Flip exactly as the source's
+--- :1427-1450 branch. The applied values are cached in _segSet*; the CURRENT
+--- values are mirrored to _segL/_segR/_segVL/_segV/_segA for the tests.
 function D:_SetSegment(slot, leftX, rightX, uvL, uvR, a)
     local seg = slot.seg
     if not seg:IsShown() then seg:Show() end
     if slot._segSetL ~= leftX or slot._segSetR ~= rightX then
         slot._segSetL, slot._segSetR = leftX, rightX
         seg:ClearAllPoints()
-        -- Bar coords: left x from the bar's LEFT edge; right x from its
-        -- RIGHT edge, and the bar layer is INSET wide (Width - 2*Inset),
-        -- the original's bar frame is s.Width wide (:1490).
-        seg:SetPoint("TOPLEFT", self.bar, "TOPLEFT", leftX, 0)
-        seg:SetPoint("BOTTOMRIGHT", self.bar, "BOTTOMRIGHT",
-            rightX - (S.Width - 2 * S.Inset), 0)
+        -- Bar coords: the slice spans the axis from leftX to rightX, and the
+        -- bar layer is inset (the axis span is Width - 2*Inset in BOTH
+        -- orientations, because ApplyBarSize swaps the frame; the original's
+        -- bar frame is s.Width wide, :1490).
+        local p1, x1, y1, p2, x2, y2 = segmentPoints(leftX, rightX)
+        seg:SetPoint(p1, self.bar, p1, x1, y1)
+        seg:SetPoint(p2, self.bar, p2, x2, y2)
     end
-    if slot._segSetVL ~= uvL or slot._segSetV ~= uvR then
+    if slot._segSetVL ~= uvL or slot._segSetV ~= uvR
+        or slot._segSetMode ~= self._geoMode then
         slot._segSetVL, slot._segSetV = uvL, uvR
-        seg:SetTexCoord(uvL, 0, uvL, 1, uvR, 0, uvR, 1)
+        slot._segSetMode = self._geoMode
+        setSegmentUV(seg, uvL, uvR)
     end
     local col = slot._segCol
     if col and (slot._segSetCol ~= col or slot._segSetA ~= a) then
@@ -1230,8 +1613,14 @@ end
 --- numeric `.x` the grouping consumes; keep no references to it.
 function D:Update(entries, now)
     if not self.anchor then return end
-    -- Enable / Hide-when-out-of-combat ride this 10 Hz pass (cheap and
-    -- dirty-checked): the bar self-heals on combat transitions. A hidden
+    local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
+    local n = #entries
+    -- The feed size is HideZero's witness (CD-35): recorded before the
+    -- visibility pass so the bar shows again on the very pass its first
+    -- entry lands, with nothing but this normal feed driving it.
+    self._lastCount = n
+    -- Enable / Hide-when-out-of-combat / HideZero ride this 10 Hz pass (cheap
+    -- and dirty-checked): the bar self-heals on combat transitions. A hidden
     -- bar spends no draw work; the transient splash/pulse timers keep
     -- running so nothing resurfaces when it returns.
     self:UpdateVisibility()
@@ -1240,8 +1629,6 @@ function D:Update(entries, now)
         self:UpdateSplashes(now)
         return
     end
-    local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
-    local n = #entries
     local byName, islot, seen = self._byName, self._islot, self._seen
     wipe(seen)
 
@@ -1270,13 +1657,18 @@ function D:Update(entries, now)
         end
         islot[i] = slot
         seen[e.name] = true
-        -- LEFT-anchored at pos(t), the original's bar.icon CENTER->LEFT at
-        -- t10 (:1450): icon centre = bar-left + pos(t) + ih/2 = t9, the very
-        -- right edge of the segment span.
-        if slot._cx ~= x then
-            slot._cx = x
+        -- Anchored on the bar's axis ORIGIN point at pos(t): the original's
+        -- `bar.icon:SetPoint("CENTER", bar, "LEFT", t10, 0)` (:1450), whose
+        -- LEFT/RIGHT/TOP/BOTTOM choice IS the CD-35 mode (:1427-1450). The
+        -- number is always TimelineMath.pos(t) -- the mode only says which
+        -- edge of the bar it is measured from and in which direction:
+        -- icon centre = origin + pos(t) + ih/2 = t9, the very right edge of
+        -- the segment span.
+        local point, ox, oy = axisPoint(x)
+        if slot._cx ~= x or slot._cp ~= point then
+            slot._cx, slot._cp = x, point
             slot.frame:ClearAllPoints()
-            slot.frame:SetPoint("LEFT", self.bar, "LEFT", x, 0)
+            slot.frame:SetPoint(point, self.bar, point, ox, oy)
         end
         if not slot._shown then
             slot._shown = true
@@ -1357,10 +1749,35 @@ function D:Update(entries, now)
     wipe(xfSeen)
     for gi = 1, #groups do
         local g = groups[gi]
+        -- CD-31: a failed cast of a spell that is on the bar takes
+        -- attention. The stamp rides THIS pass's clock (the source stamps
+        -- cd[i][20] = 1 + focustime at the event, :874, and the render pass
+        -- decays it -1/s, :540-542 -- the pass clock is the only clock the
+        -- draw side reads), and the attention spark is drawn by
+        -- _UpdateAttention from it.
+        local stealIdx
+        for mi = 1, #g do
+            if self._steal[g[mi].name] then
+                stealIdx = mi
+                self._steal[g[mi].name] = nil
+                g[mi].slot._alertEnd = now + S.WarnSeconds
+                break
+            end
+        end
         if #g > 1 then
             local sig = groupSignature(g)
             xfSeen[sig] = true
             local st = self:_RotateFocus(sig, #g, now)
+            -- ... and the warned icon STEALS the group's cross-fade focus
+            -- (CD_FocusTimer, :860-877: the warned bar gets cd[i][15] = 1
+            -- (focused) and cd[i][14] = 1 (full visibility) while every other
+            -- member of the group is set to 0). phase = CrossfadeSeconds is
+            -- this port's frac = 1, so the warned member draws full and the
+            -- others 0 -- the source's exact post-steal state -- and the
+            -- rotation resumes its hand-off from there.
+            if stealIdx then
+                st.idx, st.phase = stealIdx, S.CrossfadeSeconds
+            end
             local frac = st.phase / S.CrossfadeSeconds
             local prev = ((st.idx - 2) % st.n) + 1
             for mi = 1, #g do
@@ -1411,6 +1828,7 @@ function D:Update(entries, now)
             slot.frame:SetAlpha(a)
             slot.seg:SetAlpha(a)           -- bar:SetAlpha(t14), :1402
         end
+        self:_UpdateAttention(slot, now)
     end
 
     -- Slots are name-bound: the release pass above already hid and freed
@@ -1428,7 +1846,48 @@ function D:Update(entries, now)
     for name, endAt in pairs(self._ready) do
         if endAt + 2 < now then self._ready[name] = nil end
     end
+    -- The same law for Warn requests whose name left the bar between the
+    -- event and this pass (`_steal` is empty in the common case).
+    for name in pairs(self._steal) do
+        if not byName[name] then self._steal[name] = nil end
+    end
 
     self:UpdatePulses(now)
     self:UpdateSplashes(now)
+end
+
+--- CD-21/CD-31: the attention spark of one slot (`bar.icon.attentionspark`,
+--- :1412-1416). The source's state is cd[i][20], set to 1 + focustime by
+--- CD_FocusTimer (:874) and decayed by the elapsed seconds while > 1
+--- (:540-542), so `t20` runs 1.5 -> 1.0 over `focustime = 0.5` s (:32) and the
+--- draw pass shows the ADD-blend Spark2 at `2.2*ih*t20` -- a glow that starts
+--- a third wider than the running spark and contracts onto the icon -- and
+--- hides it the moment t20 reaches 1. `slot._alertEnd` is that t20 window's
+--- end, stamped by the group pass from the render clock.
+function D:_UpdateAttention(slot, now)
+    local endAt = slot._alertEnd
+    if endAt then
+        -- The source decays cd[i][20] by the ELAPSED SECONDS at 1/s
+        -- (:540-542 `cd[i][20] = cd[i][20] - (tim-cd[i][16])`), so `t20 - 1`
+        -- IS the seconds left in the focustime window; the `> 1` gate is the
+        -- source's own (:540, :1412).
+        local t20 = 1 + (endAt - now)
+        if t20 > 1 then
+            local size = S.AttentionScale * S.Height * t20   -- :1412
+            if slot._alertSize ~= size then
+                slot._alertSize = size
+                slot.alert:SetSize(size, size)
+            end
+            if not slot._alertShown then
+                slot._alertShown = true
+                slot.alert:Show()
+            end
+            return
+        end
+        slot._alertEnd = nil
+    end
+    if slot._alertShown then
+        slot._alertShown = false
+        slot.alert:Hide()                                  -- :1415
+    end
 end

@@ -8,6 +8,13 @@
 -- Wiring: every key on this page drives FX.Cooldown.Display live (see the
 -- contract at the seam below); IgnoreShort drives Engine.MIN_COOLDOWN.
 -- No key of this page is stored-only any more.
+--
+-- CD-35/CD-31 (2026-11-02): the three geometry rows of the original's Basics
+-- block (Vertical :1705, Flip :1706, "Auto-hide when no cooldowns" :1707) and
+-- its Specifics Warn row (:1714) joined the page, at the shipped defaults
+-- (:1808/:1809/:1815/:1821) and with the original's own labels
+-- (Localization.lua :108-111, :158-159, :510-511). All four are live through
+-- Display:ApplySettings -> SetVertical / SetFlip / SetHideZero / SetWarn.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -16,11 +23,18 @@ local O = FX.Options
 local M = "Cooldown"
 
 FX.Settings:Register(M, {
-    -- Basics
+    -- Basics (the original's BASICS rows, Forte_Cooldown.lua :1704-1708:
+    -- Enable, "Flip to vertical", "Flip bar direction", "Auto-hide when no
+    -- cooldowns", "Hide when not in combat"; defaults :1808/:1809/:1815/:1816)
     Enable = true,
     Lock = true,
+    Vertical = false,
+    Flip = false,
+    HideZero = false,
     HideCombat = false,
-    -- Specifics (PLAN §3.5)
+    -- Specifics (PLAN §3.5 + the SPECIFICS row :1714 "Spell on cooldown
+    -- Warning", default Warn = true :1821)
+    Warn = true,
     Width = 250,
     Height = 24,
     MaxTime = 300,
@@ -118,13 +132,27 @@ O:RegisterPage({
                 tip = "Show the Cooldown Timer. Off hides the bar live." })
             s.CHK({ module = M, key = "Lock", label = "Lock",
                 tip = "Lock the bar against dragging (shared with Global Frame Lock)." })
+            -- CD-35 geometry modes, the original's BASICS rows in its order
+            -- (labels verbatim: Localization.lua :108-111, :510-511).
+            s.CHK({ module = M, key = "Vertical", label = "Flip to vertical",
+                tip = "Change the bar orientation from horizontal to vertical: the icons stack bottom -> top along the bar's height (Forte_Cooldown.lua :1446-1448, :1476-1479). Live." })
+            s.CHK({ module = M, key = "Flip", label = "Flip bar direction",
+                tip = "Flip the timer bar direction: the icons run right -> left (top -> bottom when vertical) with the time tags and the fills mirrored (Forte_Cooldown.lua :1440-1443). Live." })
+            s.CHK({ module = M, key = "HideZero", label = "Auto-hide when no cooldowns",
+                tip = "Hide the cooldown timer scale and background when you have no visible cooldowns; the bar returns with the first one (Forte_Cooldown.lua :1348). Live." })
             s.CHK({ module = M, key = "HideCombat", label = "Hide when not in combat",
                 tip = "Auto-hide the bar out of combat (live with the combat state)." })
         end, {
-            module = M, keys = { "Enable", "Lock", "HideCombat" },
-            tip = "Master switch, position lock and combat visibility.",
+            module = M,
+            keys = { "Enable", "Lock", "Vertical", "Flip", "HideZero",
+                "HideCombat" },
+            tip = "Master switch, position lock, bar geometry and visibility.",
         })
         b.Section("Specifics", function(s)
+            -- CD-31, the SPECIFICS row :1714 (label verbatim,
+            -- Localization.lua :158-159).
+            s.CHK({ module = M, key = "Warn", label = "Spell on cooldown Warning",
+                tip = "When you try to use an ability that is on cooldown, the timer will focus on this ability: the icon flashes and takes the group's focus (Forte_Cooldown.lua :933-946, :860-877). Live." })
             s.NUM({ module = M, key = "Width", label = "Width",
                 min = 60, max = 1024, step = 1,
                 tip = "Bar width in px (default 250). Resizes the bar live." })
@@ -145,8 +173,8 @@ O:RegisterPage({
                 tip = "Cooldowns shorter than this are ignored (default 2.99 s). Engine.MIN_COOLDOWN, tracked set rebuilt live." })
         end, {
             module = M,
-            keys = { "Width", "Height", "MaxTime", "PowerScale", "TimeTags", "IgnoreShort" },
-            tip = "The power-scale timeline geometry (PLAN §3.5).",
+            keys = { "Warn", "Width", "Height", "MaxTime", "PowerScale", "TimeTags", "IgnoreShort" },
+            tip = "The spell-on-cooldown warning and the power-scale timeline geometry (PLAN §3.5).",
         })
         b.Section("Coloring", function(s)
             local rows = {

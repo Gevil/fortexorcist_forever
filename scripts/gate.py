@@ -65,7 +65,7 @@ def run_tests():
 # wow-ui-sim-specs/cli-class-spec.md), which has data and no modules -- the
 # shape that proves the gate keeps the other classes out.
 ALWAYS_DATA = {"Items"}
-ALWAYS_MODULES = {"Cooldown", "Probe", "Timer"}
+ALWAYS_MODULES = {"Cooldown", "Messages", "Probe", "Splash", "Timer"}
 LOAD_PROBES = {
     None: {"data": {"Paladin"}, "modules": set()},
     "Hunter": {"data": {"Hunter"}, "modules": {"Hunter", "HunterUI"}},

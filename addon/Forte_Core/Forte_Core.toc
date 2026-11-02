@@ -8,5 +8,6 @@
 Core/Compat.lua
 Core/Constants.lua
 Core/Init.lua
+Core/Events.lua
 Core/Loader.lua
 Core/Probe.lua

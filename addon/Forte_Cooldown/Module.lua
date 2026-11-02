@@ -21,6 +21,10 @@ local READ_NET_TICKS = 10       -- every 10th tick = 1 Hz safety read pass
 -- so allocating per tick is pure garbage for the collector.
 local readyScratch = {}
 local sortedScratch = {}
+-- [name] = { duration, icon, category } snapshotted from the live entry
+-- BEFORE the Sweep retires it (ProcessReadyPops): the pop needs the facts
+-- of the window that just ended, and the Sweep deletes the entry it pops.
+local popInfoScratch = {}
 
 -- READ-TIER EVIDENCE (docs/research/secrets-unknowns.md §2 + §5, ranked
 -- change 1-3; PLAN §8 "instrument" law). How often each tier of the read
@@ -345,6 +349,69 @@ function M:RecordCastEvent(spellID, inCombat)
     end
 end
 
+--- The pop's icon (the event contract's texPath): item entries carry the
+--- texture on the snapshot; a spell resolves by name (the Timeline's
+--- BindSlot law). pcall + PlainOrNil: a sealed GetSpellTexture read raises
+--- or returns a secret (CodeReview3 m8), and a secret texture is no
+--- poppable icon.
+local function resolveReadyIcon(name)
+    if C_Spell and C_Spell.GetSpellTexture then
+        local ok, v = pcall(C_Spell.GetSpellTexture, name)
+        if ok then return FX.Compat.PlainOrNil(v) end
+    end
+    return nil
+end
+
+--- Sweep + dispatch the ready pops: the chat line, the timeline's ready
+--- pulse, the Secondary Splash (spec CD-27/CD-28, UI/Splash.lua) and the
+--- shared bus event FX_COOLDOWN_READY (name, now, texPath, category) --
+--- exactly one fire per pop, nil-guarded so the Module is inert without
+--- the Forte_Core event bus. Public: the 10 Hz ticker drives it, and the
+--- tests drive the REAL pop path through it (the C_Timer ticker is not
+--- reachable headless). The per-entry facts ride a pre-Sweep snapshot:
+--- the Sweep deletes the entry it pops.
+function M:ProcessReadyPops(now)
+    for name, e in pairs(Engine.entries) do
+        local info = popInfoScratch[name]
+        if not info then
+            info = {}
+            popInfoScratch[name] = info
+        end
+        info.duration, info.icon, info.category = e.duration, e.icon, e.category
+    end
+    wipe(readyScratch)
+    local disp = FX.Cooldown.Display
+    for _, name in ipairs(Engine:Sweep(now, readyScratch)) do
+        FX.Print(name .. " ready")
+        -- The only extra feed the Display needs: "this name just became
+        -- ready" drives its ready pulse. Splash/fade come from first-
+        -- sighting inside Update itself.
+        if disp and disp.OnReady then
+            disp:OnReady(name, now)
+        end
+        local info = popInfoScratch[name]
+        local duration = (info and info.duration) or Engine:BestDuration(name)
+        -- The row's effective category (the Engine:Sorted / Timeline
+        -- rowClass rule: entry category, then the per-spell fxClass
+        -- override, then Spell).
+        local category = (info and info.category)
+            or (Engine.tracked[name] and Engine.tracked[name].fxClass)
+            or "Spell"
+        local texPath = (info and info.icon) or resolveReadyIcon(name)
+        -- The Secondary Splash pops the ready icon big on its own window;
+        -- nil-guarded, the frame arrives with UI/Splash.lua.
+        local splash = FX.Cooldown.Splash
+        if splash and splash.OnReady then
+            splash:OnReady(name, now, texPath, duration, category)
+        end
+        -- The event bus (Forte_Core/Core/Events.lua): nil-guarded per the
+        -- shared contract, every listener runs in the bus's pcall.
+        if FX.Fire then
+            FX.Fire("FX_COOLDOWN_READY", name, now, texPath, category)
+        end
+    end
+end
+
 function M:OnEnable()
     -- FX.db is set by Forte_Core at ADDON_LOADED; if SavedVariables never
     -- arrived (beta-era bug class), keep learned durations session-local.
@@ -458,17 +525,7 @@ function M:OnEnable()
     C_Timer.NewTicker(TICK_SECONDS, function()
         local now = GetTime()
         ticks = ticks + 1
-        wipe(readyScratch)
-        local disp = FX.Cooldown.Display
-        for _, name in ipairs(Engine:Sweep(now, readyScratch)) do
-            FX.Print(name .. " ready")
-            -- The only extra feed the Display needs: "this name just became
-            -- ready" drives its ready pulse. Splash/fade come from first-
-            -- sighting inside Update itself.
-            if disp and disp.OnReady then
-                disp:OnReady(name, now)
-            end
-        end
+        M:ProcessReadyPops(now)
         if ticks % READ_NET_TICKS == 0 then
             M:ReadAll()
         end

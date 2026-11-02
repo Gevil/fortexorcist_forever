@@ -70,7 +70,27 @@ local function newRow()
         state = Laws.NORMAL, kind = "Default", stacks = 0, removeAt = 0,
         expireMsgAt = 0, hasteFactor = 1, predicted = true, unitToken = nil,
         maxTime = 0, hiddenSince = 0, alpha = 1, raidMark = 0, tickEvery = nil,
+        -- The fade-warning stamp (the original's column 12,
+        -- ST_GetFadeTime(spell) at the st:insert sites :888/:937): seconds
+        -- before expiry at which this row fires FX_TIMER_FADING once, 0 for
+        -- an unregistered spell. Rows:FadeWarnFor's answer at insert; the
+        -- Sweep zeroes it when it fires (the `st[i][12] = 0` law,
+        -- Forte_Timer.lua:1050).
+        fadeWarn = 0,
     }
+end
+
+--- The row's fade threshold: FX.Timer.FadeWarnings[spell] (a plain seconds
+--- number; the registry is populated by Forte_Messages -- name-keyed,
+--- class-agnostic), 0 when unregistered. The ST_GetFadeTime law
+--- (Forte_Timer.lua:1590-1603) reads the threshold from the fade message's
+--- text; that parse lives with the message (Forte_Messages), the row carries
+--- the number.
+function Rows:FadeWarnFor(spell)
+    local W = FX.Timer.FadeWarnings
+    if type(spell) ~= "string" then return 0 end
+    local n = W and tonumber(W[spell])
+    return (n and n > 0) and n or 0
 end
 
 --- The per-target group id (the `CA:GiveID` port, Forte_Casting.lua:680-686:
@@ -222,6 +242,7 @@ function Rows:InsertFromCast(spell, targetKey, duration, now, castTime,
     row.alpha = 1
     row.hiddenSince = 0
     row.raidMark = 0
+    row.fadeWarn = self:FadeWarnFor(spell)
     row.id = self.nextId
     self.nextId = self.nextId + 1
     row.groupKey = (targetKey == "none")
@@ -261,6 +282,7 @@ function Rows:InsertFromAura(spell, targetKey, expire, total, stacks,
     row.predicted = false
     row.unitToken = unitToken
     row.raidMark = (type(raidMark) == "number" and raidMark) or 0
+    row.fadeWarn = self:FadeWarnFor(spell)
     row.id = self.nextId
     self.nextId = self.nextId + 1
     row.groupKey = (targetKey == "none")
@@ -326,6 +348,10 @@ function Rows:OnAuraFact(row, factExpire, factTotal, stacks, now,
     fresh.stacks = (type(stacks) == "number" and stacks) or 0
     fresh.hasteFactor = row.hasteFactor
     fresh.expireMsgAt = 0
+    -- "the row is removed and re-inserted: new icon, new fade" (ST-25, the
+    -- law this refresh site quotes): a re-applied CC gets a fresh
+    -- fade-warning stamp, exactly the insert law.
+    fresh.fadeWarn = self:FadeWarnFor(row.name)
     fresh.id = self.nextId
     self.nextId = self.nextId + 1
     fresh.groupKey = (row.targetKey == "none")
@@ -354,6 +380,16 @@ function Rows:OnAuraAbsent(row, now)
     end
     if Laws.RemovalRefused(row.expireAt, now) then
         return "refused"
+    end
+    -- The early break (the ST_BreakMessages site, Forte_Timer.lua:1207-1211:
+    -- the absence fact with more than MAXLAG of window left is the CC
+    -- breaking, and that branch is the original's break-message call). The
+    -- delta: the original's `if not UnitIsDead(unit)` gate is not ported --
+    -- Rows carries no liveness reader (the row's token may be a string key
+    -- with no unit), so a kill that drops the aura fires BROKEN too. The
+    -- renderer of the break message/sound is Forte_Messages.
+    if FX.Fire then
+        FX.Fire(FX.EVENTS.TIMER_BROKEN, row.name, row.targetKey, row.kind)
     end
     self:Fade(row, Laws.REMOVE, now)
     return "removed"
@@ -390,6 +426,22 @@ function Rows:Sweep(now)
             -- :1046, the smoothing law
             row.drawExpireAt = Laws.Smooth(row.drawExpireAt, row.expireAt,
                 smooth)
+            -- The fade warning (ST_UpdateSpellTimers :1049-1056 verbatim in
+            -- shape: `st[i][12] > 0 and timeleft <= st[i][12] and
+            -- t14<=NORMAL` -> stamp to 0 (once) -> the message + the bell).
+            -- The message/sound renderers live in Forte_Messages (it owns
+            -- the sounds and the legality gate); this pass fires the bus
+            -- event and nothing else. The raid-icon prefix of :1051 is a
+            -- delta we do not port: the event carries the plain row fields
+            -- (the shared FX_TIMER_FADING contract).
+            if row.fadeWarn > 0 and remaining <= row.fadeWarn
+                and row.state <= Laws.NORMAL then
+                row.fadeWarn = 0
+                if FX.Fire then
+                    FX.Fire(FX.EVENTS.TIMER_FADING, row.name, row.targetKey,
+                        row.kind, remaining)
+                end
+            end
             -- :1049-1056, the expire message (col 12 stamps once -> 0)
             if row.expireMsgAt > 0 and remaining <= row.expireMsgAt
                 and row.state <= Laws.NORMAL then

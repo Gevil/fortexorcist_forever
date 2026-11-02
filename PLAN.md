@@ -546,6 +546,18 @@ owner (Gevil). You do not need to be clever; you need to be **rigorous**. Read �
 - The shell blocks `grep`, `cat`, redirection (`>`), `head/tail`; use the `grep`/`read`/`write` tools, or Python via `eval`.
 - `edit` needs the file's current tag; `PUT >$` appends; lines you did not read are rejected.
 - `wow-ui-sim --exec-lua @file` is ignored; `print` is swallowed; `--class` takes `Hunter` etc.
+- **`--exec-lua` chunks over ~1.2 KB are silently ignored** (measured 2026-11-02: a 2.2 KB
+  chunk never ran, a 1.27 KB one did; the sim's arg parser has a ~4 KB per-arg limit). Capture
+  drivers must be compact.
+- **The Forte stack loads LATE in a headless boot**: `Forte_Cooldown` is LoadOnDemand, forced
+  by `Forte_Options`, whose page `FX.Settings:Register("Cooldown", ...)` runs on
+  `FORTEXORCIST_ADDONS_LOADED` with retry timers - all of it AFTER a `--delay 3500`
+  `--exec-lua`. A one-shot exec-lua at 3500 ms runs before `Display:Init()`, and the late
+  `InitSkin` reads the store's defaults back, so its `Settings:Set` is wiped. Drive captures
+  from a frame's `OnUpdate` (`docs/media/sim/fx_timeline_modes_*.png` use exactly that).
+- A plain `Frame` rejects `SetScript("OnClick", ...)` in this build (`invalid script handler
+  'OnClick'`; it is a Button-only slot) - use `OnMouseDown`/`OnMouseUp`, as the source's own
+  `Frame_OnMouseDown`/`Frame_OnMouseUp` pair does (`Forte_Cooldown.lua:1226-1227`).
 - Class data resolves by NAME; the sim profile's spell IDs differ from our pinned data — never assert ID equality.
 - `Engine.MIN_COOLDOWN = 2.99` hides short cooldowns (matches the original).
 - WoW Forever has no Death Knight: there is no `Forte_Deathknight` addon and no DK spell list. The `DEATHKNIGHT` token is only used in tests as "a class token with no add-on" (loads nothing, no error).
@@ -572,6 +584,7 @@ Status at `156392e`: `scripts/gate.py` PASS — Forte_Cooldown 75, Forte_Hunter 
 | B2 ReadTiers | `Forte_Cooldown/Core/Engine.lua`, `Module.lua`, `Forte_Core/Core/Compat.lua`, tests | (a) boolean ready tier from NeverSecret `isActive/isOnGCD` (early-ready in combat, resets); (b) opportunistic exact anchor from `C_Spell.GetSpellCooldownDuration` objects when not `HasSecretValues()` and the remaining time reads plain; (c) `FX.SecretState` from `C_RestrictedActions` + `C_Secrets.Should*BeSecret`, updated on `ADDON_RESTRICTION_STATE_CHANGED`, shown in `/fx status` | in-combat correctness beyond prediction (research Q2/Q5) |
 | B3 HunterUI | `Forte_Hunter/UI/*`, `Forte_Hunter/Pages/*` (+toc twins), tests | Auto Shot swing bar (Classic skin: Aluminium, URW Gothic) from `PLAYER_SWING` (documented, no secrecy), aspect-missing reminder out of combat, Hunter options page registered through `FX.Options:RegisterPage` | first visible class tool; Hunter first |
 | B4 TimelineFidelity | `Forte_Cooldown/UI/Timeline.lua`, `test_timeline.lua`, screenshots | splash to the original's law (`Forte_Cooldown.lua:1391-1403`: ~2.5×, white, ~1 s), re-check pulse/cross-fade against source; screenshot scenarios must advance the clock before capture | the remaining known fidelity delta |
+| CD-30/31/35 | `Forte_Cooldown/UI/Timeline.lua`, `test_timeline.lua`, `Forte_Options/Pages/Cooldown.lua`, `test_options.lua`, `docs/media/sim/fx_timeline_modes_*.png` | **Warn (CD-31)**: the Display owns an event frame registered to `UNIT_SPELLCAST_FAILED` for `player` while `Cooldown.Warn` is on (the source's `CD_RegisterCallbacks` :953-960 branch), resolving the spellID to a NAME (`C_Spell.GetSpellInfo` + `PlainOrNil` + `pcall`, never an ID compare) and warning only a live non-Buff/Debuff entry (:938-941): the attention Spark2 rides `2.2 x ih x t20` (:1412-1416, tinted `FixIntensity(category)`), `t20 = 1 + (the seconds left of focustime = 0.5 s)` (:32, :540-542, :874), and the warned row takes the cross-fade focus to full alpha while every other member of its group is driven to zero (:860-877). **CD-30**: a right-button release (`OnMouseUp`, the source's pair :1226-1227 - a plain Frame rejects `OnClick` in this build) opens `FX.Options:Open("Cooldown")`, refused by the press-stamp `Moved()` compare (:902, `Options.lua:649-662`). **CD-35**: `Vertical` / `Flip` / `HideZero` join the skin at the shipped defaults (:1808, :1809, :1815, :1821) - the frame swaps to `Height x Width` (the source's `frame.Update` :1476-1479), the icons/tags/splashes/pulses/segments pick their anchor POINTS from the two flags (:1427-1450, :1260-1263, :1176-1189) with `TimelineMath.pos` as the coordinate in all four modes, segment UVs mirror (the source's own `Flip` branch :1403-1408), and the auto-hide gate is the Draw test `s.Hide and not cd:find(0,17)` (:1348) over the Module feed. All four keys drive the bar live through `Display:ApplySettings` | gate green (Cooldown 135, Options 49); the 9 new timeline tests fail on the pre-change file; the mode shots carry the live numbers: VERTICAL 24x250 with the tags at y -110/+116 and the icons at a constant x, FLIP 250x24 with the tags mirrored to x +110/-116 |
 
 **Iteration C (before launch if time allows):**
 - Weapon-enchant timers (`C_Item.GetWeaponEnchantInfo` + `WEAPON_ENCHANT_CHANGED`) as an `Enchant` category on the bar.
