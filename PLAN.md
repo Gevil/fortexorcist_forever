@@ -249,34 +249,27 @@ passed stubs. UI/API code is only accepted after a wow-ui-sim run.
 
 ---
 
-## 6. Current state (2026-11-01)
+## 6. Current state (2026-11-02, commit `4b16d27`+)
 
-Git repo, remote `github.com/Gevil/fortexorcist_forever` (private). Nothing deployed to the client yet.
-All addon paths below are relative to `addon/`.
+Repo `github.com/Gevil/fortexorcist_forever` (private), pushed after every verified step. **Never loaded in the real
+client yet** (first session = launch day, `docs/launch-day.md`). All addon paths relative to `addon/`.
+Verification: `python3 scripts/gate.py` = **PASS, 293 sim tests** (Cooldown 113, Core 16, Hunter 37, Options 45,
+Timer 45, Warlock 37), live load probe (10 data sets, 7 modules), toc twins, syntax, API/enum/event lint, data
+determinism. Behaviour battery on uiforever.com: §10.4 T1–T15 + live Timer/Hunter checks (§9).
 
-| File | State |
-|---|---|
-| `Forte_Core/Forte_Core.toc`, `_Camelot.toc` | Done |
-| `Forte_Core/Core/Compat.lua` | Done — `IS_FOREVER`, `HAS_COMBAT_LOG=false`, `HAS_BLIZZ_CDM=false`, `PlainOrNil`, `GetSpellCooldown`, `IsPlayerSpell` |
-| `Forte_Core/Core/Constants.lua` | Done — identity, colors, `FX.Print` |
-| `Forte_Core/Core/Init.lua` | Done — module registry, bootstrap frame, `/fx`, `/fx status`, SavedVariables |
-| `Forte_<Class>/` toc ×2 + `Data/<Class>.lua` | Generated, 0 gaps, tocs added for all nine (the earlier "toc ×2 for all" claim was wrong until 2026-11-01 — six classes were data-only and never loaded). Hunter 73 · Warlock 76 · Mage 51 · Paladin 56 · Priest 47 · Shaman 61 · Druid 52 · Rogue 50 · Warrior 64. `Forte_Deathknight` = data-only 0-spell placeholder, no tocs (no DK in this build). Sim: all ten `Forte_*` addons load, 0 Lua errors |
-| `Forte_Cooldown/Core/Engine.lua` | Done (logic only) — `Build`, `BestDuration`, `OnCast`, `OnRead`, `Sweep`, `Sorted`, `AttachStorage`; `MIN_COOLDOWN = 2.99` |
-| `tools/gen_spell_data.py` | Done — family-scoped, CD-carrier rank pick, `--dry` (agent `GenFix`); open items §4 |
-| `Forte_Cooldown` toc ×2, `Module.lua` (event wiring) | Done — reviewed |
-| `Forte_Cooldown/UI/Timeline.lua` + `TimelineMath.lua` | **Done (agent `Timeline`, manager-verified)** — 250×24 power-scale bar registered as `FX.Cooldown.Display` (same public API; `Module.lua`/`Init.lua` untouched). Icons placed at the original formula (dump-tree offsets match to <0.6 px). URW Gothic accepted by the sim font pipeline. Shots: `docs/media/sim/fx_timeline_{full,detail}.png` — owner sign-off vs `docs/refs/` pending |
-| `Forte_Cooldown/UI/Rows.lua` | Dormant (not in the toc) — the old row renderer, kept as the Phase-4 Spell Timer seed |
-| `/fx lock|unlock|reset` → `Display:Slash` hook in `Forte_Core/Core/Init.lua` | Done — verified in sim |
-| `tests/test_engine.lua` + `tests/test_timeline.lua` | **GREEN: 20 tests, 20 passed, exit 0** (manager re-run 2026-11-01). `test_display.lua` removed with the row display. The missing-data negative case now uses DEATHKNIGHT (Paladin got a toc, so it has data) |
-| `Forte_Core/Textures/*`, `gpl-3.0.txt` | Vendored unmodified (GPL-3.0, from the original zip) |
-| `Forte_Core/Fonts/URWGothic-Book.{otf,ttf}`, `URW-*.txt`, `ATTRIBUTION.md` | Vendored: `.otf` unmodified (license source) + `.ttf` converted with fontTools `cu2qu` (marked modified); AGPL-3.0 + font exception. Century Gothic moved out of the addon (git-ignored reference copy in `docs/media/fonts-reference/`) |
-| `scripts/deploy.sh` | Done — reviewed; symlinks `Forte_*` into the client AddOns; `--dest`/`DEPLOY_DEST`, `--remove`, `--list`; smoke-verified on a temp dir |
-| `docs/refs/` (owner screenshots) · `docs/media/` (videos, sheets, frames, sim shots; git-ignored) | Done — index `docs/media/README.md` |
-| `docs/reference-functional-spec.md` | **Done (agent `FuncSpec`, 513 lines, manager spot-checked)** — 201 behaviours, each with a `file:line` anchor in the original source and a Forever verdict: 172 feasible as-is · 11 out-of-combat only · 7 via cast prediction · 10 not feasible · 1 n/a. Spot-checked: `Forte_Casting.lua:858` registers exactly one combat-log event; the Cooldown module registers none; `Forte_Cooldown/Register.lua` (its spell-data file) is absent from the zip |
-| `docs/api/` (JBurlison Forever catalogs + guides) | **Done (agent `ApiPack`)** — 235 files, 20 MB, MIT; trust order in `docs/api/README.md`; findings in §8 |
+| Addon | What it contains | State |
+|---|---|---|
+| `Forte_Core` | registry, `/fx` slash + per-module status loop, SavedVariables `ForteXorcistDB`, `Compat` (PlainOrNil fail-closed, item/spell seams, `IsPlayerSpell` fallbacks, `FX.SecretState`), `Probe` (`/fx probe` launch-day kit), URW Gothic font, the original's full texture set | done |
+| `Forte_Cooldown` | Engine (cast predict, read tiers: numeric / NeverSecret booleans / duration objects, charges, edge fallback), Items (trinkets, potions, shared categories), Enchants (weapon enchants, per slot), Timeline (Classic power-scale bar, segment fills, splash + ready pulse to the original's law, charge counts, name-keyed slots, all settings live) | done |
+| `Forte_Timer` | Spell Timer v1: own-cast predicted rows by spell+target, the original's reconcile law, out-of-combat aura correction, groups by target, kind colours (0/530 Default), original geometry | done (v1 scope = own casts, owner-approved) |
+| `Forte_Hunter` | data + aspect tracker + Auto Shot swing tracker + swing bar + aspect reminder + page | done |
+| `Forte_Warlock` | data + shard/soulstone/healthstone/ritual trackers + the original's four purple plates + pages | done |
+| `Forte_Options` | the original-style window, 16-cell module index lighting registered pages, settings registry, every key wired live | done |
+| `Forte_Items` | generated on-use / proc / consumable data (238 / 405 / 79) | done |
+| other `Forte_<Class>` | generated cooldown data (530 spells total) — no class tools yet | data only |
 
-wow-ui-sim (70532 UI pin vs live 70707): all `Forte_*` addons load with no `Forte_*` Lua errors.
-**Never loaded in the real client yet. Nothing committed since `cd06b3b`.**
+Open before/at launch: load-on-demand class data (in progress), review 3 (in progress), launch-day probes and
+feature smoke checks (`docs/launch-day.md`), proc gate containers (after probes), per-class tools beyond Hunter/Warlock.
 
 ---
 
@@ -450,6 +443,7 @@ Append-only; newest last. Every owner decision and every correction of an earlie
 | 2026-11-02 | **Iteration C accepted** (`0d7c2d5`). `Enchants` (weapon-enchant timers, `C_Item.GetWeaponEnchantInfo` `timeLeft` in ms per `BuffFrame.lua:774-777`, category Buff), `WarlockTools` (shards bag-first/power-second with source label, soulstone/healthstone/ritual trackers, `docs/warlock-tools.md`), `Polish` (Hunter Tools index cell, fade-in 1.0 s from source, visible swing default colour, BarFont reaches the swing text), `SpellTimerDesign` (`docs/design-spell-timer.md`: v1 rows all predicted — `UNIT_SPELLCAST_SENT` target is ConditionalSecret; geometry 250×14 with icon outside; reconcile law ported). **Severe bug found by `WarlockTools` in Hunter code and fixed by manager:** both Hunter `OnEvent` bindings were `function(...) handler(obj, ...)`, forwarding the frame as `event` — no Hunter event (aspect casts, `PLAYER_SWING`) would ever have been handled in game while every test passed (tests only checked the script existed). Fixed to `function(_, event, ...)`; 2 regression tests drive the real frame scripts and were proven to fail on the old binding (34/36); api-lint now rejects vararg `OnEvent` bindings. Gate PASS: 222 tests (Cooldown 108, Core 13, Hunter 36, Options 44, Warlock 21). |
 | 2026-11-02 | **Timer polish pass (agent `TimerPolish`).** (1) The white rows were a two-part defect: `Laws.COLOR_KEY.Crowds` pointed at `"Crowd"`, a key the skin does not have (the skin spells the band `Crowds`), so every crowd-control row fell back to the orange `Default`; and the `/fx timer test` feed stamped its seeds in the FUTURE (`now + (i-1)*0.05`), which makes the arrival-highlight law's `(total - remaining) < 0.5` true with a negative mix factor — clamped, that pinned every seeded row to pure `HighlightColor`. The key now reads `"Crowds"`, the feed stamps the PAST (`now - (0.75 + (i-1))`, one row per distinct kind so the debug view is a palette check), and the flash law is bounded to `elapsed >= 0 and elapsed < 0.5`. (2) The panel's first-run placement moved into `Module.DEFAULT_POSITION` (CENTER/CENTER **261,-150**, the same height as the Cooldown bar, a column beside it: the bar spans x[-125,125], the panel is 256 wide, so the rectangles can not meet at any stack height; `/tmp/fxref` centres both panels, so the reference gives no separation to copy). (3) `Core/Registry.lua`'s `KIND_RULES` were regex strings — `Stun$|^Charm`, `Sting$|Mark$|^Wound` — and `|` is literal in a Lua pattern while an interior `$` is literal too, so **no rule with an alternation ever matched**: the measured coverage of the generated data was 366 of 366 spells on `Default`. The table is now ordered term bands (Curse, Bane, Pet, Crowds, Heal, Channel, Cooldown, SelfDebuff, Buff, TargetDebuff, SelfBuff) with a term grammar of plain substring / `^prefix` / `suffix$` / exact, and the coverage measured in the simulator is **530 tracked, 0 Default** (Hunter 0/73, Warlock 0/76, Mage 0/51, Priest 0/47, Druid 0/52, Rogue 0/50, Warrior 0/64, Shaman 0/61, Paladin 0/56). Spell ids are still never read. (4) Tests: 34 → **44**; new `tests/test_kinds.lua` censuses the generated data through the registry's own `DataFor` seam and asserts zero `Default`, the drawn-fill test seeds through the public `/fx timer test` feed and asserts each shown bar's `GetStatusBarColor` and its texture's vertex colour equal the skin colour of the row's kind, and the geometry test fails if the panel and the Cooldown bar's rectangles intersect. Full gate PASS. |
 | 2026-11-02 | **Live finding on uiforever after Iteration C:** the Hunter swing bar never appeared in a client even with the event fix — its 10 Hz `OnUpdate` lived on its own *hidden* anchor, and hidden frames get no `OnUpdate`; sim tests passed because they called `Update(now)` directly. Fixed (`36899c6`): `StartTicking` renders once synchronously; regression test drives the kick path and asserts `IsShown()` without calling `Update` (proven to fail with the render removed). Re-verified live: mid-swing bar shown, fill 70.75 px at progress 0.379, no Lua errors. Rule broadcast to `SpellTimer`/`WarlockUI` (both adopted an always-shown driver frame). **Lesson: UI tests must start activity through the public event/kick path and assert visibility, never call the render function themselves.** |
+| 2026-11-02 | **Iteration D accepted** (`a6c3d34`…`4b16d27`): Forte_Timer v1 (Spell Timer, own-cast predicted rows, the original's reconcile law) + `TimerPolish` (root causes of white rows: **every kind rule was dead because Lua patterns have no `|` alternation**, a `Crowd`/`Crowds` key typo, and the test feed stamping future casts = permanent arrival flash; now 0/530 spells fall to Default) + `TimerLayout` (group headers in their own gap); Warlock UI v1 + `WarlockPolish` (the original's purple labelled plates, constants traced to the original XML/Lua); review 2 fixes (end-of-cooldown pulse never fired live — fixed in the release path; pulse pool reuse; `PlainOrNil` fails closed; per-slot enchant entries; Hunter page header lock; no per-tick group-signature churn). Remaining original textures vendored. api_lint now also rejects `|` alternation in pattern literals. Gate PASS: 293 tests (Cooldown 113, Core 16, Hunter 37, Options 45, Timer 45, Warlock 37). Live on uiforever: 14/14 active, `/fx timer test` renders coloured rows in two target groups beside the cooldown bar, no Lua errors (`docs/media/sim/uif_timer_live_2026-11-02.png`). Worker-made captures were wrong twice (an empty scene; a capture whose recipe "didn't run") — the manager's own standard-recipe captures are the reference. |
 
 
 
