@@ -150,6 +150,54 @@ test("the four plates build, are named and sized, idempotent, hidden", function(
     assertTrue(UI._driver:IsShown())
 end)
 
+-- The wow-ui-sim icon law (found 2026-11-02, docs/warlock-tools.md "The
+-- 16x16 module icon"): the headless renderer paints a texture that lives on
+-- the ANCHOR frame UNDER the whole child body (backdrop art + plate wash) --
+-- a capture A/B with the icon hidden changed 0 of 256 pixels inside the
+-- icon's box (the icon contributed nothing) while the same .blp as the
+-- body's last-created texture changed 215 of 256. The icon is therefore the
+-- PLATE BODY's child, built after the backdrop and the wash -- the shape of
+-- the 2012 law too (FWSSButton is a <Frames> child created after the plate's
+-- backdrop, Forte_Soulstone.xml:122-186), and the OVERLAY layer keeps the
+-- real client painting it above the BACKGROUND wash. Proven to fail on the
+-- old code: an anchor-parented icon fails the parent assertion.
+test("every module icon rides the plate body: parent, layer, art, 16x16",
+function()
+    ensureBuilt()
+    for _, view in ipairs({ Shards, Stone, HS, Summon }) do
+        local icon = view.icon
+        assertNotNil(icon, view.NAME .. ": the plate carries an icon")
+        assertTrue(icon:GetParent() == view.body,
+            view.NAME .. ": the icon is the BODY's child -- a texture on "
+            .. "the anchor paints under the whole body in the sim")
+        local layer = icon:GetDrawLayer()
+        assertTrue(layer == "OVERLAY",
+            view.NAME .. ": OVERLAY over the BACKGROUND plate wash")
+        assertTrue(icon:IsShown(), view.NAME .. ": the icon is shown")
+        local tex = icon:GetTexture()
+        assertTrue(type(tex) == "string" and tex ~= ""
+            and string.upper(tex) == string.upper(view.skin.IconTexture),
+            view.NAME .. ": the vendored module art is set on the icon")
+        assertEquals(16, icon:GetWidth())
+        assertEquals(16, icon:GetHeight())
+    end
+    -- The Healthstone art follows the stone state on the same icon object
+    -- (HS2 in the bags / HS3 not, Forte_Healthstone.lua:168,172).
+    local box = { 1000 }
+    local hs = WK.NewHealthstoneTracker({
+        now = fakeClock(box),
+        countReader = function() return 2 end,
+        cooldownReader = function() return nil end,
+    })
+    HS:SetTracker(hs)
+    hs:ReadCounts()
+    HS:Update(box[1])
+    assertTrue(HS.icon:IsShown())
+    assertTrue(string.find(string.upper(HS.icon:GetTexture()), "HS2") ~= nil,
+        "Healthstone: stones in the bags swap the icon art to HS2")
+    HS:RenderIdle()
+end)
+
 -- ------------------------------------------------------------ shard plate --
 
 test("Shard Manager: the x<n> count, the <n> total label, the source line", function()

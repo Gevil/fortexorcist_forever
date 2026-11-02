@@ -326,10 +326,25 @@ end
 --- (Forte_Soulstone.xml:156,161; the art names SS1/HS1/SH1/SU1 from the
 --- NormalTextures at Forte_Soulstone.xml:182, Forte_Healthstone.xml:150,
 --- Forte_Summon.xml:146).
+---
+--- THE ICON RIDES THE PLATE BODY, never the anchor (the wow-ui-sim icon
+--- finding, 2026-11-02, docs/warlock-tools.md "The 16x16 module icon"): the
+--- headless renderer walks the frame TREE, so a texture on the anchor frame
+--- paints BELOW the whole child body (backdrop art + plate wash) and the
+--- icon contributes zero pixels to a capture (measured: hiding the icon on
+--- the anchor changed 0 of 256 px in the icon's box; the same file as the
+--- body's last-created texture changed 215 of 256). The body's TOPLEFT is
+--- the anchor's TOPLEFT (the body is anchored there with (0,0)), so the
+--- IconX/IconY offsets land on the same screen point. The 2012 law is the
+--- same shape: FWSSButton is a `<Frames>` child built AFTER the plate's
+--- backdrop, and the real client paints OVERLAY above the BACKGROUND wash
+--- in any composition. The OVERLAY layer stays: it is the real client's
+--- law (above the BACKGROUND plate wash); the body parenting is what the
+--- sim needs, and it is faithful in both renderers.
 function Frame:_NewIcon()
-    local t = self.anchor:CreateTexture()
+    local t = self.body:CreateTexture()
     t:SetTexture(self.skin.IconTexture)
-    t:SetPoint("TOPLEFT", self.anchor, "TOPLEFT",
+    t:SetPoint("TOPLEFT", self.body, "TOPLEFT",
         self.skin.IconX, self.skin.IconY)
     t:SetSize(self.skin.IconSize, self.skin.IconSize)
     t:SetDrawLayer("OVERLAY")

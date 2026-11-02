@@ -56,12 +56,26 @@ local M = "RaidMsg"
 -- Warlock data carries `Subjugate Demon` 11726), so the Enslave row keys on
 -- that name -- the TEXTS stay the original's (">> Enslave on %s …").
 -- `Seduction`/`Mesmerize` are the Succubus pet's casts (the original's
--- `AddSpell(115268, 30, "Pet") -- Mesmerize`, Warlock.lua:74): v1's rows are
--- born from the PLAYER's own cast events (Forte_Timer/Core/Casts.lua) and
--- the player/target aura sweeps, so no pet row exists and the pair can not
--- fire -- the tip says so instead of implying it works (the rows stay for
--- the day pet-cast tracking exists). Mesmerize shares the Seduction rows
--- (ST:RegisterOnTimerFade(mesmerize,"SeduceFade"), Warlock.lua:250).
+-- `AddSpell(6358, 30, "Pet")` / `AddSpell(115268, 30, "Pet") -- Mesmerize`,
+-- Warlock.lua:73-74), and the pair is INERT on this build because **the
+-- spell is not in the Forever data** -- all 7503 rows of
+-- `mythicsim-forever-engine/data/spells.jsonl` (client_build 1.60.1.70425)
+-- were searched for the names `Seduction`, `Seduction`, `Mesmerize` (plus
+-- the Succubus' other tools `Devour Magic`, `Spell Lock`, the charm family
+-- `Clamp`/`Grip of the Dead` and the source's `Enslave Demon`): no row of
+-- any of them, the source's ids 6358/6359 and 115268/115269 are absent, and
+-- the file's only Succubus row is the form `Perm. Illusion Succubus` (8315).
+-- The client's live table agrees: `C_Spell.GetSpellInfo(6358)` and
+-- `(115268)` answer nil, and a scan of ids 1..1500000 finds no name
+-- containing `Seduction`, `Seduction` or `Mesmeriz`. No data row means the
+-- registry's `durationMs > 0` gate never sees the name, so Forte_Timer can
+-- not have a row of it, the fade threshold is never read, and the two
+-- sections can not fire -- the rows and their texts ship so the owner sees
+-- the pair (the census, review 4 E2) and the tip names the real gate. The
+-- gate BEHIND that is the cast feed: these are PET casts, and the Timer
+-- registers the cast spine for `player` only. Mesmerize shares the
+-- Seduction rows (ST:RegisterOnTimerFade(mesmerize,"SeduceFade"),
+-- Warlock.lua:250).
 P.FADE_ROWS = {
     { prefix = "Fear", spell = "Fear", bits = 0,
         fade = ">> Fear on %s Fading in 3 seconds! <<",
@@ -82,10 +96,14 @@ P.FADE_ROWS = {
         fade = ">> Seduction on %s Fading in 3 seconds! <<",
         brk = ">> Seduction on %s Broke Early! <<",
         note = "The source ships this ON (party bits 1, Warlock.lua:372-391) "
-            .. "- tick to restore. Seduction and its Mesmerize alias are the "
-            .. "Succubus PET's casts: Forte_Timer v1 builds rows from the "
-            .. "player's own casts only, so no pet row exists and this pair "
-            .. "stays silent until pet-cast tracking is built." },
+            .. "- tick to restore. INERT on this build: no spell named "
+            .. "Seduction, Seduction or Mesmerize exists in the Forever "
+            .. "1.60.1.70425 data (all 7503 rows of mythicsim spells.jsonl "
+            .. "searched; the source's ids 6358/115268 are absent), so "
+            .. "Forte_Timer has no row of the name and the pair stays "
+            .. "silent. The gate behind that is the cast feed: these are "
+            .. "the Succubus pet's casts, and Forte_Timer's rows are the "
+            .. "player's own casts. See docs/messages-sounds.md." },
     { prefix = "Polymorph", spell = "Polymorph", bits = 0,
         fade = ">> Polymorph on %s Fading in 3 seconds! <<",
         brk = ">> Polymorph on %s Broke Early! <<",

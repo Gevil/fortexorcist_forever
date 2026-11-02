@@ -265,6 +265,61 @@ own colour key beats the General page's shared `TextColor`/`BarColor`.
 Warlock frames with the cooldown bar's. Locked frames are click-through. Positions:
 `FX.db.warlockUI.{shards,soulstone,healthstone,summon}`.
 
+## The 16x16 module icon (found + fixed 2026-11-02, agent `PlateIcons`)
+
+The four plates' 16×16 module icons (`SH1`/`SS1`/`HS1-3`/`SU1`,
+`Forte_Soulstone.xml:156,161,182`) had **never painted a pixel in a wow-ui-sim
+capture** — and it was our bug, not a sim limitation, not the texture files.
+
+**Root cause.** `Frame:_NewIcon` parented the icon to the **anchor** frame.
+wow-ui-sim paints a frame's plain textures in its frame-tree walk, so every
+texture on the anchor paints BEFORE the child `body` — the body's backdrop
+art and the purple `Background` plate wash then cover the icon's whole
+16×16 box (the plate body starts at the anchor's TOPLEFT, and the icon sits
+at `(2,-2)` inside it). The frame tree looked perfect while the pixels were
+zero — exactly the trap the dump-tree cannot see.
+
+**Evidence (wow-ui-sim v0.1.39, `--class Warlock`, 1600×1200, `--exec-lua`
+scenarios).**
+- dump-tree (old code): icon `(16x16) visible alpha=1.00 MEDIUM:2`, texture
+  `Interface\AddOns\Forte_Core\Textures\SH1` at `(569,807)` — path, size,
+  alpha, shown, strata ALL correct.
+- `dump-texture`: the vendored `.blp`s decode fine (exported `SH1.png`
+  32×32 RGBA, 75% opaque, bright art; byte-identical to `/tmp/fxref`).
+- A/B capture (same scenario, icon shown vs icon `Hide()`d): **0 of 256 px**
+  changed in the icon's box, and the whole 1600×1200 frame changed by 2 px
+  (noise) — the icon contributed NOTHING.
+- Controlled: the same `SH1` texture at 8/16/16/20/24/32/64 px, every draw
+  layer (BACKGROUND/BORDER/ARTWORK/OVERLAY; HIGHLIGHT is dead in the sim),
+  every anchor (TOPLEFT/CENTER/TOPRIGHT/BOTTOMLEFT/RIGHT), plain/
+  `BackdropTemplate`/with-backdrop parents, over a plain backdrop:
+  **164–576 px contributed** in every combination — the files, the sizes, the
+  layers, the anchors and the path are all innocent.
+- The discriminator: icon on the **anchor** of a plate-like frame → 0 px
+  (256-box); the identical clone with the icon as the **body's** last-created
+  texture → **215 of 256** px. Reparented clone: 215 px.
+
+**Fix.** `Frame:_NewIcon` builds the icon on the plate **body** (created
+after the backdrop and the wash, the plate body's TOPLEFT is the anchor's,
+so `(IconX,IconY)` lands on the same point). The 2012 law is the same shape:
+`FWSSButton` is a `<Frames>` child created after the plate's backdrop
+(`Forte_Soulstone.xml:122-186`), and the real client's OVERLAY layer keeps
+the icon above the BACKGROUND wash in any composition. Regression test
+"every module icon rides the plate body: parent, layer, art, 16x16"
+(`tests/test_warlock_ui.lua`) pins parent==body + OVERLAY + art + size +
+shown, and **fails on the anchor-parented icon** (proved: 41/42, the one
+failure named).
+
+**Numbers after the fix** (same four-plate scenario, A/B hide-diff):
+Shards SH1 215/256, Soulstone SS1 164/256, Healthstone HS2 232/288, Summon
+SU1 220/288 pixels contributed; the icon boxes hold 117–222 colours of real
+art (HS2 reads green `(157,167,105)`) against the flat 7-colour wash. Captures:
+`docs/media/sim/fx_warlock_plates_before.png` / `_after.png` (same crop; in
+the before plate the icon boxes are flat wash). Note: in several pre-fix
+sim scenes a Blizzard Warlock panel covers the Healthstone/Summon plate
+region in the capture while the dump-tree says `visible` — sim-scene noise,
+unrelated to the icon law (both plates paint after the fix).
+
 **Verification (2026-11-02, agent `WarlockUI`)**: `run-tests Forte_Warlock` 36/36 (the 21
 tool tests plus 15 UI tests: geometry, the show law on injected trackers, the label texts,
 the 10 Hz ask, the kick law, real `OnEvent` dispatch, the live settings seam, the lock
