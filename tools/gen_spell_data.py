@@ -12,7 +12,7 @@ names exist in more than one class's row set in this build (set-bonus/mirror
 rows share the name, e.g. "Circle of Healing" is Priest *and* Mage, "Rebuke" is
 Rogue *and* Paladin, "Divine Protection" is Paladin *and* Priest). Candidate
 rows are filtered to rows whose `ClassFlags.Family` equals the requested
-class's family code (see CLASS_FAMILY; Forever has no Death Knight family)
+class's family code (see CLASS_FAMILY; WoW Forever has no Death Knight class)
 **before** a rank is picked, so a class's list can never resolve to a foreign
 class's row. A **foreign-family row is never taken** -- if a listed name has
 rows *only* in foreign families the generator prints an explicit gap line
@@ -75,10 +75,9 @@ DEFAULT_SPELLS_JSONL = REPO_ROOT.parent / "mythicsim-forever-engine" / "data" / 
 DEFAULT_MANIFEST = REPO_ROOT.parent / "mythicsim-forever-engine" / "data" / "manifest.json"
 
 # ClassFamily codes as used in spells.jsonl ClassFlags.Family in the current
-# Forever build. Death Knight does not exist in this client build: family None
-# -> the generator prints "class not in this client build" and emits an empty
-# Data file. Codes 13+ in the data are non-class families (13 = consumables),
-# never requested here.
+# Forever build. WoW Forever has no Death Knight class, so there is no entry
+# (and no Forte_Deathknight addon). Codes 13+ in the data are non-class
+# families (13 = consumables), never requested here.
 CLASS_FAMILY: dict[str, int | None] = {
     "mage": 3,
     "warrior": 4,
@@ -89,7 +88,6 @@ CLASS_FAMILY: dict[str, int | None] = {
     "hunter": 9,
     "paladin": 10,
     "shaman": 11,
-    "deathknight": None,
 }
 FAMILY_NAMES = {code: name.capitalize() for name, code in CLASS_FAMILY.items() if code is not None}
 

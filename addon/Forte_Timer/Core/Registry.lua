@@ -51,8 +51,8 @@ local function TitleCase(classFile)
     return classFile:sub(1, 1):upper() .. classFile:sub(2):lower()
 end
 
---- The class's generated data table, nil when the class has none (the
---- Deathknight placeholder, an uninstalled class addon).
+--- The class's generated data table, nil when the class has none (a class
+--- addon that is not installed or not loaded).
 function Registry.DataFor(classFile)
     local key = TitleCase(classFile)
     if not key then return nil end

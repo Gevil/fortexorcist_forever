@@ -1,6 +1,0 @@
-{
-  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Deathknight would track. THE WoW FOREVER CLIENT BUILD BEHIND THIS DATA HAS NO DEATHKNIGHT: spells.jsonl carries exactly nine class families (3 Mage, 4 Warrior, 5 Warlock, 6 Priest, 7 Druid, 8 Rogue, 9 Hunter, 10 Paladin, 11 Shaman) and no Deathknight family exists; no Blood Strike / Frost Strike / Icy Touch / Obliterate / Plague Strike / Outbreak / Pestilence / Horn of Winter / Army of the Dead / Bone Shield / Anti-Magic Shell rows exist anywhere in the file. The only 'Death Coil' rows are the classic Warlock spell (fam 5). Consequently the rune-spell condition for a 'runes' group (CooldownMs rows on rune spells) is vacuously false: there are no rune spells. Groups are kept as empty lists so Forte_Deathknight regenerates cleanly as a zero-spell stub; if a future Forever build adds the class, fill these lists from tools/spell_lists style mining of the new family code.",
-  "cooldowns": [],
-  "buffs": [],
-  "utility": []
-}

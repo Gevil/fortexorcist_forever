@@ -186,8 +186,8 @@ This fixed cross-class collisions (Circle of Healing → a Mage copy, Divine Pro
 recovered cooldowns (Rapid Fire 3045 = 300 s, Evocation 480 s).
 
 Current lists (all 0 gaps, verified by independent `--dry` runs 2026-11-01): Hunter 73 · Warlock 76 ·
-Mage 51 · Paladin 56 · Priest 47 · Shaman 61 · Druid 52 · Rogue 50 · Warrior 64 · Deathknight 0
-(placeholder, no DK in this build). Total 530 spells across 9 classes.
+Mage 51 · Paladin 56 · Priest 47 · Shaman 61 · Druid 52 · Rogue 50 · Warrior 64. Total 530 spells
+across the 9 Forever classes (no Death Knight in WoW Forever; the DK placeholder was removed 2026-11-02).
 
 Rank-pick order now (agent `DataWave`): in-family row carrying a cooldown/duration > uncoded
 (Family 0) carrier > in-family bare > uncoded bare; never a foreign family. Bare *companion rows*
@@ -548,7 +548,7 @@ owner (Gevil). You do not need to be clever; you need to be **rigorous**. Read �
 - `wow-ui-sim --exec-lua @file` is ignored; `print` is swallowed; `--class` takes `Hunter` etc.
 - Class data resolves by NAME; the sim profile's spell IDs differ from our pinned data — never assert ID equality.
 - `Engine.MIN_COOLDOWN = 2.99` hides short cooldowns (matches the original).
-- `Forte_Deathknight` has data but **no tocs** on purpose (no DK in this build).
+- WoW Forever has no Death Knight: there is no `Forte_Deathknight` addon and no DK spell list. The `DEATHKNIGHT` token is only used in tests as "a class token with no add-on" (loads nothing, no error).
 - A basalt worker cannot view images; you (or the owner) must judge visuals and send **numeric** deltas back.
 - Basalt workers can run long; check `proc://` stage lines rather than waiting blindly; if one is at ~80% context without writing its deliverable, message it to write to disk now (worked for `FuncSpec`).
 
