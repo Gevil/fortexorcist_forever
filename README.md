@@ -33,7 +33,7 @@ textures).
 | **Secondary Splash** | The original's big pop of a cooldown's icon the moment it comes ready |
 | **Spell Timer** (`Forte_Timer`) | Stacked rows per spell and target, grouped by target, coloured by kind, with the original's reconciliation rules (own and pet casts predicted; corrected from real auras out of combat); Shaman totems by element |
 | **Messages & Sound** (`Forte_Messages`) | The original's crowd-control fade/break warnings and sounds (Banish, Fear, Polymorph, Sap, Seduction…), self messages, and party/raid announcements — all chat to other players is opt-in and respects Forever's chat restrictions |
-| **Hunter tools** (`Forte_Hunter`) | Auto Shot swing bar, aspect-missing reminder |
+| **Hunter tools** (`Forte_Hunter`) | Auto Shot swing bar with the full shot cycle (orange reload, red stand-still aim window, white safe-to-move window after the shot), Aimed/Multi-Shot cast tracking and clipping, movement/Feign Death handling, a range light, and the aspect-missing reminder |
 | **Warlock tools** (`Forte_Warlock`) | Shard Manager, Soulstone Tracker, Healthstone Spy (shares stone counts with your group), Summon Assistant plates |
 | **Options** (`Forte_Options`) | The original-style options window with per-character or shared profiles; every setting applies live |
 | **Spell data** (`Forte_<Class>`) | Generated cooldown/duration data for all nine Forever classes (~590 spells, live build 1.60.1.70707), loaded only for your own class, working on localized clients |
@@ -77,6 +77,9 @@ catalog) and the data-determinism check.
 - URW Gothic (URW++, AGPL-3.0 with font exception) — the shipped lookalike of Century Gothic.
 - [CooldownMaster](https://github.com/wheelbarrel00/CooldownMaster) (MIT) — reference for the
   Forever-safe cooldown engine design.
+- [WeaponSwingTimer SixxFix](https://www.curseforge.com/wow/addons/weaponswingtimer-sixxfix) by WatchYourSixx
+  (original WeaponSwingTimer by LeftHandedGlove, GPL-3.0) — the Hunter swing bar's shot-cycle model
+  (aim window, safe-to-move window, cast/clipping machine) is adapted from its Forever build.
 - [mythicsim-forever-engine](https://github.com/sage3648/mythicsim-forever-engine) (MIT) and
   [wowsims/forever](https://github.com/wowsims/forever) (MIT) — spell and item data.
 - [JBurlison/WoWAddonAPIAgents](https://github.com/JBurlison/WoWAddonAPIAgents) (MIT) — pinned

@@ -9,6 +9,8 @@
 
 Data/Hunter.lua
 Core/Tools.lua
+Core/Range.lua
 UI/Swing.lua
 UI/Reminder.lua
+UI/Range.lua
 Pages/Hunter.lua

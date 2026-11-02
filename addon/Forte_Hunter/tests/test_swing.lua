@@ -62,6 +62,8 @@ test("fill width = fraction x width at 0 / 0.5 / 1 (injected clock)", function()
     local clock = { 1000 }
     local t = fakeTracker(clock)
     Swing:SetTracker(t)
+    -- The single-phase fallback mode: the pre-v2 geometry law.
+    Swing:SetShowSafeWindow(false)
     t:OnSwingStart(2.0, 2)                       -- a 2.0 s ranged swing
     local W = S.Width
     assertEquals(200, W)
@@ -84,6 +86,7 @@ test("fill width = fraction x width at 0 / 0.5 / 1 (injected clock)", function()
     assertTrue(Swing:Update(clock[1]))
     nearpx(Swing.fill:GetWidth(), W * ((clock[1] - 1000) / 2.0))
     nearpx(Swing.fill:GetWidth(), W)
+    Swing:SetShowSafeWindow(true)
 end)
 
 test("the remaining text prints tenths and rides the right edge", function()
@@ -124,11 +127,13 @@ test("the bar hides after completion and the OnUpdate script is gone", function(
     assertNil(Swing.anchor:GetScript("OnUpdate"))
     assertFalse(Swing:Update(clock[1]))            -- stays idle
     assertFalse(Swing.anchor:IsShown())
-    -- A fresh swing brings it back.
+    -- A fresh swing brings it back (single-phase fill law).
+    Swing:SetShowSafeWindow(false)
     t:OnSwingStart(2.0, 2)
     assertTrue(Swing:Update(clock[1]))
     assertTrue(Swing.anchor:IsShown())
     nearpx(Swing.fill:GetWidth(), 0)
+    Swing:SetShowSafeWindow(true)
 end)
 
 test("the 10 Hz OnUpdate exists only while a swing runs", function()
@@ -187,6 +192,7 @@ test("ShowTime off drops the text; the fill keeps running", function()
     local t = fakeTracker(clock)
     Swing:SetTracker(t)
     Swing:SetShowTime(false)
+    Swing:SetShowSafeWindow(false)               -- the single-phase fill law
     t:OnSwingStart(2.0, 2)
     assertTrue(Swing:Update(clock[1]))
     assertFalse(Swing.text:IsShown())
@@ -199,6 +205,7 @@ test("ShowTime off drops the text; the fill keeps running", function()
     assertTrue(Swing:Update(clock[1]))
     assertTrue(Swing.text:IsShown())
     assertEquals("0.5", Swing.text:GetText())
+    Swing:SetShowSafeWindow(true)
 end)
 
 test("Enable off hides the bar mid-swing", function()
@@ -519,30 +526,41 @@ test("the Hunter page builds in the options window", function()
     assertEquals("Hunter", FX.Options.pageId)
     local page = FX.Options.pagesBuilt["Hunter"]
     assertNotNil(page)
-    -- Tips + Basics + Frame Sizing + Coloring.
-    assertEquals(4, #page.sections)
+    -- Tips + Basics + Shot Cycle + Frame Sizing + Coloring + Range Light
+    -- + Combat Alpha (swing v2 added Shot Cycle, Range Light, Combat Alpha).
+    assertEquals(7, #page.sections)
     local counts = {}
     for i, sec in ipairs(page.sections) do counts[i] = #sec.widgets end
     assertEquals(0, counts[1])      -- Some Tips is text lines
     assertEquals(4, counts[2])      -- Enable, Lock, ShowTime, EnableReminder
-    assertEquals(3, counts[3])      -- Width, Height, ReminderSize
-    assertEquals(3, counts[4])      -- BarColor, BgColor, ReminderColor
-    assertEquals(4, #page.sections[1].lines)
+    assertEquals(6, counts[3])      -- the five Show* keys + BaseSpeed
+    assertEquals(3, counts[4])      -- Width, Height, ReminderSize
+    assertEquals(3, counts[5])      -- BarColor, BgColor, ReminderColor
+    assertEquals(1, counts[6])      -- ShowRangeLight
+    assertEquals(2, counts[7])      -- InCombatAlpha, OutOfCombatAlpha
+    assertEquals(7, #page.sections[1].lines)
     assertNotNil(FX.Options.header)
     assertNotNil(FX.Options.header.bar)
     FX.Options:Close()
     assertEquals(false, FX.Options:IsOpen())
 end)
 
-test("Status prints the swing bar and the reminder lines", function()
+test("Status prints the swing bar, the reminder and the range light", function()
     local lines = {}
     local realPrint = FX.Print
     FX.Print = function(msg) lines[#lines + 1] = tostring(msg) end
     UI:Status()
     FX.Print = realPrint
-    assertEquals(2, #lines)
+    -- swing v2: the range light adds its line once its frame is built (the
+    -- class-gate test above builds it through UI:OnClassChanged).
+    assertTrue(#lines >= 2)
     assertContains(lines[1], "Swing bar")
     assertContains(lines[2], "Aspect reminder")
+    local hasRange = false
+    for _, l in ipairs(lines) do
+        if l:find("Range light") then hasRange = true end
+    end
+    assertTrue(hasRange)
     assertContains(Swing:StatusLine(), "locked")
     assertContains(Reminder:StatusLine(), "icon=")
     -- Restore the shared state the geometry tests drove.

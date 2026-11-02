@@ -33,3 +33,24 @@ exception in `Fonts/URW-LICENSE.txt`.
 
 The original ForteXorcist bundled Monotype's Century Gothic (`GOTHIC.TTF`). That font is proprietary
 ("All Rights Reserved") and is **not** redistributed here; URW Gothic is the libre lookalike.
+
+## Hunter swing v2 laws — adapted from WeaponSwingTimer SixxFix (GPL-3.0)
+
+The Forte_Hunter swing v2 cycle (two-phase reload/aim model with aim length
+`0.5 x speed / baseSpeed` and the floor clamp, the `UNIT_SPELLCAST_*` shot machine
+with the `FAILED_QUIET` 0.5 s retry window and GUID-seal matching, the event-proven
+white "projectile left" phase stamped by `UNIT_SPELLCAST_SUCCEEDED`, the
+movement-cancel law with the sustained-speed pulse, the Feign Death
+movement-rearm, the Aimed/Multi-Shot cast interlock, the base-speed learning from
+a clean no-haste pair, and the readiness-gate shape) adapts the behaviour of
+**WeaponSwingTimer SixxFix** © WatchYourSixx (original WST by LeftHandedGlove),
+Forever v1.60.2, licensed **GPL-3.0** — the same licence as this project.
+Adapted 2026-11-02 from `/tmp/wst/src/WeaponSwingTimer/`
+(`WeaponSwingTimer_Hunter.lua:352-660, 913-1075`, `WeaponSwingTimer_Castbar.lua:210-330`);
+the adapted blocks in `Forte_Hunter/Core/Tools.lua` and `Forte_Hunter/UI/Swing.lua`
+carry per-block source comments. No WST artwork, textures, fonts, skin XML,
+configuration system, profile system, melee code, target code or frame scripts are
+used: all UI here is the ForteXorcist skin, all code is rewritten against the
+Forever 12.x catalog APIs (`C_Spell`, `C_SpellBook`, the modern event set); the
+classic-API symbols WST calls (`GetInventoryItemID`, `SPEED`,
+`hooksecurefunc`, `COMBAT_LOG_EVENT_UNFILTERED`) are not used anywhere.

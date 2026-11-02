@@ -39,6 +39,18 @@ local DEFAULTS = {
     Lock = true,
     ShowTime = true,
     EnableReminder = true,
+    -- Shot Cycle (swing v2, docs/research/weaponswingtimer.md gap row 10)
+    ShowSafeWindow = true,
+    ShowAimSlice = true,
+    ShowFlying = true,
+    ShowRetry = true,
+    ShowLatency = false,
+    BaseSpeed = 0,
+    -- Range light (gap row 6): opt-in, the WST default-off law.
+    ShowRangeLight = false,
+    -- Combat Alpha (the WST in/ooc pair, gap row 10).
+    InCombatAlpha = 1.0,
+    OutOfCombatAlpha = 1.0,
     -- Frame Sizing (the assignment's 200x12 bar, the reminder's 32px icon)
     Width = 200,
     Height = 12,
@@ -60,6 +72,9 @@ end
 local function reminder()
     return FX.Hunter and FX.Hunter.Reminder
 end
+local function rangelight()
+    return FX.Hunter and FX.Hunter.RangeLight
+end
 
 local wired = false
 local function ensureWiring()
@@ -70,6 +85,8 @@ local function ensureWiring()
         if d and d.ApplySettings then d:ApplySettings({ [key] = value }) end
         local r = reminder()
         if r and r.ApplySettings then r:ApplySettings({ [key] = value }) end
+        local l = rangelight()
+        if l and l.ApplySettings then l:ApplySettings({ [key] = value }) end
     end)
     -- m4: mirror the LIVE lock state of the swing bar into the store right
     -- before the checkbox and the header icon read it.
@@ -104,6 +121,9 @@ function P.RegisterHunterPage()
                 ensureWiring()
                 b.Tips({
                     "The swing bar fills while the ranged swing (Auto Shot) burns.",
+                    "Safe window first, then the red aim slice: stand still while it runs.",
+                    "The bar turns WHITE when the projectile left: move and cast freely.",
+                    "Yellow = a rejected Auto Shot start (0.5 s retry); red cast slice = a shot will clip.",
                     "Drag the bar with Lock off; the position is saved per character.",
                     "/fx lock and /fx unlock move this bar with the Cooldown bar.",
                     "The recycle icon on a section restores that section's defaults.",
@@ -121,6 +141,32 @@ function P.RegisterHunterPage()
                     module = M,
                     keys = { "Enable", "Lock", "ShowTime", "EnableReminder" },
                     tip = "Master switches of the Hunter tools.",
+                })
+                b.Section("Shot Cycle", function(s)
+                    s.CHK({ module = M, key = "ShowSafeWindow",
+                        label = "Two-phase cycle (safe window + aim)",
+                        tip = "The fill is the SAFE-TO-MOVE span shrinking toward the aim slice. Off = the plain single-phase bar. Live." })
+                    s.CHK({ module = M, key = "ShowAimSlice",
+                        label = "Aim window (red slice)",
+                        tip = "The red right-end slice: the stand-still aiming window (0.5 s scaled by haste). Moving during it loses the shot. Live." })
+                    s.CHK({ module = M, key = "ShowFlying",
+                        label = "Projectile left (white)",
+                        tip = "The bar turns white while the proven projectile is in flight: move/cast freely (spark pulse). Live." })
+                    s.CHK({ module = M, key = "ShowRetry",
+                        label = "Auto Shot retry penalty (yellow)",
+                        tip = "A rejected Auto Shot start costs 0.5 s (yellow slice + floor raise). Live." })
+                    s.CHK({ module = M, key = "ShowLatency",
+                        label = "Latency strip (needs launch probe)",
+                        tip = "The GetNetStats latency shape is a launch-day probe (survey Gap-12); the strip is inert until the probe lands. Stored." })
+                    s.NUM({ module = M, key = "BaseSpeed",
+                        label = "Weapon base speed (0 = auto)", min = 0,
+                        max = 8, step = 0.05,
+                        tip = "The un-hasted ranged weapon speed for the aim-window ratio (aim = 0.5 x speed / base). 0 = auto. Live." })
+                end, {
+                    module = M,
+                    keys = { "ShowSafeWindow", "ShowAimSlice", "ShowFlying",
+                        "ShowRetry", "ShowLatency", "BaseSpeed" },
+                    tip = "The two-phase Auto Shot cycle: reload, aim window, flight, retry.",
                 })
                 b.Section("Frame Sizing", function(s)
                     s.NUM({ module = M, key = "Width", label = "Width",
@@ -148,6 +194,29 @@ function P.RegisterHunterPage()
                     module = M,
                     keys = { "BarColor", "BgColor", "ReminderColor" },
                     tip = "Fill, backdrop and icon colours.",
+                })
+                b.Section("Range Light", function(s)
+                    s.CHK({ module = M, key = "ShowRangeLight",
+                        label = "Enable range / dead-zone light",
+                        tip = "The slim strip under the bar: MELEE (red), DEAD 5-8 (yellow), 8-35 (green), 35+ (cyan), OUT (grey). Enables the native swing range check while shown. Live." })
+                end, {
+                    module = M,
+                    keys = { "ShowRangeLight" },
+                    tip = "The 8-35 yd range / dead-zone indicator (off by default).",
+                })
+                b.Section("Combat Alpha", function(s)
+                    s.NUM({ module = M, key = "InCombatAlpha",
+                        label = "In-combat alpha", min = 0, max = 1,
+                        step = 0.05,
+                        tip = "Bar alpha while in combat (default 1.0). Live." })
+                    s.NUM({ module = M, key = "OutOfCombatAlpha",
+                        label = "Out-of-combat alpha", min = 0, max = 1,
+                        step = 0.05,
+                        tip = "Bar alpha out of combat (default 0.0 = hidden out of combat, the WeaponSwingTimer in-combat-only law). Live." })
+                end, {
+                    module = M,
+                    keys = { "InCombatAlpha", "OutOfCombatAlpha" },
+                    tip = "The in/out-of-combat alpha pair (the combat gate is InCombatLockdown).",
                 })
             end,
         })

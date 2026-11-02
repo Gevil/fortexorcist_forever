@@ -34,7 +34,17 @@ headless interface simulator and on uiforever.com — not in a live game.
   own class add-on is resident (plus the site's own Mage session), the
   modules list enables, the splash and messages modules are present, no
   party/raid chat goes out with the shipped defaults, and the site reports no
-  Lua errors. Returns a pass/fail table.
+  Lua errors. Returns a pass/fail table. Three import-truthful gates
+  (manager's 11-02 findings): the import waits (15 s) for the
+  `Import addons?` dialog, clicks that dialog's own Import button and waits
+  for the dialog to close — a larger zip's dialog lands seconds after the
+  upload and the raced version passed every later check against the
+  PREVIOUS import (false PASS); a CODE row proves the site runs the bytes
+  just imported (a Lua marker expression must print true; default the
+  shipped `ForteXorcist.CONST.VERSION`, option `expectMarker` for a newer
+  build's symbol); and a `fresh` clear that removed 0 rows while Forte rows
+  stood in the add-on list now fails, logging the selector, the matched
+  count and the visible row count.
 
 ## 2026-11-02 (Iteration G)
 

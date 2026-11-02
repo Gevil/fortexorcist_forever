@@ -19,7 +19,18 @@
  * options:
  *   zip            the release zip to import (default /tmp/fx_uif.zip)
  *   fresh          true = first clear the Forte_ rows of a previous import
- *                  (per-row ✕, 350 ms apart, until none remain)
+ *                  (per-row ✕, 350 ms apart, until none remain). The row
+ *                  FAILS when the add-on list shows Forte rows (text
+ *                  `Forte` in the left panel) but 0 were removed — a dead
+ *                  \u2715 selector must not read as "nothing to clean"
+ *   expectMarker   Lua expression string (e.g. `ForteXorcist.Hunter and
+ *                  ForteXorcist.Hunter.Tools and
+ *                  ForteXorcist.Hunter.Tools.Swing.CycleState ~= nil`),
+ *                  evaluated after /reload; the CODE row passes only when
+ *                  it prints true — it proves the site runs THIS zip's
+ *                  bytes, not the previous import's. Default: compare
+ *                  ForteXorcist.CONST.VERSION (the build constant in
+ *                  addon/Forte_Core/Core/Constants.lua) to the shipped value
  *   reloadWaitMs   settle time after /reload (default 20000)
  *   importOnly     true = import + reload, skip the checks
  *   checksOnly     true = skip the import (site already loaded), run checks
@@ -28,35 +39,58 @@
  *
  * What it proves, in order:
  *   1. IMPORT   the manager's live recipe (2026-11-02): clear the old Forte_
- *               rows -> tag the LAST .zip file input -> upload -> the dialog
- *               lists the zip's addons (body text grows a Forte_ mention,
- *               polled up to 8 s) -> Import -> Later -> Let's go -> /reload
- *               -> the header reads `ADDONS · N/N active` with N >= 15.
- *   2. CLASSSET exactly the player's own Forte_<Class> add-on is resident,
- *               over the nine class add-ons; the site's own log-in-as-Mage
- *               artifact is tolerated (PLAN §9 2026-11-02 LoD row).
- *   3. MODULES  ForteXorcist._moduleOrder prints (a live-verified array,
+ *               rows (the row FAILS if Forte rows are visible in the list
+ *               while 0 were removed) -> tag the LAST .zip file input ->
+ *               upload -> poll up to 15 s for the `Import addons?` DIALOG
+ *               (its text plus a button whose text is exactly `Import`
+ *               inside it) and click THAT button -> poll the dialog GONE
+ *               -> Later -> Let's go -> /reload -> the header reads
+ *               `ADDONS · N/N active` with N >= 15. The dialog lands
+ *               seconds after the upload on a larger zip: the
+ *               2026-11-02 blind clickText('Import') hit nothing, the import
+ *               never ran, and every later check passed against the
+ *               PREVIOUSLY loaded code (false PASS). No dialog = FAIL.
+ *   2. CODE     the expectMarker Lua expression prints true (default: the
+ *               ForteXorcist.CONST.VERSION build constant) — the bytes
+ *               running are the bytes just imported.
+ *   3. CLASSSET exactly the player's own Forte_<Class> add-on is resident,
+ *               over the nine class add-ons; the site's own Mage log-in
+ *               artefact is tolerated (PLAN §9 2026-11-02 LoD row).
+ *   4. MODULES  ForteXorcist._moduleOrder prints (a live-verified array,
  *               `Locale,Probe,Splash,Cooldown,Timer,Messages`), and the
  *               always-loaded set Cooldown,Locale,Messages,Probe,Splash,
  *               Timer is in it.
- *   4. CORE     the Splash and Messages modules are present.
- *   5. DB       ForteXorcist.db.version == 1 and db.profiles.active is set
+ *   5. CORE     the Splash and Messages modules are present.
+ *   6. DB       ForteXorcist.db.version == 1 and db.profiles.active is set
  *               (the H3 profiles schema).
- *   6. RAIDMSG  a COOLDOWN_READY pop sends 0 party/raid chat lines with the
+ *   7. RAIDMSG  a COOLDOWN_READY pop sends 0 party/raid chat lines with the
  *               shipped defaults (every announce gate is opt-in, review 4 E2).
- *   7. PERSIST  (opt-in `persist`) Settings:Set Cooldown Width 333 ->
+ *   8. PERSIST  (opt-in `persist`) Settings:Set Cooldown Width 333 ->
  *               /reload -> reads back 333 -> restores the old value.
- *   8. ERRORS   the Errors tab (its text matches /^Errors\s*\d*$/) says
+ *   9. ERRORS   the Errors tab (its text matches /^Errors\s*\d*$/) says
  *               "No Lua errors" and no body line mentions Forte_.
  *
  * It returns { pass, rows } -- rows = [{ name, pass, expect, got }] -- and
  * console.logs the same as a table. Nothing here raises on a failed check:
  * a fail is a row, not an exception.
  */
+// The default CODE marker. `FX.CONST.VERSION` is the build constant of
+// addon/Forte_Core/Core/Constants.lua (present at the 2026-11-02 read);
+// release.py stamps only the tocs' `## Version:`, so this constant ships
+// verbatim in the zip. If the constant is ever dropped from the repo, set
+// this to null and the CODE row skips with a note.
+const DEFAULT_CODE_MARKER =
+  '(ForteXorcist.CONST and ForteXorcist.CONST.VERSION) == "0.1.0-dev"';
+
 async function uifBattery(options) {
   const opt = options || {};
   const zip = opt.zip || '/tmp/fx_uif.zip';
   const reloadWaitMs = opt.reloadWaitMs || 20000;
+  // The "Import addons?" dialog of a larger zip lands seconds after the
+  // upload (live finding 2026-11-02, the false-PASS race): poll this long
+  // for it, and this long for it to close after Import.
+  const IMPORT_DIALOG_MS = 15000;
+  const DIALOG_GONE_MS = 15000;
   const rows = [];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const add = (name, pass, expect, got) => {
@@ -74,13 +108,48 @@ async function uifBattery(options) {
   };
   const bodyText = async () =>
     String(await uifTab.evaluate(() => document.body.innerText));
-  const sawInBody = async (needle, budgetMs) => {
+  // Poll the in-page `view` (evaluated as-is) until ok(value) accepts it;
+  // null on timeout.
+  const pollFor = async (view, budgetMs, ok) => {
     const deadline = Date.now() + budgetMs;
     for (;;) {
-      if ((await bodyText()).includes(needle)) return true;
+      const v = await uifTab.evaluate(view).catch(() => null);
+      if (v && ok(v)) return v;
+      if (Date.now() >= deadline) return null;
+      await sleep(250);
+    }
+  };
+  const sawOutBody = async (needle, budgetMs) => {
+    const deadline = Date.now() + budgetMs;
+    for (;;) {
+      if (!(await bodyText()).includes(needle)) return true;
       if (Date.now() >= deadline) return false;
       await sleep(250);
     }
+  };
+  // The import dialog as it must be gated on (defect 1, 2026-11-02): the
+  // body shows `Import addons?` AND a button whose text is exactly
+  // `Import` lives INSIDE that dialog. The old gate only asked the body
+  // for `Forte_` — true while the PREVIOUS import's rows were listed —
+  // so Import was clicked against an absent dialog and the run passed on
+  // stale bytes.
+  const importDialogView = () => {
+    // fx-import-dialog
+    const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const ask = 'Import addons?';
+    const impBtn = (n) => Array.from(n.querySelectorAll('button')).find(
+      (b) => (b.textContent || '').trim() === 'Import'
+        && b.getBoundingClientRect().width > 0) || null;
+    const askers = Array.from(document.querySelectorAll('body *')).filter(
+      (n) => norm(n.textContent).includes(ask));
+    // The dialog = the INNERMOST element carrying both the prompt and the
+    // exact-text Import button. The heading alone is not a dialog, and an
+    // Import control that lives OUTSIDE every prompt-carrying subtree is
+    // not the dialog's button (defect 1's blind global clickText hit the
+    // site's import control of its own while the dialog stood absent).
+    const withBtn = askers.filter((n) => impBtn(n));
+    const dialog = withBtn[withBtn.length - 1] || null;
+    return { asked: askers.length > 0, present: !!dialog };
   };
   // The console answer is `<printed lines>` interleaved with `› ` echoes of
   // the typed command (live finding 2026-11-02: the echo carries the marker
@@ -123,6 +192,19 @@ async function uifBattery(options) {
             const row = rowOf(b);
             return /\bForte_/.test((row && row.textContent) || '');
           });
+        // Defect 3 (2026-11-02): this sweep once removed 0 of 15 rows and
+        // PASSED, because "0 targets" and "nothing to clean" are the same
+        // number to a count-only check. Count the Forte rows visible in the
+        // add-on list independently of the \u2715 selector — the SMALLEST
+        // elements whose text carries `Forte` — so the caller can fail a
+        // 0-removal sweep that ran while rows stood on screen.
+        const forteRowsVisible = () => {
+          const has = (n) => /Forte/.test(n.textContent || '');
+          return Array.from(document.querySelectorAll('body *')).filter(
+            (n) => has(n) && !Array.from(n.children).some(has)).length;
+        };
+        const visible = forteRowsVisible();
+        const matched = targets().length;
         let removed = 0;
         for (let guard = 0; guard < 80; guard++) {
           const t = targets()[0];
@@ -131,11 +213,18 @@ async function uifBattery(options) {
           removed += 1;
           await nap(350);
         }
-        return { removed, left: targets().length };
-      }).catch(() => ({ removed: 0, left: -1 }));
-      add('IMPORT cleared previous Forte_ imports', cleared.left === 0,
-        'every Forte_ row removed (per-row \u2715, none left)',
-        `${cleared.removed} removed, ${cleared.left} left`);
+        return { visible, matched, removed, left: targets().length };
+      }).catch(() => ({ visible: -1, matched: 0, removed: 0, left: -1 }));
+      // 0 removed is honest only when no Forte row was visible to remove.
+      const clearOk = cleared.left === 0
+        && (cleared.removed > 0 || cleared.visible === 0);
+      add('IMPORT cleared previous Forte_ imports', clearOk,
+        'every Forte_ row removed (per-row \u2715, none left); 0 removed '
+        + 'only allowed with no Forte row visible',
+        'selector: button text \'\u2715\' inside a row matching /Forte_/ | '
+        + `Forte rows visible before: ${cleared.visible} | `
+        + `${cleared.removed} of ${cleared.matched} matched removed, `
+        + `${cleared.left} left`);
       await sleep(1500);
     }
     // Tag the LAST accept=".zip" input, after scrubbing stale tags (the
@@ -154,15 +243,46 @@ async function uifBattery(options) {
     add('IMPORT tag the zip input', String(tag).startsWith('tagged'),
       'the LAST accept=".zip" file input tagged', tag);
     await uifTab.uploadFile('input[data-fxzip="1"]', zip);
-    // The import dialog lists the zip's addons: the body text grows a
-    // Forte_ mention. Poll up to 8 s (a 2500 ms fixed sleep raced it on the
-    // 2026-11-02 run and Import was pressed against an empty dialog).
-    const listed = await sawInBody('Forte_', 8000);
-    add('IMPORT the import dialog lists the addons', listed,
-      'body text mentions Forte_ within 8000 ms of the upload',
-      listed ? 'seen' : 'never seen');
-    const imported = await safeClick('Import');
-    add('IMPORT pressed Import', imported, 'the Import button', 'clickText(Import)');
+    // Defect 1 (2026-11-02): on a larger zip the `Import addons?` dialog
+    // appears SEVERAL SECONDS after the upload; the old blind
+    // clickText('Import') hit nothing, the import never ran, and every
+    // later check read the PREVIOUSLY loaded code — a false PASS. Poll for
+    // the dialog itself (its text + its own exact-text `Import` button),
+    // then click THAT button in-page. No dialog within the budget = the
+    // import did not run: the IMPORT rows FAIL, loudly.
+    const dlg = await pollFor(importDialogView, IMPORT_DIALOG_MS, (v) => v.present);
+    add('IMPORT the import dialog appears after the upload', !!dlg,
+      `the "Import addons?" dialog with its exact-text Import button `
+      + `within ${IMPORT_DIALOG_MS} ms of the upload`,
+      dlg ? 'present'
+        : 'never appeared: the upload opened no import — the import did NOT run');
+    const imported = !dlg ? 'skipped: no dialog to press'
+      : await uifTab.evaluate(() => {
+        // fx-import-click
+        const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+        const ask = 'Import addons?';
+        const impBtn = (n) => Array.from(n.querySelectorAll('button')).find(
+          (b) => (b.textContent || '').trim() === 'Import'
+            && b.getBoundingClientRect().width > 0) || null;
+        const askers = Array.from(document.querySelectorAll('body *')).filter(
+          (n) => norm(n.textContent).includes(ask));
+        const withBtn = askers.filter((n) => impBtn(n));
+        const dialog = withBtn[withBtn.length - 1];
+        const btn = dialog ? impBtn(dialog) : null;
+        if (!btn) return 'no-import-button';
+        btn.click();
+        return 'clicked the dialog Import button';
+      }).catch(() => 'evaluate-failed');
+    add('IMPORT pressed the dialog Import button',
+      String(imported).startsWith('clicked'),
+      'a click on the Import button INSIDE the dialog', imported);
+    // The import finishes when the dialog closes; Later / Let's go /
+    // /reload must not be pressed while it still stands (they would be
+    // the blind clicks defect 1 was made of).
+    const gone = await sawOutBody('Import addons?', DIALOG_GONE_MS);
+    add('IMPORT the import dialog closes after Import', gone,
+      `the "Import addons?" text gone within ${DIALOG_GONE_MS} ms of the press`,
+      gone ? 'gone' : 'still open: the import did not complete');
     await sleep(3000);
     await safeClick('Later');                 // the rename prompt
     await safeClick("Let's go");              // the tips dialog
@@ -177,7 +297,36 @@ async function uifBattery(options) {
     if (opt.importOnly) return report(zip, rows);
   }
 
-  // ---------------------------------------------------- 2. class add-on set
+  // ------------------------------------------------------ 2. CODE live bytes
+  // Defect 2 (2026-11-02): every check below reads BEHAVIOUR, and the site
+  // keeps serving the previously loaded add-ons when an import did not land
+  // — so a green run proved nothing about the bytes just uploaded. Evaluate
+  // a marker expression (option `expectMarker`, a Lua expression) against
+  // the LIVE engine after /reload; the row passes only when it prints true.
+  // Default marker: ForteXorcist.CONST.VERSION, the build constant of
+  // addon/Forte_Core/Core/Constants.lua — the shipped bytes carry it (the
+  // release stamps only the tocs). DEFAULT_CODE_MARKER === null is the
+  // documented state "the repo has no version constant": the row then skips.
+  const marker = opt.expectMarker == null
+    ? DEFAULT_CODE_MARKER : String(opt.expectMarker);
+  const codeRow = 'CODE the live code prints the expected marker true';
+  if (!marker) {
+    add(codeRow, true, 'skipped: no expectMarker given and the repo carries '
+      + 'no version constant to compare', 'skipped');
+  } else {
+    const code = await luaMarked(
+      'local ok,v = pcall(function() return (' + marker + ') end) '
+      + 'local out if not ok then out = "error:" .. tostring(v) '
+      + 'elseif v then out = "true" else out = "false" end '
+      + 'print("FXBAT-CODE=" .. out)',
+      'FXBAT-CODE=');
+    const mCode = code.printed.match(/^FXBAT-CODE=(\S*)$/m);
+    add(codeRow, !!mCode && mCode[1] === 'true',
+      `FXBAT-CODE=true for (${marker})`,
+      mCode ? mCode[1] : (code.line || '(no printed line)'));
+  }
+
+  // ---------------------------------------------------- 3. class add-on set
   // Load-on-demand law (docs/launch-day.md F12): over the nine class add-ons,
   // exactly the player's own is resident. Plain Lua — the console IS Lua.
   const cls = await luaMarked(
@@ -204,7 +353,7 @@ async function uifBattery(options) {
       'FXBAT-CLASSES= print', cls.line || '(no printed line)');
   }
 
-  // -------------------------------------------------------- 3. module list
+  // -------------------------------------------------------- 4. module list
   // _moduleOrder is the registration array (Init.lua); `modules` is keyed by
   // it and iterating a key map proved flakier live (2026-11-02).
   const mods = await luaMarked(
@@ -222,12 +371,12 @@ async function uifBattery(options) {
     modList.length > 0 && missingCore.length === 0, core.join(','),
     modList.join(','));
 
-  // ----------------------------------------------------- 4. Splash + Messages
+  // ------------------------------------------------------ 5. Splash + Messages
   add('CORE Splash and Messages are present',
     modList.includes('Splash') && modList.includes('Messages'),
     'Splash + Messages in the module list', modList.join(','));
 
-  // ------------------------------------------------------------- 5. DB
+  // -------------------------------------------------------------- 6. DB
   const db = await luaMarked(
     'local d=ForteXorcist.db local v=d and d.version '
     + 'local a=d and d.profiles and d.profiles.active '
@@ -240,7 +389,7 @@ async function uifBattery(options) {
     'version=1 activen=1',
     mDb ? `version=${mDb[1]} active=${mDb[2]}` : (db.line || '(no printed line)'));
 
-  // ------------------------------------------ 6. party/raid chat defaults OFF
+  // ----------------------------------- 7. party/raid chat defaults OFF
   // The announce gate counts accepted sends; a ready pop with the shipped
   // defaults must not send anything (review 4 E2: every announce is opt-in).
   const raid = await luaMarked(
@@ -258,7 +407,7 @@ async function uifBattery(options) {
     'delta=0 sent=0',
     mRaid ? `delta=${mRaid[1]} sent=${mRaid[2]}` : (raid.line || '(no printed line)'));
 
-  // ------------------------------------------------------------ 7. PERSIST
+  // ------------------------------------------------------------- 8. PERSIST
   // One settings write must survive a /reload (SavedVariables round-trip).
   if (opt.persist) {
     const pre = await luaMarked(
@@ -292,7 +441,7 @@ async function uifBattery(options) {
     await luaMarked(restore, 'FXBAT-PERSISTRESTORED');
   }
 
-  // ---------------------------------------------------------- 8. Lua errors
+  // ---------------------------------------------------------- 9. Lua errors
   // The tab's text is `Errors` or `Errors <count>`: match it in-page
   // (clickText wants an exact label and misses the counted variant).
   const opened = await uifTab.evaluate(() => {

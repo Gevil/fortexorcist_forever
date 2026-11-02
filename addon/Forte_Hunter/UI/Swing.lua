@@ -1,12 +1,14 @@
 -- addon/Forte_Hunter/UI/Swing.lua
--- FX.Hunter.Swing: the Auto Shot / ranged-swing bar, plus the UI module
--- ("HunterUI") that owns the Hunter frames' lifecycle. The bar is a thin
--- Classic skin strip (the Forte_Cooldown/UI/Timeline.lua law: Aluminium fill
--- on the Background/Border backdrop, URW Gothic text) that fills left ->
--- right while the current ranged swing burns, with the remaining seconds
--- right-aligned. All swing STATE lives in Core/Tools.lua's SwingTracker;
--- this file is a pure renderer of `FX.Hunter.Tools.Swing:Progress(now)`
--- (PLAN §3.4 "pure renderer, 10 Hz display", §3.6 module map).
+-- FX.Hunter.Swing: the Auto Shot / ranged-swing bar (TWO-PHASE since swing
+-- v2: the safe-window fill + the aim/retry/cast slices + the white
+-- projectile-left state), plus the UI module ("HunterUI") that owns the
+-- Hunter frames' lifecycle. The bar is a thin Classic skin strip (the
+-- Forte_Cooldown/UI/Timeline.lua law: Aluminium fill on the
+-- Background/Border backdrop, URW Gothic text). All swing STATE lives in
+-- Core/Tools.lua's SwingTracker; this file is a pure renderer of
+-- `FX.Hunter.Tools.Swing:Progress(now)` + `:CycleState(now)` +
+-- `:CastRemaining(now)` (PLAN §3.4 "pure renderer, 10 Hz display",
+-- §3.6 module map; the gap table of docs/research/weaponswingtimer.md).
 --
 -- Frame + skin law (Forte_Cooldown/UI/Timeline.lua):
 --   * frames are created inside Init, which runs from the module's OnEnable
@@ -80,6 +82,21 @@ FX.Hunter.SwingSkin = {
     FontFile = FONT_FILE,
     FontSize = 10,                            -- the assignment: font 10
     FontFlags = "OUTLINE",
+    -- The two-phase palette (docs/research/weaponswingtimer.md §5): the
+    -- Forte_Cooldown Timeline category colours -- aim window = Debuff red,
+    -- projectile-left = Buff white, retry = Item yellow, the flight pulse
+    -- rides the Spark2 ADD-blend law (Timeline's PulseSeconds = 1.0,
+    -- linear 1->0 alpha, no wave).
+    AimColor = { 1, 0, 0, 1 },
+    FlyingColor = { 1, 1, 1, 1 },
+    RetryColor = { 1, 1, 0, 1 },
+    SparkTexture = TEX .. "Spark2",
+    PulseSeconds = 1.0,
+    InCombatAlpha = 1.0,                      -- the WST in/ooc alpha pair
+    OutOfCombatAlpha = 1.0,                   -- (parked VISIBLE: the bar
+                                              --  already hides when idle
+                                              --  -- the alpha pair, gap
+                                              --  row 10)
 }
 local S = FX.Hunter.SwingSkin
 
@@ -90,7 +107,15 @@ local TICK_SECONDS = 0.1                      -- the 10 Hz render rate
 -- The module's live skin state: the setters are legal before Init (the
 -- options page applies stored values at PLAYER_LOGIN; the frames arrive
 -- with them) -- Timeline.frameState's shape.
-D.state = { enabled = true, showTime = true }
+D.state = { enabled = true, showTime = true,
+    -- swing v2 draw gates (the Hunter page keys; docs/research/
+    -- weaponswingtimer.md gap row 10).
+    showSafeWindow = true,   -- off = today's single-phase bar (the law)
+    showAimSlice = true,
+    showFlying = true,
+    showRetry = true,
+    showLatency = false,     -- the GetNetStats leg is a launch probe (§B12)
+}
 local ST = D.state
 
 -- ------------------------------------------------------------------- font --
@@ -215,6 +240,45 @@ function D:Init()
     local bc = S.BarColor
     fill:SetVertexColor(bc[1], bc[2], bc[3], bc[4])
 
+    -- The swing v2 slices, all RIGHT-anchored at the bar's right edge with
+    -- explicit widths (the WST slice geometry, WeaponSwingTimer_Hunter.lua
+    -- :688-709, in our geometry language): the aim window (Debuff red) at
+    -- the right end, the retry penalty (Item yellow) immediately left of
+    -- it (inset by the aim length), the interlock's full-width cast slice
+    -- behind everything. Hidden by default; Update() sizes/colours them.
+    local aim = f:CreateTexture(nil, "ARTWORK")
+    aim:SetTexture(S.BarTexture)
+    aim:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+    aim:SetSize(0, S.Height)
+    local ac = S.AimColor
+    aim:SetVertexColor(ac[1], ac[2], ac[3], ac[4])
+    aim:Hide()
+
+    local retry = f:CreateTexture(nil, "ARTWORK")
+    retry:SetTexture(S.BarTexture)
+    retry:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+    retry:SetSize(0, S.Height)
+    local rc = S.RetryColor
+    retry:SetVertexColor(rc[1], rc[2], rc[3], rc[4])
+    retry:Hide()
+
+    local cast = f:CreateTexture(nil, "ARTWORK")
+    cast:SetTexture(S.BarTexture)
+    cast:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+    cast:SetSize(0, S.Height)
+    cast:SetVertexColor(ac[1], ac[2], ac[3], ac[4])
+    cast:Hide()
+
+    -- The "projectile left" pulse: Spark2 ADD-blend at the fill head, the
+    -- Timeline's pulse law (alpha 1->0 linear over PulseSeconds, no wave).
+    local spark = f:CreateTexture(nil, "ARTWORK")
+    spark:SetTexture(S.SparkTexture)
+    spark:SetPoint("CENTER", f, "TOPLEFT", 0, S.Height * 0.5)
+    spark:SetSize(math.max(6, S.Height), S.Height)
+    if spark.SetBlendMode then pcall(spark.SetBlendMode, spark, "ADD") end
+    spark:SetVertexColor(1, 1, 1, 0)
+    self.spark = spark
+
     -- The remaining-seconds text, right-aligned inside the bar.
     local text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     applyFont(text, S.FontSize, S.FontFlags)
@@ -232,7 +296,11 @@ function D:Init()
     title:SetPoint("BOTTOM", f, "TOP", 0, 2)
 
     self.anchor, self.fill, self.text, self.title = f, fill, text, title
+    self.aim, self.retry, self.cast = aim, retry, cast
     self._fillW, self._timeKey, self._shown = nil, nil, false
+    self._phase, self._aimW, self._retryW, self._castW, self._sparkAt
+        = nil, nil, nil, nil, nil
+    self._fillColor, self._combatAlpha = nil, nil
 
     self:_WireSettings()
     self:ApplyStoredSettings()
@@ -356,13 +424,82 @@ function D:SetFont(path)
     end
 end
 
+-- ------------------------------------------------------- swing v2 seams --
+function D:SetShowSafeWindow(on)
+    ST.showSafeWindow = not not on
+    self._fillW, self._timeKey, self._phase = nil, nil, nil
+end
+
+function D:SetShowAimSlice(on)
+    ST.showAimSlice = not not on
+    self._phase = nil
+end
+
+function D:SetShowFlying(on)
+    ST.showFlying = not not on
+    self._fillColor = nil
+    if not ST.showFlying then self._sparkAt = nil end
+end
+
+function D:SetShowRetry(on)
+    ST.showRetry = not not on
+end
+
+function D:SetShowLatency(on)
+    -- The GetNetStats 4th-return shape is a launch-day probe (§B12);
+    -- enabling the strip before the probe measures it is a no-op by law.
+    ST.showLatency = not not on
+end
+
+function D:SetInCombatAlpha(v)
+    v = tonumber(v)
+    if v == nil then return end
+    S.InCombatAlpha = math.min(1, math.max(0, v))
+    self._combatAlpha = nil
+end
+
+function D:SetOutOfCombatAlpha(v)
+    v = tonumber(v)
+    if v == nil then return end
+    S.OutOfCombatAlpha = math.min(1, math.max(0, v))
+    self._combatAlpha = nil
+end
+
+--- The aim-ratio base speed (0 = auto). Rides the tracker seam.
+function D:SetBaseSpeed(v)
+    local t = self.Tracker
+    if t and t.SetBaseSpeed then t:SetBaseSpeed(tonumber(v)) end
+end
+
 -- ---------------------------------------------------------------- render --
 --- One render pass; `now` is optional (GetTime() by default) -- the tests
 --- inject a clock. Returns true when a swing is on screen.
+---
+--- swing v2 geometry (docs/research/weaponswingtimer.md §5, the slice
+--- widths adapting WeaponSwingTimer SixxFix's shot_bar/auto_shot_cast_bar/
+--- retry_bar laws, WeaponSwingTimer_Hunter.lua:688-709):
+---   * safe-window mode (ShowSafeWindow on): the fill is the SAFE span
+---     `(remaining - floor) / duration` shrinking toward the right-end
+---     aim slice; the aim window (Debuff red), the retry penalty (Item
+---     yellow) and the interlock's full-width red ride as slices;
+---   * ShowSafeWindow off = the single-phase bar: fill = elapsed/duration,
+---     every slice hidden (the fallback law -- the pre-v2 look);
+---   * the event-proven flight paints the fill Buff white (the "projectile
+---     left, safe to move/cast" state) with a Spark2 pulse on entry;
+---   * the Aimed/Multi interlock freezes the fill at its clip fraction and
+---     prints the cast's remaining seconds;
+---   * the in/ooc alpha pair (InCombatAlpha/OutOfCombatAlpha) rides the
+---     anchor.
 function D:Update(now)
     if not self.anchor then return false end
     local tracker = self.Tracker
-    if not tracker or not ST.enabled then
+    if not tracker or not tracker.CycleState or not ST.enabled then
+        self:RenderIdle()
+        return false
+    end
+    now = now or GetTime()
+    local phase, aimLen, floor, ready = tracker:CycleState(now)
+    if phase == nil then
         self:RenderIdle()
         return false
     end
@@ -371,26 +508,128 @@ function D:Update(now)
         self:RenderIdle()
         return false
     end
+    self:_ApplyCombatAlpha()
+    local castLeft, castLen
+    if tracker.CastRemaining then
+        castLeft, castLen = tracker:CastRemaining(now)
+    end
     if not self._shown then
         self._shown = true
         self.anchor:Show()
         if ST.showTime then self.text:Show() end
     end
-    local w = fraction * S.Width
+    local W = S.Width
+    local scale = (tracker.duration and tracker.duration > 0)
+        and (W / tracker.duration) or 0
+
+    -- The fill: frozen under the cast interlock, otherwise the phase's
+    -- own law.
+    local w
+    if castLeft then
+        w = (tracker.CastingCycleFraction
+            and (tracker:CastingCycleFraction() * W)) or W
+    elseif ST.showSafeWindow and phase == "flying" then
+        -- The WST shot-bar law (WeaponSwingTimer_Hunter.lua :913-1010):
+        -- the WHOLE bar rides white from SUCCEEDED to the next
+        -- PLAYER_SWING re-arm -- the safe-to-move state, not a sliver.
+        w = W
+    elseif ST.showSafeWindow and phase ~= "flying" then
+        w = math.max(0, (remaining - floor) / tracker.duration) * W
+    else
+        w = fraction * W
+    end
     if w < 0 then
         w = 0
-    elseif w > S.Width then
-        w = S.Width
+    elseif w > W then
+        w = W
     end
     if self._fillW ~= w then
         self._fillW = w
         self.fill:SetSize(w, S.Height)
     end
+
+    -- The fill tint: Buff white while the proven projectile is in flight,
+    -- the BarColor otherwise (a two-value cache -- dirty-checked).
+    local flying = ST.showFlying and phase == "flying" and not castLeft
+    local fc = flying and S.FlyingColor or S.BarColor
+    local fck = fc[1] .. "|" .. fc[2] .. "|" .. fc[3] .. "|" .. fc[4]
+    if self._fillColor ~= fck then
+        self._fillColor = fck
+        self.fill:SetVertexColor(fc[1], fc[2], fc[3], fc[4])
+    end
+    if flying and self.spark then
+        if self._phase ~= "flying" then
+            self._sparkAt = now      -- the shot left: one pulse, 1.0 s
+        end
+    end
+
+    -- The spark at the fill head (the Timeline's pulse: alpha 1 -> 0
+    -- linear over PulseSeconds, no wave).
+    if self.spark then
+        local sa = 0
+        local at = self._sparkAt
+        if at then
+            sa = 1 - (now - at) / S.PulseSeconds
+            if sa <= 0 then
+                sa = 0
+                self._sparkAt = nil
+            end
+        end
+        self.spark:SetPoint("CENTER", self.anchor, "TOPLEFT", w,
+            S.Height * 0.5)
+        self.spark:SetVertexColor(1, 1, 1, sa)
+    end
+
+    -- The slices: hidden wholesale in single-phase mode.
+    local aimW, retryW, castW = 0, 0, 0
+    if ST.showSafeWindow then
+        if castLeft then
+            -- The interlock: the full-width red slice says "this cycle
+            -- gets clipped" (the WST clip-bar signal our safe window
+            -- carries -- gap row 8/11).
+            castW = W
+        else
+            if ST.showAimSlice and phase == "aim"
+                and aimLen and aimLen > 0 then
+                -- The window is INFORMATION (the WST shot_slice law
+                -- :688-709 draws it unconditionally): the readiness gate
+                -- governs the shot, never the slice.
+                aimW = math.min(aimLen, aimLen + math.max(0,
+                    (tracker.retryUntil or 0) - now)) * scale
+            end
+            if ST.showRetry and tracker.retryUntil
+                and tracker.retryUntil > now then
+                local left = math.min(0.5, tracker.retryUntil - now)
+                retryW = left * scale
+            end
+        end
+    end
+    self:_SetSlice(self.aim, "_aimW", aimW, aimLen and aimLen * scale or 0)
+    self:_SetSlice(self.retry, "_retryW", retryW, 0)
+    self:_SetSlice(self.cast, "_castW", castW, 0)
+    self._phase = phase
+
+    -- The text: the cast's remaining under the interlock; during the aim
+    -- window the stand-still countdown (the aim left + an open retry, the
+    -- WST :651-657 fold); the cycle's remaining otherwise.
     if ST.showTime then
-        local key = timeKey(remaining)
+        local text
+        local key
+        if castLeft then
+            text = formatRemaining(castLeft)
+            key = math.floor(castLeft * 10 + 0.5)
+        elseif phase == "aim" then
+            local shown = math.min(remaining, aimLen)
+                + math.max(0, (tracker.retryUntil or 0) - now)
+            text = formatRemaining(shown)
+            key = timeKey(shown)
+        else
+            text = formatRemaining(remaining)
+            key = timeKey(remaining)
+        end
         if self._timeKey ~= key then
             self._timeKey = key
-            self.text:SetText(formatRemaining(remaining))
+            self.text:SetText(text)
         end
     elseif self._timeKey ~= nil then
         self._timeKey = nil
@@ -399,7 +638,34 @@ function D:Update(now)
     return true
 end
 
---- The idle state: bar hidden, text blank, the per-frame script gone.
+--- Dirty-checked slice geometry (the every-style-setter-is-checked law).
+function D:_SetSlice(tex, key, w, inset)
+    if not tex then return end
+    if self[key] ~= w then
+        self[key] = w
+        tex:SetSize(w, S.Height)
+        tex:SetPoint("TOPRIGHT", self.anchor, "TOPRIGHT", -(inset or 0), 0)
+        if w > 0 then tex:Show() else tex:Hide() end
+    end
+end
+
+--- The in/out-of-combat alpha pair (the WST in-combat-only mechanism,
+--- gap row 10; the gate is InCombatLockdown, CAT-declared).
+function D:_ApplyCombatAlpha()
+    local inC
+    if type(InCombatLockdown) == "function" then
+        local ok, v = pcall(InCombatLockdown)
+        inC = ok and v and true or false
+    end
+    local a = inC and S.InCombatAlpha or S.OutOfCombatAlpha
+    if self._combatAlpha ~= a then
+        self._combatAlpha = a
+        self.anchor:SetAlpha(a)
+    end
+end
+
+--- The idle state: bar hidden, text blank, the slices parked, the
+--- per-frame script gone.
 function D:RenderIdle()
     if self._shown then
         self._shown = false
@@ -408,6 +674,18 @@ function D:RenderIdle()
     -- No stale number on a hidden bar (runs on the state transition only).
     if self.text then self.text:SetText("") end
     self._fillW, self._timeKey = nil, nil
+    self._phase = nil
+    if self.spark then self.spark:SetVertexColor(1, 1, 1, 0) end
+    self._sparkAt = nil
+    for _, pair in ipairs({ { self.aim, "_aimW" }, { self.retry, "_retryW" },
+        { self.cast, "_castW" } }) do
+        local tex, key = pair[1], pair[2]
+        if tex and self[key] ~= 0 then
+            self[key] = 0
+            tex:SetSize(0, S.Height)
+            tex:Hide()
+        end
+    end
     self:StopTicking()
 end
 
@@ -471,6 +749,16 @@ local KEYMAP = {
     Font = "SetFont",
     BarFont = "SetFont",
     GlobalLock = "SetLocked",
+    -- swing v2 (gap row 10): all ride the existing seam, no new plumbing.
+    ShowSafeWindow = "SetShowSafeWindow",
+    ShowAimSlice = "SetShowAimSlice",
+    ShowFlying = "SetShowFlying",
+    ShowRetry = "SetShowRetry",
+    ShowLatency = "SetShowLatency",
+    ShowRangeLight = "SetShowRangeLight",
+    InCombatAlpha = "SetInCombatAlpha",
+    OutOfCombatAlpha = "SetOutOfCombatAlpha",
+    BaseSpeed = "SetBaseSpeed",
 }
 
 --- The stored shape of the wired keys, per settings module (the pages'
@@ -479,14 +767,19 @@ local KEYMAP = {
 --- rule).
 local STORED = {
     Hunter = { "Enable", "Width", "Height", "BarColor", "BgColor",
-        "ShowTime" },
+        "ShowTime", "ShowSafeWindow", "ShowAimSlice", "ShowFlying",
+        "ShowRetry", "ShowLatency", "InCombatAlpha", "OutOfCombatAlpha",
+        "BaseSpeed" },
     General = { "BarFont" },
 }
 
 function D:ApplySettings(tbl)
     for key, value in pairs(tbl or {}) do
         local m = KEYMAP[key]
-        if m then self[m](self, value) end
+        -- The shared page listener routes every Hunter-key change to
+        -- every renderer; a key without a consumer HERE (the range
+        -- light's ShowRangeLight) is inert by the map's law.
+        if m and self[m] then self[m](self, value) end
     end
 end
 
@@ -574,6 +867,15 @@ local KICK_ALL = {
     PLAYER_REGEN_DISABLED = true,
     UNIT_SPELLCAST_SUCCEEDED = true,
 }
+-- swing v2: the movement edges move the readiness gate, the target edge
+-- moves the range light and the gate's target facts.
+local KICK_MOVE = {
+    PLAYER_STARTED_MOVING = true,
+    PLAYER_STOPPED_MOVING = true,
+}
+local KICK_TARGET = {
+    PLAYER_TARGET_CHANGED = true,
+}
 
 local function onUIEvent(self, event, a1, a2, a3)
     -- a1..a3 are received and deliberately unread (secret-value law: the
@@ -583,6 +885,12 @@ local function onUIEvent(self, event, a1, a2, a3)
     elseif KICK_ALL[event] then
         self.Swing:OnSwingEvent()
         self.Reminder:OnStateEvent()
+        if self.RangeLight then self.RangeLight:OnStateEvent() end
+    elseif KICK_MOVE[event] then
+        self.Swing:OnSwingEvent()
+    elseif KICK_TARGET[event] then
+        self.Swing:OnSwingEvent()
+        if self.RangeLight then self.RangeLight:OnStateEvent() end
     end
 end
 
@@ -601,6 +909,9 @@ function U:EnableEvents()
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
     f:RegisterEvent("PLAYER_REGEN_DISABLED")
     f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f:RegisterEvent("PLAYER_STARTED_MOVING")
+    f:RegisterEvent("PLAYER_STOPPED_MOVING")
+    f:RegisterEvent("PLAYER_TARGET_CHANGED")
     -- OnEvent receives (frame, event, ...): swallow the frame, or `event`
     -- would be the frame and no branch would ever match.
     f:SetScript("OnEvent", function(_, event, a1, a2, a3) onUIEvent(U, event, a1, a2, a3) end)
@@ -622,6 +933,9 @@ function U:DisableEvents()
             f:UnregisterEvent("PLAYER_REGEN_ENABLED")
             f:UnregisterEvent("PLAYER_REGEN_DISABLED")
             f:UnregisterEvent("PLAYER_ENTERING_WORLD")
+            f:UnregisterEvent("PLAYER_STARTED_MOVING")
+            f:UnregisterEvent("PLAYER_STOPPED_MOVING")
+            f:UnregisterEvent("PLAYER_TARGET_CHANGED")
         end
         f:SetScript("OnEvent", nil)
     end
@@ -643,10 +957,23 @@ function U:OnEnable()
     self.Reminder = FX.Hunter.Reminder
     self.Swing:Init()
     self.Reminder:Init()
+    self:_InitRange()
     self:EnableEvents()
     -- A swing that was already running (login mid-shot) shows immediately.
     self.Swing:Kick()
     self.Reminder:Refresh()
+end
+
+--- The range light's late registration: its file rides the same toc, so
+--- it exists; the guard is load-order paranoia, not a load-on-demand seam.
+function U:_InitRange()
+    local RL = FX.Hunter.RangeLight
+    self.RangeLight = RL
+    if not RL then return end
+    RL:Init()
+    RL:_WireSettings()
+    RL:ApplyStoredSettings()
+    RL:Refresh()
 end
 
 --- Core FX.RefreshPlayerClass notification (the uiforever T4 class guard):
@@ -657,6 +984,10 @@ function U:OnClassChanged(classFile)
     if classFile == "HUNTER" then
         self.Swing:OnClassChanged(classFile)
         self.Reminder:OnClassChanged(classFile)
+        self:_InitRange()
+        if self.RangeLight then
+            self.RangeLight:OnClassChanged(classFile)
+        end
         self:EnableEvents()
         self.Swing:Kick()
         self.Reminder:Refresh()
@@ -664,6 +995,9 @@ function U:OnClassChanged(classFile)
         self:DisableEvents()
         self.Swing:OnClassChanged(classFile)
         self.Reminder:OnClassChanged(classFile)
+        if self.RangeLight then
+            self.RangeLight:OnClassChanged(classFile)
+        end
     end
 end
 
@@ -675,6 +1009,9 @@ function U:Status()
     end
     if self.Reminder and self.Reminder.anchor then
         lines[#lines + 1] = self.Reminder:StatusLine()
+    end
+    if self.RangeLight and self.RangeLight.anchor then
+        lines[#lines + 1] = self.RangeLight:StatusLine()
     end
     if #lines == 0 then
         lines[1] = "Hunter UI: not built (class " .. tostring(FX._playerClass) .. ")"

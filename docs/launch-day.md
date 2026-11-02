@@ -68,12 +68,25 @@ the relog persistence proof — same probe code, different restriction state.
 `scripts/uif_battery.js` is one async function for the browser kernel that
 already has an open uiforever.com tab — it needs the kernel's `uifTab`,
 `clickText(text)` and `lua(cmd, waitMs)`. Call
-`await uifBattery({ zip: 'dist/ForteXorcist-<version>.zip' })` and it imports
-that zip, presses `/reload`, and returns a pass/fail table: only the player's
-own class add-on resident (a resident Mage add-on from the site's own log-in
-is tolerated), the module list printed, Splash + Messages present, a ready
-pop sending **0** party/raid chat lines on the shipped defaults, and the
-site's Errors tab free of Lua errors (it prints the table too). These are the
+`await uifBattery({ zip: 'dist/ForteXorcist-<version>.zip', fresh: true })`
+and it clears the previous import, uploads the zip, waits (polling up to
+15 s) for the `Import addons?` dialog and clicks **that dialog's** Import
+button, waits for the dialog to close, then presses `/reload` and returns
+a pass/fail table. The dialog gate matters: on a larger zip it lands
+seconds after the upload, and the 2026-11-02 battery raced it — every
+check then passed against the PREVIOUS import's code (false PASS). No
+dialog within 15 s = the IMPORT rows FAIL. The CODE row proves the site
+runs the bytes just imported: it evaluates a Lua marker expression and
+passes only when it prints true (by default the `ForteXorcist.CONST.VERSION`
+build constant; pass `expectMarker` to assert a newer build's symbol, e.g.
+`ForteXorcist.Hunter and ForteXorcist.Hunter.Tools and
+ForteXorcist.Hunter.Tools.Swing.CycleState ~= nil`). A `fresh` clear that
+removed 0 rows while Forte rows stood in the add-on list FAILS instead of
+passing. The rest: only the player's own class add-on resident (a resident
+Mage add-on from the site's own log-in is tolerated), the module list
+printed, Splash + Messages present, a ready pop sending **0** party/raid
+chat lines on the shipped defaults, and the site's Errors tab free of Lua
+errors (it prints the table too). These are the
 chat-defaults and F12 checks in browser form; the client session below stays
 the real gate. Build the zip with `python3 scripts/release.py` first, so the
 imported bytes are the release bytes.

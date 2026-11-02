@@ -359,7 +359,9 @@ function()
     assertEquals("Hunter", O.pageId)
     local page = O.pagesBuilt["Hunter"]
     assertNotNil(page)
-    assertEquals(4, #page.sections)         -- Tips/Basics/Sizing/Coloring
+    assertEquals(7, #page.sections)   -- Tips/Basics/Sizing/Coloring
+                                      -- + Shot Cycle/Range Light/
+                                      -- Combat Alpha (swing v2)
     local _, _, _, xcell = btn:GetPoint()
     local _, _, _, xcell5 = O.indexButtons[13]:GetPoint()
     assertTrue(xcell > xcell5, "the Hunter cell sits right of Talent Spy")
