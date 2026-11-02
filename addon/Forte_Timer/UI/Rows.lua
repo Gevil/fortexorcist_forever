@@ -503,8 +503,20 @@ function D:Update(links, n, options, skin)
                 label:SetText(tostring(text))
             end
             if not label:IsShown() then label:Show() end
+            -- The header rides INSIDE the box's reserved LabelHeight strip
+            -- (the cascade law, :2086-2099: the label is drawn at the
+            -- baroffset the bars then stack away from, so it never leaves
+            -- the box). Its BOTTOM rides the bars' stack top `h -
+            -- LabelHeight`, so the header sits in the gap directly above
+            -- the group's own topmost bar and the spacingHeight gap of the
+            -- next box stays clear — an OUTSIDE anchoring (BOTTOM->TOP)
+            -- lifted the header LabelHeight above its reserved strip and
+            -- overprinted the neighbouring group's first bar (measured in
+            -- docs/media/sim/fx_timer_rows.png 2026-11-02).
             label:ClearAllPoints()
-            label:SetPoint("BOTTOM", g.frame, "TOP", 0, 0)
+            local headerY = h - o.labelHeight
+            label:SetPoint("BOTTOMLEFT", g.frame, "BOTTOMLEFT", 0, headerY)
+            label:SetPoint("BOTTOMRIGHT", g.frame, "BOTTOMRIGHT", 0, headerY)
         elseif label:IsShown() then
             label:Hide()
         end

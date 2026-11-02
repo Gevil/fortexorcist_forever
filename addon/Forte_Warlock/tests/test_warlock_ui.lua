@@ -173,6 +173,77 @@ test("Shard Manager: the x<n> count, the <n> total label, the source line", func
     assertFalse(Shards.anchor:IsShown())
 end)
 
+--- Region left/right. GetRect is the engine's live geometry and in this
+--- engine answers (left, bottom, width, height) (measured in the sim
+--- 2026-11-02), the accessors are the fallback.
+local function horizontalExtent(o)
+    local l, b, w, h
+    if o.GetRect then l, b, w, h = o:GetRect() end
+    if l and w and h then
+        return l, l + w
+    end
+    return o:GetLeft(), o:GetRight()
+end
+
+test("Shard Manager: the right label fits its slot and the plate's right inset",
+function()
+    ensureBuilt()
+    -- The widest realistic readout: a 3-digit count (bag + power, the
+    -- plate's widest label). The pre-fix label carried NO width: its box
+    -- was the string's own laid width (~86 of the 106 plate), its right
+    -- edge reached the InfoX inset but its LEFT overran the count slot, and
+    -- the plate's clip ate the label's tail on screen (`0 tota`, the
+    -- manager's 2026-11-02 shot).
+    local s = WK.NewShardCounter({
+        countReader = function() return 999 end,
+        powerReader = function() return nil end,
+    })
+    s.count, s.source = 999, "bag"
+    Shards:SetTracker(s)
+    Shards:Update(1000)
+    assertTrue(Shards.anchor:IsShown())
+    assertEquals("x999", Shards.amountFS:GetText())
+    assertEquals("999 total", Shards.infoFS:GetText())
+    local slot = Shards:InfoSlotWidth()
+    nearpx(slot, SS.Width - 2 * SS.AmountX - 2 * math.abs(SS.InfoX))
+    -- The string's laid width fits the visible slot.
+    local w = Shards.infoFS:GetStringWidth()
+    assertTrue(type(w) == "number" and w > 0 and w <= slot, string.format(
+        "info %q width %.1f exceeds slot %.1f",
+        Shards.infoFS:GetText(), w, slot))
+    -- The label BOX is the slot: the pre-fix widthless label's box is the
+    -- string's natural laid width, wider than the slot at 3-digit counts.
+    local iw = Shards.infoFS:GetWidth()
+    assertTrue(iw <= slot + 0.01, string.format(
+        "info box %.1f wider than slot %.1f", iw, slot))
+    -- The right-edge law: the label's right edge <= plate's right edge - 4
+    -- (Forte_Soulstone.xml:144); the box spans the slot.
+    local il, ir = horizontalExtent(Shards.infoFS)
+    local al, ar = horizontalExtent(Shards.anchor)
+    assertTrue(ir <= ar - 4 + 0.01, string.format(
+        "info right %.1f must stay at/inside plate right - 4 (%.1f)",
+        ir, ar - 4))
+    assertTrue(il >= ar - 4 - slot - 0.01, string.format(
+        "info left %.1f overruns the slot at the plate's left", il))
+    -- The count label keeps its slot (Forte_Soulstone.xml:135): centred at
+    -- plateLeft + AmountX, its laid width ends at/inside the slot's left.
+    local cw = Shards.amountFS:GetStringWidth()
+    assertTrue(al + SS.AmountX + cw / 2 <= ar - 4 - slot + 0.5, string.format(
+        "count right %.1f is over the slot left %.1f",
+        al + SS.AmountX + cw / 2, ar - 4 - slot))
+    -- The ShardSize seam: the slot and the box ride the plate width, the
+    -- inset law rides it too.
+    Shards:SetWidth(140)
+    local slot2 = Shards:InfoSlotWidth()
+    assertTrue(Shards.infoFS:GetWidth() <= slot2 + 0.01,
+        "the box follows the resized slot")
+    local _, ir2 = horizontalExtent(Shards.infoFS)
+    local _, ar2 = horizontalExtent(Shards.anchor)
+    assertTrue(ir2 <= ar2 - 4 + 0.01, "the right inset is kept on resize")
+    Shards:SetWidth(SS.Width)
+    Shards:RenderIdle()
+end)
+
 test("Shard Manager: ShowTime off drops the labels, not the count", function()
     ensureBuilt()
     local s = WK.NewShardCounter({

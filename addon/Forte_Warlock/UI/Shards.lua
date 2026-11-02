@@ -96,6 +96,87 @@ function Shards:FormatInfo(count)
     return string.format("%d total", count)
 end
 
+-- ------------------------------------------------------------- label fit --
+
+--- The right label's VISIBLE slot (the plate's own geometry, the law the
+--- engine lays the RIGHT-anchored label box with, measured in the sim
+--- 2026-11-02: the box spans exactly 62 of the 106 plate at the default
+--- skin): from twice the count label's AmountX offset to the InfoX inset at
+--- the plate's right (Forte_Soulstone.xml:135, :144). Default:
+--- 106 - 2*18 - 2*4 = 62.
+function Shards:InfoSlotWidth()
+    local s = self.skin
+    return math.max(10, s.Width - 2 * s.AmountX - 2 * math.abs(s.InfoX))
+end
+
+--- The width the engine's NATIVE draw font gives a string: a template
+--- string (GameFontHighlightSmall) is measured with the engine's built-in
+--- font metrics — the exact metrics a TTF-file label is DRAWN with (the
+--- sim 2026-11-02 finding: the shipped `0 total` label laid at URWGothic-Book
+--- 11 measures 33.1 through GetFontStringWidth, but its draw box is 74.1 —
+--- the 106 plate's slot is 62, the tail overruns the plate, and the manager's
+--- screenshot rendered `0 tota`). Scaled to a size S the draw box is
+--- `drawWidth(text) * S / nativeSize`.
+function Shards:_InfoProbe()
+    if not self._infoProbe and self.anchor then
+        self._infoProbe = self.anchor:CreateFontString(nil, nil,
+            "GameFontHighlightSmall")
+        self._infoProbe:Hide()
+    end
+    return self._infoProbe
+end
+
+function Shards:InfoDrawWidth(text)
+    local probe = self:_InfoProbe()
+    if not probe then return nil, nil end
+    probe:SetText(tostring(text))
+    local dw = probe:GetStringWidth()
+    local _, nsize = probe:GetFont()
+    return dw, tonumber(nsize)
+end
+
+--- The label's font size: the skin's size per the original law
+--- (TextSize = the {GOTHIC.TTF, 11} of Forte_Core.lua:2547) when its draw
+--- box fits the slot, else the largest size (floor) whose draw box fits.
+function Shards:InfoFitSize(text)
+    local s = self.skin
+    local dw, nsize = self:InfoDrawWidth(text)
+    if not dw or not nsize or dw <= 0 then return s.TextSize end
+    local fit = math.floor(nsize * self:InfoSlotWidth() / dw)
+    return math.max(8, math.min(s.TextSize, fit))
+end
+
+--- The plate law's right label (RIGHT at InfoX, Forte_Soulstone.xml:140-146)
+--- sized into its slot: the rect carries the slot width (so the laid box
+--- ends at InfoX from the plate's right edge) and the text rides the
+--- fitted size (so the NATIVE-metric draw box fits the same slot — the
+--- 2026-11-02 clip fix; the law is asserted numerically in
+--- tests/test_warlock_ui.lua).
+function Shards:_NewInfo()
+    local fs = Frame._NewInfo(self)
+    fs:SetWidth(self:InfoSlotWidth())
+    return fs
+end
+
+--- ShardSize (keymap SetWidth) resizes the plate: the slot and the fitted
+--- size ride it.
+function Shards:SizeChangedHook()
+    if self.infoFS then
+        self.infoFS:SetWidth(self:InfoSlotWidth())
+        self:ApplyInfoFont()
+    end
+end
+
+--- Re-fit the label's font to the current text (the count is the text's
+--- only input, so this runs on text changes and on resizes, never per
+--- frame — the plate is bag-event-driven and asks no ticks).
+function Shards:ApplyInfoFont()
+    local fs = self.infoFS
+    if not fs then return end
+    local size = self:InfoFitSize(fs:GetText())
+    pcall(fs.SetFont, fs, self.state.fontFile, size, 0)
+end
+
 -- ------------------------------------------------------------------ update --
 
 --- One render pass. A count is not time-driven, so the return is always
@@ -123,6 +204,8 @@ function Shards:Update(_now)
     if info ~= self._info then
         self._info = info
         self.infoFS:SetText(info)
+        -- The label's size rides its text (the fit law, label fit section).
+        self:ApplyInfoFont()
     end
     -- The second line: the source label; it rides ShowTime (label text),
     -- keyed by its own text.

@@ -543,6 +543,111 @@ test("the /fx timer test feed seeds elapsed, not future, stamps", function()
     D:RenderIdle()
 end)
 
+-- ------------------------------------------------- the header cascade law --
+
+--- A rect as {lo, hi, xl, xr}. GetRect is the engine's live geometry; in this
+--- engine it answers (left, bottom, width, height) (measured in the sim
+--- 2026-11-02), the four accessors are the fallback.
+local function rect(o)
+    if o.GetRect then
+        local l, b, w, h = o:GetRect()
+        if l and w and h then
+            return { lo = b, hi = b + h, xl = l, xr = l + w }
+        end
+    end
+    return { lo = o:GetBottom(), hi = o:GetTop(),
+        xl = o:GetLeft(), xr = o:GetRight() }
+end
+
+test("every shown group header rides its own gap, clear of foreign bars",
+function()
+    useHunterData()
+    installClock(GetTime())
+    Rows:Clear()
+    local ok = pcall(FX.slashSubs.timer, "test")
+    assertTrue(ok)
+    local links, n = Rows:Sorted({}, GetTime() + 1)
+    assertTrue(n >= 4)
+    local drawn = D:Update(links, n, M.options, FX.Timer.Skin)
+    assertTrue(drawn >= 4)
+    -- The SHOWN boxes, with the bars each box carries.
+    local groups = {}
+    for gi = 1, #D.groups do
+        local g = D.groups[gi]
+        if g.frame:IsShown() and g.label:IsShown() then
+            groups[#groups + 1] = { frame = g.frame, label = g.label,
+                bars = {} }
+        end
+    end
+    assertTrue(#groups >= 2)                 -- the feed is a two-target feed
+    for i = 1, #D.rows do
+        local bar = D.rows[i].bar
+        if bar:IsShown() then
+            local br = rect(bar)
+            local midY = (br.lo + br.hi) / 2
+            for _, g in ipairs(groups) do
+                local fr = rect(g.frame)
+                if midY >= fr.lo - 0.5 and midY <= fr.hi + 0.5 then
+                    g.bars[#g.bars + 1] = br
+                end
+            end
+        end
+    end
+    table.sort(groups, function(a, b)        -- the cascade order: lowest box
+        return rect(a.frame).lo < rect(b.frame).lo
+    end)
+    local anchorTop = D.anchor:GetTop()
+    for gi, g in ipairs(groups) do
+        assertNotNil(g.bars[1], "a shown box carries its rows")
+        local lr, fr = rect(g.label), rect(g.frame)
+        local topBar = g.bars[1].hi
+        for _, b in ipairs(g.bars) do
+            if b.hi > topBar then topBar = b.hi end
+        end
+        -- The header rides the box's own reserved strip: at/above the
+        -- group's TOPMOST bar and inside the box ...
+        assertTrue(lr.lo >= topBar - 0.5, string.format(
+            "group %d: header lo %.1f must be at/above its top bar %.1f",
+            gi, lr.lo, topBar))
+        assertTrue(lr.hi <= fr.hi + 0.5, string.format(
+            "group %d: header hi %.1f must stay inside the box %.1f",
+            gi, lr.hi, fr.hi))
+        -- ... so it is clear of the box above (whose bottom is the next
+        -- cascade step) and lies between its own first row and the
+        -- previous group's last row.
+        local above = groups[gi + 1]
+        local cap = above and (rect(above.frame).lo - 1.0)
+            or (anchorTop + 0.5)
+        assertTrue(lr.hi <= cap, string.format(
+            "group %d: header hi %.1f must end at/below %.1f", gi, lr.hi, cap))
+        local prev = groups[gi - 1]
+        if prev then
+            local prevTop = prev.bars[1].hi
+            for _, b in ipairs(prev.bars) do
+                if b.hi > prevTop then prevTop = b.hi end
+            end
+            assertTrue(lr.lo >= prevTop - 0.5, string.format(
+                "group %d: header lo %.1f is over the previous group (%.1f)",
+                gi, lr.lo, prevTop))
+        end
+        -- NO OVERPRINT: the header rectangle intersects no row bar.
+        for gj, h in ipairs(groups) do
+            for _, b in ipairs(h.bars) do
+                local hitY = lr.lo < b.hi - 0.01 and b.lo < lr.hi - 0.01
+                local hitX = lr.xl < b.xr - 0.01 and b.xl < lr.xr - 0.01
+                assertTrue(not (hitY and hitX), string.format(
+                    "group %d header [%.1f,%.1f] overprints group %d bar [%.1f,%.1f]",
+                    gi, lr.lo, lr.hi, gj, b.lo, b.hi))
+            end
+        end
+        print(string.format(
+            "[timer] header %d y=[%.1f,%.1f] box=[%.1f,%.1f] topbar=%.1f",
+            gi, lr.lo, lr.hi, fr.lo, fr.hi, topBar))
+    end
+    Rows:Clear()
+    D:RenderIdle()
+end)
+
 -- ------------------------------------------------------- the drawn fill --
 
 test("each visible row's fill region carries its kind colour", function()
