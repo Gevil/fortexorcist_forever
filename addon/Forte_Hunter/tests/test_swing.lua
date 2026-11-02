@@ -331,9 +331,12 @@ test("Hunter settings drive the frames live", function()
     ST:Set("Hunter", "BarColor", { 1, 0, 0, 1 })
     local r, g, b = Swing.fill:GetVertexColor()
     near3(r, 1); near3(g, 0); near3(b, 0)
-    ST:Set("Hunter", "BarColor", { 1, 1, 1, 0.20 })
+    -- Back to the registered default through the store (Reset writes the
+    -- default THROUGH Set, so the bar self-heals the same way a recycle does).
+    ST:Reset("Hunter", "BarColor")
+    local d = FX.Hunter.SwingSkin.BarColor
     local r2, g2, b2 = Swing.fill:GetVertexColor()
-    near3(r2, 1); near3(g2, 1); near3(b2, 1)
+    near3(r2, d[1]); near3(g2, d[2]); near3(b2, d[3])
 
     -- Enable off hides the bar live, on shows it on the next swing.
     local eclock = { 3000 }
@@ -382,6 +385,47 @@ test("Hunter settings drive the frames live", function()
     Reminder:Refresh()
     assertFalse(Reminder.anchor:IsShown())
     ST:Set("Hunter", "EnableReminder", true)
+end)
+
+test("the fill's default colour is the Cooldown Spell category, full alpha",
+function()
+    -- Polish pass 2026-11-02 defect 3: the 1,1,1 a 0.20 fill over the
+    -- Aluminium texture was all but invisible. The default is now the
+    -- Forte_Cooldown timeline's Spell category colour at FULL alpha.
+    local sc = FX.Cooldown and FX.Cooldown.TimelineSkin
+        and FX.Cooldown.TimelineSkin.Colors and FX.Cooldown.TimelineSkin.Colors.Spell
+    assertNotNil(sc)
+    local d = ST:GetDefault("Hunter", "BarColor")
+    assertNotNil(d)
+    near3(d[1], sc[1]); near3(d[2], sc[2]); near3(d[3], sc[3])
+    near3(d[4], 1)                                   -- full alpha
+    -- The module skin and the store default are ONE truth (the page reads
+    -- the skin), and the live fill rides them.
+    near3(FX.Hunter.SwingSkin.BarColor[2], sc[2])
+    local r, g, b, a = Swing.fill:GetVertexColor()
+    near3(r, sc[1]); near3(g, sc[2]); near3(b, sc[3]); near3(a, 1)
+    -- The BACKGROUND default is untouched: the Classic black a 0.50.
+    near3(ST:GetDefault("Hunter", "BgColor")[4], 0.50)
+    print(string.format("[swing] fill=%.2f,%.2f,%.2f a=%.2f bgA=%.2f",
+        r, g, b, a, ST:GetDefault("Hunter", "BgColor")[4]))
+end)
+
+test("the General BarFont drives the swing text live", function()
+    local shipped = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
+    assertNotNil(Swing.text)
+    -- The options file is the vendored one the General page registers, and
+    -- login applied it through this very seam (ApplyStoredSettings).
+    assertEquals(shipped, ST:Get("General", "BarFont"))
+    assertTrue(Swing.text:GetFont():lower() == shipped:lower())
+    -- General -> Swing:SetFont -> validateFontFile + applyFont (the sim's
+    -- font loader accepts every path CreateFont takes, so what this proves
+    -- is the live re-apply of the bar's own fontstring).
+    ST:Set("General", "BarFont", "Interface\\AddOns\\Forte_Core\\Fonts\\NOPE.ttf")
+    assertTrue(Swing.text:GetFont():lower()
+        == "interface\\addons\\forte_core\\fonts\\nope.ttf")
+    ST:Reset("General", "BarFont")
+    assertTrue(Swing.text:GetFont():lower() == shipped:lower())
+    print("[swing] text font=" .. Swing.text:GetFont())
 end)
 
 test("Lock: the bar publishes Hunter.Lock; GlobalLock and the Cooldown bar move it", function()

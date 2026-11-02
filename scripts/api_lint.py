@@ -67,6 +67,11 @@ def main(argv):
                 for ev in EVENT_LIST.findall(code):
                     if ev not in events:
                         bad.append((os.path.relpath(f, ROOT), n, ev, "unknown event in event list"))
+            # OnEvent hands (frame, event, ...). `function(...) handler(obj, ...)` forwards the frame
+            # as `event` and no branch ever matches (Forte_Hunter bug, 2026-11-02). Bind explicitly.
+            if re.search(r"SetScript\(\s*\"OnEvent\"\s*,\s*function\s*\(\s*\.\.\.\s*\)", code):
+                bad.append((os.path.relpath(f, ROOT), n, "OnEvent function(...)",
+                            "vararg OnEvent binding forwards the frame as the event; use function(_, event, ...)"))
     for f, n, sym, why in bad:
         print(f"{f}:{n}: {sym} ({why})")
     print(f"[api-lint] {len(files)} files, catalog {len(symbols)} C_ symbols / {len(enums)} enums / "

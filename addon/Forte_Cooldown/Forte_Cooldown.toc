@@ -8,6 +8,7 @@
 
 Core/Engine.lua
 Core/Items.lua
+Core/Enchants.lua
 UI/TimelineMath.lua
 UI/Timeline.lua
 Module.lua

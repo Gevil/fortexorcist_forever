@@ -32,7 +32,9 @@
 -- Settings (module "Hunter", defaults registered by
 -- Forte_Hunter/Pages/Hunter.lua when Forte_Options is loaded; every setter
 -- here is legal BEFORE the store exists -- the module keeps its own skin
--- defaults): Enable, Width, Height, BarColor, ShowTime, Lock.
+-- defaults): Enable, Width, Height, BarColor, BgColor, ShowTime, Lock, plus
+-- the General page's shared BarFont (the bar's text rides the same file the
+-- Cooldown bar rides).
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -44,6 +46,22 @@ FX.Hunter.Swing = D
 local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
 local FONT_FILE = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
 
+--- The fill's design default: the Forte_Cooldown timeline's Spell category
+--- colour at FULL alpha, read off the Display's skin
+--- (FX.Cooldown.TimelineSkin.Colors.Spell, the vendored source default
+--- :1842-1855). Forte_Cooldown is an OptionalDep, so the verbatim Spell
+--- triple (1, 0.5, 0) is the fallback when its skin is not loaded -- the two
+--- are the same numbers. The 1,1,1 a 0.20 this replaces (polish pass
+--- 2026-11-02) was a near-invisible wash over the Aluminium texture.
+local function spellBarColor()
+    local skin = FX.Cooldown and FX.Cooldown.TimelineSkin
+    local c = skin and skin.Colors and skin.Colors.Spell
+    if type(c) == "table" and type(c[1]) == "number" then
+        return { c[1], c[2], c[3], 1 }
+    end
+    return { 1, 0.5, 0, 1 }
+end
+
 FX.Hunter.SwingSkin = {
     Width = 200, Height = 12,                 -- the assignment's bar
     BackdropBG = TEX .. "Background",         -- the Timeline's Backdrop[1]
@@ -54,7 +72,10 @@ FX.Hunter.SwingSkin = {
     Inset = 3,                                -- the Timeline's Backdrop[6]
     BgColor = { 0, 0, 0, 0.50 },              -- Classic black a 0.50
     BarTexture = TEX .. "Aluminium",          -- FW.Default.Texture
-    BarColor = { 1, 1, 1, 0.20 },             -- the Aluminium fill
+    BarColor = spellBarColor(),               -- the Cooldown timeline's
+                                              -- Spell category colour at
+                                              -- full alpha (Init re-reads
+                                              -- it, see below)
     TextColor = { 1, 1, 1, 0.90 },
     FontFile = FONT_FILE,
     FontSize = 10,                            -- the assignment: font 10
@@ -150,6 +171,12 @@ function D:Init()
     if self.anchor then return end
     self.cfg = cfgDefaults(config())
     self.fontFile = validateFontFile(S.FontFile)
+    -- Forte_Cooldown is an OptionalDep: at file load its skin may not exist
+    -- yet (the loader is free to run Forte_Hunter first), by PLAYER_LOGIN it
+    -- does -- so this is where the shared Spell tint is really read. An
+    -- explicit SetBarColor (the options page applying a stored value: the
+    -- setters are legal before Init) wins over the skin default.
+    if not self._barColorSet then S.BarColor = spellBarColor() end
     self.Tracker = self.Tracker or (FX.Hunter.Tools and FX.Hunter.Tools.Swing)
 
     local f = CreateFrame("Frame", "ForteXorcistHunterSwingAnchor", UIParent,
@@ -277,7 +304,9 @@ function D:SetHeight(v) self:SetSize(nil, v) end
 
 function D:SetBarColor(col)
     if type(col) ~= "table" then return end
-    S.BarColor = { col[1] or 1, col[2] or 1, col[3] or 1, col[4] or 0.20 }
+    -- An explicit choice: Init must not overwrite it with the skin default.
+    self._barColorSet = true
+    S.BarColor = { col[1] or 1, col[2] or 1, col[3] or 1, col[4] or 1 }
     if not self.fill then return end
     local c = S.BarColor
     self.fill:SetVertexColor(c[1], c[2], c[3], c[4])
@@ -423,8 +452,10 @@ end
 
 -- ------------------------------------------------------------ live settings --
 --- options key -> setter. Lock rides SetLocked (the bar publishes it back);
---- GlobalLock is the General page's shared frame lock. Keys with no
---- consumer here (the reminder's) are simply absent from the map.
+--- GlobalLock is the General page's shared frame lock, and BarFont is the
+--- General page's shared bar font (the same seam Forte_Cooldown's Display
+--- routes -- the swing text rides the identical URW Gothic law). Keys with
+--- no consumer here (the reminder's) are simply absent from the map.
 local KEYMAP = {
     Enable = "SetEnabled",
     Lock = "SetLocked",
@@ -434,13 +465,19 @@ local KEYMAP = {
     BgColor = "SetBgColor",
     ShowTime = "SetShowTime",
     Font = "SetFont",
+    BarFont = "SetFont",
     GlobalLock = "SetLocked",
 }
 
---- The stored shape of the wired keys (the page's defaults are canonical).
---- Lock is deliberately NOT pulled: the live lock state is the truth and
---- SetLocked publishes it upward (the Timeline's m4 rule).
-local STORED = { "Enable", "Width", "Height", "BarColor", "BgColor", "ShowTime" }
+--- The stored shape of the wired keys, per settings module (the pages'
+--- defaults are canonical). Lock is deliberately NOT pulled: the live lock
+--- state is the truth and SetLocked publishes it upward (the Timeline's m4
+--- rule).
+local STORED = {
+    Hunter = { "Enable", "Width", "Height", "BarColor", "BgColor",
+        "ShowTime" },
+    General = { "BarFont" },
+}
 
 function D:ApplySettings(tbl)
     for key, value in pairs(tbl or {}) do
@@ -451,12 +488,16 @@ end
 
 function D:ApplyStoredSettings()
     local st = FX.Settings
-    if not st or not st.IsRegistered or not st:IsRegistered("Hunter") then return end
-    local out = {}
-    for i = 1, #STORED do
-        out[STORED[i]] = st:Get("Hunter", STORED[i])
+    if not st or not st.IsRegistered then return end
+    for module, keys in pairs(STORED) do
+        if st:IsRegistered(module) then
+            local out = {}
+            for i = 1, #keys do
+                out[keys[i]] = st:Get(module, keys[i])
+            end
+            self:ApplySettings(out)
+        end
     end
-    self:ApplySettings(out)
 end
 
 --- Live wiring, registered once from Init (the Timeline's _WireSettings
@@ -475,7 +516,11 @@ function D:_WireSettings()
         if key == "Lock" then self:SetLocked(not not value) end
     end)
     st:OnChange("General", function(key, value)
-        if key == "GlobalLock" then self:SetLocked(not not value) end
+        -- GlobalLock rides SetLocked; every other General key rides KEYMAP
+        -- (BarFont today; FrameScale/FrameAlpha/... have no consumer here
+        -- and are inert by the map's law).
+        if key == "GlobalLock" then self:SetLocked(not not value)
+        else self:ApplySettings({ [key] = value }) end
     end)
 end
 
@@ -552,7 +597,9 @@ function U:EnableEvents()
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
     f:RegisterEvent("PLAYER_REGEN_DISABLED")
     f:RegisterEvent("PLAYER_ENTERING_WORLD")
-    f:SetScript("OnEvent", function(...) onUIEvent(U, ...) end)
+    -- OnEvent receives (frame, event, ...): swallow the frame, or `event`
+    -- would be the frame and no branch would ever match.
+    f:SetScript("OnEvent", function(_, event, a1, a2, a3) onUIEvent(U, event, a1, a2, a3) end)
     self._eventsEnabled = true
 end
 

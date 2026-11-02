@@ -164,7 +164,7 @@ test("Icons are 24x24 and sit at TimelineMath.pos on the time axis", function()
 end)
 
 test("Fade-in completes, splashes retire, pool stays (grow-only)", function()
-    Display:Update(THREE, 100.4)
+    Display:Update(THREE, 100 + S.FadeSeconds)
     near3(slotOf("Disengage").frame:GetAlpha(), S.AlphaMax)
     -- Splashes end at 100 + SplashSeconds and hid; the pool kept its slots.
     Display:Update(THREE, 100 + S.SplashSeconds + 0.01)
@@ -173,6 +173,44 @@ test("Fade-in completes, splashes retire, pool stays (grow-only)", function()
     -- Re-rendering the SAME names must not grow the pool (no re-sightings).
     Display:Update(THREE, 100 + S.SplashSeconds + 0.1)
     assertEquals(3, #Display.splashPool)
+end)
+
+-- =============================================================== fade-in ==
+-- The icon fade-in is the source's FRESH-VISIBILITY ramp, not an invented
+-- 0.3 s cadence. /tmp/fxref/Forte_Cooldown/Forte_Cooldown.lua:
+--   :625  `cd[n][14] = 0; -- set its visibilty to zero just to make sure`
+--         (the focus hand-off starts the new member at zero),
+--   :598  `cd[n][14] = 1;` inside the "correcting focus" init (a group with
+--         no focus yet starts fully visible),
+--   :611  `t14 = t14+(tim-cd[i][16]);` -- the focused bar's visibility
+--         advances by the ELAPSED SECONDS, clamped at 1 (:612-614): a 0 -> 1
+--         ramp is 1.0 s at 1/s,
+--   :1402 `bar:SetAlpha(t14)` -- the frame alpha rides that visibility (our
+--         port maps the 0..1 ramp onto Alpha .. AlphaMax, the vendored
+--         endpoints).
+test("Icon fade-in law: Alpha -> AlphaMax over the source's 1/s ramp (1.0 s)",
+function()
+    near3(S.FadeSeconds, 1.0)
+    local now = 12000
+    local feed = {
+        { name = "FadeLaw", start = 0, duration = 120, endTime = now + 120 },
+    }
+    -- t = 0: the fresh visibility is 0 -> the fade-in starts AT Alpha.
+    Display:Update(feed, now)
+    near3(slotOf("FadeLaw").frame:GetAlpha(), S.Alpha)
+    -- t = 0.5: halfway the 1.0 s ramp (0.2 + 0.8 * 0.5). The pre-fix 0.3 s
+    -- window was over at 0.3, so this sample is the law's witness.
+    Display:Update(feed, now + 0.5)
+    near3(slotOf("FadeLaw").frame:GetAlpha(),
+        S.Alpha + (S.AlphaMax - S.Alpha) * 0.5)
+    assertTrue(slotOf("FadeLaw").frame:GetAlpha() < S.AlphaMax,
+        "the fade is NOT over at half the window")
+    -- t = 1.0: the ramp reaches 1 -> AlphaMax (and stays there).
+    Display:Update(feed, now + 1.0)
+    near3(slotOf("FadeLaw").frame:GetAlpha(), S.AlphaMax)
+    Display:Update(feed, now + 3.0)
+    near3(slotOf("FadeLaw").frame:GetAlpha(), S.AlphaMax)
+    Display:Update({}, now + 3.1)
 end)
 
 -- ============================================================ splash law ==
@@ -365,19 +403,23 @@ test("Overlapping icons cross-fade over ~1 s per member", function()
     assertTrue(dx < H * 0.5) -- genuinely more than a half-icon overlap
 
     -- Freshly bound: Alpha fully focused (times its 0.2 fade-in start),
-    -- Bravo dark; the fade-in completes over FadeSeconds.
+    -- Bravo dark; the fade-in completes over FadeSeconds (1.0 s).
     Display:Update(entries, now)
     near3(slotOf("Alpha").frame:GetAlpha(), S.Alpha)
     near3(slotOf("Bravo").frame:GetAlpha(), 0)
 
-    -- 0.5 s later the focus has rotated once and is mid-cross-fade.
+    -- 0.5 s later the focus has rotated once and is mid-cross-fade: the two
+    -- GROUP visibilities sum to 1 (:619-632), and both ride the SAME fade-in
+    -- factor, so the frame alphas sum to that factor -- 0.2 + 0.8*0.5 = 0.6
+    -- on the 1.0 s ramp (a finished fade is what made this 1.0 pre-fix).
     Display:Update(entries, now + 0.5)
     local a = slotOf("Alpha").frame:GetAlpha()
     local b = slotOf("Bravo").frame:GetAlpha()
-    near3(a + b, 1.0)
+    near3(a + b, S.Alpha + (S.AlphaMax - S.Alpha) * 0.5)
     assertTrue(b > 0.2)
 
-    -- One full CrossfadeSeconds in: focus has rotated again.
+    -- One full CrossfadeSeconds in -- the fade-in has completed (t =
+    -- FadeSeconds), so the cross-fade law shows bare: the alphas sum to 1.
     Display:Update(entries, now + 1.0)
     a = slotOf("Alpha").frame:GetAlpha()
     b = slotOf("Bravo").frame:GetAlpha()

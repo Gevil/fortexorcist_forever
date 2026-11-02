@@ -1,8 +1,10 @@
 ## Interface: 16001
 ## Title: |cffC41F3BForte|r Warlock
-## Notes: ForteXorcist Warlock spell data (generated -- see tools/gen_spell_data.py).
+## Notes: ForteXorcist Warlock spell data (generated -- see tools/gen_spell_data.py) + class tools.
 ## Version: 0.1.0-dev
 ## Author: Gevil
 ## Dependencies: Forte_Core
+## OptionalDeps: Forte_Cooldown, Forte_Items
 
 Data/Warlock.lua
+Core/Tools.lua

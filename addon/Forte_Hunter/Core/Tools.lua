@@ -358,7 +358,9 @@ function M:EnableEvents()
     f:RegisterEvent("PLAYER_SWING")
     f:RegisterEvent("PLAYER_SWING_RANGE_UPDATE")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
-    f:SetScript("OnEvent", function(...) onToolEvent(M, ...) end)
+    -- OnEvent receives (frame, event, ...): swallow the frame, or `event`
+    -- would be the frame and no branch would ever match.
+    f:SetScript("OnEvent", function(_, event, a1, a2, a3) onToolEvent(M, event, a1, a2, a3) end)
     self._eventsEnabled = true
 end
 

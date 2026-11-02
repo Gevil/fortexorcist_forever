@@ -247,9 +247,11 @@ test("Open('General'): 780x650 frame, header bar height, name", function()
     print("[font] accepted=" .. tostring(O.fontFile))
 end)
 
-test("module index: 4-column grid of 15, unbuilt pages disabled", function()
-    assertEquals(15, #O.indexButtons)
+test("module index: 4-column grid of 16 (a full 4x4), unbuilt pages disabled",
+function()
+    assertEquals(16, #O.indexButtons)
     assertEquals(4, O.C.INDEX_COLS)
+    assertEquals(4, math.ceil(#O.INDEX / O.C.INDEX_COLS))   -- 4x4, full
     local cellGap = O.C.INDEX_GAP
     local cellW = (O.indexFrame:GetWidth() - (4 + 1) * cellGap) / 4
     local _, _, _, x1, y1 = O.indexButtons[1]:GetPoint()
@@ -261,11 +263,100 @@ test("module index: 4-column grid of 15, unbuilt pages disabled", function()
     assertTrue(y5 < y1)   -- WoW anchors: y offset DOWN is negative, so
                           -- the next grid row steps to a smaller offset
     -- General / Cooldown / About live; the rest render disabled.
+    assertEquals("General", O.indexButtons[1].pageId)
+    assertEquals("Cooldown", O.indexButtons[3].pageId)
+    assertEquals("About", O.indexButtons[16].pageId)
     assertEquals(true, O.indexButtons[1]:IsEnabled())
     assertEquals(true, O.indexButtons[3]:IsEnabled())
-    assertEquals(true, O.indexButtons[15]:IsEnabled())
+    assertEquals(true, O.indexButtons[16]:IsEnabled())
     assertEquals(false, O.indexButtons[2]:IsEnabled())    -- Spell Timer
     assertEquals(false, O.indexButtons[13]:IsEnabled())   -- Talent Spy
+end)
+
+test("module index: a cell is enabled EXACTLY while its page is registered",
+function()
+    -- The general law (O:RefreshIndexCells): registered page -> enabled cell
+    -- + its OnClick; unregistered -> disabled + the 'not built yet' tooltip.
+    -- Dropping and re-adding a live page proves it is the LIVE store, not a
+    -- build-time snapshot -- that is the case Forte_Hunter creates (its page
+    -- registers at PLAYER_LOGIN, the loader may have built the shell first).
+    O:Open("General")
+    local id = "Cooldown"
+    local i
+    for n, entry in ipairs(O.INDEX) do
+        if entry.id == id then i = n end
+    end
+    assertNotNil(i)
+    local btn = O.indexButtons[i]
+    assertEquals(true, btn:IsEnabled())
+    assertNotNil(btn:GetScript("OnClick"))
+    local saved = O.pages[id]
+    O.pages[id] = nil
+    O:RefreshIndexCells()
+    assertEquals(false, btn:IsEnabled())
+    assertNil(btn:GetScript("OnClick"))
+    near(0.45, btn.art:GetAlpha())
+    near(0.45, btn.chip:GetAlpha())
+    O.pages[id] = saved
+    O:RefreshIndexCells()
+    assertEquals(true, btn:IsEnabled())
+    assertNotNil(btn:GetScript("OnClick"))
+    near(1.0, btn.art:GetAlpha())
+    near(1.0, btn.chip:GetAlpha())
+    -- Idempotence: a second refresh changes nothing.
+    O:RefreshIndexCells()
+    assertEquals(true, btn:IsEnabled())
+    O:Close()
+end)
+
+test("module index: the Hunter Tools cell lives with the page and opens it",
+function()
+    local P = FX.Hunter and FX.Hunter.Pages
+    if not P or not P.RegisterHunterPage then
+        print("[index] Forte_Hunter not installed -- skipped")
+        return
+    end
+    local i, entry
+    for n, e in ipairs(O.INDEX) do
+        if e.id == "Hunter" then i, entry = n, e end
+    end
+    assertNotNil(entry)
+    assertEquals("Hunter Tools", entry.label)
+    -- The cell's colour IS the Hunter page header's tint (the same table the
+    -- page def carries: O.C.BROWN, the gold/brown of Pages/Hunter.lua).
+    assertEquals(true, P.RegisterHunterPage())
+    assertEquals(O.pages["Hunter"].colour, entry.colour)
+    assertEquals(O.C.BROWN, entry.colour)
+
+    -- Built BEFORE the shell: the cell arrives enabled.
+    O:Open("General")
+    local btn = O.indexButtons[i]
+    assertEquals("Hunter", btn.pageId)
+    assertEquals(true, btn:IsEnabled())
+    assertNotNil(btn:GetScript("OnClick"))
+    local r, g = btn.label:GetTextColor()
+    assertTrue(r >= 0.99 and g >= 0.7, "the live cell keeps the gold label")
+
+    -- Registering AFTER the shell was built lights the cell in place (the
+    -- Forte_Hunter PLAYER_LOGIN path).
+    local saved = O.pages["Hunter"]
+    O.pages["Hunter"] = nil
+    O:RefreshIndexCells()
+    assertEquals(false, btn:IsEnabled())
+    O.pages["Hunter"] = saved
+    O:RefreshIndexCells()
+    assertEquals(true, btn:IsEnabled())
+
+    -- The click opens the page.
+    btn:GetScript("OnClick")(btn, "LeftButton")
+    assertEquals("Hunter", O.pageId)
+    local page = O.pagesBuilt["Hunter"]
+    assertNotNil(page)
+    assertEquals(4, #page.sections)         -- Tips/Basics/Sizing/Coloring
+    local _, _, _, xcell = btn:GetPoint()
+    local _, _, _, xcell5 = O.indexButtons[13]:GetPoint()
+    assertTrue(xcell > xcell5, "the Hunter cell sits right of Talent Spy")
+    O:Close()
 end)
 
 test("section collapse toggles content height", function()

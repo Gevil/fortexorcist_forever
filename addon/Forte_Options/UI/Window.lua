@@ -85,15 +85,23 @@ O.INDEX = O.INDEX or {
     { id = "RaidMsg",      label = "Party/Raid Messages", colour = C.BLUE },
     { id = "SelfMsg",      label = "Self Messages",      colour = C.BLUE },
     { id = "Sound",        label = "Sound",              colour = C.BLUE },
-    { id = "TalentSpy",    label = "Talent Spy",         colour = C.RED },
-    { id = "Advanced",     label = "Advanced Options",   colour = C.SLATE },
-    { id = "About",        label = "About",              colour = C.GREY },
+    { id = "TalentSpy",   label = "Talent Spy",         colour = C.RED },
+    -- The class tools ride the grid too: Forte_Hunter registers the id
+    -- "Hunter" page (Pages/Hunter.lua) with this same BROWN header tint, so
+    -- this cell lights when the Hunter tools are installed. 16 entries fill
+    -- the 4x4 grid.
+    { id = "Hunter",      label = "Hunter Tools",       colour = C.BROWN },
+    { id = "Advanced",    label = "Advanced Options",   colour = C.SLATE },
+    { id = "About",       label = "About",              colour = C.GREY },
 }
 
 --- Pages/*.lua entry point (load-time data only). def =
 --- { id, title, colour, module, scaleKey, alphaKey, lockKey, build }
 function O:RegisterPage(def)
     self.pages[def.id] = def
+    -- A page registered after the shell was built lights its index cell
+    -- (the cell law lives in RefreshIndexCells).
+    self:RefreshIndexCells()
     for i = 1, #self.PAGE_ORDER do
         if self.PAGE_ORDER[i] == def.id then return end
     end
@@ -322,9 +330,44 @@ function O:Build()
     return f
 end
 
+--- The cell law, applied to every cell of the built grid: a cell is ENABLED
+--- with its page's OnClick exactly while a page of its id is registered
+--- (from any addon's Pages/*.lua), and dimmed with the 'not built yet'
+--- tooltip while it is not. RegisterPage calls this, so a page that
+--- registers AFTER the window was built lights its cell with no rebuild --
+--- Forte_Hunter registers at PLAYER_LOGIN (its chunk may load before
+--- Forte_Options'), which is exactly the case a build-time snapshot misses.
+function O:RefreshIndexCells()
+    local btns = self.indexButtons
+    if not btns then return end
+    for i, entry in ipairs(O.INDEX) do
+        local btn = btns[i]
+        if btn then
+            local built = self.pages[entry.id] ~= nil
+            btn.built = built
+            btn:SetScript("OnClick", built
+                and function() self:SetPage(entry.id) end or nil)
+            if built then
+                btn:Enable()
+                btn.art:SetAlpha(1)
+                btn.chip:SetAlpha(1)
+                btn.label:SetTextColor(WC.GOLD[1], WC.GOLD[2], WC.GOLD[3],
+                    WC.GOLD[4])
+            else
+                btn:Disable()
+                btn.art:SetAlpha(0.45)
+                btn.chip:SetAlpha(0.45)
+                btn.label:SetTextColor(0.6, 0.52, 0.2, 1)
+            end
+            W.attachTip(btn, built and ("Open the " .. entry.label .. " page")
+                or "not built yet", entry.label)
+        end
+    end
+end
+
 --- 4 columns x N rows of full-width colour-coded buttons (icon chip + gold
---- label on a module-tinted Aluminium bar). Unbuilt pages: dimmed + 'not
---- built yet'.
+--- label on a module-tinted Aluminium bar). Enabled state per
+--- RefreshIndexCells (built = the page is registered).
 function O:BuildIndex(f)
     local idx = CreateFrame("Frame", nil, f)
     idx:SetSize(C.WIN_W - 16, indexHeight())
@@ -356,21 +399,11 @@ function O:BuildIndex(f)
         local label = W.fontString(btn, "GameFontHighlightSmall", entry.label, WC.GOLD)
         label:SetJustifyH("CENTER")
         label:SetPoint("BOTTOM", btn, "BOTTOM", 0, 4)
-
-        local built = self.pages[entry.id] ~= nil
         btn.pageId = entry.id
-        if built then
-            btn:SetScript("OnClick", function() self:SetPage(entry.id) end)
-        else
-            btn:Disable()
-            art:SetAlpha(0.45)
-            chip:SetAlpha(0.45)
-            label:SetTextColor(0.6, 0.52, 0.2, 1)
-        end
-        W.attachTip(btn, built and ("Open the " .. entry.label .. " page")
-            or "not built yet", entry.label)
+        btn.art, btn.chip, btn.label = art, chip, label
         self.indexButtons[i] = btn
     end
+    self:RefreshIndexCells()
 end
 
 -- ------------------------------------------------------------- page glue --

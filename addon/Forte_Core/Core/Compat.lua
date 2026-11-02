@@ -320,6 +320,43 @@ function Compat.GetItemCooldownInfo(itemID, slot)
     return nil, nil, nil
 end
 
+--- The raw WeaponEnchantInfo table array of
+--- C_Item.GetWeaponEnchantInfo(weaponSlot), nil where the API is absent.
+--- Pinned Forever catalog: ItemDocumentation.lua:1140 (docs/api/
+--- wow-addon-api-agents/skills/wow-api-items-inventory/references/
+--- generated/forever.json:494); the struct (ItemDocumentation.lua:1967,
+--- same catalog :688) carries hasEnchant bool, enchantType ItemEnchantType,
+--- timeLeft number, charges number, enchantID number, enchantIconID number.
+--- `timeLeft` is MILLISECONDS -- Blizzard's own shipped read divides it by
+--- 1000 before adding it to GetTime() (Blizzard_BuffFrame/BuffFrame.lua:774-
+--- 777, the Enum.WeaponSlot loop). `weaponSlot` rides Enum.WeaponSlot =
+--- { MainHand = 0, OffHand = 1, Ranged = 2 } (pinned catalog enumeration,
+--- same skill's forever.json:58). NO SecretWhen… annotation on the returns
+--- at the pin -- expected plain, unmeasured by us; consumers MUST route
+--- every field through PlainOrNil and pcall the call (Forte_Cooldown/Core/
+--- Enchants.lua).
+function Compat.GetWeaponEnchantInfo(weaponSlot)
+    if C_Item and C_Item.GetWeaponEnchantInfo then
+        return C_Item.GetWeaponEnchantInfo(weaponSlot)
+    end
+    return nil
+end
+
+--- The equipped item's icon (fileID) in inventory slot `invSlot`, nil
+--- where the API is absent. Primary: the global GetInventoryItemTexture
+--- (unit, slot) -- the Blizzard-shipped BuffFrame.lua:777 uses it on this
+--- exact client, it is in the retail-baseline reference, and like
+--- GetInventoryItemID/GetInventoryItemCooldown it has ZERO declarations in
+--- the pinned Forever catalogs (review m2 family), so callers nil-guard
+--- and fall back to GetItemIcon(GetEquippedItemID(slot)) -- the pair whose
+--- GetItemIconByID half IS catalog-declared (the item seams note above).
+function Compat.GetEquippedItemTexture(unit, invSlot)
+    if type(GetInventoryItemTexture) == "function" then
+        return GetInventoryItemTexture(unit, invSlot)
+    end
+    return nil
+end
+
 -- ---------------------------------------------------------------------------
 -- FX.SecretState -- the cached "are reads secret RIGHT NOW" mode switch
 -- (docs/research/secrets-unknowns.md §5, ranked design change 1).

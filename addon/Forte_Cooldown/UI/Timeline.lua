@@ -99,7 +99,16 @@ FX.Cooldown.TimelineSkin = {
     SparkScale = 2.2,                         -- glow size / icon size (:1157)
     SparkAlpha = 1.0,                         -- Spark = {[0]=true, 1}
     Alpha = 0.2, AlphaMax = 1.0,              -- icon fade-in endpoints
-    FadeSeconds = 0.3,                        -- ... over this many seconds
+    -- The fresh-visibility ramp, 1.0 s by the source law: the focus hand-off
+    -- starts a fresh member at visibility 0 (:625 `cd[n][14] = 0; -- set its
+    -- visibilty to zero just to make sure`; the "correcting focus" init of a
+    -- group without one is the other end, :598 `cd[n][14] = 1`), and the
+    -- render loop advances the focused bar's t14 by the elapsed seconds,
+    -- clamped at 1 (:611 `t14 = t14+(tim-cd[i][16]);` -> +1.0 per second,
+    -- :612-614). The frame alpha rides that visibility (:1402
+    -- `bar:SetAlpha(t14)`), so the icon's fade-in from S.Alpha to S.AlphaMax
+    -- spans the same 1.0 s. (The 0.3 here was an invented cadence.)
+    FadeSeconds = 1.0,
     CrossfadeSeconds = 1.0,                   -- group focus dwell: t14 ramps
                                               -- +1/s, hand-off at >= 1,
                                               -- outgoing -1/s (:619-633)

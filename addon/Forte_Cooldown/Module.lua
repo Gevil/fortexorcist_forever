@@ -43,13 +43,18 @@ local zeroShown = false
 --- Coalesced item rescan (PLAYER_ENTERING_WORLD / BAG_UPDATE_COOLDOWN /
 --- PLAYER_EQUIPMENT_CHANGED / BAG_UPDATE_DELAYED -- all four verified in
 --- the pinned Forever catalog). A looting spree fires the bag events per
---- item; one rescan covers the burst.
+--- item; one rescan covers the burst. The weapon-enchant read pass rides
+--- the same debounced timer: PLAYER_ENTERING_WORLD (the zone resync of the
+--- enchant state, Core/Enchants.lua header) lands here as a
+--- PLAYER_EQUIPMENT_CHANGED companion, and re-reading three weapon slots
+--- on a bag event is three pcall'd reads, free.
 local function requestRescan()
     if rescanPending then return end
     rescanPending = true
     C_Timer.After(RESCAN_DEBOUNCE, function()
         rescanPending = false
         if Engine.Items then Engine.Items:Rescan() end
+        if Engine.Enchants then Engine.Enchants:ReadAll() end
     end)
 end
 
@@ -175,6 +180,13 @@ function M:ReadAll()
     -- debounced read events re-anchor items exactly like spells.
     if Engine.Items then
         Engine.Items:ReadAll(now)
+    end
+    -- The weapon-enchant side rides it too (Core/Enchants.lua): the reads
+    -- carry no SecretWhen… annotation at the pin, and every field rides
+    -- PlainOrNil inside its OnReadSlot -- a secret in-combat read leaves
+    -- the entry counting down from its last plain anchor.
+    if Engine.Enchants then
+        Engine.Enchants:ReadAll(now)
     end
 end
 
@@ -374,6 +386,10 @@ function M:OnEnable()
     f:RegisterEvent("BAG_UPDATE_COOLDOWN")
     f:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
     f:RegisterEvent("BAG_UPDATE_DELAYED")
+    -- The weapon-enchant change event -- verified in the pinned Forever
+    -- catalog (ItemDocumentation.lua:1920, UniqueEvent, no payload) before
+    -- registration; Core/Enchants.lua rides it.
+    f:RegisterEvent("WEAPON_ENCHANT_CHANGED")
     f:SetScript("OnEvent", function(_, event, unit, castGUID, spellID, castBarID)
         if event == "UNIT_SPELLCAST_SUCCEEDED" then
             -- Our own casts: the signal most likely to stay readable in
@@ -424,6 +440,14 @@ function M:OnEnable()
             -- carry payloads (booleans / an equipment slot) this branch
             -- deliberately ignores -- a rescan re-reads the whole inventory.
             requestRescan()
+        elseif event == "WEAPON_ENCHANT_CHANGED" then
+            -- A weapon slot's enchant list changed (poison applied, an
+            -- enchant burned off): read the three weapon slots right now
+            -- (Core/Enchants.lua). Payload-less UniqueEvent -- the read
+            -- re-reads every slot, no book-keeping on the event.
+            if Engine.Enchants then
+                Engine.Enchants:ReadAll()
+            end
         end
     end)
 
@@ -495,6 +519,11 @@ function M:Status()
     if Engine.Items then
         local it, ia = Engine.Items:Counts()
         FX.Print(string.format("Items: %d tracked, %d active", it, ia))
+    end
+    -- Live weapon-enchant entries (Core/Enchants.lua): one per enchanted
+    -- weapon slot with a readable timer.
+    if Engine.Enchants then
+        FX.Print(string.format("Enchants: %d", Engine.Enchants:Count()))
     end
     -- Cast-secrecy counters (PLAN §8 "instrument" mitigation): the first
     -- live combat session reads the truth off the `secret` column.

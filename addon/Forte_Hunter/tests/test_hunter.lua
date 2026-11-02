@@ -389,3 +389,45 @@ test("FX.RefreshPlayerClass re-reads UnitClass and notifies modules", function()
     FX.RefreshPlayerClass()
     assertEquals(1, #calls)
 end)
+
+-- 12. Event dispatch through the REAL OnEvent scripts (manager regression,
+-- 2026-11-02): OnEvent hands (frame, event, ...). A `function(...)` binding
+-- forwarded the frame as `event`, so no branch ever matched in the live
+-- client while every test (which only asserted the script exists) passed.
+test("Tools OnEvent script dispatches PLAYER_SWING to the swing tracker", function()
+    local wasEnabled = Tools._eventsEnabled and true or false
+    local savedSwing = Tools.Swing
+    local sw = FX.Hunter.NewSwingTracker({
+        speedReader = function() return nil end,
+        rangedType = savedSwing.rangedType,
+    })
+    Tools.Swing = sw
+    Tools:EnableEvents()
+    local f = Tools._eventFrame
+    local script = f:GetScript("OnEvent")
+    assertNil(sw:Progress(), "idle before the event")
+    script(f, "PLAYER_SWING", 2.5, sw.rangedType) -- (swingDuration, swingType)
+    local fraction = sw:Progress()
+    assertNotNil(fraction, "PLAYER_SWING through the frame script must start the ranged swing")
+    assertTrue(fraction >= 0 and fraction < 0.2)
+    -- PLAYER_SWING_RANGE_UPDATE (swingType, isInRange, checksRange): out of range stops it.
+    script(f, "PLAYER_SWING_RANGE_UPDATE", sw.rangedType, false, true)
+    assertNil(sw:Progress(), "out of range through the frame script must stop the swing")
+    Tools.Swing = savedSwing
+    if not wasEnabled then Tools:DisableEvents() Tools._eventFrame = nil end
+end)
+
+test("Hunter UI OnEvent script kicks the swing bar on PLAYER_SWING", function()
+    local U = FX.Hunter.UI
+    assertNotNil(U)
+    local wasEnabled = U._eventsEnabled and true or false
+    U:EnableEvents()
+    local f = U._eventFrame
+    local script = f:GetScript("OnEvent")
+    local savedKick, kicks = FX.Hunter.Swing.Kick, 0
+    FX.Hunter.Swing.Kick = function(...) kicks = kicks + 1 end
+    script(f, "PLAYER_SWING", 2.5, 2)
+    FX.Hunter.Swing.Kick = savedKick
+    assertTrue(kicks >= 1, "PLAYER_SWING through the UI frame script must kick the bar")
+    if not wasEnabled then U:DisableEvents() U._eventFrame = nil end
+end)

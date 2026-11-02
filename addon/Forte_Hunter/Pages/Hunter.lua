@@ -43,8 +43,13 @@ local DEFAULTS = {
     Width = 200,
     Height = 12,
     ReminderSize = 32,
-    -- Coloring (the Classic Aluminium-on-black law, PLAN §3.5)
-    BarColor = { 1, 1, 1, 0.20 },
+    -- Coloring (the Classic Aluminium-on-black law, PLAN §3.5). BarColor is
+    -- the SwingSkin's own default (the Forte_Cooldown timeline's Spell
+    -- category colour at full alpha -- the 1,1,1 a 0.20 wash was all but
+    -- invisible): ONE truth, the store default and the module skin can not
+    -- drift apart (UI/Swing.lua loads before this file, see the .toc).
+    BarColor = (FX.Hunter.SwingSkin and FX.Hunter.SwingSkin.BarColor)
+        or { 1, 0.5, 0, 1 },
     BgColor = { 0, 0, 0, 0.50 },
     ReminderColor = { 1, 1, 1, 1 },
 }
@@ -130,7 +135,7 @@ function P.RegisterHunterPage()
                 })
                 b.Section("Coloring", function(s)
                     s.COL({ module = M, key = "BarColor", label = "Colour",
-                        tip = "Aluminium bar fill (default white a 0.20). Applied live." })
+                        tip = "Aluminium bar fill (default the Cooldown Spell tint at full alpha). Applied live." })
                     s.COL({ module = M, key = "BgColor", label = "Background colour",
                         tip = "Bar backdrop (default black a 0.50). Applied live." })
                     s.COL({ module = M, key = "ReminderColor", label = "Reminder colour",

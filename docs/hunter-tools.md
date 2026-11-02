@@ -116,7 +116,7 @@ payload the UI's event frame receives is forwarded *unread*.
 | `:Init()` / `:Update(now)` → bool | build frames (login/class-gated) / render one pass (`now` injectable) |
 | `:SetTracker(t)` | the injected state source (tests; defaults to `Tools.Swing`) |
 | `:Kick()` / `:OnSwingEvent()` | a swing event arrived: a running tracker starts the 10 Hz ticker |
-| `:SetEnabled/Width/Height/BarColor/BgColor/ShowTime/Locked` | the live seams the options page drives |
+| `:SetEnabled/Width/Height/BarColor/BgColor/ShowTime/Font/Locked` | the live seams the options page drives (`Font` rides the General page's shared `BarFont`) |
 | `:RenderIdle()` / `:StartTicking/StopTicking` | the idle law: bar hidden **and** `SetScript("OnUpdate", nil)`; the script exists only mid-swing |
 | `FX.Hunter.Reminder` | the aspect reminder (32x32 icon, pulsing alpha 0.35..1.0 over 1.2 s) |
 | `:Refresh(now)` → bool | show while `Aspects:Missing()` (its out-of-combat gate included), hide otherwise |
@@ -127,7 +127,12 @@ payload the UI's event frame receives is forwarded *unread*.
 
 **Settings** (module `Hunter`, defaults in `Pages/Hunter.lua`): `Enable`, `Lock`,
 `ShowTime`, `EnableReminder`, `Width`, `Height`, `ReminderSize`, `BarColor`, `BgColor`,
-`ReminderColor`. Positions: `FX.db.hunterSwing` / `FX.db.hunterReminder`.
+`ReminderColor`. `BarColor`'s default *reads* `FX.Hunter.SwingSkin.BarColor` (the Forte_Cooldown
+timeline's `Colors.Spell` tint at full alpha — the verbatim `{1, 0.5, 0, 1}` is the fallback
+when that OptionalDep is not loaded), so the store default and the module skin cannot drift.
+The bar's font is not a Hunter key: `Swing:SetFont` rides the **General** page's shared
+`BarFont`, the same seam `FX.Cooldown.Display:SetBarFont` rides, and `UI/Swing.lua`'s
+`STORED.General` pulls it at login. Positions: `FX.db.hunterSwing` / `FX.db.hunterReminder`.
 
 **The `/fx lock|unlock` hook** (the question the assignment flagged): Forte_Cooldown exposes
 no callback, but `FX.Cooldown.Display:SetLocked` **publishes** the live lock state into
@@ -136,17 +141,22 @@ mirrors exactly those two keys and publishes its own state into `Hunter.Lock`
 (store-inequality-guarded, so the echo stops) — no Forte_Cooldown change was needed.
 The shared lock moves both bars; the Hunter page's own checkbox moves only the Hunter frames.
 
-**Module index**: `FX.Options.INDEX` is the original's fixed 15-entry list and
-`Forte_Options/tests/test_options.lua` asserts `assertEquals(15, #O.indexButtons)`; the grid
-builds one cell per INDEX entry (enabled iff a page of that id is registered). There is **no
-Hunter entry**, so lighting a Hunter cell needs a Forte_Options change (INDEX row + that
-count) — reported, not edited. The page is registered and opens through
-`FX.Options:Open("Hunter")` / `SetPage("Hunter")`.
+**Module index**: `FX.Options.INDEX` now carries a 16th entry —
+`{ id = "Hunter", label = "Hunter Tools", colour = C.BROWN }` (the Hunter page header's own
+tint) — so the cell lights whenever our page is registered. The law lives in
+`O:RefreshIndexCells()` (enabled + `SetPage` OnClick + full alphas while
+`self.pages[entry.id]` exists; disabled + 0.45 alphas + a "not built yet" tip otherwise),
+called from both `BuildIndex` and `RegisterPage` — which is what covers our late
+(`PLAYER_LOGIN`) registration. `Forte_Options/tests/test_options.lua` asserts the 16-cell
+grid and the enabled-iff-registered law; the cell is captured lit in
+`docs/media/sim/fx_polish_index.png` (`cells=16 enabled=4 hunterEnabled=true`, agent
+`Polish`).
 
-**Verification (2026-11-02, agent `HunterUI`)**: `run-tests Forte_Hunter` → **32 tests, 32
-passed, 0 failed** (15 data/tracker tests + 17 new UI tests in `tests/test_swing.lua`), rc 0,
-0 `Forte_*` error sites. `scripts/gate.py --fast` → PASS (Forte_Cooldown 92, Forte_Core 13,
-Forte_Hunter 32, Forte_Options 42; modules `Cooldown, Hunter, HunterUI`; tocs byte-identical;
+**Verification (2026-11-02, agent `HunterUI`; polish pass included)**: `run-tests
+Forte_Hunter` → **34 tests, 34 passed, 0 failed** (15 data/tracker tests + 19 UI tests in
+`tests/test_swing.lua`), rc 0, 0 `Forte_*` error sites. `scripts/gate.py --fast` → PASS
+(Forte_Cooldown 108, Forte_Core 13, Forte_Hunter 34, Forte_Options 44, Forte_Warlock 21;
+modules `Cooldown, Hunter, HunterUI, Probe, Warlock`; tocs byte-identical;
 syntax + api-lint OK). Screenshots `docs/media/sim/fx_hunter_swing.png`,
 `fx_hunter_options.png`; dump-tree numbers: bar `200x12` at centre (800,775) with the fill
 100 px at fraction 0.5, text `1.0`, and the URW Gothic file accepted (`_FONTURW`); reminder
