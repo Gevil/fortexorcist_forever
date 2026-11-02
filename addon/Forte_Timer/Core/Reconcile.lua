@@ -54,6 +54,13 @@ Reconcile.counts = { reads = 0, plain = 0, secret = 0, raised = 0, adopted = 0,
 ---   byIndex(unit, i, filter)        -> AuraData | nil
 Reconcile.readers = nil
 
+--- The injectable liveness reader (Core/Rows.lua's `Rows.liveness` is THIS
+--- same function, shared by `Init`): `liveness(unitToken) -> guid, dead,
+--- ghost`, every value PLAIN-or-nil. It answers two questions: the identity
+--- of the unit a token points at right now (which is what stamps a row's
+--- guid at the confirming insert) and whether that unit is alive.
+Reconcile.liveness = nil
+
 --- The gate. True when the sweep must not read auras. ONLY a plain `true`
 --- answers: FX.SecretState's nil means "this client gives me no answer", and
 --- an unknown is not a reason to skip work (the SecretState consumer law).
@@ -183,7 +190,10 @@ function Reconcile:SweepRow(row, token, filter, now)
         end
     end
     local verdict = r:OnAuraFact(row, expire, total, stacks, now,
-        row.unitToken or token, row.raidMark)
+        row.unitToken or token, row.raidMark,
+        -- The confirming read's identity, so Rows can gate a removal on the
+        -- unit that wore the aura (:1161).
+        self:TokenGuid(token))
     if verdict == "adopt" then
         self.counts.adopted = self.counts.adopted + 1
     elseif verdict == "extend" then
@@ -261,7 +271,12 @@ function Reconcile:SweepBulk(token, filter, now)
                 local row, verdict = self.rows:InsertFromAura(name,
                     (token == "player") and "none" or token,
                     expire, total
-                        or math.max(0, expire - now), stacks, token, nil, now)
+                        or math.max(0, expire - now), stacks, token, nil, now,
+                    -- The confirming read's identity (the original's
+                    -- `st[i][11] = guid`, :1161): nil when the client gives no
+                    -- plain UnitGUID, which leaves the row guid-less and its
+                    -- break fail-open.
+                    self:TokenGuid(token))
                 if row and verdict == "inserted" then
                     added = added + 1
                     self.counts.added = self.counts.added + 1
@@ -299,7 +314,62 @@ function Reconcile:Init(rows, options)
     self.rows = rows
     self.options = options
     self.readers = self.readers or self.LiveReaders()
+    self.liveness = self.liveness or self.LiveLiveness()
+    -- The death gate of `Rows:OnAuraAbsent` reads the SAME seam the guid
+    -- stamp below writes: the gate and the stamp can not disagree about what
+    -- a token's identity is.
+    rows.liveness = self.liveness
     return self
+end
+
+--- The production liveness reader. Thin pcall-at-the-call-site wrappers over
+--- the catalog globals (`UnitGUID`, `UnitExists`, `UnitIsDead`,
+--- `UnitIsDeadOrGhost` -- all in the pinned 1.60.1.70532 catalog,
+--- `UnitDocumentation.lua`), every answer through PlainOrNil so a sealed
+--- identity arrives nil. The unit-exists half is answered separately because
+--- a MISSING unit is not a sealed one: "the token points at nothing" is a
+--- plain fact, and the caller must be able to tell it from "the client will
+--- not tell me". A raising read of a unit that exists means exactly that --
+--- sealed -- and arrives as a nil guid.
+function Reconcile.LiveLiveness()
+    local function plain(v) return FX.Compat.PlainOrNil(v) end
+    return function(unitToken)
+        local exists
+        if type(UnitExists) == "function" then
+            local ok, answer = pcall(UnitExists, unitToken)
+            exists = ok and plain(answer) == true
+        end
+        local guid, dead, ghost
+        if type(UnitGUID) == "function" then
+            local ok, answer = pcall(UnitGUID, unitToken)
+            guid = ok and plain(answer) or nil
+        end
+        if guid == nil then return nil, nil, nil end
+        if type(UnitIsDead) == "function" then
+            local ok, answer = pcall(UnitIsDead, unitToken)
+            dead = ok and plain(answer) or nil
+        end
+        if dead == nil and type(UnitIsDeadOrGhost) == "function" then
+            local ok, answer = pcall(UnitIsDeadOrGhost, unitToken)
+            ghost = ok and plain(answer) or nil
+        end
+        return guid, dead, ghost, exists
+    end
+end
+
+--- The token's own identity, PLAIN, for the guid stamp. nil when the client
+--- gives no answer (the row then carries no guid and its break stays
+--- fail-open).
+function Reconcile:TokenGuid(token)
+    local probe = self.liveness
+    if type(probe) ~= "function"
+        or type(self.rows) ~= "table"
+        or not (self.rows.LIVENESS_TOKENS
+            and self.rows.LIVENESS_TOKENS[token]) then
+        return nil
+    end
+    local guid = probe(token)
+    return (type(guid) == "string") and guid or nil
 end
 
 --- The production readers. Every one is a thin, pcall-at-the-call-site wrapper

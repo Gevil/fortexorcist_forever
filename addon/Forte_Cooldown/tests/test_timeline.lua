@@ -2,7 +2,8 @@
 -- wow-ui-sim tests for the Classic Cooldown Timer timeline (PLAN.md §3.5):
 -- UI/TimelineMath.lua (frame-free math) and UI/Timeline.lua (registered as
 -- FX.Cooldown.Display, one 250x24 bar). Replaces test_display.lua, whose
--- rows-based renderer is now the dormant UI/Rows.lua seed.
+-- rows-based renderer was forked into Forte_Timer's Spell Timer and whose
+-- dormant seed file was deleted 2026-11-02.
 --
 -- The Display is a pure renderer: these tests drive it with hand-made entry
 -- tables and a fixed `now` -- no Engine, no events, no spell data. Init() is

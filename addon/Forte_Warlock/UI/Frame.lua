@@ -476,10 +476,20 @@ function Frame:_Build()
 end
 
 --- The mouse tip, while the frame has a tip and the mouse is live.
+--- m5 (CodeReview3): the 2nd argument of CreateFrame is the NAME, the parent
+--- is the 3rd (the shape every other frame in this file uses, e.g. the drag
+--- frame below and the Shards override) — the old call passed `self.anchor`
+--- in the NAME slot, so the tip came out parentless: it inherits neither the
+--- plate's scale/strata nor its hide.
 function Frame:_AttachTip()
     local tip = self.opts and self.opts.tip
     if not tip then return end
-    self.tip = CreateFrame("Frame", self.anchor)
+    -- `CreateFrame`'s second argument is the NAME, the third the parent:
+    -- passing self.anchor in the name slot built a parentless, unstrata'd
+    -- top-level frame, so the tip inherited no scale, no strata and no hide
+    -- from the plate. The parent is the anchor, exactly as the comment above
+    -- promises.
+    self.tip = CreateFrame("Frame", nil, self.anchor)
     self.tip:SetAllPoints(self.anchor)
     self.tip:EnableMouse(true)
     self.tip:SetScript("OnEnter", function()

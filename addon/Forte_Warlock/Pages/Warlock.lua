@@ -19,11 +19,11 @@
 --
 -- Wiring contract: every key has a public setter seam on
 -- FX.Warlock.Shards / .Soulstone / .Healthstone / .Summon (the shared
--- UI/Frame.lua law); the OnChange listener below routes each change through
--- their ApplySettings, and each frame ALSO self-wires from its own Init
--- (Forte_Warlock works with Forte_Options not installed; the listener here is
--- the page-side mirror, idempotent with it). Saved values are applied at
--- login by the frames' ApplyStoredSettings. Lock follows the Forte_Cooldown
+-- UI/Frame.lua law) and each frame self-wires the store to that seam from its
+-- own Init/OnEnable (`Frame:_HookSettings`, the one live settings path —
+-- Forte_Warlock works with Forte_Options not installed; the page ships NO
+-- second mirror, review 3 m4 deleted the dead one). Saved values are applied
+-- at login by the frames' ApplyStoredSettings. Lock follows the Forte_Cooldown
 -- m4 rule: the frames publish the LIVE lock state of their frames into
 -- Warlock.Lock (never the other way), so the checkboxes, the header lock
 -- icons and /fx lock|unlock agree.
@@ -102,20 +102,19 @@ local DEFAULTS = {
 
 local VIEWS = { "Shards", "Soulstone", "Healthstone", "Summon" }
 
-local wired = false
-local function ensureWiring()
-    if wired then return end
-    wired = true
-    FX.Settings:OnChange(M, function(key, value)
-        for i = 1, #VIEWS do
-            local v = FX.Warlock[VIEWS[i]]
-            if v and v.ApplySettings then
-                v:ApplySettings({ [key] = value })
-            end
-        end
-    end)
-    -- m4: mirror the LIVE lock state of the frames into the store right
-    -- before a checkbox/header icon reads it.
+local lockPublished = false
+local function publishLiveLock()
+    if lockPublished then return end
+    lockPublished = true
+    -- Review 3 m4: the page-side `FX.Settings:OnChange` mirror that used to
+    -- live here is GONE. It routed every key to `v:ApplySettings`, a method
+    -- no Warlock frame has (the grep of Forte_Warlock: zero definitions), so
+    -- the guard never fired -- dead code. The frames' self-wiring
+    -- (`Frame:_HookSettings`, run from Init and OnEnable, with its own m1
+    -- `_wired` guard) is the one live settings path; the `_HookSettings`
+    -- keymap is the Warlock idiom, so no `ApplySettings` seam is added.
+    -- The Forte_Cooldown m4 lock law: mirror the LIVE lock state of the
+    -- frames into the store right before a checkbox/header icon reads it.
     for i = 1, #VIEWS do
         local v = FX.Warlock[VIEWS[i]]
         if v and v.cfg and v.cfg.locked ~= nil then
@@ -335,7 +334,7 @@ function P.RegisterWarlockPages()
                 -- n4/C4 case the header must follow, not swallow.
                 lockFrame = function() return FX.Warlock[def.view] end,
                 build = function(b)
-                    ensureWiring()
+                    publishLiveLock()
                     def.build(b)
                 end,
             })

@@ -70,6 +70,32 @@ local function ensureBuilt()
     UI:_InitViews()
 end
 
+-- m5 (CodeReview3): Frame:_AttachTip built its tip with
+-- `CreateFrame("Frame", self.anchor)` -- the 2nd argument of CreateFrame is
+-- the NAME, the parent is the 3rd (the shape every other frame in the file
+-- uses, and the Shards override gets right), so the tip came out PARENTLESS:
+-- a plate's tip must ride the plate's scale/strata and die with it. Latent
+-- while no view sets `opts.tip` (the Shards view builds its own), so the
+-- shape is proven directly here.
+test("the plate tip is a CHILD of the plate, not a frame named by a frame",
+function()
+    local probe = Frame:new({
+        name = "TipProbe", dbKey = "tipprobe",
+        tip = { title = "Probe tip", body = { "one" } },
+    })
+    probe:_Build()
+    assertNotNil(probe.tip, "opts.tip reaches _AttachTip")
+    assertTrue(probe.tip:GetParent() == probe.anchor,
+        "the tip hangs off the plate: CreateFrame's 3rd argument is the parent")
+    local tipName = probe.tip:GetName()
+    assertTrue(type(tipName) ~= "table",
+        "the plate is not squeezed into the tip's NAME slot")
+    -- A parentless tip would keep its mouse region when the plate hides; a
+    -- child inherits the hide (the law the assertion above exists for).
+    probe.anchor:Hide()
+    probe.tip:EnableMouse(false)
+end)
+
 -- -------------------------------------------------------------------- init --
 
 test("the four plates build, are named and sized, idempotent, hidden", function()
@@ -813,6 +839,42 @@ test("the four index cells have pages and build in the options window", function
     end
     assertNotNil(spy)
     assertNil(FX.Options.pages["ShardSpy"])
+end)
+
+-- m4 (CodeReview3): the page used to add ONE store listener of its own -- the
+-- `FX.Settings:OnChange("Warlock")` mirror that routed every key to
+-- `v:ApplySettings`, a method NO Warlock frame has (the grep of
+-- Forte_Warlock: zero definitions), so the block was dead code and the store
+-- census is the observable that says so. The frames' self-wiring
+-- (`Frame:_HookSettings`, one keymap listener per frame on the module) is the
+-- one live path, and the `_HookSettings` keymap is the Warlock idiom: the
+-- page adds nothing.
+test("the four pages add no settings listener of their own", function()
+    ensureBuilt()
+    if not (FX.Options and FX.Options.pages) then
+        print("[fxui] Forte_Options is not loaded -- page seam skipped")
+        return
+    end
+    assertNotNil(ST.CountListeners, "the counting seam exists")
+    -- Every page has been opened by the test above, so the old mirror had
+    -- its single chance to register.
+    local wired = 0
+    for _, v in ipairs({ Shards, Stone, HS, Summon }) do
+        if v._wired then wired = wired + 1 end
+    end
+    assertEquals(4, wired, "every frame wired itself exactly once")
+    -- The Warlock module carries the four frames' keymap listeners plus
+    -- Forte_Options' ONE header lock relay (`Window.lua:710`, registered for
+    -- the page's `lockKey`, `_lockWired`-guarded). The deleted page mirror
+    -- would sit on top of that as a 6th.
+    assertEquals(wired + 1, ST:CountListeners("Warlock"),
+        "four frame listeners + the header's lock relay; the deleted page "
+        .. "mirror would make it " .. (wired + 2))
+    -- And the surviving path is the live one: a store write reaches a plate.
+    ST:Set("Warlock", "SummonWidth", 128)
+    assertEquals(128, Summon.anchor:GetWidth())
+    ST:Reset("Warlock", "SummonWidth")
+    assertEquals(106, Summon.anchor:GetWidth())
 end)
 
 -- ----------------------------------------------------------------- status --

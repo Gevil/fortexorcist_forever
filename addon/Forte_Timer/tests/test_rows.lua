@@ -288,6 +288,321 @@ function()
     Rows:Clear()
 end)
 
+-- ------------------------------------------------- the break site's liveness gate --
+-- The original wraps its break message in `if not UnitIsDead(unit) then`
+-- (`Forte_Timer.lua:1207-1211`): the row of a unit that DIED is retired
+-- WITHOUT an announcement, because a CC that drops with the kill is not a
+-- break. The port is `Rows:TargetIsDead` (Core/Rows.lua) in the
+-- early-removal branch of `OnAuraAbsent`: the row is faded exactly as before
+-- in both branches, only the FX_TIMER_BROKEN fire is conditional, and the
+-- gate FAILS OPEN -- with nothing readable saying "this row's unit is the
+-- dead one" the event fires as it did before the gate existed. Every fact
+-- arrives through the injectable `Rows.liveness` reader (the file keeps its
+-- zero-game-API law; Reconcile.LiveLiveness is its production shape, and
+-- Reconcile:Init installs the same function into Rows).
+--- A sealed read: a table whose fields `PlainOrNil` refuses (the sentinel's
+--- shape at the contract the project tests at; the aura-feed section further
+--- down declares the same helper for its own tests).
+local function sealed()
+    return setmetatable({}, { __index = function() return nil end })
+end
+
+local function captureBroken()
+    local events = {}
+    local h = FX.On(FX.EVENTS.TIMER_BROKEN, function(spell, target, kind)
+        events[#events + 1] = { spell, target, kind }
+    end)
+    return events, h
+end
+
+--- A confirmed row on a unit token, carrying its identity anchor. Cast at
+--- `base`, `duration` long: past the grace from base+4, removable while
+--- more than MAXLAG of the window is left, so base+5 is a clean probe.
+local function targetedRow(spell, target, duration, base, token, guid)
+    local row = Rows:InsertFromAura(spell, target, base + duration,
+        duration, 0, token, 0, base, guid)
+    assertNotNil(row)
+    return row
+end
+
+test("the liveness gate: a CC row of a DEAD target is removed with no BROKEN",
+function()
+    buildHunterRegistry()
+    Rows.options = opts()
+    Rows:Clear()
+    local GUID = "000000000000FE00\1Vile Poacher\1A"
+    local row = targetedRow("Serpent Sting", "target", 12, 100, "target", GUID)
+    assertEquals(GUID, row.guid, "the confirming insert stamps the identity")
+    local events, h = captureBroken()
+    local probe = Rows.liveness
+    Rows.liveness = function(token)
+        assertEquals("target", token, "the gate probes the row's own token")
+        return GUID, true, false            -- UnitGUID, UnitIsDead, ghost
+    end
+    assertEquals("removed", Rows:OnAuraAbsent(row, 105))
+    assertEquals(0, #events, "the kill is not a break")
+    assertEquals(Laws.REMOVE, row.state, "the row is still retired")
+    Rows.liveness = probe
+    FX.Off(h)
+    Rows:Clear()
+end)
+
+test("the liveness gate: the ghost half (a released spirit) is dead too",
+function()
+    buildHunterRegistry()
+    Rows.options = opts()
+    Rows:Clear()
+    local GUID = "000000000000FE00\1Player\1B"
+    local row = targetedRow("Serpent Sting", "target", 12, 200, "target", GUID)
+    local events, h = captureBroken()
+    local probe = Rows.liveness
+    Rows.liveness = function() return GUID, false, true end
+    assertEquals("removed", Rows:OnAuraAbsent(row, 205))
+    assertEquals(0, #events)
+    Rows.liveness = probe
+    FX.Off(h)
+    Rows:Clear()
+end)
+
+test("the liveness gate: an ALIVE target still fires BROKEN",
+function()
+    buildHunterRegistry()
+    Rows.options = opts()
+    Rows:Clear()
+    local GUID = "000000000000FE00\1Vile Poacher\1C"
+    local row = targetedRow("Serpent Sting", "target", 12, 300, "target", GUID)
+    local events, h = captureBroken()
+    local probe = Rows.liveness
+    Rows.liveness = function() return GUID, false, false end
+    assertEquals("removed", Rows:OnAuraAbsent(row, 305))
+    assertEquals(1, #events, "the CC broke: the break is announced")
+    assertEquals("Serpent Sting", events[1][1])
+    assertEquals("target", events[1][2])
+    Rows.liveness = probe
+    FX.Off(h)
+    Rows:Clear()
+end)
+
+test("the liveness gate: a sealed/secret GUID fails OPEN (the documented delta)",
+function()
+    -- The task's accepted risk: the row's identity is the key of the
+    -- comparison, and a sealed identity is not a fact, so a CC-dropping kill
+    -- of a sealed-identity unit announces a break the source would have
+    -- muted. Both sides are covered: a sealed READ and a sealed ROW.
+    buildHunterRegistry()
+    Rows.options = opts()
+    Rows:Clear()
+    local row = targetedRow("Serpent Sting", "target", 12, 400, "target",
+        "000000000000FE00\1Vile Poacher\1D")
+    local events, h = captureBroken()
+    local probe = Rows.liveness
+    Rows.liveness = function() return sealed(), true, true end
+    assertEquals("removed", Rows:OnAuraAbsent(row, 405))
+    assertEquals(1, #events, "a secret guid on the read side fires")
+    -- A sealed ROW guid (stamp-side secret read -> nil) fails open too.
+    -- A fresh (spell, target) key: the first row is still indexed (fading
+    -- out), and an insert of a live key is an ADOPT, not a new row.
+    local row2 = targetedRow("Hunter's Mark", "target", 12, 500, "target", nil)
+    assertNil(row2.guid, "no plain identity arrives, the row carries none")
+    local n = #events
+    assertEquals("removed", Rows:OnAuraAbsent(row2, 505))
+    assertEquals(n + 1, #events, "a secret guid on the row side fires")
+    Rows.liveness = probe
+    FX.Off(h)
+    Rows:Clear()
+end)
+
+test("the liveness gate: the sealed-identity MODE fails open, explicitly",
+function()
+    -- `C_Secrets.ShouldUnitIdentityBeSecret()` is the catalog's own answer
+    -- to "is the guid I am about to compare readable?" The mode may name the
+    -- sealed case; it may NEVER mute a row, so a sealed mode must fire.
+    buildHunterRegistry()
+    Rows.options = opts()
+    Rows:Clear()
+    local GUID = "000000000000FE00\1Vile Poacher\1E"
+    local row = targetedRow("Serpent Sting", "target", 12, 600, "target", GUID)
+    local events, h = captureBroken()
+    local probe, savedSecrets = Rows.liveness, _G.C_Secrets
+    _G.C_Secrets = { ShouldUnitIdentityBeSecret = function() return true end }
+    Rows.liveness = function() return GUID, true, true end
+    assertEquals("removed", Rows:OnAuraAbsent(row, 605))
+    assertEquals(1, #events, "a sealed identity means the row is NOT muted")
+    _G.C_Secrets = savedSecrets
+    -- The same facts with the mode off (the client answers plain) are the
+    -- muted case of the first test: the mode is the difference.
+    local n = #events
+    assertEquals("removed", Rows:OnAuraAbsent(row, 605))
+    assertEquals(n, #events, "with a readable identity the dead row is muted")
+    Rows.liveness = probe
+    FX.Off(h)
+    Rows:Clear()
+end)
+
+test("the liveness gate: no reader, an out-of-scope token, no guid -> fires",
+function()
+    buildHunterRegistry()
+    Rows.options = opts()
+    Rows:Clear()
+    local events, h = captureBroken()
+    local probe = Rows.liveness
+    -- (a) no reader at all: the client gives me nothing.
+    Rows.liveness = nil
+    local a = targetedRow("Serpent Sting", "target", 12, 700, "target", "G-A")
+    assertEquals("removed", Rows:OnAuraAbsent(a, 705))
+    assertEquals(1, #events, "no reader: the break fires as it used to")
+    -- (b) a reader that says dead, on a row with NO guid: nothing to match.
+    Rows.liveness = function() return "G-OTHER", true, true end
+    local b = targetedRow("Serpent Sting", "target", 12, 800, "target", nil)
+    local n = #events
+    assertEquals("removed", Rows:OnAuraAbsent(b, 805))
+    assertEquals(n + 1, #events, "an unanchored row fires")
+    -- (c) a guid that is not this unit: the token moved on (a retarget).
+    local c = targetedRow("Serpent Sting", "target", 12, 900, "target", "G-C")
+    n = #events
+    assertEquals("removed", Rows:OnAuraAbsent(c, 905))
+    assertEquals(n + 1, #events, "a moved-on token fires")
+    -- (d) the token is not a unit Rows may read: a cast-target string, and a
+    -- party/raid target (out of scope -- Rows has no token resolver).
+    Rows.liveness = function() return "G-D", true, true end
+    for _, token in ipairs({ "Vile Poacher", "party1target", "raid3target" }) do
+        local d = targetedRow("Serpent Sting", "target", 12, 1000, token, "G-D")
+        n = #events
+        assertEquals("removed", Rows:OnAuraAbsent(d, 1005))
+        assertEquals(n + 1, #events, "an unreadable token fires: " .. token)
+    end
+    -- (e) the reader raises.
+    local e = targetedRow("Serpent Sting", "target", 12, 1100, "target", "G-E")
+    Rows.liveness = function() error("boom") end
+    n = #events
+    assertEquals("removed", Rows:OnAuraAbsent(e, 1105))
+    assertEquals(n + 1, #events, "a raising read fires")
+    -- (f) the reader answers with sealed facts.
+    local f = targetedRow("Serpent Sting", "target", 12, 1200, "target", "G-F")
+    Rows.liveness = function() return "G-F", sealed(), sealed() end
+    n = #events
+    assertEquals("removed", Rows:OnAuraAbsent(f, 1205))
+    assertEquals(n + 1, #events, "a sealed liveness answer fires")
+    Rows.liveness = probe
+    FX.Off(h)
+    Rows:Clear()
+end)
+
+test("the liveness gate: a self row of a dead self is muted the same way",
+function()
+    -- The self CC has no unit the sweep reads a guid of -- `player` is
+    -- readable, and a dead self carries a guid, so the row speaks for itself.
+    -- The dead-self case is the source's `if not UnitIsDead(unit)` applied to
+    -- a self row (the source's loop runs on player too).
+    buildHunterRegistry()
+    Rows.options = opts()
+    Rows:Clear()
+    local row = targetedRow("Serpent Sting", "none", 12, 1300, "player", "G-P")
+    local events, h = captureBroken()
+    local probe = Rows.liveness
+    Rows.liveness = function() return "G-P", true, false end
+    assertEquals("removed", Rows:OnAuraAbsent(row, 1305))
+    assertEquals(0, #events)
+    Rows.liveness = probe
+    FX.Off(h)
+    Rows:Clear()
+end)
+
+test("the sweep stamps the identity, and shares the reader Rows gates on",
+function()
+    -- The row's guid is not decorative: Core/Reconcile.lua stamps it at the
+    -- CONFIRMING read -- the original's fill-in (`st[i][11] = guid`, :1161) --
+    -- through the SAME liveness seam the gate reads, so the stamp and the
+    -- gate can not disagree about what a token's identity is.
+    buildHunterRegistry()
+    Rows.options = opts()
+    Rows:Clear()
+    local GUID = "000000000000FE00\1Vile Poacher\1S"
+    local savedLiveness = Reconcile.liveness
+    -- ONE closure for both halves: the stamp (through Reconcile) and the
+    -- gate (Rows.liveness, installed by Init) read the same function, so the
+    -- "the unit died" flip below is the same fact for both.
+    local facts = { guid = GUID, dead = false, ghost = false }
+    Reconcile.liveness = function(token)
+        assertEquals("target", token)
+        return facts.guid, facts.dead, facts.ghost
+    end
+    Reconcile.inCombat = function() return false end
+    Reconcile:Init(Rows, opts())
+    assertTrue(Rows.liveness == Reconcile.liveness,
+        "Init installs the one reader into the row table")
+    Reconcile.readers = {
+        byName = function()
+            -- 0.5 s from the prediction: the fact IS the prediction (adopt).
+            return { name = "Serpent Sting", expirationTime = 2012.5,
+                duration = 12, applications = 2 }
+        end,
+        bulk = function() return false end,
+    }
+    local row = seededRow("Serpent Sting", "target", 12, 2000)
+    assertNil(row.guid, "a cast-predicted row carries no identity")
+    Reconcile:SweepUnit("target", "HARMFUL", 2001)
+    assertEquals(GUID, row.guid,
+        "the confirming read fills the identity in (:1159-1164)")
+    assertEquals("target", row.unitToken)
+    -- And the row it identified is the row the gate can mute: kill the unit,
+    -- sweep the absence, no announcement.
+    facts.dead = true
+    Reconcile.readers.byName = function() return false end
+    local events, h = captureBroken()
+    Reconcile:SweepUnit("target", "HARMFUL", 2005)
+    assertEquals(Laws.REMOVE, row.state, "the row is retired all the same")
+    assertEquals(0, #events, "and the kill is not announced")
+    Reconcile.liveness = savedLiveness
+    Rows.liveness = savedLiveness
+    FX.Off(h)
+    Reconcile.readers = Reconcile.LiveReaders()
+    Rows:Clear()
+end)
+
+test("the production liveness reader answers plain-or-nil, never a guess",
+function()
+    -- The production reader is the API-facing half (UnitExists/UnitGUID/
+    -- UnitIsDead/UnitIsDeadOrGhost, all in the pinned catalog). The sim
+    -- implements those four, so the stubbed globals here exercise the real
+    -- wrappers -- the pcall, the PlainOrNil gate and the unit-exists split --
+    -- not just the injected seams the tests above use.
+    local saved = { UnitExists = _G.UnitExists, UnitGUID = _G.UnitGUID,
+        UnitIsDead = _G.UnitIsDead, UnitIsDeadOrGhost = _G.UnitIsDeadOrGhost }
+    local function restore()
+        _G.UnitExists, _G.UnitGUID = saved.UnitExists, saved.UnitGUID
+        _G.UnitIsDead, _G.UnitIsDeadOrGhost = saved.UnitIsDead,
+            saved.UnitIsDeadOrGhost
+    end
+    local probe = Reconcile.LiveLiveness()
+    -- (a) the surface is absent (the sim's own shape for a stripped client):
+    -- no guid, no liveness -- the gate's fail-open case, never a guessed
+    -- "alive" and never a guessed "missing".
+    _G.UnitExists, _G.UnitGUID, _G.UnitIsDead, _G.UnitIsDeadOrGhost =
+        nil, nil, nil, nil
+    local guid, dead, ghost, exists = probe("target")
+    assertNil(guid); assertNil(dead); assertNil(ghost); assertFalse(exists)
+    -- (b) the token points at no unit at all: a PLAIN fact, not a seal.
+    _G.UnitExists = function() return nil end
+    _G.UnitGUID = function() return nil end
+    guid, dead, ghost, exists = probe("target")
+    assertNil(guid, "no unit, no identity")
+    assertFalse(exists)
+    -- (c) the full live shape, and the sealed-identity raise.
+    _G.UnitExists = function() return true end
+    _G.UnitGUID = function() return "G-1" end
+    _G.UnitIsDead = function() return false end
+    _G.UnitIsDeadOrGhost = function() return false end
+    guid, dead, ghost, exists = probe("target")
+    assertEquals("G-1", guid); assertFalse(dead); assertFalse(ghost)
+    assertTrue(exists)
+    _G.UnitGUID = function() error("sealed identity") end
+    guid, dead, ghost = probe("target")
+    assertNil(guid, "a raise on the identity is no answer, not a fact")
+    assertNil(dead, "and the liveness of an unidentified unit is never read")
+    restore()
+end)
+
 -- ------------------------------------------------------------ the sweep law --
 
 test("a row smooths, promotes at expiry, fades over FadeSpeed, is deleted",
@@ -497,5 +812,9 @@ test("restore the registry the profile class built", function()
     Casts.onRow = nil
     Reconcile.readers = Reconcile.LiveReaders()
     Reconcile.inCombat = nil
+    -- Leave the liveness seams as production installed them (the shared
+    -- LiveLiveness, never a test's fact table).
+    Reconcile.liveness = Reconcile.LiveLiveness()
+    Rows.liveness = Reconcile.liveness
     assertTrue(true)
 end)

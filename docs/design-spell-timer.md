@@ -16,8 +16,10 @@ project document disagrees with the source, the source wins and the delta is lis
 - `docs/design-combat-procs.md` (§1 the closed log, §4 the "nothing secret-derived reaches a widget" rule).
 - `PLAN.md` §2.5, §3.2, §3.4, §3.5–3.6, §7 Phase 4, §8, §10.2, §10.7 (owner ruling: **Spell Timer v1 scope =
   own-cast predictions accepted**, `PLAN.md:549`), §11 Iteration C.
-- Dormant seed `addon/Forte_Cooldown/UI/Rows.lua` (473 lines; header `:1-28` states it is the Phase-4
-  Spell-Timer seed).
+- Dormant seed `addon/Forte_Cooldown/UI/Rows.lua` (473 lines; header `:1-28` stated it is the Phase-4
+  Spell-Timer seed). **Spent input**: Phase 4 forked it to `addon/Forte_Timer/UI/Rows.lua` (in that TOC)
+  and the seed was deleted 2026-11-02, so the `Rows.lua:NNN` cites below are the seed's historical
+  line numbers, kept because the fork keeps the seed's structure.
 - Catalog, pinned target `forever`, version **1.60.1.70532**, commit `ca8368f2f238`:
   `docs/api/wow-addon-api-agents/skills/<shard>/references/generated/forever.json` (record index
   `shard:N` = the N-th entry of its `declarations` array; `source.file:line` inside = the Blizzard
@@ -532,7 +534,8 @@ against `"player"`/`"pet"` for the `isMine` filter (`Forte_Timer.lua:1095`), nev
 
 ### 5.1 Reuse map and the exact deltas
 
-`addon/Forte_Cooldown/UI/Rows.lua` is the seed (header `:1-28`), structurally right: the row IS the
+`addon/Forte_Cooldown/UI/Rows.lua` is the seed (header `:1-28`; forked into `addon/Forte_Timer/UI/Rows.lua`
+and the seed deleted 2026-11-02), structurally right: the row IS the
 `StatusBar` (`:301-333`), pools grow and never shrink (`:300-302`), every style setter is dirty-checked
 (`:355-408`), splashes recycle (`:340-378`), position + lock persist (`:108-176`). Its
 `FX.Cooldown.Display` alias stays inert (`:24-27`): if Phase 4 loads the file, it registers as

@@ -1,10 +1,11 @@
 -- addon/Forte_Timer/UI/Rows.lua
 -- FX.Timer.Display: the Spell Timer's row stack, the Classic look. This file
 -- is FORKED FROM the dormant seed `addon/Forte_Cooldown/UI/Rows.lua` (the
--- Phase-4 Spell-Timer seed, its own header says so; PLAN §3.6, docs/refs/ref4.png)
--- with the deltas D1-D15 of docs/design-spell-timer.md §5.1 applied, and it is
--- a copy: the Cooldown addon's `UI/Rows.lua` is untouched, not in its TOC, and
--- is now dead weight there (reported to the manager). The seed's structure is
+-- Phase-4 Spell-Timer seed, its own header said so; PLAN §3.6,
+-- docs/refs/ref4.png) with the deltas D1-D15 of docs/design-spell-timer.md
+-- §5.1 applied. The seed was a copy source only: it never entered the
+-- Cooldown TOC, and it is DELETED (2026-11-02) -- this file is the one live
+-- row renderer. The seed's structure is
 -- kept because it is right for this engine: the row IS its bar, the pools grow
 -- and never shrink, every style setter is dirty-checked (the pass runs at
 -- 25 Hz), position + lock persist, and its `FX.Cooldown.Display` alias is NOT

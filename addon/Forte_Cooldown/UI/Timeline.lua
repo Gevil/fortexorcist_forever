@@ -1,7 +1,9 @@
 -- Forte_Cooldown/UI/Timeline.lua
 -- The Classic Cooldown Timer, PLAN.md §3.5: ONE 250x24 timeline bar (not a
 -- stack of rows -- the rows are the Spell Timer, §3.6; the old row renderer
--- lives on as UI/Rows.lua, dormant, the Phase-4 seed). Cooldowns ride a
+-- the ClassicSkin wave built died with that wave: its dormant seed
+-- UI/Rows.lua was forked into Forte_Timer/UI/Rows.lua and deleted here
+-- 2026-11-02, it was never in this addon's TOC). Cooldowns ride a
 -- power-scale time axis: the icon for t seconds remaining sits at
 -- TimelineMath.pos(t) and slides left as it burns, parking at the right end
 -- over Max = 300 s; custom time tags (0 1 10 30 60 120 ...) print under the

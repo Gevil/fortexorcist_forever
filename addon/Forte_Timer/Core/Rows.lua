@@ -31,6 +31,11 @@
 --   hasteFactor    col 22  the frozen out-of-combat haste factor
 --   predicted      new     true until an aura read adopts it (UI marking §5.5)
 --   unitToken      col 27  the resolved unit token, nil while unconfirmed
+--   guid           col 11  the target unit's GUID as the CONFIRMING aura read
+--                          saw it (`:1161 st[i][11] = guid`), stamped only
+--                          where the unit identity is readable and only
+--                          after PlainOrNil; nil = unknown. The liveness gate
+--                          of `OnAuraAbsent` is its only consumer.
 --   maxTime        link col 6  the compression scale (:2192-2235)
 --   hiddenSince    link col 7  the HideLonger gate's trip stamp (:2151-2162)
 --   alpha          link col 4  the visibility computed per pass (:2146-2168)
@@ -59,6 +64,24 @@ Rows.nextId = 1         -- the CA:GiveID port: monotonic, recycled from live row
 Rows.links = {}         -- the sort/draw link table, reused every pass
 Rows.options = nil      -- set by Module.lua: the live options/gate table
 
+--- The injectable liveness reader (the `Reconcile.readers` convention, and
+--- the reason this file keeps its "zero game API" header law):
+--- `liveness(unitToken) -> guid, dead, ghost`, every value PLAIN-or-nil (a
+--- sealed read arrives nil). Module.lua installs the real one, which is
+--- `UnitGUID` / `UnitIsDead` / `UnitIsDeadOrGhost` pcall'd; a test injects an
+--- exact fact. nil = no reader, which reads as "the client tells me nothing"
+--- and fails the `OnAuraAbsent` gate OPEN.
+Rows.liveness = nil
+
+--- The unit tokens `OnAuraAbsent` may probe for the death gate. A row's
+--- `unitToken` is a sweep token ("player", "target" -- the tokens
+--- Core/Reconcile.lua sweeps, "focus"/"mouseover" the day it grows them); a
+--- cast-target string ("Vile Poacher") names no unit, and a `partyN`/`raidN`
+--- target token is OUT OF SCOPE: Rows has no token resolver, so a row whose
+--- target it cannot point at keeps today's behaviour (the break fires).
+Rows.LIVENESS_TOKENS = { player = true, target = true, focus = true,
+    mouseover = true }
+
 -- ------------------------------------------------------------------- pool --
 --- A fresh, fixed-shape row. Allocating only on a genuinely new (spell,
 --- target) pair is the whole allocation story: the draw pass allocates nothing
@@ -69,6 +92,7 @@ local function newRow()
         expireAt = 0, drawExpireAt = 0, castTime = 0, total = 0,
         state = Laws.NORMAL, kind = "Default", stacks = 0, removeAt = 0,
         expireMsgAt = 0, hasteFactor = 1, predicted = true, unitToken = nil,
+        guid = nil,
         maxTime = 0, hiddenSince = 0, alpha = 1, raidMark = 0, tickEvery = nil,
         -- The fade-warning stamp (the original's column 12,
         -- ST_GetFadeTime(spell) at the st:insert sites :888/:937): seconds
@@ -254,8 +278,14 @@ end
 --- The insert of a *confirmed* aura (the `ST_ScanForMissing` (:1103),
 --- `ST_TargetDebuffs` (:1225-1271) and `ST_PlayerBuffs` (:1272-1351) path): a
 --- spell we registered whose real aura the sweep found with no row of its own.
+---
+--- `guid` is the target unit's GUID as the sweeping unit token reads it
+--- (the original's `st[i][11] = guid`, `:1161`) — the row's identity anchor
+--- for the death gate of `OnAuraAbsent`. It arrives PLAIN (Core/Reconcile.lua
+--- has run it through PlainOrNil): a secret identity arrives nil and the row
+--- simply carries no guid, which fails the gate open.
 function Rows:InsertFromAura(spell, targetKey, expire, total, stacks,
-        unitToken, raidMark, now)
+        unitToken, raidMark, now, guid)
     if type(spell) ~= "string" then return nil end
     if type(expire) ~= "number" or type(total) ~= "number" or total <= 0 then
         return nil
@@ -265,7 +295,7 @@ function Rows:InsertFromAura(spell, targetKey, expire, total, stacks,
     local existing = self:Find(spell, targetKey)
     if existing then
         local verdict = self:OnAuraFact(existing, expire, total, stacks, now,
-            unitToken, raidMark)
+            unitToken, raidMark, guid)
         return existing, verdict
     end
     local row = newRow()
@@ -281,6 +311,7 @@ function Rows:InsertFromAura(spell, targetKey, expire, total, stacks,
     row.expireMsgAt = 0
     row.predicted = false
     row.unitToken = unitToken
+    row.guid = (type(guid) == "string") and guid or nil
     row.raidMark = (type(raidMark) == "number" and raidMark) or 0
     row.fadeWarn = self:FadeWarnFor(spell)
     row.id = self.nextId
@@ -305,8 +336,15 @@ end
 ---  refresh shorter by more than MAXLAG (:924, ST-25): fade the row REMOVED
 ---           (it keeps drawing, fading out) and insert a fresh row with the
 ---           fact's window, marked confirmed.
+---
+--- `unitToken`/`raidMark`/`guid` are the identity the confirming read saw
+--- (the original's col 27/19/11, `:1159-1164`: "the row is FILLED IN (guid,
+--- group id, raid mark)" at the adopt). All three arrive PLAIN; a secret half
+--- arrives nil and simply does not fill in. The guid is the row's identity
+--- anchor for the death gate of `OnAuraAbsent` — stamped once, never
+--- rewritten by a later row of a different unit under the same key.
 function Rows:OnAuraFact(row, factExpire, factTotal, stacks, now,
-        unitToken, raidMark)
+        unitToken, raidMark, guid)
     if not row then return nil end
     if type(factExpire) ~= "number" then return nil end
     now = now or GetTime()
@@ -314,6 +352,9 @@ function Rows:OnAuraFact(row, factExpire, factTotal, stacks, now,
     if verdict == "adopt" then
         row.expireAt = factExpire
         row.predicted = false
+        if type(guid) == "string" and type(row.guid) ~= "string" then
+            row.guid = guid
+        end
         if type(factTotal) == "number" and factTotal > 0 then
             row.total = factTotal
         end
@@ -358,6 +399,10 @@ function Rows:OnAuraFact(row, factExpire, factTotal, stacks, now,
         and Laws.SentinelGroupKey(row.kind) or self:IdFor(row.targetKey)
     if type(unitToken) == "string" then fresh.unitToken = unitToken end
     if type(raidMark) == "number" then fresh.raidMark = raidMark end
+    -- The identity anchor rides the (spell, target) key, not the row: the
+    -- refreshed row faces the same unit the old one did, and a confirming
+    -- read of that unit is the better answer.
+    fresh.guid = (type(guid) == "string") and guid or row.guid
     -- The refreshed row owns the (spell, target) key from now on; the old row
     -- stays in the array fading out, outside the index.
     self.byKey[Laws.RowKey(row.name, row.targetKey)] = nil
@@ -365,13 +410,72 @@ function Rows:OnAuraFact(row, factExpire, factTotal, stacks, now,
     return "refresh", delta
 end
 
---- The "the aura is not there" half of the law. Two refusals come first:
----   * the grace (:1186-1187): a row is not checkable before
----     Laws.CheckableAt(castTime) -- the window's start plus BUFF_DELAY;
----   * the last-MAXLAG band (:1207, "dont remove if only maxlag left"): once
----     MAXLAG or less of its own window is left natural expiry owns the row
----     and the sweep does not touch it. Past the grace with more than MAXLAG
----     of window left, the absence fact REMOVES the row (:1207-1211).
+--- Is the unit-identity read (the `UnitGUID` the gate compares) known to come
+--- back secret RIGHT NOW? `C_Secrets.ShouldUnitIdentityBeSecret()` is the
+--- catalog's own mode query (pinned 1.60.1.70532,
+--- `C_Secrets`/`ShouldUnitIdentityBeSecret`; the same family
+--- Forte_Core/Core/Compat.lua caches as `aurasSecret`/`cooldownsSecret`),
+--- pcall'd with the answer passed through PlainOrNil. The SecretState
+--- consumer law: ONLY a plain `true` answers "sealed" -- an absent API, a
+--- raise, a secret answer and `false` all answer "not known sealed", and the
+--- guid comparison below decides. It exists so the sealed case is an explicit
+--- law with a name, never an accident of a nil compare; like every mode read
+--- it never suppresses anything (a sealed identity FAILS THE GATE OPEN).
+local function identityIsSealed()
+    local query = _G.C_Secrets and _G.C_Secrets.ShouldUnitIdentityBeSecret
+    if type(query) ~= "function" then return false end
+    local ok, secret = pcall(query)
+    if not ok then return false end
+    return FX.Compat.PlainOrNil(secret) == true
+end
+
+--- The source's liveness gate of the break site, verbatim in shape
+--- (`Forte_Timer.lua:1207-1211`):
+---
+---   elseif st[i][10] == 1 and (st[i][1]==0 or st[i][1]-t>maxlag) then
+---       if not UnitIsDead(unit) then
+---           ST_BreakMessages(st[i][4], st[i][19], spell_name);
+---       end
+---       ST:Fade(i, REMOVE);
+---
+--- A CC row whose unit is confirmed DEAD does not announce a break: a
+--- CC that drops because the target died is the kill, not a break. The row is
+--- faded exactly as before, in both branches.
+---
+--- "Confirmed" is the identity pair: the token's PLAIN `UnitGUID` must
+--- PLAIN-equal the row's PLAIN guid (the original's col 11, stamped at the
+--- confirming aura read), and the same token's PLAIN liveness must say dead
+--- (`UnitIsDead` -- the source's call -- or `UnitIsDeadOrGhost`, which also
+--- catches a released spirit; the ghost half is the project's addition, the
+--- source's own `UnitIsDead` includes feign death).
+---
+--- FAIL-OPEN LAW: anything short of that pair -- no liveness reader, a token
+--- outside `LIVENESS_TOKENS`, a sealed unit identity, a secret/absent guid on
+--- either side, a guid of a different unit, a raising read, a secret liveness
+--- answer -- returns false and the break FIRES AS IT DID BEFORE THIS GATE
+--- EXISTED. The asymmetry is deliberate: a missed break is a missing sound,
+--- a false one shouts about a break that never happened.
+function Rows:TargetIsDead(row)
+    if type(row) ~= "table" then return false end
+    local token = row.unitToken
+    if type(token) ~= "string"
+        or not (self.LIVENESS_TOKENS and self.LIVENESS_TOKENS[token]) then
+        return false
+    end
+    if identityIsSealed() then return false end
+    local probe = self.liveness
+    if type(probe) ~= "function" then return false end
+    local ok, guid, dead, ghost = pcall(probe, token)
+    if not ok then return false end
+    guid = FX.Compat.PlainOrNil(guid)
+    local rowGuid = FX.Compat.PlainOrNil(row.guid)
+    if type(guid) ~= "string" or type(rowGuid) ~= "string" then return false end
+    if guid ~= rowGuid then return false end
+    dead = FX.Compat.PlainOrNil(dead)
+    ghost = FX.Compat.PlainOrNil(ghost)
+    return dead == true or ghost == true
+end
+
 function Rows:OnAuraAbsent(row, now)
     if not row then return nil end
     now = now or GetTime()
@@ -384,11 +488,13 @@ function Rows:OnAuraAbsent(row, now)
     -- The early break (the ST_BreakMessages site, Forte_Timer.lua:1207-1211:
     -- the absence fact with more than MAXLAG of window left is the CC
     -- breaking, and that branch is the original's break-message call). The
-    -- delta: the original's `if not UnitIsDead(unit)` gate is not ported --
-    -- Rows carries no liveness reader (the row's token may be a string key
-    -- with no unit), so a kill that drops the aura fires BROKEN too. The
+    -- original wraps that call in `if not UnitIsDead(unit) then` (:1208) --
+    -- the gate is ported as `Rows:TargetIsDead` above, on the row's identity
+    -- (token + guid) instead of the source's loop variable, and it fails
+    -- open: with nothing readable to say so, a kill that dropped the aura
+    -- fires BROKEN, exactly the behaviour this file had before. The
     -- renderer of the break message/sound is Forte_Messages.
-    if FX.Fire then
+    if not self:TargetIsDead(row) and FX.Fire then
         FX.Fire(FX.EVENTS.TIMER_BROKEN, row.name, row.targetKey, row.kind)
     end
     self:Fade(row, Laws.REMOVE, now)

@@ -1,5 +1,12 @@
 # Forte_Messages — Self Messages, Sound, Party/Raid Messages
 
+> Home note (2026-11-02): this note documents `addon/Forte_Messages/` and
+> lives in the repository's `docs/` — nothing under `addon/` is a place for
+> notes, because the whole of `addon/` is what the game loads. The paths it
+> cites (`Core/Sounds.lua`, `Pages/RaidMsg.lua`, …) are relative to
+> `addon/Forte_Messages/`; `Forte_*` paths outside that prefix are relative
+> to `addon/`.
+
 The add-on that listens. It owns **no game events of the tracked kind**: the
 Forte_Core event bus (`addon/Forte_Core/Core/Events.lua`) is the seam, and
 this add-on subscribes:
@@ -9,7 +16,7 @@ this add-on subscribes:
 | `FX_COOLDOWN_READY`      | `(name, now, texPath, category)` | Forte_Cooldown's ready-pop pass (`Forte_Cooldown/Module.lua`'s `ProcessReadyPops`, driven by its 10 Hz ticker — the hook point the plan named, nil-guarded `if FX.Fire then FX.Fire(...) end`) |
 | `FX_TIMER_EXPIRED`       | `(spell, target, kind)`     | **This add-on wraps Forte_Timer's own expire seam** — see “The Timer hook” below. Kept as the bus seam; the shipped defaults are silent (the original has no per-expiry message/sound) |
 | `FX_TIMER_FADING`        | `(spell, target, kind, secondsLeft)` | **Forte_Timer fires it** — `Core/Rows.lua`'s Sweep fade block, the verbatim port of `ST_UpdateSpellTimers` (`Forte_Timer.lua:1049-1056`): once per row, when `fadeWarn > 0` and remaining crosses it; the stamp (`row.fadeWarn`, the original's column 12) is `FX.Timer.FadeWarnings[spell]` at insert (`ST_GetFadeTime`, `:1590-1603`) |
-| `FX_TIMER_BROKEN`        | `(spell, target, kind)`     | **Forte_Timer fires it** — `Core/Rows.lua:OnAuraAbsent`'s removal, the `:1207-1211` law site (aura confirmed gone past the BUFF_DELAY grace with more than MAXLAG of window left — the CC broke early). Delta: the original's `if not UnitIsDead(unit)` gate (`:1208`) is not ported (Rows has no liveness reader), so a CC-dropping kill also fires |
+| `FX_TIMER_BROKEN`        | `(spell, target, kind)`     | **Forte_Timer fires it** — `Core/Rows.lua:OnAuraAbsent`'s removal, the `:1207-1211` law site (aura confirmed gone past the BUFF_DELAY grace with more than MAXLAG of window left — the CC broke early). The original's `if not UnitIsDead(unit)` gate (`:1208`) is ported (2026-11-02) as `Rows:TargetIsDead`: the row's unit token must PLAIN-match the row's stamped `guid` (the original's col 11, `:1161`) and its PLAIN `UnitIsDead`/`UnitIsDeadOrGhost` must say dead, and then the row is retired **without** the fire. The gate FAILS OPEN on every gap — no liveness reader, a token outside `Rows.LIVENESS_TOKENS` (`player`/`target`/`focus`/`mouseover`; a cast-target string and a `partyN`/`raidN` target are out of scope), a sealed identity (`C_Secrets.ShouldUnitIdentityBeSecret`), a secret/absent guid on either side, a raising read — so a CC-dropping kill of a sealed-identity unit still fires. Pinned by `Forte_Timer/tests/test_rows.lua` |
 | `FX_SPLASH`              | `(name, texPath)`           | This add-on, when the Self Messages page's `SplashKick` row is on (opt-in, default off) |
 
 The fade registry `FX.Timer.FadeWarnings` is populated by **this** add-on
