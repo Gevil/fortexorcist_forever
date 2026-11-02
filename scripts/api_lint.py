@@ -72,6 +72,15 @@ def main(argv):
             if re.search(r"SetScript\(\s*\"OnEvent\"\s*,\s*function\s*\(\s*\.\.\.\s*\)", code):
                 bad.append((os.path.relpath(f, ROOT), n, "OnEvent function(...)",
                             "vararg OnEvent binding forwards the frame as the event; use function(_, event, ...)"))
+            # Lua patterns have NO `|` alternation: "A|B" only matches the literal text "A|B"
+            # (Forte_Timer kind rules were all dead because of this, 2026-11-02). Flag an
+            # alternation-shaped `|` (word/$/) before it, word/^/(/% after it) inside the pattern
+            # literal of find/match/gmatch/gsub; a leading "|c%x..." colour-code strip is legal.
+            for m in re.finditer(r"[:.](find|match|gmatch|gsub)\(\s*(?:[^,()\"]+,\s*)?\"((?:[^\"\\]|\\.)*)\"([^)]*)\)", code):
+                pat, rest = m.group(2), m.group(3)
+                if re.search(r"(?<=[\w$)])\|(?=[\w^(%])", pat) and not re.search(r",\s*\d+\s*,\s*true", rest):
+                    bad.append((os.path.relpath(f, ROOT), n, f'pattern "{pat[:40]}"',
+                                "Lua patterns have no | alternation; split into several patterns"))
     for f, n, sym, why in bad:
         print(f"{f}:{n}: {sym} ({why})")
     print(f"[api-lint] {len(files)} files, catalog {len(symbols)} C_ symbols / {len(enums)} enums / "
