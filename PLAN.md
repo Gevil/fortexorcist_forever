@@ -696,7 +696,22 @@ garbage/tick; capture unchanged). Gate PASS **502**; live battery 14/14.
 | F-B Timer follow-ups | `fx-worker` `TimerFollow` | `addon/Forte_Timer/Core/Casts.lua` (totem dedupe), `addon/Forte_Core/Core/Loader.lua` (test-runner gap), `tools/gen_spell_data.py` + `addon/Forte_Timer/Core/Registry.lua` feeds (`tickEvery`/`maxStack`/`noTarget`) + regeneration | a totem cast draws one row (the slot row); class suites run the class addon's real Lua; the three feeds from base data | each with a test failing on old code; full gate incl. determinism |
 | F-C Small fixes | `fx-worker` `SmallFixes` | `scripts/uif_battery.js` (scope the visible-row count to the addon list panel), `docs/messages-sounds.md` (20 cast announces, Seduction pet feed live), `addon/Forte_Options/Pages/Cooldown.lua` (an "Item proc timers (experimental)" checkbox for `Cooldown.Procs`, default off) | as listed | checkbox test; battery mock; gate PASS |
 
-Then: fixes from review 5, options fixes from H8s, full battery, PLAN §6 refresh.
+**Wave 3 accepted (`7550ed6`, `e79d290`):** Shard Spy + Summon queue rows; one Spell Timer row per Shaman totem; the loader
+now detects "listed but not run" addons (class suites used to drive substitutes — root cause of several soft tests);
+experimental item-proc checkbox; battery 15/15 live (its row matcher looked for `Forte_` while the site lists "Forte
+Cooldown"). Review 5: 0 blockers, every event payload order correct. Gate PASS **604**.
+
+**Wave 4 (dispatched 2026-11-03; disjoint files; fix lists in `docs/research/options-fidelity.md` §"Prioritized fix list" and `docs/review/2026-11-02-code-review-5.md`)**
+
+| Slice | Agent | Owns | Deliverable | Acceptance |
+|---|---|---|---|---|
+| Options CD | `fx-worker` `OptionsCD` | `addon/Forte_Options/Pages/{General,Cooldown,Splash}.lua` (whichever exist), `addon/Forte_Cooldown/UI/{Timeline,Splash}.lua`, their tests | fix-list items 2 (labels on these pages), 3 (`AltTimeFormat` default → true per `Forte_Core.lua:2493`), 4 (Alpha/AlphaMax, IconTime + IconTextColor, the four range filters, per-bar Splash + SplashFactor) each with a live consumer | every new key changes the bar through the real setter path (test), defaults per the original, gate PASS, manager capture |
+| Options Timer | `fx-worker` `OptionsTimer` | the Spell Timer options page, `addon/Forte_Timer/UI/*.lua`, their tests | items 2 (Timer labels), 3 (Timer `Max` + `ColourExpired` defaults per the original), 5 (Blink + FadeTime, TicksNext, Outwands + Flip, unit label height) each with a live consumer | as above |
+| Options WL+Msg | `fx-worker` `OptionsWL` | `addon/Forte_Messages/**`, `addon/Forte_Warlock/**` | items 1 (Sound page Soulstone Fade/Ready rows + their signal), 6 (RaidMsg Seduce/SpellLock/DevourMagic trios + Soulstone Start/Cancel + whispers — **no Death Knight rows**, all default OFF per E2, keys from the live data), 7 (Warlock page rows: Healthstone spy-bar colours + Details/Auto/Space/Interval, Soulstone Expand + Ready-look gate, Summon Details/Expand); review-5 minors in these trees (duplicate `spec` key, `src` citation offsets) | as above |
+| Review 5 tests | `fx-worker` `ReviewFix5` | `addon/Forte_Cooldown/tests/test_procs.lua`, `addon/Forte_Core/tests/test_locale.lua`, `addon/Forte_Timer/tests/test_module.lua` + a new Timer test file | real-frame payload tests for `UNIT_AURA`→Procs, Locale's `GET_ITEM_INFO_RECEIVED`/`ITEM_DATA_LOAD_RESULT`, the Timer's `UNIT_DIED`; `test_module.lua:984` SENT in the 4-slot shape; minors outside the other slices' trees (list the rest) | each new test proven to bite (break the handler temporarily) |
+| Feeds | `fx-worker` `Feeds` | `tools/gen_spell_data.py`, `addon/Forte_Timer/Core/Registry.lua`, generated `addon/Forte_*/Data/*.lua`, a new `addon/Forte_Timer/tests/test_data_feeds.lua` | `tickEvery` / `maxStack` / `noTarget` from base data (TimerFollow's notes: `Effects[].PeriodMs`, `MaxStack`, caster-only `TargetUnit`), read by `Registry:Build` | a DoT's tick interval + a stacking aura in the registry (test), full gate incl. determinism |
+
+Later: Advanced page v1 (fix-list item 8), cosmetic backlog (item 9).
 
 **H10 Data refresh (owner request 2026-11-02, runs beside wave 1)**
 
