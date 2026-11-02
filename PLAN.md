@@ -686,9 +686,17 @@ garbage/tick; capture unchanged). Gate PASS **502**; live battery 14/14.
 - H6 group Warlock tools; H7 proc display behind an off flag (uses D3's ICDs); Items procs split (perf fix 1) with H7's load path.
 - Rulings recorded: Q3 combat procs stay after the launch-day probes, Rapture dead (no spell row); Q4 PvP durations out of scope.
 
-**Wave 3**
-- H8 Options fidelity pass vs the original option tree (after class pages exist).
-- H9 Review 5 over all wave 1–2 code (`fx-scout`), fixes, full uiforever battery via `scripts/uif_battery.js`, PLAN §6 refresh.
+**Wave 3 (dispatched 2026-11-02 after Hunter swing v2; disjoint files)**
+
+| Slice | Agent | Owns | Deliverable | Acceptance |
+|---|---|---|---|---|
+| H9 Review 5 | `fx-scout` `CodeReview5` | `docs/review/2026-11-02-code-review-5.md` only | fresh-eyes review of everything since review 4 (`git log 4cf0cf0..HEAD`): Locale, Settings/Profiles, data overlay, Messages cast announces, Shaman totems, pet rows, Warlock comms, Procs, Hunter swing v2 — law violations, **event payload orders vs the catalog for every registered event** (the swing bug class), secret-value handling, real-client hazards, dead settings | ranked findings with file:line + fix; what was checked clean |
+| H8s Options survey | `fx-scout` `OptionsScout` | `docs/research/options-fidelity.md` only | compare our options pages against the original's option tree (`/tmp/fxref/Forte_*/*.lua` `AddOption`/`SetSubCategory`/`SetMainCategory` calls, `Forte_Core/Options.lua`): per page, missing/extra/renamed options, order, labels, defaults | per-page diff table with original file:line |
+| F-A Warlock spy rows | `fx-worker` `SpyRows` | `addon/Forte_Warlock/UI/Shards.lua`, `UI/Summon.lua`, their tests | Shard Spy + Summon queue rows on the plates (the `ExtraRow` + `SetSpy` seams WarlockGroup left), original look per `Forte_Summon`/shard spy source | rows appear via a stubbed CHAT_MSG_ADDON through the real frame; gate PASS |
+| F-B Timer follow-ups | `fx-worker` `TimerFollow` | `addon/Forte_Timer/Core/Casts.lua` (totem dedupe), `addon/Forte_Core/Core/Loader.lua` (test-runner gap), `tools/gen_spell_data.py` + `addon/Forte_Timer/Core/Registry.lua` feeds (`tickEvery`/`maxStack`/`noTarget`) + regeneration | a totem cast draws one row (the slot row); class suites run the class addon's real Lua; the three feeds from base data | each with a test failing on old code; full gate incl. determinism |
+| F-C Small fixes | `fx-worker` `SmallFixes` | `scripts/uif_battery.js` (scope the visible-row count to the addon list panel), `docs/messages-sounds.md` (20 cast announces, Seduction pet feed live), `addon/Forte_Options/Pages/Cooldown.lua` (an "Item proc timers (experimental)" checkbox for `Cooldown.Procs`, default off) | as listed | checkbox test; battery mock; gate PASS |
+
+Then: fixes from review 5, options fixes from H8s, full battery, PLAN §6 refresh.
 
 **H10 Data refresh (owner request 2026-11-02, runs beside wave 1)**
 
