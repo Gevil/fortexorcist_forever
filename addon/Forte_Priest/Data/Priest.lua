@@ -2,7 +2,7 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T17:29:01+00:00
+-- Regenerated: 2026-11-02T19:08:53+00:00
 -- 70707 overlay changes in this file (1):
 --   Shadowguard: { id = 19312, name = "Shadowguard", durationMs = 600000, gcdMs = 1500, rank = "Rank 6" } -> { id = 19312, name = "Shadowguard", durationMs = 600000, gcdMs = 1500, icdMs = 3500, rank = "Rank 6" }
 
@@ -18,6 +18,9 @@ ForteXorcist.Data.Priest = {
   [402789] = { id = 402789, name = "Eye of the Void", durationMs = 30000, cooldownMs = 180000, gcdMs = 1500 },
   [402799] = { id = 402799, name = "Homunculi", durationMs = 120000, cooldownMs = 120000, gcdMs = 1500 },
   [425204] = { id = 425204, name = "Void Plague", durationMs = 18000, cooldownMs = 6000, gcdMs = 1500 },
+  [19280] = { id = 19280, name = "Devouring Plague", durationMs = 24000, cooldownMs = 24000, cooldownCategory = 691, gcdMs = 1500, rank = "Rank 6" },
+  [1240827] = { id = 1240827, name = "Prayer of Mending", cooldownMs = 10000, cooldownCategory = 1181, gcdMs = 1500, rank = "Rank 3" },
+  [10947] = { id = 10947, name = "Mind Blast", cooldownMs = 8000, cooldownCategory = 19, gcdMs = 1500, castMs = 1500, rank = "Rank 9" },
   -- discipline_pd
   [10938] = { id = 10938, name = "Power Word: Fortitude", durationMs = 3600000, gcdMs = 1500, rank = "Rank 6" },
   [10901] = { id = 10901, name = "Power Word: Shield", durationMs = 30000, cooldownMs = 4000, cooldownCategory = 56, gcdMs = 1500, rank = "Rank 10" },
@@ -47,6 +50,11 @@ ForteXorcist.Data.Priest = {
   [10942] = { id = 10942, name = "Fade", durationMs = 10000, cooldownMs = 30000, cooldownCategory = 82, gcdMs = 1500, rank = "Rank 6" },
   [552] = { id = 552, name = "Abolish Disease", durationMs = 20000, gcdMs = 1500 },
   [28810] = { id = 28810, name = "Armor of Faith", durationMs = 30000 },
+  [402668] = { id = 402668, name = "Vampiric Touch", durationMs = 15000, gcdMs = 1500, castMs = 1500 },
+  [425277] = { id = 425277, name = "Renew", durationMs = 15000, gcdMs = 1500, rank = "Rank 10" },
+  [15261] = { id = 15261, name = "Holy Fire", durationMs = 10000, gcdMs = 1500, castMs = 3500, rank = "Rank 8" },
+  [18807] = { id = 18807, name = "Mind Flay", durationMs = 3000, gcdMs = 1500, rank = "Rank 6" },
+  [413259] = { id = 413259, name = "Mind Sear", durationMs = 6000, gcdMs = 1500 },
   -- utility
   [15473] = { id = 15473, name = "Shadowform", durationMs = -1, cooldownMs = 1500, cooldownCategory = 39, gcdMs = 1500 },
   [988] = { id = 988, name = "Dispel Magic", gcdMs = 1500, rank = "Rank 2" },
@@ -71,6 +79,9 @@ ForteXorcist.Data.PriestByName = {
   ["Eye of the Void"] = 402789,
   ["Homunculi"] = 402799,
   ["Void Plague"] = 425204,
+  ["Devouring Plague"] = 19280,
+  ["Prayer of Mending"] = 1240827,
+  ["Mind Blast"] = 10947,
   ["Power Word: Fortitude"] = 10938,
   ["Power Word: Shield"] = 10901,
   ["Power Word: Barrier"] = 425207,
@@ -98,6 +109,11 @@ ForteXorcist.Data.PriestByName = {
   ["Fade"] = 10942,
   ["Abolish Disease"] = 552,
   ["Armor of Faith"] = 28810,
+  ["Vampiric Touch"] = 402668,
+  ["Renew"] = 425277,
+  ["Holy Fire"] = 15261,
+  ["Mind Flay"] = 18807,
+  ["Mind Sear"] = 413259,
   ["Shadowform"] = 15473,
   ["Dispel Magic"] = 988,
   ["Cure Disease"] = 528,

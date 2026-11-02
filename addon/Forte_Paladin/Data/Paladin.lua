@@ -2,7 +2,7 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T17:29:01+00:00
+-- Regenerated: 2026-11-02T19:08:53+00:00
 -- 70707 overlay changes in this file (9):
 --   Swift Judgement: { id = 1310994, name = "Swift Judgement", durationMs = -1, cooldownMs = 60000 } -> { id = 1310994, name = "Swift Judgement", cooldownMs = 60000 }
 --   Blessing of Light: { id = 19979, name = "Blessing of Light", durationMs = 3600000, gcdMs = 1500, rank = "Rank 3" } -> { id = 26650, name = "Blessing of Light" }
@@ -38,6 +38,8 @@ ForteXorcist.Data.Paladin = {
   [407778] = { id = 407778, name = "Divine Storm", cooldownMs = 10000, gcdMs = 1500 },
   [458856] = { id = 458856, name = "Divine Light", cooldownMs = 8000, gcdMs = 1500, castMs = 2500 },
   [440658] = { id = 440658, name = "Shield of Righteousness", cooldownMs = 6000, cooldownCategory = 1209, gcdMs = 1500 },
+  [20928] = { id = 20928, name = "Holy Shield", durationMs = 10000, cooldownMs = 10000, cooldownCategory = 931, gcdMs = 1500, rank = "Rank 3" },
+  [1311606] = { id = 1311606, name = "Holy Shock", cooldownMs = 10000, cooldownCategory = 892, gcdMs = 1500, rank = "Rank 1" },
   -- buffs
   [1020] = { id = 1020, name = "Divine Shield", durationMs = 12000, cooldownMs = 300000, cooldownCategory = 37, gcdMs = 1500, rank = "Rank 2" },
   [5573] = { id = 5573, name = "Divine Protection", durationMs = 8000, cooldownMs = 300000, cooldownCategory = 37, gcdMs = 1500, rank = "Rank 2" },
@@ -51,6 +53,9 @@ ForteXorcist.Data.Paladin = {
   [20729] = { id = 20729, name = "Blessing of Sacrifice", durationMs = 30000, cooldownCategory = 25, gcdMs = 1500, rank = "Rank 2" },
   [10278] = { id = 10278, name = "Blessing of Protection", durationMs = 10000, cooldownMs = 300000, cooldownCategory = 20, gcdMs = 1500, rank = "Rank 3" },
   [10326] = { id = 10326, name = "Turn Undead", durationMs = 20000, cooldownMs = 30000, cooldownCategory = 33, gcdMs = 1500, castMs = 1500, rank = "Rank 3" },
+  [409906] = { id = 409906, name = "Beacon of Light" },
+  [1326084] = { id = 1326084, name = "Reckoning", durationMs = -1 },
+  [409932] = { id = 409932, name = "Aura Mastery" },
   -- auras
   [20423] = { id = 20423, name = "Seal of Fury", durationMs = 30000, gcdMs = 1500, rank = "Rank 7" },
   [20293] = { id = 20293, name = "Seal of Righteousness", durationMs = 30000, gcdMs = 1500, rank = "Rank 8" },
@@ -96,6 +101,8 @@ ForteXorcist.Data.PaladinByName = {
   ["Divine Storm"] = 407778,
   ["Divine Light"] = 458856,
   ["Shield of Righteousness"] = 440658,
+  ["Holy Shield"] = 20928,
+  ["Holy Shock"] = 1311606,
   ["Divine Shield"] = 1020,
   ["Divine Protection"] = 5573,
   ["Blessing of Kings"] = 20217,
@@ -108,6 +115,9 @@ ForteXorcist.Data.PaladinByName = {
   ["Blessing of Sacrifice"] = 20729,
   ["Blessing of Protection"] = 10278,
   ["Turn Undead"] = 10326,
+  ["Beacon of Light"] = 409906,
+  ["Reckoning"] = 1326084,
+  ["Aura Mastery"] = 409932,
   ["Seal of Fury"] = 20423,
   ["Seal of Righteousness"] = 20293,
   ["Seal of Command"] = 20920,

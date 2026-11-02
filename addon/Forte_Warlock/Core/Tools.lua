@@ -699,12 +699,22 @@ M.Healthstone = WK.NewHealthstoneTracker({
 })
 M.Summon = WK.NewSummonTracker({ channelSeconds = WK.DeriveSummonChannelSeconds() })
 
+-- ============================================================ group comms
+-- The H6 transport (Core/Comms.lua) rides THIS module: the gate's load probe
+-- expects the Warlock add-on to carry exactly `Warlock` + `WarlockUI`, so
+-- Comms has no FX.RegisterModule of its own -- enable, class gate and status
+-- all pass through here. (Core/Group.lua is its state model.)
+M.Comms = FX.Warlock.Comms
+
 --- One bag-driven pass: shard count (bag source) + healthstone presence and
 --- item cooldown. Every read inside is pcall'd and secret-guarded.
 function M:ReadItems()
     self.Shards:Read(nil, "bag")
     self.Healthstone:ReadCounts()
     self.Healthstone:ReadCooldown()
+    -- The comms announce half: change-gated + rate-gated inside (the header
+    -- rate law of Core/Comms.lua; solo sends never leave the client).
+    if M.Comms then M.Comms:AnnounceState() end
 end
 
 --- The event frame's dispatcher. Payload orders are the catalog's (all
@@ -725,17 +735,23 @@ local function onToolEvent(self, event, a1, a2, a3, a4)
         local target = resolveTargetName(a2)
         if name then
             self.Soulstone:OnCastSent(name, target)
-            self.Summon:OnCastSent(name, target)
+            if self.Summon:OnCastSent(name, target) and M.Comms then
+                M.Comms:OnSelfSummon("start", target)
+            end
         end
     elseif event == "UNIT_SPELLCAST_START"
         or event == "UNIT_SPELLCAST_CHANNEL_START" then
         local name = castKey(a3)
-        if name then self.Summon:OnCastStart(name) end
+        if name and self.Summon:OnCastStart(name) and M.Comms then
+            M.Comms:OnSelfSummon("start", self.Summon.target)
+        end
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         local name = castKey(a3)
         if not name then return end
         self.Soulstone:OnCast(name)
-        self.Summon:End(name, "succeeded")
+        if self.Summon:End(name, "succeeded") and M.Comms then
+            M.Comms:OnSelfSummon("end")
+        end
         if name:find("^Create ") then
             -- A `Create *` success is the moment the bag changes; the bag
             -- events confirm it a moment later.
@@ -746,9 +762,9 @@ local function onToolEvent(self, event, a1, a2, a3, a4)
         or event == "UNIT_SPELLCAST_INTERRUPTED"
         or event == "UNIT_SPELLCAST_CHANNEL_STOP" then
         local name = castKey(a3)
-        if name then
-            self.Summon:End(name, event == "UNIT_SPELLCAST_FAILED"
-                and "failed" or "cancelled")
+        if name and self.Summon:End(name, event == "UNIT_SPELLCAST_FAILED"
+                and "failed" or "cancelled") and M.Comms then
+            M.Comms:OnSelfSummon("end")
         end
     elseif event == "BAG_UPDATE_DELAYED" then
         self:ReadItems()
@@ -879,6 +895,9 @@ function M:OnEnable()
     -- for every player class.
     if FX._playerClass ~= "WARLOCK" then return end
     self:EnableEvents()
+    -- The H6 comms (Core/Comms.lua): prefix registration, the CHAT_MSG_ADDON
+    -- and GROUP_* frame. Rides this module's class gate (see above).
+    if M.Comms then M.Comms:OnEnable() end
 end
 
 --- Core FX.RefreshPlayerClass notification (the uiforever T4 class guard):
@@ -886,8 +905,10 @@ end
 function M:OnClassChanged(classFile)
     if classFile == "WARLOCK" then
         self:EnableEvents()
+        if M.Comms then M.Comms:OnEnable() end
     else
         self:DisableEvents()
+        if M.Comms then M.Comms:OnClassChanged(classFile) end
     end
 end
 
@@ -895,6 +916,9 @@ end
 --- calls every module's Status, Forte_Core/Core/Init.lua).
 function M:Status()
     FX.Print(self:StatusLine())
+    if M.Comms and M.Comms.StatusLine and M.Comms.group then
+        FX.Print(M.Comms:StatusLine())
+    end
 end
 
 FX.RegisterModule("Warlock", M)

@@ -17,8 +17,10 @@
 --
 -- THE SHIPPED-DEFAULT LAW (the manager ruling of 2026-11-02 on review 4 E2):
 -- EVERY group/channel announce on this page ships OFF -- the three announce
--- rows AND all twelve fade/break checkboxes. A default install therefore
--- never speaks to a party or a raid without one click per row. The verbatim
+-- rows, all twelve fade/break checkboxes, and all 40 cast-announce
+-- checkboxes (the 20 rows x group/channel, wave 2b T2). A default install
+-- therefore never speaks to a party or a raid without one click per row.
+-- The verbatim
 -- half is the TEXTS (and the texts' fade thresholds); the source's own
 -- `{[0]=bits}` values ride each row's `bits` field and are named in that
 -- row's section tip -- the source ships Banish/Enslave/Seduction party-ON
@@ -64,15 +66,16 @@ local M = "RaidMsg"
 -- `wowsims/forever` (`164d1cf6`) `sim/core/spelldata/spells_auto_gen.go`:
 -- `6358 Seduction`, `6359 Seduction` (ranks), `24594 Mesmerize`, alongside
 -- `Devour Magic`, `Spell Lock`, `Soothing Kiss`, `Lash of Pain`, `Suffering`.
--- The pair is therefore LIVE data, and the reason the two sections are still
--- silent is narrower and structural: they are the PET's casts, and
--- Forte_Timer registers the cast spine for `player` only -- no pet-cast row,
--- no row of the name, no threshold read, nothing to fire. The pet-cast rows
--- are wave 2b (PLAN §11.1 "PetRows v2"), which lights these two rows; the
--- generated data rows arrive with wave 2a D3. `Seduction` 6358 is already a
--- generated Warlock row, and `Mesmerize` 24594 lands as its name row. The
--- rows and their texts ship so the owner sees the pair (the census, review 4
--- E2) and the tip names the real gate. Mesmerize shares the Seduction rows
+-- The pair is LIVE data, and the pair is LIVE behaviour as of wave 2b's
+-- "PetRows v2": Forte_Timer registers the cast spine for the **pet** unit
+-- too (its `Core/Casts.lua` + `Module.lua` pet registration), so a pet
+-- Seduction inserts a row and the shared FADING/BROKEN sites light this
+-- pair and the Mesmerize alias that shares it (Mesmerize has no durationMs
+-- in the data, so no own row; the fade/break keys alias onto Seduction per
+-- `P.FADE_SPELL_KEYS`). `Seduction` 6358 is a generated Warlock row and
+-- `Mesmerize` 24594 lands as its name row (wave 2a D3). The rows and their
+-- texts ship so the owner sees the pair (the census, review 4 E2) and the
+-- tip names the live feed. Mesmerize shares the Seduction rows
 -- (ST:RegisterOnTimerFade(mesmerize,"SeduceFade"), Warlock.lua:250).
 P.FADE_ROWS = {
     { prefix = "Fear", spell = "Fear", bits = 0,
@@ -94,15 +97,16 @@ P.FADE_ROWS = {
         fade = ">> Seduction on %s Fading in 3 seconds! <<",
         brk = ">> Seduction on %s Broke Early! <<",
         note = "The source ships this ON (party bits 1, Warlock.lua:372-391) "
-            .. "- tick to restore. Silent on this build for ONE structural "
-            .. "reason: these are the Succubus PET's casts, and Forte_Timer "
-            .. "registers the cast spine for the player only, so no pet-cast "
-            .. "row of the name exists to carry a fade threshold. The spells "
-            .. "themselves are live on the 70707 client (the client's own "
-            .. "spell store: Seduction 6358/6359, Mesmerize 24594 - the "
+            .. "- tick to restore. LIVE: this pair fires from the Succubus "
+            .. "PET's own casts - Forte_Timer's pet cast feed (its Casts/"
+            .. "Module pet registration, wave 2b 'PetRows v2') inserts the "
+            .. "row of a pet Seduction and its FADING/BROKEN rides the "
+            .. "shared sites, so the fade/break announces light with the "
+            .. "boxes ticked. The spells are live 70707 data (the client's "
+            .. "own spell store: Seduction 6358/6359, Mesmerize 24594 - the "
             .. "Iteration G 'no such spell' verdict measured the 70425 data "
-            .. "set and the simulator only); pet-cast rows are wave 2b, and "
-            .. "they light this pair and the Mesmerize alias that shares it. "
+            .. "set and the simulator only); the Mesmerize alias shares "
+            .. "this pair (no durationMs of its own, so no own row). "
             .. "See docs/messages-sounds.md.",
     },
     { prefix = "Polymorph", spell = "Polymorph", bits = 0,
@@ -118,6 +122,209 @@ P.FADE_SPELL_KEYS = {
     Fear = "Fear", Banish = "Banish", ["Subjugate Demon"] = "Enslave",
     Seduction = "Seduction", Mesmerize = "Seduction",
     Polymorph = "Polymorph", Sap = "Sap",
+}
+
+-- THE CAST ANNOUNCE ROWS (wave 2b T2, `docs/class-port.md` S17: the 20
+-- `CA:RegisterOnSelfCastSuccess` + `CA:CastShow` raid warnings of
+-- Druid.lua:190-227, Paladin.lua:125-168 and Warrior.lua:79-104). The
+-- `P.FADE_ROWS` shape, one row per announced self-cast: the row's TEXTS and
+-- its `{[0]=bits}` value are the verbatim half (the texts are the
+-- originals', quoted below with their file:line), the SEND is the opt-in
+-- half: `prefix .. "Party"` / `prefix .. "Channel"` every one of them ships
+-- OFF (the shipped-default law, review 4 E2 - the manager ruling of
+-- 2026-11-02), so a fresh install never talks to a party about a cooldown
+-- the owner never asked it to talk about. `bits` records the source's own
+-- value (0 silent, 1 party; the source's own Vigilance row is the one row
+-- that ships silent, Warrior.lua:104) and the section tip names it.
+--
+-- The KEYS are the FOREVER names (the fade registry gate, review 4 E4, in
+-- the announce form): the hook matches the NAME the player's own cast event
+-- resolves to, so a key the client's spell set does not carry is an inert
+-- row - the row's note names exactly that, and the pair of them on this
+-- build are Ardent Defender (`31850`, no row in the 70425 pull nor in the
+-- 70707 store's Names table) and Salvation (`1038`, in the 70425 base data,
+-- REMOVED on 70707 - the generated Paladin data's own header records the
+-- drop). Renames are keyed on the FOREVER name and keep the source's text,
+-- the Subjugate Demon precedent: Hand of Freedom -> `Blessing of Freedom`,
+-- Hand of Protection -> `Blessing of Protection`, Hand of Sacrifice ->
+-- `Hand of Sacrifice` (462853, with the 2012 id 6940's Forever name
+-- `Blessing of Sacrifice` aliasing to the same row, the Mesmerize-shares-
+-- Seduction shape), Guardian of Ancient Kings -> `Avenging Wrath`
+-- (407788/409934 - the Paladin's own DR of the same family).
+--
+-- The `spec` field is the source's specialization gate, re-expressed on the
+-- PINNED pair (the 2012 globals `GetSpecialization`/`GetActiveSpecGroup` are
+-- absent from the catalog; `C_SpecializationInfo.GetSpecialization` +
+-- `C_SpecializationInfo.GetActiveSpecGroup` are in it,
+-- @SpecializationInfoDocumentation.lua:236/:40). Exactly one of the 20 rows
+-- carries a gate: Guardian of Ancient Kings was gated in the source
+-- (Paladin.lua:139), and its Forever name row is the same ret paladin DR.
+--
+-- Q5 (the owner ruling of 2026-11-02): the Druid rows carry PLAIN spell
+-- names. The source's `FWL._FERAL/_BEAR/_CAT` form suffixes
+-- (Druid/Localization.lua:73-88) label the form-paired BAR rows (the S16
+-- `SetCustomName` seam) - they are not announce labels, and none of the six
+-- Druid announce rows is form-paired.
+P.CAST_ROWS = {
+    { prefix = "Barkskin", spell = "Barkskin", bits = 1, key = "BSStart",
+        src = "Druid.lua:213", group = "Self Damage Reduction",
+        text = "+++ Barkskin (10 sec) +++",
+        note = "The source ships this ON (party bits 1) - tick to restore." },
+    { prefix = "SurvivalInstincts", spell = "Survival Instincts", bits = 1,
+        key = "SIStart", src = "Druid.lua:216",
+        group = "Self Damage Reduction",
+        text = "+++ Survival Instincts (12 sec) +++",
+        note = "The source ships this ON (party bits 1) - tick to restore." },
+    { prefix = "FrenziedRegeneration", spell = "Frenzied Regeneration",
+        bits = 1, key = "FRStart", src = "Druid.lua:219",
+        group = "Self Damage Reduction",
+        text = "+++ Frenzied Regeneration (20 sec) +++",
+        note = "The source ships this ON (party bits 1) - tick to restore." },
+    { prefix = "Rebirth", spell = "Rebirth", bits = 1, key = "RebirthStart",
+        src = "Druid.lua:223", group = "Other", target = true,
+        text = ">>> Rebirth on %s <<<",
+        note = "The source hands the target to this row (CastShow(t), "
+            .. "Druid.lua:200). The source ships it ON (party bits 1)." },
+    { prefix = "Innervate", spell = "Innervate", bits = 1,
+        key = "InnervateStart", src = "Druid.lua:226", group = "Other",
+        target = true, text = ">>> Innervate on %s <<<",
+        note = "The source hands the target (Druid.lua:202). The source "
+            .. "ships this ON (party bits 1)." },
+    { prefix = "Tranquility", spell = "Tranquility", bits = 1,
+        key = "TranquilityStart", src = "Druid.lua:229", group = "Other",
+        text = ">>> Tranquility up <<<",
+        note = "No target in the source's text (Druid.lua:204). The source "
+            .. "ships this ON (party bits 1)." },
+    { prefix = "AuraMastery", spell = "Aura Mastery", bits = 1,
+        key = "AMStart", src = "Paladin.lua:151",
+        group = "Raid Damage Reduction", text = "+++ Aura Mastery (6sec) +++",
+        note = "The source's 2012 id 31821 has no Forever row; the name "
+            .. "does (the 70707 store's Names table carries Aura Mastery "
+            .. "409932), and the announce keys on the NAME. The source "
+            .. "ships this ON (party bits 1)." },
+    { prefix = "Salvation", spell = "Salvation", bits = 1, key = "SalvStart",
+        src = "Paladin.lua:154", group = "Hands", target = true,
+        text = "+++ Salvation on %s (10sec) +++",
+        note = "INERT ON THIS BUILD, for one named reason: the spell is "
+            .. "gone. 1038 is a row of the 70425 base data and the 70707 "
+            .. "store dropped it - the generated Paladin data's header "
+            .. "records 'Salvation: id(s) 1038 removed on 70707 - the name "
+            .. "is gone from the build's Names table'. No cast of the name "
+            .. "can reach the hook, so the row cannot fire. The source "
+            .. "ships this ON (party bits 1)." },
+    { prefix = "Sacrifice", spell = "Hand of Sacrifice", bits = 1,
+        key = "SacStart", src = "Paladin.lua:156", group = "Hands",
+        target = true, text = "+++ Sacrifice on %s (12sec) +++",
+        note = "Forever's 462853 Hand of Sacrifice is the key; the source's "
+            .. "2012 id 6940 lives on as the Forever name Blessing of "
+            .. "Sacrifice (20729), which aliases to this row the way "
+            .. "Mesmerize shares the Seduction rows. The source ships "
+            .. "this ON (party bits 1)." },
+    { prefix = "Freedom", spell = "Blessing of Freedom", bits = 1,
+        key = "FreeStart", src = "Paladin.lua:158", group = "Hands",
+        target = true, text = "+++ Freedom on %s (6sec) +++",
+        note = "The 2012 Hand of Freedom is Forever's Blessing of Freedom "
+            .. "(1044) - the key is the Forever name, the text the "
+            .. "source's. The source ships this ON (party bits 1)." },
+    { prefix = "HandOfProtection", spell = "Blessing of Protection", bits = 1,
+        key = "BOPStart", src = "Paladin.lua:160", group = "Hands",
+        target = true, text = "+++ Hand of Protection on %s (12sec) +++",
+        note = "The 2012 Hand of Protection is Forever's Blessing of "
+            .. "Protection (10278). The source ships this ON (party bits 1)." },
+    { prefix = "DivineProtection", spell = "Divine Protection", bits = 1,
+        key = "DPStart", src = "Paladin.lua:162",
+        group = "Self Damage Reduction",
+        text = "+++ Divine Protection (10sec) +++",
+        note = "The source ships this ON (party bits 1)." },
+    { prefix = "GuardianOfAncientKings", spell = "Avenging Wrath", bits = 1,
+        key = "GOTAKStart", src = "Paladin.lua:164", spec = 2,
+        group = "Self Damage Reduction",
+        text = "+++ Guardian of Ancient Kings (12sec) +++",
+        spec = 2,
+        note = "The 2012 Guardian of Ancient Kings (86659/86669) has no "
+            .. "row on either build; Forever's Paladin DR of that family "
+            .. "is Avenging Wrath (407788/409934), which is the key, the "
+            .. "text the source's (the Subjugate Demon shape). The source "
+            .. "gates this row on the specialization (Paladin.lua:139, "
+            .. "GetSpecialization(...) == 2); the row's OWN key spell is "
+            .. "spec-specific on this build, so no gate is enforced (the "
+            .. "'spec' field records the source's gate - the pinned "
+            .. "C_SpecializationInfo pair, the row's `spec` field) as an "
+            .. "OPEN item for a build where a shared name meets the row. "
+            .. "The source ships this ON (party bits 1)." },
+    { prefix = "ArdentDefender", spell = "Ardent Defender", bits = 1,
+        key = "ADStart", src = "Paladin.lua:166",
+        group = "Self Damage Reduction",
+        text = "+++ Ardent Defender (10sec) +++",
+        note = "INERT ON THIS BUILD, for one named reason: the 2012 spell "
+            .. "(31850) has no row in the 70425 pull and no name in the "
+            .. "70707 store's Names table, so no cast of it can reach the "
+            .. "hook. The source ships this ON (party bits 1)." },
+    { prefix = "ShieldWall", spell = "Shield Wall", bits = 1, key = "SWStart",
+        src = "Warrior.lua:100", group = "Self Damage Reduction",
+        text = "+++ Shield Wall (12 sec) +++",
+        note = "The source ships this ON (party bits 1)." },
+    { prefix = "LastStand", spell = "Last Stand", bits = 1, key = "LSStart",
+        src = "Warrior.lua:101", group = "Self Damage Reduction",
+        text = "+++ Last Stand (20 sec) +++",
+        note = "The source ships this ON (party bits 1)." },
+    { prefix = "RallyingCry", spell = "Rallying Cry", bits = 1, key = "RCStart",
+        src = "Warrior.lua:98", group = "Raid Damage Reduction",
+        text = "+++ Rallying Cry (10 sec) +++",
+        note = "The source ships this ON (party bits 1)." },
+    { prefix = "EnragedRegeneration", spell = "Enraged Regeneration",
+        bits = 1, key = "ERStart", src = "Warrior.lua:102",
+        group = "Self Damage Reduction",
+        text = "+++ Enraged Regeneration (10 sec) +++",
+        note = "The 2012 id 55694's Forever row is 402913 of the same name. "
+            .. "The source ships this ON (party bits 1)." },
+    { prefix = "Intervene", spell = "Intervene", bits = 1,
+        key = "InterveneStart", src = "Warrior.lua:99",
+        group = "Raid Damage Reduction", target = true,
+        text = "+++ Intervene on %s (10 sec) +++",
+        note = "The source hands the target (Warrior.lua:95). The source "
+            .. "ships this ON (party bits 1)." },
+    { prefix = "Vigilance", spell = "Vigilance", bits = 0,
+        key = "VigilanceStart", src = "Warrior.lua:104", group = "Other",
+        target = true, text = ">>> Vigilance on %s (12 sec) <<<",
+        note = "The ONE row the source itself ships SILENT (bits 0, "
+            .. "Warrior.lua:104) - here the shipped default and the "
+            .. "source's bits agree. The source hands the target "
+            .. "(Warrior.lua:96)." },
+}
+
+-- The announce key table: the FOREVER spell name (plus the alias names) ->
+-- the row's prefix, the `P.FADE_SPELL_KEYS` shape. The hook canonicalizes
+-- the client's localized cast name onto the English data name first
+-- (`FX.Locale.CanonicalName`, H1b) and then asks this table, so a German
+-- `Schildwall` meets the Shield Wall row.
+P.CAST_SPELL_KEYS = {}
+do
+    for _ = 1, #P.CAST_ROWS do
+        local row = P.CAST_ROWS[_]
+        P.CAST_SPELL_KEYS[row.spell] = row.prefix
+    end
+    -- The aliases: the 2012 id 6940's Forever name shares the Sacrifice row.
+    P.CAST_SPELL_KEYS["Blessing of Sacrifice"] = "Sacrifice"
+end
+
+-- The class each row's source spell belongs to - the survey's split (docs/
+-- class-port.md S17: 6 Druid, 8 Paladin, 6 Warrior), the census' count. The
+-- announce itself is name-keyed and class-blind (a Warrior who somehow
+-- hears a `Blessing of Freedom` cast gets the Paladin row, the Soulstone
+-- family pattern's law): this table is the SHAPE record, so a row dropped
+-- or a class left short fails the census.
+P.CAST_ROW_CLASS = {
+    Barkskin = "Druid", SurvivalInstincts = "Druid",
+    FrenziedRegeneration = "Druid", Rebirth = "Druid", Innervate = "Druid",
+    Tranquility = "Druid",
+    AuraMastery = "Paladin", Salvation = "Paladin", Sacrifice = "Paladin",
+    Freedom = "Paladin", HandOfProtection = "Paladin",
+    DivineProtection = "Paladin", GuardianOfAncientKings = "Paladin",
+    ArdentDefender = "Paladin",
+    ShieldWall = "Warrior", LastStand = "Warrior", RallyingCry = "Warrior",
+    EnragedRegeneration = "Warrior", Intervene = "Warrior",
+    Vigilance = "Warrior",
 }
 
 P.DEFAULTS = P.DEFAULTS or {}
@@ -163,6 +370,14 @@ do
         P.DEFAULTS[M][row.prefix .. "FadeChannel"] = false
         P.DEFAULTS[M][row.prefix .. "BreakChannel"] = false
     end
+    -- E2, the same law for the 20 cast rows: the TEXTS are verbatim, the
+    -- SENDS ship OFF. A fresh install announces nothing to anybody.
+    for _ = 1, #P.CAST_ROWS do
+        local row = P.CAST_ROWS[_]
+        P.DEFAULTS[M][row.prefix .. "CastText"] = row.text
+        P.DEFAULTS[M][row.prefix .. "CastParty"] = false
+        P.DEFAULTS[M][row.prefix .. "CastChannel"] = false
+    end
 end
 
 P.WIDGET_TIPS = P.WIDGET_TIPS or {}
@@ -198,6 +413,23 @@ TIPS.SoulstoneChannel = "The SAY/YELL/channel twin. Applied live."
 TIPS.SoulstoneAnnounceText = "The original's text, verbatim: Soulstoned >> "
     .. "%%s << Use it well! (Warlock.lua:365). Applied live."
 
+-- The cast rows' tips, generated from the table (the fade rows' tips are
+-- generated the same way, in the section meta).
+do
+    for _ = 1, #P.CAST_ROWS do
+        local row = P.CAST_ROWS[_]
+        local src = "The source's " .. row.key .. " row (" .. row.src
+            .. "), the text verbatim. " .. (row.note or "")
+        TIPS[row.prefix .. "CastParty"] = "Announce to your party/raid when "
+            .. "YOU cast " .. row.spell .. " (opt-in). " .. src
+            .. " Applied live."
+        TIPS[row.prefix .. "CastChannel"] = "The SAY/YELL/channel twin of "
+            .. "the switch above. Applied live."
+        TIPS[row.prefix .. "CastText"] = "Template; %%s is your cast's "
+            .. "target. " .. src .. " Applied live."
+    end
+end
+
 function P.RegisterRaidMsgPage()
     local O = FX.Options
     if not O or not O.pages or not FX.Settings then return false end
@@ -212,7 +444,7 @@ function P.RegisterRaidMsgPage()
                 b.Tips({
                     "Announcements go to your RAID in a raid and to your PARTY in a party (the ToGroup law), to SAY/YELL/a channel on the channel half (the ToChannel law).",
                     "Inside instances the client locks addon chat (chat-messaging-lockdown): the gate then skips the send, counts it, and /fx messages shows the count -- nothing pretends a swallowed line went.",
-                    "Every announce row is opt-in: EVERY group and channel checkbox on this page ships OFF, so a default install sends nothing to anyone. The original's own bits ride each row's tip (Banish/Enslave/Seduction ship party-ON, Warlock.lua:372-391) - tick to restore.",
+                    "Every announce row is opt-in: EVERY group and channel checkbox on this page ships OFF (the three announce rows, the twelve fade/break boxes, the 40 cast-announce boxes), so a default install sends nothing to anyone. The original's own bits ride each row's tip (Banish/Enslave/Seduction ship party-ON, Warlock.lua:372-391; the 20 Druid/Paladin/Warrior cast rows ship party-ON too, and Warrior Vigilance is the one row the source ships silent) - tick to restore.",
                     "No raid-target data is read anywhere in this module (the target is your own cast's, the names your own events carry).",
                 })
                 b.Section("Master switches", function(s)
@@ -297,6 +529,32 @@ function P.RegisterRaidMsgPage()
                             .. "fade text's first number IS the warning "
                             .. "lead, ST_GetFadeTime, Forte_Timer.lua:"
                             .. "1590-1603). " .. (row.note or ""),
+                    })
+                end
+                -- The 20 cast announce rows, wave 2b T2. One section per
+                -- row, the rows grouped in the source's own groups. Three
+                -- controls each: the text, the group send, the channel
+                -- send. The sends ship OFF (E2), the texts verbatim.
+                for _ = 1, #P.CAST_ROWS do
+                    local row = P.CAST_ROWS[_]
+                    b.Section(row.spell .. " (cast)", function(s)
+                        s.STR({ module = M, key = row.prefix .. "CastText",
+                            label = "Text",
+                            tip = TIPS[row.prefix .. "CastText"] })
+                        s.CHK({ module = M, key = row.prefix .. "CastParty",
+                            label = "Announce to group (opt-in)",
+                            tip = TIPS[row.prefix .. "CastParty"] })
+                        s.CHK({ module = M, key = row.prefix .. "CastChannel",
+                            label = "Announce to channel (opt-in)",
+                            tip = TIPS[row.prefix .. "CastChannel"] })
+                    end, {
+                        tip = "Announces when YOU cast " .. row.spell
+                            .. " (the " .. row.key .. " row, " .. row.src
+                            .. "), the " .. row.group .. " group of the "
+                            .. "source's layout. Every send ships OFF "
+                            .. "(the shipped-default law); the source's "
+                            .. "own bits for this row are " .. row.bits
+                            .. " (0 silent, 1 party).",
                     })
                 end
                 b.Section("Soulstone", function(s)

@@ -2,9 +2,10 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T17:29:01+00:00
--- 70707 overlay changes in this file (1):
+-- Regenerated: 2026-11-02T19:08:53+00:00
+-- 70707 overlay changes in this file (2):
 --   Feint: { id = 25302, name = "Feint", cooldownMs = 10000, cooldownCategory = 82, gcdMs = 1000, rank = "Rank 5" } -> { id = 11303, name = "Feint", cooldownMs = 10000, cooldownCategory = 82, gcdMs = 1000, rank = "Rank 4" }
+--   Dismantle: { id = 442206, name = "Dismantle" } -> { id = 442206, name = "Dismantle", icdMs = 12000 }
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
@@ -33,6 +34,7 @@ ForteXorcist.Data.Rogue = {
   [11305] = { id = 11305, name = "Sprint", durationMs = 15000, cooldownMs = 300000, cooldownCategory = 44, rank = "Rank 3" },
   [410412] = { id = 410412, name = "Tease", durationMs = 3000, cooldownMs = 10000, cooldownCategory = 82 },
   [21975] = { id = 21975, name = "Vigor", durationMs = -1 },
+  [442206] = { id = 442206, name = "Dismantle", icdMs = 12000 },
   -- buffs
   [457351] = { id = 457351, name = "Blade Dance", durationMs = 30000 },
   [400024] = { id = 400024, name = "Cheating Death", durationMs = 3000 },
@@ -55,6 +57,10 @@ ForteXorcist.Data.Rogue = {
   [14143] = { id = 14143, name = "Remorseless", durationMs = 20000 },
   [457469] = { id = 457469, name = "Resilient", durationMs = 10000 },
   [449927] = { id = 449927, name = "Blood Corruption", durationMs = 15000 },
+  [412096] = { id = 412096, name = "Crimson Tempest", durationMs = 2000, gcdMs = 1000 },
+  [5760] = { id = 5760, name = "Mind-numbing Poison", durationMs = 10000, rank = "Rank 1" },
+  [2818] = { id = 2818, name = "Deadly Poison", durationMs = 12000, rank = "Rank 1" },
+  [399968] = { id = 399968, name = "Envenom" },
   -- stealth_utilities
   [1787] = { id = 1787, name = "Stealth", durationMs = -1, cooldownMs = 10000, cooldownCategory = 38, rank = "Rank 4" },
   [1857] = { id = 1857, name = "Vanish", cooldownMs = 300000, cooldownCategory = 39, rank = "Rank 2" },
@@ -88,6 +94,7 @@ ForteXorcist.Data.RogueByName = {
   ["Sprint"] = 11305,
   ["Tease"] = 410412,
   ["Vigor"] = 21975,
+  ["Dismantle"] = 442206,
   ["Blade Dance"] = 457351,
   ["Cheating Death"] = 400024,
   ["Deadly Poison V"] = 25349,
@@ -109,6 +116,10 @@ ForteXorcist.Data.RogueByName = {
   ["Remorseless"] = 14143,
   ["Resilient"] = 457469,
   ["Blood Corruption"] = 449927,
+  ["Crimson Tempest"] = 412096,
+  ["Mind-numbing Poison"] = 5760,
+  ["Deadly Poison"] = 2818,
+  ["Envenom"] = 399968,
   ["Stealth"] = 1787,
   ["Vanish"] = 1857,
   ["Sap"] = 11297,

@@ -1,16 +1,21 @@
 {
-  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Druid tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped -- re-check them after a mythicsim-forever-engine pull. Forever notes: the druid kit carries forms later Classic-era druids never got (Moonkin Form, Tree of Life, Travel/Aquatic/Dire Bear) and Forever additions in the base kit: Prowl (cat-38 stealth, shares the category with rogue Stealth), Cower, Primal Bite, Shifting Power, Swiftmend, Wild Rejuvenation, Wild Growth, Astral Power, Nature's Grasp, Savage Roar, Gift of the Wild, Force of Nature. There is NO Tiger's Fury, no Innervate-cost change, and Mangle is kept OUT on purpose: its only row in this build (409828) is filed under Family 3 (the Mage family code -- a data quirk, verified 2026-11-01), and the generator never takes a foreign-family row, not even via the uncoded fallback. Rebirth carries a 30-min shared category cooldown (category 26). Some names (Enrage, Growl, Thorns, Lacerate, Cure Poison) collide across families; the generator picks the highest-rank row globally, which is fine for name-keyed cast tracking.",
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Druid tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped -- re-check them after a mythicsim-forever-engine pull. Forever notes: the druid kit carries forms later Classic-era druids never got (Moonkin Form, Tree of Life, Travel/Aquatic/Dire Bear) and Forever additions in the base kit: Prowl (cat-38 stealth, shares the category with rogue Stealth), Cower, Primal Bite, Shifting Power, Swiftmend, Wild Rejuvenation, Wild Growth, Astral Power, Nature's Grasp, Savage Roar, Gift of the Wild, Force of Nature. There is NO Tiger's Fury, no Innervate-cost change, and Mangle is kept OUT on purpose: its only row in this build (409828) is filed under Family 3 (the Mage family code -- a data quirk, verified 2026-11-01), and the generator never takes a foreign-family row, not even via the uncoded fallback. Rebirth carries a 30-min shared category cooldown (category 26). Some names (Enrage, Growl, Thorns, Lacerate, Cure Poison) collide across families; the generator picks the highest-rank row globally, which is fine for name-keyed cast tracking. T1 (2026-11-02, docs/class-port.md 6.1 + PLAN 11.1 Q1/Q6 rulings): the reference's CAST spells are added -- cooldowns += Skull Bash (the bear stun), Berserk (the druid Berserker CD), Starfall (90 s category), Dash (the family-less Q6 mobility row, 30 s category); buffs += Lifebloom, Pounce + Pounce Bleed (the cat opener pair), Thrash (the family-less Q6 row, name-only in this build). The reference's proc/passive names for this class -- see _deferred_H7 -- ride with H7 (docs/design-combat-procs.md) after the launch-day probes.",
+  "_deferred_H7": [
+    "Clearcasting", "Living Seed", "Nature's Grace", "Savage Defense"
+  ],
   "cooldowns": [
     "Astral Power", "Barkskin", "Bash", "Challenging Roar", "Cower", "Enrage",
     "Feral Charge", "Frenzied Regeneration", "Growl", "Hurricane", "Innervate",
     "Nature's Grasp", "Nature's Swiftness", "Primal Bite", "Prowl", "Shifting Power",
-    "Survival Instincts", "Swiftmend", "Tranquility", "Wild Growth", "Wild Rejuvenation"
+    "Survival Instincts", "Swiftmend", "Tranquility", "Wild Growth", "Wild Rejuvenation",
+    "Skull Bash", "Berserk", "Starfall", "Dash"
   ],
   "buffs": [
     "Thorns", "Mark of the Wild", "Gift of the Wild", "Abolish Poison",
     "Entangling Roots", "Hibernate", "Soothe Animal", "Faerie Fire", "Moonfire",
     "Insect Swarm", "Rip", "Rake", "Lacerate", "Sunfire", "Demoralizing Roar",
-    "Savage Roar", "Rejuvenation", "Regrowth", "Fury of Stormrage", "Force of Nature"
+    "Savage Roar", "Rejuvenation", "Regrowth", "Fury of Stormrage", "Force of Nature",
+    "Lifebloom", "Pounce", "Pounce Bleed", "Thrash"
   ],
   "forms": [
     "Bear Form", "Cat Form", "Dire Bear Form", "Aquatic Form", "Travel Form",

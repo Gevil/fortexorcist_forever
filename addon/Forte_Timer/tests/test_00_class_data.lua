@@ -13,7 +13,24 @@
 local FX = ForteXorcist
 
 FX.LoadClassAddOn("HUNTER")
+-- `test_kinds.lua`'s census walks EVERY generated class list, so it has to see
+-- every class's data: the file-scope loads below are the census's own nine
+-- classes (the profile class -- the sim's default Paladin -- is already
+-- resident via the login path). Wave 2b T1's seven-class cast-spell cutover
+-- (docs/class-port.md §6.1) is what made the six loads load-bearing: without
+-- them the census prints SKIP for a class and its names go un-audited.
+FX.LoadClassAddOn("WARLOCK")
+FX.LoadClassAddOn("MAGE")
+FX.LoadClassAddOn("PRIEST")
+FX.LoadClassAddOn("DRUID")
+FX.LoadClassAddOn("ROGUE")
+FX.LoadClassAddOn("SHAMAN")
+FX.LoadClassAddOn("WARRIOR")
 
 test("the add-on whose data these fixtures are is loaded", function()
     assertNotNil(FX.Data and FX.Data.Hunter, "Forte_Hunter's data did not load")
+    for _, key in ipairs({ "Warlock", "Mage", "Priest", "Druid", "Paladin",
+                           "Rogue", "Shaman", "Warrior" }) do
+        assertNotNil(FX.Data and FX.Data[key], "Forte_" .. key .. "'s data did not load")
+    end
 end)

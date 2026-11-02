@@ -2,7 +2,7 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T17:29:01+00:00
+-- Regenerated: 2026-11-02T19:08:53+00:00
 -- 70707 overlay changes in this file (10):
 --   Flame Shock: { id = 29228, name = "Flame Shock", durationMs = 12000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 6" } -> { id = 10448, name = "Flame Shock", durationMs = 12000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 5" }
 --   Lightning Shield: { id = 28821, name = "Lightning Shield", durationMs = -1 } -> { id = 28821, name = "Lightning Shield", durationMs = -1, icdMs = 3500 }
@@ -39,6 +39,10 @@ ForteXorcist.Data.Shaman = {
   [425336] = { id = 425336, name = "Rage of the Farseer", durationMs = 25000, cooldownMs = 180000 },
   [437009] = { id = 437009, name = "Totemic Projection", durationMs = 1000, cooldownMs = 60000, gcdMs = 1500 },
   [21169] = { id = 21169, name = "Reincarnation", cooldownMs = 3600000, cooldownCategory = 1161 },
+  [17364] = { id = 17364, name = "Stormstrike", durationMs = 12000, cooldownMs = 8000, gcdMs = 1500 },
+  [1326047] = { id = 1326047, name = "Lava Burst", cooldownMs = 10000, cooldownCategory = 1224, gcdMs = 1500, castMs = 2500, rank = "Rank 4" },
+  [409944] = { id = 409944, name = "Ancestral Guidance" },
+  [23689] = { id = 23689, name = "Heroism", durationMs = -1 },
   -- buffs
   [28821] = { id = 28821, name = "Lightning Shield", durationMs = -1, icdMs = 3500 },
   [408514] = { id = 408514, name = "Earth Shield", durationMs = 600000, gcdMs = 1500, icdMs = 3500 },
@@ -107,6 +111,10 @@ ForteXorcist.Data.ShamanByName = {
   ["Rage of the Farseer"] = 425336,
   ["Totemic Projection"] = 437009,
   ["Reincarnation"] = 21169,
+  ["Stormstrike"] = 17364,
+  ["Lava Burst"] = 1326047,
+  ["Ancestral Guidance"] = 409944,
+  ["Heroism"] = 23689,
   ["Lightning Shield"] = 28821,
   ["Earth Shield"] = 408514,
   ["Water Shield"] = 408510,

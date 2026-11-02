@@ -22,6 +22,11 @@
 -- catalog, asserted by tests/test_events.lua):
 --   UNIT_SPELLCAST_SENT / START / SUCCEEDED / FAILED / INTERRUPTED  (unit events
 --                                                                  for "player")
+--   UNIT_SPELLCAST_SENT / SUCCEEDED                                (unit events
+--                                                                  for "pet" --
+--                                                                  the pet rows,
+--                                                                  wave 2b
+--                                                                  PetRows v2)
 --   UNIT_AURA (player/target), PLAYER_TARGET_CHANGED, PLAYER_REGEN_ENABLED,
 --   PLAYER_REGEN_DISABLED, ADDON_RESTRICTION_STATE_CHANGED, UNIT_DIED,
 --   PLAYER_LEAVING_WORLD, PLAYER_DEAD.
@@ -557,6 +562,16 @@ function M:OnEnable()
     f:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
     f:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
     f:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
+    -- The pet feed (wave 2b "PetRows v2", PLAN §11.1): the same family,
+    -- registered for the pet unit. SENT + SUCCEEDED only -- the pet has no
+    -- START/FAIL/INTERRUPT row law here (the original's pet half had no
+    -- fail band either: Forte_Casting.lua:653-664 ships Success/Failed/Start
+    -- to the CLASS add-on, never to the timer queue), and a pet event with
+    -- no pet to produce it is simply no event. The payload's leading unit
+    -- token is ours to read (a unit token is plain text), classified at the
+    -- callee -- that token is what routes the two feeds.
+    f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "pet")
+    f:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "pet")
     f:RegisterUnitEvent("UNIT_AURA", "player")
     f:RegisterUnitEvent("UNIT_AURA", "target")
     f:RegisterUnitEvent("UNIT_DIED", "target")
@@ -589,19 +604,36 @@ function M:OnEnable()
 end
 
 --- The event spine. The payload fields arrive as `a1..a4` and are classified
---- at the callee (PlainOrNil), never compared here.
+--- at the callee (PlainOrNil), never compared here. The ONE exception is the
+--- leading unit token `a1`: a unit token is OURS to read (plain text, the
+--- UNIT_AURA law below), and for the SPELLCAST family it is what tells the
+--- player's casts from the pet's (the registration set: the family rides for
+--- "player" AND for "pet"). The token is classified through PlainOrNil
+--- before the compare, and the pet branch hands the payload to the pet half
+--- of the feed; every non-pet token -- "player", a sealed read, the tests'
+--- token-free shape -- rides the v1 player path untouched.
 function M:OnEvent(event, a1, a2, a3, a4)
     local C = FX.Timer.Casts
+    local caster = FX.Compat.PlainOrNil(a1)
+    local isPet = type(caster) == "string" and caster == "pet"
     if event == "UNIT_SPELLCAST_SENT" then
         -- (unitTarget, target, castGUID, spellID)
-        C:OnSent(a2, a4)
+        if isPet then
+            C:OnPetSent(a2, a4)
+        else
+            C:OnSent(a2, a4)
+        end
     elseif event == "UNIT_SPELLCAST_START" then
         -- (unitTarget, castGUID, spellID, castID)
         C:OnStart(a3)
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         -- (unitTarget, castGUID, spellID, castBarID) -- the 4th field is
         -- tolerated (PLAN §8 mitigation 3)
-        C:OnSucceeded(a3)
+        if isPet then
+            C:OnPetSucceeded(a3)
+        else
+            C:OnSucceeded(a3)
+        end
     elseif event == "UNIT_SPELLCAST_FAILED" then
         -- (unitTarget, castGUID, spellID, reason, ...)
         C:OnFailed(a3, a2)

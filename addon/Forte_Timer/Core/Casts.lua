@@ -5,6 +5,26 @@
 -- the panel shows is born here, from our own cast events (owner ruling,
 -- PLAN.md:549).
 --
+-- The PET feed (wave 2b "PetRows v2", PLAN §11.1) rides the SAME spine: the
+-- original harvested the pet's casts from the combat log -- the `FW.pet`
+-- branch of `FC_OnEvent` (`/tmp/fxref/Forte_Casting/Forte_Casting.lua:835-855`,
+-- the `SPELL_CAST_START`/`SPELL_CAST_SUCCESS`/`SPELL_CAST_FAILED`/
+-- `SPELL_MISSED` sweep) -- and published them as the registration seam
+-- `CA:RegisterOnPetCastSuccess/Failed/Start` (`Forte_Casting.lua:653-664`),
+-- consumed by the Warlock add-on for the Succubus kit
+-- (`/tmp/fxref/Forte_Class/Warlock/Warlock.lua:197-219`: Devour Magic /
+-- Spell Lock on the SUCCESS, Seduction/Mesmerize on the START, the Seduce
+-- message naming `UnitName("pettarget")`). The log is closed on Forever
+-- (AGENTS.md, and it is exactly what design §4.1 names as closed here), so the
+-- modern feed is the same UNIT_SPELLCAST family registered for the `pet`
+-- unit (`frame:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "pet")`), the
+-- per-unit registration the family exists for. The target law of the record
+-- is the original's token list `FW.Default.UseTokens =
+-- "pet pettarget vehicle focus mouseover"` (`Forte_Casting.lua:880`): the
+-- pet's own target (`pettarget`) when it is readable, the player's target
+-- when it is not (the pet attacks what its master points at), the "none"
+-- window last -- the same three-way shape the Seduce message reads.
+--
 -- The four signals (all catalog-cited in docs/design-spell-timer.md §4.1, all
 -- `SecretWhenUnitSpellCastRestricted`; the event names are in the pinned
 -- Forever catalog and api_lint-checked):
@@ -200,10 +220,12 @@ function Casts:OnSent(target, spellID, now)
         return
     end
     -- A fresh SENT evicts the records of casts that never started (the
-    -- "garbage sent" sweep, Forte_Casting.lua:565-575).
+    -- "garbage sent" sweep, Forte_Casting.lua:565-575). The sweep is the
+    -- SELF feed's: a pet SENT is not a fresh self SENT, and the pet's own
+    -- OnPetSent runs the same law over the pet's own records.
     local q = self.queue
     for i = #q, 1, -1 do
-        if not q[i].started then
+        if not q[i].started and not q[i].pet then
             table.remove(q, i)
             st.evicted = st.evicted + 1
         end
@@ -216,19 +238,21 @@ function Casts:OnSent(target, spellID, now)
     end
     q[#q + 1] = {
         name = name, targetKey = key, targetString = plainTarget,
-        openedAt = now, started = false,
+        openedAt = now, started = false, pet = false,
     }
 end
 
 --- UNIT_SPELLCAST_START: mark the record as started. The row itself is created
---- by the success; the stamp keeps the eviction sweep honest.
+--- by the success; the stamp keeps the eviction sweep honest. The START is
+--- registered for "player" only, so the sweep touches only SELF records: a
+--- player START can not stamp the pet's record.
 function Casts:OnStart(spellID, now)
     now = now or self:Clock()
     local name = self:NameOf(spellID)
     if type(name) ~= "string" then return end
     for i = 1, #self.queue do
         local rec = self.queue[i]
-        if rec.name == name and not rec.started then
+        if rec.name == name and not rec.started and not rec.pet then
             rec.started = true
             rec.castStart = now
             return
@@ -238,15 +262,24 @@ end
 
 -- ------------------------------------------------------------ SUCCEEDED ----
 --- The settle: the record is consumed now, the row inserted SETTLE seconds
---- later by Pump (never on the event -- CA-04).
-function Casts:OnSucceeded(spellID, now)
+--- later by Pump (never on the event -- CA-04). `pet` marks the record's
+--- feed: the pet's success consumes the PET's record, a self success the
+--- SELF's, so a (name-shared) record of one feed can never be eaten by the
+--- other feed's event.
+function Casts:OnSucceeded(spellID, now, pet)
     now = now or self:Clock()
     local name = self:NameOf(spellID)
     if type(name) ~= "string" then return end
     local rec, idx
     for i = #self.queue, 1, -1 do
-        if self.queue[i].name == name then
-            rec = self.queue[i]
+        local rec0 = self.queue[i]
+        -- The feeds never eat each other's records: the pet's success
+        -- consumes a PET record, a self success a SELF one. (Both sides
+        -- normalize through `not not`: `false` and `nil` are the same
+        -- "self feed" answer and compare unequal in Lua.)
+        local sameFeed = (not not rec0.pet) == (not not pet)
+        if rec0.name == name and sameFeed then
+            rec = rec0
             idx = i
             break
         end
@@ -256,14 +289,96 @@ function Casts:OnSucceeded(spellID, now)
     else
         -- A lone SUCCEEDED with no SENT: the events are the same family, and
         -- a spell with no target information is a self window -- exactly one
-        -- row, the "none" key law (§3.3).
+        -- row, the "none" key law (§3.3). The pet's window is NOT a self
+        -- window: it keys on the pet's target (the PetTargetKey law).
         if not FX.Timer.Registry.IsTracked(name) then return end
-        rec = { name = name, targetKey = "none", openedAt = now }
+        local key = "none"
+        if pet then key = self:PetTargetKey() or "none" end
+        rec = { name = name, targetKey = key, openedAt = now, pet = pet }
     end
     local duration = FX.Timer.Registry.BestDuration(rec.name)
     if type(duration) ~= "number" or duration <= 0 then return end
     self:_schedule(now + (self.settle or Laws.SETTLE), "insert", rec.name,
         rec.targetKey, duration, now, self:HasteFactor(rec.name))
+end
+
+-- ------------------------------------------------------------------ PET ----
+--- The row key for a pet cast (the token law of Forte_Casting.lua:880,
+--- "pet pettarget ..."; the Seduce message's `UnitName("pettarget")` read,
+--- Forte_Class/Warlock/Warlock.lua:214): the PET's target when it is
+--- readable, the PLAYER's target when it is not (the pet attacks what its
+--- master points at), `nil` when neither answers -- the caller then rides
+--- the "none" window law. Every read is pcall'd (a sealed read RAISES) and
+--- every answer passes PlainOrNil; the string is only ever a KEY (the row's
+--- targetKey), never a value we compute on.
+function Casts:PetTargetKey()
+    if type(UnitName) ~= "function" then return nil end
+    for _, token in ipairs({ "pettarget", "target" }) do
+        local ok, name = pcall(UnitName, token)
+        local plain = ok and FX.Compat.PlainOrNil(name)
+        if type(plain) == "string" and plain ~= "" then return plain end
+    end
+    return nil
+end
+
+--- The pet SENT: the target capture. The payload's target string rides the
+--- same law as the self feed's (an OPAQUE key, classified through
+--- PlainOrNil, "none" when secret/absent), and the record carries the pet's
+--- feed marker so the settle consumes the right one.
+function Casts:OnPetSent(target, spellID, now)
+    now = now or self:Clock()
+    local st = self:InitStatus()
+    st.seen = st.seen + 1
+    local plainTarget = FX.Compat.PlainOrNil(target)
+    if FX.Compat.PlainOrNil(spellID) ~= nil then
+        st.plain = st.plain + 1
+    else
+        st.secret = st.secret + 1
+    end
+    local name = self:NameOf(spellID)
+    if type(name) ~= "string" then
+        st.unresolved = st.unresolved + 1
+        return
+    end
+    st.resolved = st.resolved + 1
+    -- The tracked-set gate is the class's (the registry built from the
+    -- player class's generated data -- the Warlock data's pet kit:
+    -- Seduction 6358, Spell Lock 19647, Lash of Pain 11780 ...). An
+    -- untracked pet spell (auto-attacks, a kit spell with no window in the
+    -- data) creates NOTHING.
+    if not FX.Timer.Registry.IsTracked(name) then
+        st.untracked = st.untracked + 1
+        return
+    end
+    local q = self.queue
+    for i = #q, 1, -1 do
+        if not q[i].started and q[i].pet then
+            table.remove(q, i)
+            st.evicted = st.evicted + 1
+        end
+    end
+    local key
+    if type(plainTarget) == "string" and plainTarget ~= "" then
+        key = plainTarget
+    else
+        key = self:PetTargetKey() or "none"
+    end
+    -- `started` rides false: the pet feed registers no START, so the pet's
+    -- own fresh SENT is what evicts an unfired pet record (the same "garbage
+    -- sent" law, applied inside the pet's own half of the queue), and the
+    -- QUEUE_FLUSH sweep in Pump is the record's 3 s ceiling.
+    q[#q + 1] = {
+        name = name, targetKey = key, targetString = plainTarget,
+        openedAt = now, started = false, pet = true,
+    }
+end
+
+--- The pet SUCCEEDED: the pet feed registers only SENT/SUCCEEDED (the
+--- assignment's set), so no START stamp marks these records started -- the
+--- pet's own SENT evicts the pet's stale records, and Pump's QUEUE_FLUSH
+--- (the same 3 s law, Forte_Casting.lua:602-611) is the record's ceiling.
+function Casts:OnPetSucceeded(spellID, now)
+    self:OnSucceeded(spellID, now, true)
 end
 
 function Casts:_schedule(at, kind, name, targetKey, duration, castTime, haste)
@@ -412,7 +527,9 @@ function Casts:OnFailed(spellID, target, now)
     if type(name) ~= "string" then return end
     local key
     for i = #self.queue, 1, -1 do
-        if self.queue[i].name == name then
+        -- The FAILED/INTERRUPTED registrations are the "player" half of the
+        -- family: the band consumes a SELF record only, never the pet's.
+        if self.queue[i].name == name and not self.queue[i].pet then
             key = self.queue[i].targetKey
             table.remove(self.queue, i)
             break

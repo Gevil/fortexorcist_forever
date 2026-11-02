@@ -2,8 +2,8 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T17:29:01+00:00
--- 70707 overlay changes in this file (7):
+-- Regenerated: 2026-11-02T19:46:44+00:00
+-- 70707 overlay changes in this file (8):
 --   Cower: { id = 9892, name = "Cower", cooldownMs = 10000, cooldownCategory = 84, gcdMs = 1000, rank = "Rank 3" } -> { id = 16697, name = "Cower", cooldownMs = 5000, cooldownCategory = 82, gcdMs = 1500, rank = "Rank 6" }
 --   Hurricane: { id = 1278759, name = "Hurricane", durationMs = 10000, gcdMs = 1500, rank = "Rank 3" } -> { id = 1278759, name = "Hurricane", durationMs = 10000, cooldownCategory = 571, gcdMs = 1500, rank = "Rank 3" }
 --   Shifting Power: { id = 1322605, name = "Shifting Power", cooldownMs = 16000, gcdMs = 1000 } -> { id = 1322605, name = "Shifting Power", cooldownMs = 8000, gcdMs = 1000 }
@@ -11,6 +11,7 @@
 --   Faerie Fire: { id = 9907, name = "Faerie Fire", durationMs = 40000, gcdMs = 1500, rank = "Rank 4" } -> { id = 9907, name = "Faerie Fire", durationMs = 40000, cooldownCategory = 1133, gcdMs = 1500, rank = "Rank 4" }
 --   Lacerate: { id = 1235827, name = "Lacerate", durationMs = 15000, gcdMs = 1500, rank = "Rank 3" } -> { id = 1235827, name = "Lacerate", durationMs = 15000, gcdMs = 1500, rank = "Rank 5" }
 --   Rejuvenation: { id = 25299, name = "Rejuvenation", durationMs = 12000, gcdMs = 1500, rank = "Rank 11" } -> { id = 9841, name = "Rejuvenation", durationMs = 12000, gcdMs = 1500, rank = "Rank 10" }
+--   Lifebloom: { id = 408124, name = "Lifebloom", durationMs = 7000, gcdMs = 1000 } -> { id = 408124, name = "Lifebloom", durationMs = 7000, gcdMs = 1000, icdMs = 2000 }
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
@@ -37,6 +38,10 @@ ForteXorcist.Data.Druid = {
   [9863] = { id = 9863, name = "Tranquility", durationMs = 10000, cooldownMs = 300000, cooldownCategory = 46, gcdMs = 1500, rank = "Rank 4" },
   [1238215] = { id = 1238215, name = "Wild Growth", durationMs = 7000, cooldownMs = 6000, gcdMs = 1500, castMs = 3000, rank = "Rank 3" },
   [1226046] = { id = 1226046, name = "Wild Rejuvenation", cooldownMs = 6000, gcdMs = 1500 },
+  [410176] = { id = 410176, name = "Skull Bash", cooldownMs = 10000, cooldownCategory = 2182, gcdMs = 1000 },
+  [417141] = { id = 417141, name = "Berserk", durationMs = 15000, cooldownMs = 180000 },
+  [439748] = { id = 439748, name = "Starfall", durationMs = 10000, cooldownMs = 90000, cooldownCategory = 1218, gcdMs = 1500 },
+  [23110] = { id = 23110, name = "Dash", durationMs = 15000, cooldownMs = 30000, cooldownCategory = 44, gcdMs = 1500, rank = "Rank 3" },
   -- buffs
   [9910] = { id = 9910, name = "Thorns", durationMs = 600000, gcdMs = 1500, rank = "Rank 6" },
   [9885] = { id = 9885, name = "Mark of the Wild", durationMs = 3600000, gcdMs = 1500, rank = "Rank 7" },
@@ -58,6 +63,10 @@ ForteXorcist.Data.Druid = {
   [9858] = { id = 9858, name = "Regrowth", durationMs = 21000, gcdMs = 1500, castMs = 2000, rank = "Rank 9" },
   [414800] = { id = 414800, name = "Fury of Stormrage", durationMs = 15000 },
   [467079] = { id = 467079, name = "Force of Nature", durationMs = 15000 },
+  [408124] = { id = 408124, name = "Lifebloom", durationMs = 7000, gcdMs = 1000, icdMs = 2000 },
+  [9827] = { id = 9827, name = "Pounce", durationMs = 2000, gcdMs = 1000, rank = "Rank 3" },
+  [9826] = { id = 9826, name = "Pounce Bleed", durationMs = 18000, rank = "Rank 3" },
+  [21919] = { id = 21919, name = "Thrash" },
   -- forms
   [5487] = { id = 5487, name = "Bear Form", durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
   [768] = { id = 768, name = "Cat Form", durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
@@ -95,6 +104,10 @@ ForteXorcist.Data.DruidByName = {
   ["Tranquility"] = 9863,
   ["Wild Growth"] = 1238215,
   ["Wild Rejuvenation"] = 1226046,
+  ["Skull Bash"] = 410176,
+  ["Berserk"] = 417141,
+  ["Starfall"] = 439748,
+  ["Dash"] = 23110,
   ["Thorns"] = 9910,
   ["Mark of the Wild"] = 9885,
   ["Gift of the Wild"] = 21850,
@@ -115,6 +128,10 @@ ForteXorcist.Data.DruidByName = {
   ["Regrowth"] = 9858,
   ["Fury of Stormrage"] = 414800,
   ["Force of Nature"] = 467079,
+  ["Lifebloom"] = 408124,
+  ["Pounce"] = 9827,
+  ["Pounce Bleed"] = 9826,
+  ["Thrash"] = 21919,
   ["Bear Form"] = 5487,
   ["Cat Form"] = 768,
   ["Dire Bear Form"] = 9634,

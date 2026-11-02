@@ -1,5 +1,8 @@
 {
-  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Mage tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped. Forever spellings are verbatim (Darnassus, Thunder Bluff, Orgrimmar). Forever renames/new vs Cata: Arcane Channel->Evocation, Blink->Displacement, Cauterize->Rewind Time, Cold Blood(frost)->Icy Veins, Time Warp->Temporal Anomaly, Arcane Spirit->Arcane Brilliance (Arcane Intellect also present), new fire armor Molten Armor, new spells Frozen Orb / Living Flame / Arcane Surge / Mass Regeneration / Netherwind Focus / Chronostatic Preservation / Evoker / Regeneration. The priest-side spells Circle of Healing / Eye of the Void / Homunculi / Power Word: Barrier / Void Plague also exist here as cross-class Mage talent rows; the generator's family-scoped rank resolution keeps them on the Priest lists. Crowd control rides `utility` (Counterspell, and Polymorph since 2026-11-02 -- CodeReview4 E4: the spell's real Family=3 rows (base 118 + ranks 12824-12826) were simply omitted, which left the Poly fade/break rows of Forte_Messages' raid page with no Spell Timer row to ring on; the Spell Tracker's registry gates on durationMs > 0, rank 4's 50000 ms qualifies it).",
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Mage tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped. Forever spellings are verbatim (Darnassus, Thunder Bluff, Orgrimmar). Forever renames/new vs Cata: Arcane Channel->Evocation, Blink->Displacement, Cauterize->Rewind Time, Cold Blood(frost)->Icy Veins, Time Warp->Temporal Anomaly, Arcane Spirit->Arcane Brilliance (Arcane Intellect also present), new fire armor Molten Armor, new spells Frozen Orb / Living Flame / Arcane Surge / Mass Regeneration / Netherwind Focus / Chronostatic Preservation / Evoker / Regeneration. The priest-side spells Circle of Healing / Eye of the Void / Homunculi / Power Word: Barrier / Void Plague also exist here as cross-class Mage talent rows; the generator's family-scoped rank resolution keeps them on the Priest lists. Crowd control rides `utility` (Counterspell, and Polymorph since 2026-11-02 -- CodeReview4 E4: the spell's real Family=3 rows (base 118 + ranks 12824-12826) were simply omitted, which left the Poly fade/break rows of Forte_Messages' raid page with no Spell Timer row to ring on; the Spell Tracker's registry gates on durationMs > 0, rank 4's 50000 ms qualifies it). T1 (2026-11-02, docs/class-port.md 6.1 + PLAN 11.1 Q1/Q6 rulings): the reference's CAST spells are added -- cooldowns += Combustion, Cone of Cold, Frost Nova, Deep Freeze, Blast Wave, Fire Blast, Arcane Blast; buffs += Blizzard, Living Bomb, Pyroblast, Flamestrike, Frostfire Bolt and the family-less Q6 Freeze row. The reference's proc/passive names (see _deferred_H7) ride with H7 (docs/design-combat-procs.md); Mana Surge is on that list because its only row (23572) is filed Family 11 (Shaman) -- the family law leaves it a gap here, and the shaman list does not name it either.",
+  "_deferred_H7": [
+    "Brain Freeze", "Chilled", "Fingers of Frost", "Ignite", "Mana Surge"
+  ],
   "cooldowns": [
     "Cold Snap", "Evocation", "Arcane Power", "Icy Veins", "Arcane Surge",
     "Frozen Orb", "Rewind Time", "Living Flame", "Displacement",
@@ -7,13 +10,16 @@
     "Arcane Barrage",
     "Portal: Stormwind", "Portal: Ironforge", "Portal: Orgrimmar",
     "Portal: Undercity", "Portal: Darnassus", "Portal: Thunder Bluff",
-    "Portal: Karazhan"
+    "Portal: Karazhan",
+    "Combustion", "Cone of Cold", "Frost Nova", "Deep Freeze",
+    "Blast Wave", "Fire Blast", "Arcane Blast"
   ],
   "buffs": [
     "Arcane Brilliance", "Arcane Intellect", "Fire Ward", "Frost Ward",
     "Mana Shield", "Amplify Magic", "Dampen Magic", "Slow Fall", "Ice Barrier",
     "Ice Block", "Searing Blast", "Frigid Power", "Evoker",
-    "Chronostatic Preservation", "Regeneration"
+    "Chronostatic Preservation", "Regeneration",
+    "Blizzard", "Living Bomb", "Pyroblast", "Flamestrike", "Frostfire Bolt", "Freeze"
   ],
   "utility": [
     "Mage Armor", "Frost Armor", "Ice Armor", "Molten Armor",

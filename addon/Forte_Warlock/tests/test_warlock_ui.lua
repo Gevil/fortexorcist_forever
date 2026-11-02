@@ -867,13 +867,22 @@ test("the four index cells have pages and build in the options window", function
         assertEquals(id, FX.Options.pageId)
         local page = FX.Options.pagesBuilt[id]
         assertNotNil(page)
-        assertEquals(4, #page.sections)          -- Tips + 3 built sections
+        -- H6: the Healthstone page gained the Raid Spy section (CommsEnable
+        -- + HealthstoneUnknown) between Basics and Frame Sizing.
+        local raidSpy = (id == "Healthstone") and 1 or 0
+        assertEquals(4 + raidSpy, #page.sections)   -- Tips + built sections
         local counts = {}
         for i, sec in ipairs(page.sections) do counts[i] = #sec.widgets end
         assertEquals(0, counts[1])               -- Some Tips is text lines
         assertEquals(4, counts[2])               -- the shared Basics row
-        assertTrue(counts[3] >= 1)               -- Frame Sizing
-        assertEquals(3, counts[4])               -- Coloring
+        if raidSpy == 1 then
+            assertEquals(2, counts[3])           -- the Raid Spy section
+            assertTrue(counts[4] >= 1)           -- Frame Sizing
+            assertEquals(3, counts[5])           -- Coloring
+        else
+            assertTrue(counts[3] >= 1)           -- Frame Sizing
+            assertEquals(3, counts[4])           -- Coloring
+        end
         assertNotNil(page.sections[1].lines[1])
         assertNotNil(FX.Options.header)
         assertNotNil(FX.Options.header.bar)

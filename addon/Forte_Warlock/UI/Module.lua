@@ -119,10 +119,17 @@ end
 --- tracker is never overwritten.
 function U:_InitViews()
     local tools = FX.Warlock.Tools
+    local comms = tools and tools.Comms
     for i = 1, #VIEWS do
         local view = FX.Warlock[VIEWS[i]]
         if view and tools then
             view.Tracker = view.Tracker or tools[VIEWS[i]]
+        end
+        -- The H6 spy model (Core/Group.lua via Core/Comms.lua): the live
+        -- instance binds once; a SetTracker-injected view keeps its own.
+        if view and comms and comms.group
+            and view.SetSpy and view.Spy == nil then
+            view:SetSpy(comms.group)
         end
         if view and view.Init then view:Init() end
     end

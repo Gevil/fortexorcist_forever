@@ -101,7 +101,7 @@ local KIND_RULES = {
         "^Shadow Cleave", "^Spore Wrap",} },
     { key = "Crowds", terms = {
         -- stuns / sleeps / banshees / charms / roots / taunts / interrupts
-        "^Scatter", "^Intimidation", "^Charm", "^Freeze", "^Frozen",
+        "^Scatter", "^Intimidation", "^Charm", "^Frozen",
         "^Frost Nova",
         "^Frostbomb", "^Ring of Frost", "^Deep Freeze", "^Black Ice",
         "^Poly", "^Bash", "^Batter", "^Maim", "^Kidney Shot", "^Cheap Shot",
@@ -130,7 +130,13 @@ local KIND_RULES = {
         "^Wrack", "^Fel Domination", "^Shield Bash", "^Enrage$", "^Tease",
         "^Blind$", "^Sap$",
     
-        "^Holy Nova", "^Mana Burn", "^Fire Nova", "^Purge", "^Demon Charge", "^Meat hook", "^Meathook", "^Cower", "^Rebuke",} },
+        "^Holy Nova", "^Mana Burn", "^Fire Nova", "^Purge", "^Demon Charge", "^Meat hook", "^Meathook", "^Cower", "^Rebuke",
+        -- T1 (docs/class-port.md 6.1): the new casts the ORIGINAL registers as
+        -- `Crowd` -- Skull Bash (Druid.lua:71), Cone of Cold (Mage.lua:30),
+        -- Reckoning (Paladin.lua:37), Dismantle (Rogue.lua:27), Frostfire Bolt
+        -- (Mage.lua:37, the `Crowd` AddSpell outranks its AddDebuff twin :76).
+        "^Skull Bash", "^Cone of Cold", "^Reckoning", "^Dismantle",
+        "^Frostfire Bolt",} },
     { key = "Heal", terms = {
         "^Healing", "^Heal$", "^Regrowth", "^Rejuvenation", "^Rupture",
         "^Riptide", "^Tranquility", "^Wild Growth", "^Abolish", "^Cure",
@@ -138,10 +144,14 @@ local KIND_RULES = {
         "^Mark of the Wild", "^Avenging Wrath", "^Circle of Life",
         "^Siphon Life", "^Flash Heal", "^Greater Heal",
         "^Binding Heal", "^Chain Heal", "^Surge of Light", "^Holy Light",
-        "^Holy Shock", "^Healing Light", "^Healing Wave", "^Healing Tide",
+        "^Healing Light", "^Healing Wave", "^Healing Tide",
         "^Vampiric Embrace", "^Soulshatter",
     
-        "^Circle of Healing", "^Wild Rejuvenation", "^Swiftmend", "^Rebirth", "^Dispel", "^Deliverance", "^Resurrection",} },
+        "^Circle of Healing", "^Wild Rejuvenation", "^Swiftmend", "^Rebirth", "^Dispel", "^Deliverance", "^Resurrection",
+        -- T1 (docs/class-port.md 6.1): the new HoT casts (Druid.lua:62,
+        -- Priest.lua:35). Beacon of Light is the original's `F.BUFF` row and
+        -- rides Buff; Holy Shock is its AddCooldown row and rides Cooldown.
+        "^Lifebloom", "^Renew",} },
     { key = "Channel", terms = {
         "Channel", "^Volley", "^Rain of Fire", "^Blizzard", "^Trance",
         "Trance", "^Evocation", "^Drain Soul", "^Drain Life", "^Drain Mana",
@@ -149,6 +159,10 @@ local KIND_RULES = {
         "^Shadowguard", "^Shadowfiend", "^Homunculi", "^Healing Rain",
         "^Holy Water", "^Bloodtap", "^Frostplague Strike", "^Sniper Shot",
         "^Inferno", "^Infernal Effect", "^Eviserate", "^Runic Pen",
+        -- T1 (docs/class-port.md 6.1): the priest's AddChannel pair
+        -- (Priest.lua:63,64); Starfall is the original's AddBuff(48505),
+        -- Druid.lua:109, so it rides SelfBuff.
+        "^Mind Flay", "^Mind Sear",
     } },
     { key = "Cooldown", terms = {
         "Totem", "^Call Pet", "^Dismiss Pet", "^Eyes of the Beast",
@@ -157,12 +171,20 @@ local KIND_RULES = {
         "Healthstone", "Soulstone", "Spellstone", "Firestone", "^Teleport",
         "^Create ", "^Use ", "^Cold Snap", "^Pick Pocket", "^Preparation",
         "^Reincarnation", "^Call of", "^Summon ",
+        -- T1 (docs/class-port.md 6.1): the original's AddCooldown lines --
+        -- Fire Blast (Mage.lua:80), Mind Blast (Priest.lua:54), Lava Burst
+        -- (Shaman.lua:39), Holy Shock (Paladin.lua:98, leaving the Heal band).
+        "^Fire Blast", "^Mind Blast", "^Lava Burst", "^Holy Shock",
+        -- T1 (docs/class-port.md 6.1): Beacon of Light -- the original's
+        -- `AddSpell(53563, 1, "Buff", F.BUFF)` (Paladin.lua:22).
+        "^Beacon of Light",
     } },
     { key = "SelfDebuff", terms = {
         "^Health Funnel", "^Sacrifice", "^Hand of Sacrifice", "^Burning Rush",
         "^Blood Fury", "^Retaliate", "^Death Coil", "^Soul Siphon",
         "^Blood Leech", "^Blood Vortex", "^Blood Rage", "^Blood Sacrifice",
-        "^Dark Pact", "^Pact of the", "^Shattered Illusions", "^Curse of Self",
+        -- T1: Arcane Blast, the mage's AddSelfDebuff(36032) (Mage.lua:67).
+        "^Dark Pact", "^Pact of the", "^Shattered Illusions", "^Curse of Self", "^Arcane Blast",
         -- the Succubus' self-pain window (70707 kit, wave 2a D3)
         "^Suffering",
     } },
@@ -202,6 +224,16 @@ local KIND_RULES = {
         "^Righteous Judgement", "^Searing Blast", "^Living Flame",
         "^Flanking Strike", "^Abominable Strike",
         "^Heartstrike", "^Chaos Strike", "^Soul Reaper", "^Rend",
+        -- T1 (docs/class-port.md 6.1): the new casts the original paints as a
+        -- target-side window -- its AddDebuff lines (Blast Wave Mage.lua:72,
+        -- Freeze :74) and its `Default` + F.TICKS DoT family: the druid bleeds
+        -- (Druid.lua:76,77,85), the mage's bomb/fire line (Mage.lua:19,21,22,
+        -- 24), the priest's touch pair (Priest.lua:29,38), the rogue's bleed
+        -- (Rogue.lua:35). Frostfire Bolt rides Crowds (its AddSpell is
+        -- `Crowd`), Lava Burst and Mind Sear ride Cooldown / Channel.
+        "^Pounce", "^Thrash", "^Living Bomb", "^Pyroblast", "^Flamestrike",
+        "^Combustion", "^Vampiric Touch", "^Holy Fire", "^Crimson Tempest",
+        "^Blast Wave", "^Freeze",
         "^Widow Sting", "^Disease Cloud", "^Frost Fever", "^Infected Bites",
         "^Immolation Trap", "^Explosive Trap", "^Black Arrow Trap",
         "Shot$", "Judgement", "^Exorcism", "^Redemption", "on Hands",
@@ -277,6 +309,13 @@ local KIND_RULES = {
         "^Revealed Flaw", "^Savage", "^Purify", "Slam$", "Aura",
         "^Shield of Righteousness", "^Hammer of the Righteous",
         "^Divine", "^Revoke",
+        -- T1 (docs/class-port.md 6.1): the new AddBuff rows -- Starfall
+        -- (Druid.lua:109), Holy Shield (Paladin.lua:74), Envenom (Rogue.lua:57)
+        -- and Heroism, the Bloodlust row (Hunter.lua:45). Stormstrike is the
+        -- bare AddSpell(17364) whose 12 s self window the port keeps cyan; the
+        -- druid Dash/Berserk pair and the paladin Aura Mastery ride the
+        -- shipped terms above (Dash/Berserk land Buff there).
+        "^Starfall", "^Holy Shield", "^Envenom", "^Heroism", "^Stormstrike",
     } },
 }
 

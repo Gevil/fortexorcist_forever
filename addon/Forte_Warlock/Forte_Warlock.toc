@@ -8,6 +8,8 @@
 ## LoadOnDemand: 1
 
 Data/Warlock.lua
+Core/Group.lua
+Core/Comms.lua
 Core/Tools.lua
 UI/Frame.lua
 UI/Shards.lua

@@ -1,8 +1,12 @@
 {
-  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Priest tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped. discipline_pd = Discipline/Power-Word family. Forever renames/new vs Cata: Power Word: Shield also as Power Word: Barrier (CD side), Spirit of Redemption active -> Spirit of the Redeemer, Shadow Word: Death, Shadowguard, Hex/Touch of Weakness, Eye of the Void, Void Zone/Shadowfiend/Devouring Plague + Void Plague, Chastise (the Forever smite-strike), Deliverance, Levitate as a priest buff. Circle of Healing, Eye of the Void, Homunculi, Power Word: Barrier and Void Plague also exist as Mage cross-class talent rows; the generator resolves them to Priest rows via its family-scoped rank resolution.",
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Priest tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped. discipline_pd = Discipline/Power-Word family. Forever renames/new vs Cata: Power Word: Shield also as Power Word: Barrier (CD side), Spirit of Redemption active -> Spirit of the Redeemer, Shadow Word: Death, Shadowguard, Hex/Touch of Weakness, Eye of the Void, Void Zone/Shadowfiend/Devouring Plague + Void Plague, Chastise (the Forever smite-strike), Deliverance, Levitate as a priest buff. Circle of Healing, Eye of the Void, Homunculi, Power Word: Barrier and Void Plague also exist as Mage cross-class talent rows; the generator resolves them to Priest rows via its family-scoped rank resolution. T1 (2026-11-02, docs/class-port.md 6.1 + PLAN 11.1 Q1 ruling): the reference's CAST spells are added -- cooldowns += Devouring Plague, Prayer of Mending, Mind Blast; buffs += Vampiric Touch, Renew, Holy Fire, Mind Flay, Mind Sear (all eight ride a real window). The reference's proc/passive names (see _deferred_H7) ride with H7 (docs/design-combat-procs.md).",
+  "_deferred_H7": [
+    "Serendipity", "Surge of Light"
+  ],
   "cooldowns": [
     "Shadowfiend", "Confounding Flash", "Silence", "Void Zone",
-    "Circle of Healing", "Eye of the Void", "Homunculi", "Void Plague"
+    "Circle of Healing", "Eye of the Void", "Homunculi", "Void Plague",
+    "Devouring Plague", "Prayer of Mending", "Mind Blast"
   ],
   "discipline_pd": [
     "Power Word: Fortitude", "Power Word: Shield", "Power Word: Barrier",
@@ -15,7 +19,8 @@
     "Divine Spirit", "Prayer of Spirit", "Prayer of Fortitude",
     "Shadow Protection", "Prayer of Shadow Protection", "Inner Fire",
     "Levitate", "Shadowguard", "Spirit of Redemption", "Hex of Weakness",
-    "Touch of Weakness", "Fade", "Abolish Disease", "Armor of Faith"
+    "Touch of Weakness", "Fade", "Abolish Disease", "Armor of Faith",
+    "Vampiric Touch", "Renew", "Holy Fire", "Mind Flay", "Mind Sear"
   ],
   "utility": [
     "Shadowform", "Dispel Magic", "Cure Disease", "Resurrection",

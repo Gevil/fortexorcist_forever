@@ -35,11 +35,20 @@ GitHub: `Gevil/fortexorcist_forever`.
   (cast-predict + reconcile, PLAN.md §3.2).
 - Don't build on Blizzard's Cooldown Manager (`docs/why-not-blizzard-cdm.md`).
 - No `RegisterEvent` at a file's top level except `Forte_Core`'s bootstrap frame.
-- Track spells by **name** (ranks differ by ID).
+- Data tables are keyed by the English **name** (ranks differ by ID), but clients can be localized
+  (Forever ships 10 languages): resolve client names through `ForteXorcist.Locale`
+  (`CanonicalName`, `RankIDsForName`, `FX.L`) and read by data id, never compare English strings
+  to client names.
+- Never write `if not FX then return end` (or any guard on `FX`) at a file's top: `FX` is a
+  file-local alias (`local FX = ForteXorcist`), not a global, so the guard silently skips the file.
+- There is no `FX:CallSafe`; wrap callbacks in `pcall` yourself.
+- `$WORK/TODO.md` is the owner's ledger, maintained by the main session only.
 - Spell IDs are generated, never hand-typed: edit `tools/spell_lists/<class>.json`, run
   `python3 tools/gen_spell_data.py <class>`. Never hand-edit `addon/*/Data/*.lua`.
 - Every addon has `X.toc` and identical `X_Camelot.toc` (interface 16001). Keep them in sync.
 - CooldownMaster (MIT) is the reference implementation; reuse with credit in README.
+  WeaponSwingTimer SixxFix (GPLv3, WatchYourSixx; original WST by LeftHandedGlove) is the Hunter
+  swing reference: code may be adapted with attribution (`addon/Forte_Core/ATTRIBUTION.md`).
   wow-ui-sim is GPL-3.0: use as a tool only, never copy its code here.
 
 ## Verification

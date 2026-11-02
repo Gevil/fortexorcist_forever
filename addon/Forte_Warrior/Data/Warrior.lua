@@ -2,7 +2,7 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T17:29:02+00:00
+-- Regenerated: 2026-11-02T19:08:53+00:00
 -- 70707 overlay changes in this file (5):
 --   Charge: { id = 1240289, name = "Charge", cooldownMs = 15000, cooldownCategory = 44, rank = "Rank 3" } -> { id = 27685, name = "Charge", durationMs = 4000, cooldownMs = 25000, cooldownCategory = 44, gcdMs = 1500, rank = "Rank 6" }
 --   Revenge: { id = 25288, name = "Revenge", cooldownMs = 5000, cooldownCategory = 65, gcdMs = 1500, rank = "Rank 6" } -> { id = 11601, name = "Revenge", cooldownMs = 5000, cooldownCategory = 65, gcdMs = 1500, rank = "Rank 5" }

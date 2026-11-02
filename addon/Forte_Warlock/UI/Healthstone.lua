@@ -22,10 +22,13 @@
 --
 -- The original's Healthstone Spy was a raid-wide roster spy (spec §5,
 -- HS-01…HS-07: per-member aura scans, roster distance sampling, chat
--- broadcasts). docs/warlock-tools.md deliberately drops all of it, and the
--- two sources it kept are trusted "for a count only"; so the v1 is the count
--- plus its cooldown on the original's plate, with the original's own plate
--- geometry.
+-- broadcasts). The roster half is LIVE since H6 (2026-11-02):
+-- Core/Comms.lua + Core/Group.lua feed `self.Spy` (SetSpy), and the spy rows
+-- ride this plate in the original's HS_DrawHealthstone layout — the Total
+-- bar is the spy's stones/active row, the second bar the No-info row
+-- (`HealthstoneUnknown`), the right label the `x<missing>` Amount2. The
+-- distance sampling and the per-member aura scan stay dropped
+-- (docs/warlock-tools.md, HS-05 out-of-combat-only).
 --
 -- The 10 Hz law: a KNOWN count is not time-driven (bag events update it), so
 -- the plate asks the driver for a tick only while a cooldown counts down.
@@ -52,6 +55,9 @@ local HS = Frame:new({
     keymap = {
         HealthstoneEnable = "SetEnabled",
         HealthstoneSize = "SetWidth",            -- the plate width
+        -- The second spy bar's switch (the original's HealthstoneUnknown,
+        -- Forte_Healthstone.lua:333 default true, gate at :200).
+        HealthstoneUnknown = "SetShowUnknown",
         -- m3 (CodeReview3): the Count colour picker on the Healthstone
         -- page had no consumer -- the plate's count text followed only
         -- the shared TextColor. The Shards page's ShardColor pair is the
@@ -80,8 +86,31 @@ HS.skin = FX.Warlock.HealthstoneSkin
 HS.sizeDefaults = { Width = 106, Height = 20, Point = "CENTER",
                     X = 190, Y = -215 }
 
+-- The "No info" bar's switch, the original's default (FW.Default.
+-- HealthstoneUnknown = true, Forte_Healthstone.lua:333).
+HS.state.showUnknown = true
+
+function HS:SetShowUnknown(on)
+    local v = not not on
+    if v == self.state.showUnknown then return end
+    self.state.showUnknown = v
+    self._unknownKey = nil
+    self:RenderIdle()
+end
+
 -- The second line's label (FWL.TOTAL, Forte_Healthstone/Localization.lua:48).
 HS.TOTAL = "Total"
+-- The second spy bar's label (FWL.NO_INFO, Localization.lua:53 — the bar the
+-- original shows while HealthstoneUnknown, Forte_Healthstone.lua:200-202,
+-- default TRUE at :333).
+HS.NO_INFO = "No info"
+
+--- The Group model seam (Core/Group.lua instance; Core/Comms.lua owns the
+--- live one, tests inject their own — the SetTracker convention).
+function HS:SetSpy(group)
+    self.Spy = group
+    self._spyKey, self._unknownKey = nil, nil
+end
 
 -- ----------------------------------------------------------------- the art --
 
@@ -115,8 +144,22 @@ function HS:Update(now)
             end
         end
     end
+    local spy = self.Spy
+    local summary
+    if spy and self:Enabled() then
+        -- The spy half (H6): the roster rides the Core/Group.lua model; a
+        -- roster with members is a claim the plate must render even when
+        -- the own bags are empty (the original's plate rides the RAID
+        -- state, Forte_Healthstone.lua:13 `HealthstoneAuto`/`GROUPED`).
+        summary = spy:HealthstoneSummary()
+        if summary ~= nil
+            and (summary.active + summary.unknown) > 0 then show = true end
+    end
     self:SetShown(show)
-    if not show then return false end
+    if not show then
+        self:SetExtraRowsShown(0)
+        return false
+    end
     self:SetIconForCount(count)
     local n = Frame.FormatAmount((type(count) == "number" and count > 0)
         and count or 0)
@@ -125,34 +168,65 @@ function HS:Update(now)
         self.amountFS:SetText(n)
     end
     -- The second line: the Total label + the count on the bar (the original's
-    -- FWHSBar1, Forte_Healthstone.lua:197 + :139).
+    -- FWHSBar1, Forte_Healthstone.lua:197 + :139). With the spy live the bar
+    -- is the spy's own row 1: stones over active
+    -- (`hs:insert(stones, active, FWL.TOTAL, …)`, Forte_Healthstone.lua:199,
+    -- the value `t1/t2` at :140).
     self:SetRowShown(true)
     if self.nameFS:GetText() ~= self.TOTAL then
         self.nameFS:SetText(self.TOTAL)
     end
-    local amount = tostring(type(count) == "number" and count or 0)
+    local amount, frac
+    if summary ~= nil then
+        amount = tostring(summary.stones)
+        frac = summary.active > 0 and (summary.stones / summary.active) or 0
+    else
+        amount = tostring(type(count) == "number" and count or 0)
+        frac = (type(count) == "number" and count > 0) and 1 or 0
+    end
     if amount ~= self._amount then
         self._amount = amount
         self.timeFS:SetText(amount)
     end
-    local frac = (type(count) == "number" and count > 0) and 1 or 0
     if frac ~= self._frac then
         self._frac = frac
         self:SetFillFraction(frac)
     end
+    -- The "No info" bar (`hs:insert(unknown, active+unknown, FWL.NO_INFO,
+    -- …)`, Forte_Healthstone.lua:200-202), shown while showUnknown.
+    local extraOn = 0
+    if summary ~= nil and self.state.showUnknown and summary.unknown > 0 then
+        local e = self:ExtraRow(1)
+        if e then
+            self:SetExtraRowText(e, self.NO_INFO, tostring(summary.unknown))
+            local den = summary.active + summary.unknown
+            self:SetExtraRowFraction(e,
+                den > 0 and (summary.unknown / den) or 0)
+            extraOn = 1
+        end
+    end
+    self:SetExtraRowsShown(extraOn)
     -- The right label: the creation cooldown's clock, in the plate's Info
-    -- slot (Forte_Soulstone.xml:140-146 is that slot's geometry).
+    -- slot (Forte_Soulstone.xml:140-146 is that slot's geometry). With the
+    -- spy live and no clock it is the original's Amount2, the missing count
+    -- `"x"..active-stones` (Forte_Healthstone.lua:165, xml Amount2).
     local cooling = type(remaining) == "number" and remaining > 0
     -- The dim is the plate's own alpha, not the frame's (the frame's alpha
     -- stays `Warlock.Alpha`'s, so a scale/alpha setting change can not fight
     -- the cooldown law).
     self:SetBarAlpha(cooling and self.skin.CooldownAlpha or 1)
-    local cd = cooling and Frame.FormatClock(remaining)
-    local key = cooling and Frame.ClockKey(remaining) or -1
-    if key ~= self._timeKey then
-        self._timeKey = key
-        self.infoFS:SetText(cd or "")
+    local info = ""
+    if cooling then
+        info = Frame.FormatClock(remaining)
+    elseif summary ~= nil then
+        info = "x" .. summary.missing
     end
+    if info ~= self._infoText then
+        self._infoText = info
+        self.infoFS:SetText(info)
+    end
+    local key = cooling and Frame.ClockKey(remaining) or -1
+    self._timeKey = key
     self:ApplyTextVisibility()
     return cooling
 end
@@ -166,8 +240,11 @@ function HS:ApplyTextVisibility()
     if self.nameFS and self._rowShown then self.nameFS:Show() end
     if self.timeFS and self._rowShown then self.timeFS:Show() end
     if self.infoFS then
-        if self.state.showTime and self._timeKey ~= nil
-            and self._timeKey >= 0 then
+        -- ShowTime owns the right label; its content is the cooldown clock
+        -- or the spy's missing count (the Update law above), so its
+        -- visibility rides "it carries text".
+        if self.state.showTime and self._infoText ~= nil
+            and self._infoText ~= "" then
             self.infoFS:Show()
         else
             self.infoFS:Hide()
@@ -177,6 +254,8 @@ end
 
 function HS:RenderIdle()
     self._count, self._timeKey, self._amount, self._frac = nil, nil, nil, nil
+    self._infoText = nil
+    self:SetExtraRowsShown(0)
     self:SetRowShown(false)
     self:SetShown(false)
     self:SetBarAlpha(1)

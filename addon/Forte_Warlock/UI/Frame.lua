@@ -183,6 +183,9 @@ Frame.DEFAULTS = {
         "SoulstoneStrikethrough",
         "HealthstoneSize", "HealthstoneColor",
         "HealthstoneStrikethrough",
+        -- H6: the comms master (Core/Comms.lua reads it live) and the
+        -- spy's No-info bar switch (Healthstone's keymap).
+        "CommsEnable", "HealthstoneUnknown",
         "SummonWidth", "SummonHeight", "SummonColor", "SummonStrikethrough",
     },
     defaults = {
@@ -200,6 +203,8 @@ Frame.DEFAULTS = {
         SummonColor = { 0.64, 0.21, 0.93, 1 },       -- Forte_Summon.lua:597
         ShardStrikethrough = false, SoulstoneStrikethrough = false,
         HealthstoneStrikethrough = false, SummonStrikethrough = false,
+        CommsEnable = true,                      -- H6 (group-gated sends)
+        HealthstoneUnknown = true,               -- Forte_Healthstone.lua:333
     },
 }
 
@@ -287,10 +292,16 @@ end
 --- RowHeight+RowSpace while the second line is shown (the original's
 --- backdrop height 21+(Height+Space)*n-Space at n=1 = Height+Space+Height_of_
 --- row + ... — at Height 20 and one 12+1 row the source's own arithmetic
---- gives 33 = 20+12+1, Forte_Soulstone.lua:235).
+--- gives 33 = 20+12+1, Forte_Soulstone.lua:235). Spy rows (H6) extend the
+--- run: every shown extra row is one more RowHeight+RowSpace — the same
+--- formula's n (Forte_Healthstone.lua:204-208).
 function Frame:_PlateHeight()
     local h = self.skin.Height
-    if self._rowShown then h = h + self.skin.RowHeight + self.skin.RowSpace end
+    local step = self.skin.RowHeight + self.skin.RowSpace
+    if self._rowShown then h = h + step end
+    if self.extraRows and self._extraShown then
+        h = h + step * self._extraShown
+    end
     return h
 end
 
@@ -659,6 +670,15 @@ function Frame:SizeChanged()
     if self.fill then
         self.fill:SetSize(self._fillW or 0, s.RowHeight)
     end
+    -- The spy rows ride the same geometry (the ExtraRow law above).
+    if self.extraRows then
+        for i, e in ipairs(self.extraRows) do
+            e.row:SetPoint("TOPLEFT", self.body, "TOPLEFT",
+                s.RowX, s.RowY - i * (s.RowHeight + s.RowSpace))
+            e.row:SetSize(rowW, s.RowHeight)
+            e.fill:SetSize(e.fillW or 0, s.RowHeight)
+        end
+    end
     if self.SizeChangedHook then self:SizeChangedHook() end
 end
 
@@ -672,6 +692,113 @@ function Frame:SetRowShown(on)
         if on then self.row:Show() else self.row:Hide() end
     end
     self:SizeChanged()
+end
+
+-- ------------------------------------------------------------- spy rows -----
+
+--- One stacked spy row (H6): the original's bar run
+--- `FWHSBar(i):SetPoint("TOPLEFT", FWHSBar(i-1), "BOTTOMLEFT", 0, -Space)`
+--- (Forte_Healthstone.lua:296-301) — every row sits RowHeight+RowSpace below
+--- the last, the base row (row 0) is the first. Built lazily; the row is a
+--- child of the body like the base row, its bar art the same pair
+--- (Back at alpha 0.5 + the fill), its labels the base row's font pair
+--- (`_NewRowFont` rides the font registry).
+function Frame:ExtraRow(i)
+    if not self.extraRows then self.extraRows = {} end
+    local e = self.extraRows[i]
+    if e then return e end
+    if not self.body then return nil end
+    local s = self.skin
+    local row = CreateFrame("Frame", nil, self.body)
+    row:SetPoint("TOPLEFT", self.body, "TOPLEFT",
+        s.RowX, s.RowY - i * (s.RowHeight + s.RowSpace))
+    row:SetSize(s.Width - 2 * s.Border, s.RowHeight)
+    row:EnableMouse(false)
+    row:SetClipsChildren(false)
+    local c = s.BarColor
+    local back = row:CreateTexture()
+    back:SetTexture(s.BarTexture)
+    back:SetAllPoints(row)
+    back:SetDrawLayer("BACKGROUND")
+    back:SetVertexColor(c[1], c[2], c[3], 0.5)
+    local fill = row:CreateTexture()
+    fill:SetTexture(s.BarTexture)
+    fill:SetPoint("LEFT", row, "LEFT", 0, 0)
+    fill:SetSize(0, s.RowHeight)
+    fill:SetDrawLayer("OVERLAY")
+    fill:SetVertexColor(c[1], c[2], c[3], c[4])
+    local e2 = { row = row, back = back, fill = fill, shown = false,
+        frac = nil, name = nil, time = nil }
+    e2.timeFS = self:_NewRowFont("RIGHT", row)
+    e2.nameFS = self:_NewRowFont("CENTER", row)
+    e2.timeFS:Hide()
+    e2.nameFS:Hide()
+    row:Hide()
+    self.extraRows[i] = e2
+    return e2
+end
+
+--- Show rows 1..n, hide the rest, and grow the plate with the count (the
+--- original's backdrop height rides the row count, Forte_Soulstone.lua:235
+--- with Forte_Healthstone.lua:204-208).
+function Frame:SetExtraRowsShown(n)
+    n = n or 0
+    if n < 0 then n = 0 end
+    if n == self._extraShown then return end
+    self._extraShown = n
+    for i = 1, math.max(n, self._extraRowsBuilt or 0) do
+        local e = self.extraRows and self.extraRows[i]
+        if e then
+            e.shown = i <= n
+            if e.shown then
+                e.row:Show()
+                if e.name ~= nil and e.name ~= "" then e.nameFS:Show() end
+                if e.time ~= nil and e.time ~= "" then e.timeFS:Show() end
+            else
+                e.row:Hide()
+                e.nameFS:Hide()
+                e.timeFS:Hide()
+            end
+        end
+    end
+    self._extraRowsBuilt = math.max(self._extraRowsBuilt or 0,
+        # (self.extraRows or {}))
+    self:SizeChanged()
+end
+
+--- Write one spy row's texts (dirty-checked; the plate law's idiom).
+function Frame:SetExtraRowText(e, name, time)
+    if not e then return end
+    name = name ~= nil and tostring(name) or ""
+    time = time ~= nil and tostring(time) or ""
+    if name ~= e.name then
+        e.name = name
+        e.nameFS:SetText(name)
+        if e.shown then
+            if name ~= "" then e.nameFS:Show() else e.nameFS:Hide() end
+        end
+    end
+    if time ~= e.time then
+        e.time = time
+        e.timeFS:SetText(time)
+        if e.shown then
+            if time ~= "" then e.timeFS:Show() else e.timeFS:Hide() end
+        end
+    end
+end
+
+--- One spy row's bar fraction (the StatusBar value of the original's row,
+--- HS_DrawHealthstone's `Bar:SetValue(val)`, Forte_Healthstone.lua:148).
+function Frame:SetExtraRowFraction(e, f)
+    if not e or not e.fill then return end
+    if type(f) ~= "number" then f = 0 end
+    if f < 0 then f = 0 elseif f > 1 then f = 1 end
+    if f == e.frac then return end
+    e.frac = f
+    local w = (self.fillBarW
+        or (self.skin.Width - 2 * self.skin.Border)) * f
+    e.fillW = w
+    e.fill:SetSize(w, self.skin.RowHeight)
 end
 
 --- The fill's width for a fraction (0..1) of the second-line bar.
@@ -804,6 +931,12 @@ function Frame:SetStrikethrough(on)
     if on == self.state.strike then return end
     self.state.strike = on
     local strings = { self.amountFS, self.infoFS, self.nameFS, self.timeFS }
+    if self.extraRows then
+        for _, e in ipairs(self.extraRows) do
+            strings[#strings + 1] = e.nameFS
+            strings[#strings + 1] = e.timeFS
+        end
+    end
     for _, fs in ipairs(strings) do
         if fs and fs.SetStrikethrough then fs:SetStrikethrough(on) end
     end

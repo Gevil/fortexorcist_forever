@@ -2,7 +2,7 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T17:29:01+00:00
+-- Regenerated: 2026-11-02T19:08:52+00:00
 -- 70707 overlay changes in this file (1):
 --   Arcane Wrath: { id = 1326082, name = "Arcane Wrath", cooldownMs = 6000, gcdMs = 1500, castMs = 3500, rank = "Rank 4" } -> { id = 1326082, name = "Arcane Wrath", cooldownMs = 6000, cooldownCategory = 2601, gcdMs = 1500, castMs = 3500, rank = "Rank 4" }
 
@@ -31,6 +31,13 @@ ForteXorcist.Data.Mage = {
   [11419] = { id = 11419, name = "Portal: Darnassus", durationMs = 60000, cooldownMs = 60000, gcdMs = 1500, castMs = 10000 },
   [11420] = { id = 11420, name = "Portal: Thunder Bluff", durationMs = 60000, cooldownMs = 60000, gcdMs = 1500, castMs = 10000 },
   [28148] = { id = 28148, name = "Portal: Karazhan", durationMs = 60000, cooldownMs = 60000, gcdMs = 1500, castMs = 10000 },
+  [11129] = { id = 11129, name = "Combustion", durationMs = -1, cooldownMs = 180000, cooldownCategory = 1151 },
+  [10161] = { id = 10161, name = "Cone of Cold", durationMs = 6000, cooldownMs = 10000, cooldownCategory = 50, gcdMs = 1500, rank = "Rank 5" },
+  [10230] = { id = 10230, name = "Frost Nova", durationMs = 8000, cooldownMs = 25000, cooldownCategory = 35, gcdMs = 1500, rank = "Rank 4" },
+  [428739] = { id = 428739, name = "Deep Freeze", durationMs = 5000, cooldownMs = 30000, cooldownCategory = 1221, gcdMs = 1500 },
+  [13021] = { id = 13021, name = "Blast Wave", durationMs = 6000, cooldownMs = 45000, cooldownCategory = 250, gcdMs = 1500, rank = "Rank 5" },
+  [400623] = { id = 400623, name = "Fire Blast", cooldownMs = 15000, cooldownCategory = 19, rank = "Rank 7" },
+  [18091] = { id = 18091, name = "Arcane Blast", cooldownMs = 8000, gcdMs = 1500 },
   -- buffs
   [23028] = { id = 23028, name = "Arcane Brilliance", durationMs = 3600000, gcdMs = 1500 },
   [10157] = { id = 10157, name = "Arcane Intellect", durationMs = 3600000, gcdMs = 1500, rank = "Rank 5" },
@@ -47,6 +54,12 @@ ForteXorcist.Data.Mage = {
   [1218701] = { id = 1218701, name = "Evoker", durationMs = 45000 },
   [436516] = { id = 436516, name = "Chronostatic Preservation", durationMs = 20000, gcdMs = 1500, castMs = 2000 },
   [401417] = { id = 401417, name = "Regeneration", durationMs = 3000, gcdMs = 1500 },
+  [10187] = { id = 10187, name = "Blizzard", durationMs = 8000, gcdMs = 1500, rank = "Rank 6" },
+  [400613] = { id = 400613, name = "Living Bomb", durationMs = 12000, gcdMs = 1500 },
+  [18809] = { id = 18809, name = "Pyroblast", durationMs = 12000, gcdMs = 1500, castMs = 6000, rank = "Rank 8" },
+  [10216] = { id = 10216, name = "Flamestrike", durationMs = 8000, gcdMs = 1500, castMs = 3000, rank = "Rank 6" },
+  [1237313] = { id = 1237313, name = "Frostfire Bolt", durationMs = 9000, gcdMs = 1500, castMs = 3000, rank = "Rank 3" },
+  [27868] = { id = 27868, name = "Freeze", durationMs = 3000 },
   -- utility
   [22783] = { id = 22783, name = "Mage Armor", durationMs = 1800000, gcdMs = 1500, rank = "Rank 3" },
   [7301] = { id = 7301, name = "Frost Armor", durationMs = 1800000, gcdMs = 1500, rank = "Rank 3" },
@@ -88,6 +101,13 @@ ForteXorcist.Data.MageByName = {
   ["Portal: Darnassus"] = 11419,
   ["Portal: Thunder Bluff"] = 11420,
   ["Portal: Karazhan"] = 28148,
+  ["Combustion"] = 11129,
+  ["Cone of Cold"] = 10161,
+  ["Frost Nova"] = 10230,
+  ["Deep Freeze"] = 428739,
+  ["Blast Wave"] = 13021,
+  ["Fire Blast"] = 400623,
+  ["Arcane Blast"] = 18091,
   ["Arcane Brilliance"] = 23028,
   ["Arcane Intellect"] = 10157,
   ["Fire Ward"] = 412232,
@@ -103,6 +123,12 @@ ForteXorcist.Data.MageByName = {
   ["Evoker"] = 1218701,
   ["Chronostatic Preservation"] = 436516,
   ["Regeneration"] = 401417,
+  ["Blizzard"] = 10187,
+  ["Living Bomb"] = 400613,
+  ["Pyroblast"] = 18809,
+  ["Flamestrike"] = 10216,
+  ["Frostfire Bolt"] = 1237313,
+  ["Freeze"] = 27868,
   ["Mage Armor"] = 22783,
   ["Frost Armor"] = 7301,
   ["Ice Armor"] = 10220,

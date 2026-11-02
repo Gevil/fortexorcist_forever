@@ -86,6 +86,12 @@ local DEFAULTS = {
     HealthstoneEnable = true,
     HealthstoneSize = 106,
     HealthstoneColor = skin("HealthstoneSkin", "TextColor", { 1, 1, 1, 1 }),
+    -- H6 group comms (Core/Comms.lua): ON by default, and the send gate is
+    -- "in a group" -- solo the comms never transmit (the law, not the key).
+    CommsEnable = true,
+    -- The "No info" spy bar (the original's HealthstoneUnknown, default
+    -- true, Forte_Healthstone.lua:333).
+    HealthstoneUnknown = true,
     -- Summon Assistant
     SummonEnable = true,
     SummonWidth = 106,
@@ -242,7 +248,7 @@ local PAGES = {
             b.Tips({
                 "The plate carries the healthstone count in OUR bags and the stone's item cooldown.",
                 "The plate dims and prints the time left while the stone is on its cooldown.",
-                "The raid-wide spy half was raid comms in the original; Phase 6, not built.",
+                "In a group the spy half rides the addon comms: the Total bar is the warlocks-with-stones over the members reporting, the No-info bar the members without ForteXorcist, the right label x<missing>.",
                 "The recycle icon on a section restores that section's defaults.",
             })
             b.Section("Basics", function(s)
@@ -252,6 +258,18 @@ local PAGES = {
                 module = M,
                 keys = { "HealthstoneEnable", "Enable", "Lock", "ShowTime" },
                 tip = "Master switches of the Healthstone Spy.",
+            })
+            b.Section("Raid Spy", function(s)
+                s.CHK({ module = M, key = "CommsEnable",
+                    label = "Group comms",
+                    tip = "Talk to other ForteXorcists in the group (party/raid addon channel): report stone and shard counts, hear who is summoning. Solo it never sends; a chat-messaging lockdown skips the sends. " })
+                s.CHK({ module = M, key = "HealthstoneUnknown",
+                    label = "Show players with no info",
+                    tip = "The second bar counts the members whose addon has not answered (the original's HealthstoneUnknown, default on)." })
+            end, {
+                module = M,
+                keys = { "CommsEnable", "HealthstoneUnknown" },
+                tip = "The raid-wide spy half.",
             })
             b.Section("Frame Sizing", function(s)
                 s.NUM({ module = M, key = "HealthstoneSize",

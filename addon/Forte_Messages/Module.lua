@@ -435,12 +435,105 @@ function M:OnCastForSoulstone(event, unit, a, b, c)
     end
 end
 
+-- ------------------------------------------------------ own-cast announce --
+-- THE GENERAL CAST ANNOUNCE HOOK (wave 2b T2). The soulstone watch above is
+-- the shape this one copies -- the SAME frame, the SAME pair of player cast
+-- events, the SAME `spellNameFor` spellID resolve, the SAME SENT-stamps /
+-- SUCCEEDED-sends target law -- widened from the one soulstone family to
+-- the 20 `P.CAST_ROWS` of `Pages/RaidMsg.lua` (the Druid/Paladin/Warrior
+-- `CA:CastShow` raid warnings, `docs/class-port.md` S17). Nothing about the
+-- soulstone half moved; a row is a name key, so the family pattern list and
+-- this key table are the two name gates of one hook.
+--
+-- The laws this hook obeys:
+--   * EVERY send goes through the legality gate -- `Announce:Group` /
+--     `Announce:Channel`, gate key = the row's own `<Prefix>CastParty` /
+--     `<Prefix>CastChannel`. A lockdown answer skips and COUNTS; only a
+--     plain lockdown skips (the SecretState consumer law, Core/Announce.lua).
+--   * EVERY row ships OFF (the shipped-default law, the manager ruling of
+--     2026-11-02 / review 4 E2): a fresh install stands mute in the raid.
+--     The gate-key check below is what keeps the texts inert until a box
+--     is ticked.
+--   * The NAME key is canonicalized (`FX.Locale.CanonicalName`, H1b, the
+--     `fadeKey` law): the cast event carries the CLIENT's name, the rows
+--     are keyed on the generated data's English names, and a German
+--     `Schildwall` must meet the Shield Wall row. The enUS identity.
+--   * The Druid rows key on PLAIN spell names (the Q5 ruling of
+--     2026-11-02): the 2012 `_FERAL/_BEAR/_CAT` form suffixes label the
+--     form-paired bar rows, not announces.
+--   * The specialization gate the source put on ONE row (Paladin.lua:139)
+--     rides the row's `spec` field as the RECORDED gate; no gate is
+--     enforced here, because the row's Forever key (`Avenging Wrath`) is
+--     itself spec-specific on this build -- a cast of it means the spec.
+--     Open item if a build ever shares that name.
+--   * The target is only ever the stamped plain string from the SENT
+--     payload, `"?"` when no stamp is in hand (the soulstone law); the
+--     non-target rows' texts carry no `%s`, so the word is ignored there.
+local CAST_ROWS, CAST_KEYS = P.CAST_ROWS, P.CAST_SPELL_KEYS
+
+--- The CAST_SPELL_KEYS prefix of a cast name, the `fadeKey` shape:
+--- canonicalize the client's name onto the data key, then ask the table.
+local function castPrefixFor(name)
+    if type(name) ~= "string" then return nil end
+    local keys = CAST_KEYS
+    if not keys then return nil end
+    local Locale = FX.Locale
+    local key = name
+    if Locale and Locale.CanonicalName then key = Locale.CanonicalName(name) end
+    return keys[key]
+end
+
+--- Is any of the 40 cast gate keys ticked? The cheap gate of the hook: 40
+--- reads of a live table per cast event (a cast is at most a few a second)
+--- beats resolving a spell name for a raid nobody asked to be told about.
+function M:CastRowArmed(cfg)
+    for _ = 1, #CAST_ROWS do
+        local prefix = CAST_ROWS[_].prefix
+        if cfg[prefix .. "CastParty"] or cfg[prefix .. "CastChannel"] then
+            return true
+        end
+    end
+    return false
+end
+
+--- One player cast event for the cast rows. SENT carries
+--- (unit, targetName, castGUID, spellID) and stamps { row, target };
+--- SUCCEEDED carries (unit, castGUID, spellID) and is where the announce
+--- goes - the spellID is resolved by name, and the target is the stamp.
+function M:OnCastForAnnounce(event, unit, a, b, c)
+    local cfg = self.cfg
+    if not self:CastRowArmed(cfg) then
+        self._castPending = nil
+        return
+    end
+    if event == "UNIT_SPELLCAST_SENT" then
+        local prefix = castPrefixFor(spellNameFor(c))  -- (u, tgt, guid, id)
+        self._castPending = prefix
+            and { prefix = prefix, target = FX.Compat.PlainOrNil(a) } or nil
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+        local prefix = castPrefixFor(spellNameFor(b))  -- (u, guid, id)
+        local pending = self._castPending
+        self._castPending = nil
+        if not prefix then return end
+        local target = (pending and pending.prefix == prefix
+            and type(pending.target) == "string" and pending.target) or "?"
+        local text = Channel.format(cfg[prefix .. "CastText"], target)
+        self.counts.cast = self.counts.cast + 1
+        if cfg[prefix .. "CastParty"] then
+            Announce:Group(text, prefix .. "CastParty")
+        end
+        if cfg[prefix .. "CastChannel"] then
+            Announce:Channel(text, prefix .. "CastChannel")
+        end
+    end
+end
+
 -- ------------------------------------------------------------------ enable --
 function M:OnEnable()
     if not TYPES then buildTypes() end
     CFG = freshCfg()
     self.cfg = CFG
-    self.counts = { ready = 0, expired = 0, soulstone = 0,
+    self.counts = { ready = 0, expired = 0, soulstone = 0, cast = 0,
         fading = 0, broken = 0 }
     self.enabled = true
 
@@ -488,8 +581,9 @@ function M:OnEnable()
     local module = self
     self:_SubscribeToBus()
 
-    -- The soulstone watch: one frame, created HERE (the frame law), on the
-    -- player's own cast events -- both names verified in the pinned Forever
+    -- The cast watches (the soulstone family and the 20 cast announce
+    -- rows): one frame, created HERE (the frame law), on the player's own
+    -- cast events -- both names verified in the pinned Forever
     -- catalog (UnitDocumentation, the cast events the Cooldown module also
     -- registers) before registration.
     local f = CreateFrame("Frame")
@@ -500,6 +594,7 @@ function M:OnEnable()
         local plainUnit = FX.Compat.PlainOrNil(unit)
         if type(plainUnit) == "string" and plainUnit ~= "player" then return end
         module:OnCastForSoulstone(event, unit, a, b, c)
+        module:OnCastForAnnounce(event, unit, a, b, c)
     end)
 
     return true
@@ -532,8 +627,8 @@ end)
 function M:Status()
     local c = self.counts
     FX.Print(string.format(
-        "messages: ready %d | expired %d | fading %d | broken %d | soulstones %d | chat %d | printed %d | banner %d | fade %d | break %d | sounds %d",
-        c.ready, c.expired, c.fading, c.broken, c.soulstone,
+        "messages: ready %d | expired %d | fading %d | broken %d | soulstones %d | casts %d | chat %d | printed %d | banner %d | fade %d | break %d | sounds %d",
+        c.ready, c.expired, c.fading, c.broken, c.soulstone, c.cast,
         Channel.counts.chat,
         Channel.counts.printed, Banner.counts.shown,
         Sounds.counts.rows.TimerFade or 0,

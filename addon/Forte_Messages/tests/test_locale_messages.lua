@@ -10,7 +10,11 @@
 --   * the CC fade/break registry: `P.FADE_SPELL_KEYS` / `FX.Timer
 --     .FadeWarnings` are keyed on the generated data's names, the row keys
 --     Forte_Timer publishes are English, and a row of a localized name
---     reached neither the prefix lookup nor the fade threshold.
+--     reached neither the prefix lookup nor the fade threshold;
+--   * the 20 own-cast announce rows (wave 2b T2, `P.CAST_SPELL_KEYS`): the
+--     cast event carries the CLIENT's name and the announce keys are the
+--     generated data's English names -- a German `Schildwand` cast would
+--     meet no Shield Wall row.
 --
 -- The German stubs answer the generated row's id and the German name and
 -- never the English data name, so these tests pass only through the
@@ -25,6 +29,8 @@ local _C_Spell = C_Spell
 local DE_SPELL = {
     [20757] = "Seelenstein erstellen",  -- Create Soulstone (Warlock data)
     [12826] = "Verwandlung",            -- Polymorph (Mage data)
+    [871] = "Schildwand",               -- Shield Wall (Warrior data)
+    [1044] = "Segen der Freiheit",      -- Blessing of Freedom (Paladin data)
 }
 
 local function german(on)
@@ -184,4 +190,54 @@ test("locale: the Seduction row's note says live on 70707, gated by pet casts", 
         "the superseded 70425 'no such spell' claim is gone from the page")
     assertNotNil(P.FADE_SPELL_KEYS.Mesmerize,
         "Mesmerize keeps sharing the Seduction rows (Warlock.lua:250)")
+end)
+
+test("locale: a German Shield Wall cast meets the Warrior announce row",
+function()
+    FX.LoadClassAddOn("WARRIOR")
+    enable()
+    installReaders()
+    M._castPending = nil
+    germanBuild()
+    assertEquals("Schildwand", FX.L("Shield Wall"),
+        "the alias map carries the German name of the row's key spell")
+    local S = FX.Settings
+    S:Set("RaidMsg", "ShieldWallCastParty", true)
+    local before = M.counts.cast
+    dispatch("UNIT_SPELLCAST_SENT", "player", "Self", "G:W1", 871)
+    dispatch("UNIT_SPELLCAST_SUCCEEDED", "player", "G:W1", 871)
+    assertEquals(before + 1, M.counts.cast,
+        "the German cast name canonicalized onto the English row key")
+    assertEquals(1, #sent)
+    assertEquals("+++ Shield Wall (12 sec) +++", sent[1].text,
+        "the source's text, verbatim (the announce is not localized)")
+    S:Set("RaidMsg", "ShieldWallCastParty", false)
+    german(false)
+    Locale.Reset()
+    Locale.BuildSpellAliases()
+    restoreAll()
+end)
+
+test("locale: a German cast of a RENAMED key (Blessing of Freedom) meets "
+.. "the Freedom row", function()
+    FX.LoadClassAddOn("PALADIN")
+    enable()
+    installReaders()
+    M._castPending = nil
+    germanBuild()
+    assertEquals("Segen der Freiheit", FX.L("Blessing of Freedom"))
+    local S = FX.Settings
+    S:Set("RaidMsg", "FreedomCastParty", true)
+    local before = M.counts.cast
+    dispatch("UNIT_SPELLCAST_SENT", "player", "Vile Poacher", "G:P1", 1044)
+    dispatch("UNIT_SPELLCAST_SUCCEEDED", "player", "G:P1", 1044)
+    assertEquals(before + 1, M.counts.cast,
+        "the German name of the FOREVER key reaches the row")
+    assertEquals(1, #sent)
+    assertEquals("+++ Freedom on Vile Poacher (6sec) +++", sent[1].text)
+    S:Set("RaidMsg", "FreedomCastParty", false)
+    german(false)
+    Locale.Reset()
+    Locale.BuildSpellAliases()
+    restoreAll()
 end)

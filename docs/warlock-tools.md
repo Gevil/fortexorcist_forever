@@ -326,3 +326,147 @@ the 10 Hz ask, the kick law, real `OnEvent` dispatch, the live settings seam, th
 mirror, the class gate, the four pages, the clock format); the gate is green (Cooldown 110,
 Core 16, Hunter 37, Options 44, Timer 34, Warlock 36, api-lint OK, tocs byte-identical).
 Screenshots: `docs/media/sim/fx_warlock_ui.png`, `docs/media/sim/fx_warlock_options.png`.
+
+## Group comms — the Healthstone Spy rides addon chat (H6, 2026-11-02, agent `WarlockGroup`)
+
+`Core/Comms.lua` (transport + legality gates) and `Core/Group.lua` (the pure
+roster model) join the `Warlock` module — **no new `FX.RegisterModule`**: the
+gate's load probe expects the add-on to carry exactly `Warlock` +
+`WarlockUI`, so the comms' enable/class-gate/status ride
+`Core/Tools.lua` (`M.Comms = FX.Warlock.Comms`).
+
+**The original's shape.** The comms constants survive in
+`/tmp/fxref/Forte_Core/Forte_Core.lua`: `GET_HEALTHSTONE = "HG"` /
+`SEND_HEALTHSTONE = "HS"` (:707-708), `GET_SHARDS = "SG"` /
+`SEND_SHARDS = "SH"` (:706,:709 — the Shard Spy module itself is a REMOVED
+module, its colour entries :494,:496 and the removal notes :1426,:1531), the
+summon family `SuS`/`SuC`/`SuE` (`Forte_Casting/Forte_Casting.lua:44-46`).
+The answer law (`Forte_Core.lua:2434-2441`): on a `GET_*` answer `value +
+"!"` when `LastHSCheck + 5 < GetTime()`, remember, **send silently** —
+`SendAddonMessage("FX2", FW.SEND_HEALTHSTONE..id, "RAID")` (:1909). The draw
+law (`Forte_Healthstone/Forte_Healthstone.lua:139-165,199-202`): row 1 = the
+warlocks-with-stones over the members reporting (`FWL.TOTAL`), row 2 = the
+members whose addon never answered (`FWL.NO_INFO`, the
+`HealthstoneUnknown` setting, default true, :333), right = `x<missing>`
+(the xml's `Amount2`). The announce cadence: `HealthstoneInterval = 2`
+seconds (`Forte_Healthstone.lua:330`). The presence law: only a CONFIRMED
+death/disconnect is an absence (`Forte_Core.lua:1866`).
+
+**The wire (versioned, tiny, ASCII).** Prefix `FXWK`.
+`HG1`/`SG1` = "report your healthstones / shards" (queries, empty payload);
+`HS1 <n>`/`SH1 <n>` = the count answers; `SU1 <by> <target>` /
+`SE1 <by> <target>` = my summon on this player started / ended. Every
+command is two uppercase letters + version digit; the decoder accepts ONLY
+version `1` (an unknown version counts `malformedIgnored`), name fields ride
+`%a?[%w%- ]{1,64}` (no embedded runs of spaces, `|T|`-free — the space is
+structural, so a forged second field cannot parse), counts are `%d+` capped
+at 9999, and the whole text is capped at 200 chars. Self-echo lines are
+ignored (the CA-24 law: chat events deliver the sender's own line). A
+summon `SU1 <by>` where `<by>` is not the sender is ignored (the sender
+speaks for themselves only).
+
+**The send gates (the row's law).** Every send passes, in order: the
+`CommsEnable` key (default **true**); `FX.SecretState.chat` (the
+`C_RestrictedActions.GetActionStatus(Chat=5)` snapshot — the
+`Forte_Messages/Core/Announce.lua` convention, the gate reads plain
+true/false: an unknown/nil answer never suppresses);
+`C_ChatInfo.InChatMessagingLockdown()` and
+`C_ChatInfo.AreOutgoingAddonChatMessagesRestricted()` (both true/false
+normalized, `pcall`-guarded); the group gate — the channel is `RAID` under
+`IsInRaid()`, `PARTY` in a party, and with **no group the send is skipped**
+(the default is "ON in a group, OFF solo"; solo is OFF BY LAW: there is no
+channel to send on, counted `noGroupSkipped` — never spammed at
+SAY/EMERGENCY); `C_ChatInfo.SendAddonMessage(prefix, text, channel)`
+`pcall`-wrapped, result `= 0` (Success) is a sent, any raise/other result is
+counted `sendFailed`/`sendResult` and never propagates. Every skip and
+failure rides a counter (`lockedSkipped`, `offSkipped`, `noGroupSkipped`,
+`rateSkipped`, `sendFailed`) printed by `/fx status`.
+
+**Rate law (never faster than the original).** A query answer: at most one
+per 5 s per command (the original's `LastHSCheck + 5`). The join/roster
+query burst: one per 5 s (`GROUP_JOINED`/`GROUP_FORMED` fire together — the
+burst fires once). Own-state announces (`HS1`/`SH1` after a bag read,
+`SU1`/`SE1` after my summon cast): only on a CHANGE, at most one per 2 s —
+the announce floor of 2 s is the backstop; the summon pair's own rate is the
+cast itself (one pair per cast). Inbound: `CHAT_MSG_ADDON` with the catalog
+payload order `(prefix, text, channel, sender, target, zoneChannelID,
+localID, name, instanceID)` (ChatInfoDocumentation.lua:800-818; the SENDER
+is the 4th) — registered in `OnEnable` only, foreign prefixes
+(`C_ChatInfo.IsSecureAddonMessagePrefix`) count `foreignPrefix`, non-FXWK
+lines count `foreignIgnored`. Roster events (`GROUP_ROSTER_UPDATE`,
+`GROUP_JOINED`, `GROUP_FORMED`, `GROUP_LEFT`) re-scan
+`GetNumGroupMembers` + `UnitName`/`UnitClass`/`UnitIsConnected`/
+`UnitIsDeadOrGhost` (all catalog; secret-guarded through
+`FX.Compat.PlainOrNil`); a departing member drops out with their summon
+entry (the original's `DeleteOld` sweep, `Forte_Core.lua:985-990`);
+`GROUP_LEFT` clears the model and kicks the plates.
+
+**The plate (original look, no new window).** The Healthstone plate gains
+the spy rows on the Frame base (`Frame:ExtraRow`/`SetExtraRowsShown` — the
+shared row shape, `RowHeight 12`, the plate growing by whole row steps):
+with a roster present the plate shows even on empty bags, the second line
+becomes the spy's TOTAL row (`stones/active`), a `No info` extra row rides
+the `HealthstoneUnknown` key, and the right Info label carries `x<missing>`
+(the original's `Amount2`) while the cooldown clock wins its slot whenever
+the stone is on cooldown (the dim + clock law is untouched). All views hide
+on `RenderIdle`; a solo player's plates are bit-for-bit the pre-H6 law
+(an empty roster is NO summary).
+
+**Evidence for the API claims.** `C_ChatInfo.RegisterAddonMessagePrefix`
+(returns `Enum.RegisterAddonMessagePrefixResult.Success = 0` /
+`DuplicatePrefix = 1`), `C_ChatInfo.SendAddonMessage(prefix, text,
+channel[, target, flags])` (returns
+`Enum.SendAddonMessageResult`, `Success = 0`),
+`C_ChatInfo.InChatMessagingLockdown()`,
+`C_ChatInfo.AreOutgoingAddonChatMessagesRestricted()`,
+`C_ChatInfo.IsSecureAddonMessagePrefix`, `CHAT_MSG_ADDON` and the
+`GROUP_*` family are catalog symbols (pinned API reference under
+`docs/api/`, the ChatInfoDocumentation payload order cited above) —
+`scripts/api_lint.py` passes. The sim ships NO chat-lockdown controls
+(`InChatMessagingLockdown` nil), so every lockdown read is `pcall` +
+normalized and the tests drive the documented seams (`Comms.readers`, the
+`Announce.readers` convention; `FX.SecretState.chat` set directly).
+
+**Tests** (`tests/test_warlock_group.lua`, 6): the encode/decode round trip
+over all six commands + the junk refusals (foreign version, junk payloads,
+lowercase, the separator forgery, oversized names, the 200-char cap); the
+roster model's spy counts (active/stones/missing/unknown, the drop-out
+sweep, the shard-total column, the summon-queue add/clear laws); a STUBBED
+`CHAT_MSG_ADDON` from a fake party member driven through the comms frame's
+own `OnEvent` script moving the model, the self-echo/foreign/malformed
+counts, an answered query + its 5 s window; the restricted send (lockdown
+true, restricted true, `FX.SecretState.chat` true) skipped AND counted, the
+unknown-state passthrough, the solo skip, the raising send counted; the
+rate law (one burst per window, announces only on change); the spy rows on
+the plate through the kick path (`IsShown`, the `Total`/`No info` texts,
+the `x<missing>` label, the live `HealthstoneUnknown` switch, the plate
+retiring on `GROUP_LEFT`-empty state). The suite: **Warlock 54** (48
+baseline + 6).
+
+**Launch-day probes (multiplayer-only, 2026-11-04).** (1) Prefix
+registration on the live client (`RegisterAddonMessagePrefix("FXWK")` —
+`prefixState` rides `/fx status`; a client that rejects the prefix keeps
+the comms inert, the plates fall back to the own-state law). (2) Real
+delivery between two clients in a party (line length, throttling, the
+`CHAT_MSG_ADDON` payload order — sender as 4th observed on screen).
+(3) The lockdown pair's real shape in a crowded instance (skips counted,
+no spam). (4) `UnitIsConnected`/`UnitIsDeadOrGhost` secret answers under
+combat. (5) Cross-version: an FX2-era Forte client's `HG`/`HS` lines are a
+foreign prefix — confirm the counters ignore them cleanly.
+
+**Open (models + wire are LIVE; the plates are the remaining half).**
+- **Shard Spy rows** (`HS6`): `Group:ShardRows`/`ShardTotal` + `SG1`/`SH1`
+  are wired end to end; `UI/Shards.lua` needs the rows: bind
+  `Shards.Spy` in `_InitViews` (done by the seam), and in `Update` render
+  each known-warlock row (`ExtraRow(i)`, `<name>` + the count, sorted —
+  the model is deterministic) under the own-count row; the badge law
+  (warlocks reporting without an answer) rides the right Info slot.
+- **Summon queue rows** (`SU-03/04`): `Group:Queue` + `SU1`/`SE1` are wired
+  (own cast → announce, inbound → model); `UI/Summon.lua` needs the queue
+  rows on `Summon.Spy` (`ExtraRow(i)`, one row per active
+  `<warlock> → <target>` claim, sorted by time) — the plate's own
+  channeling row keeps the first row.
+- Both halves share the Frame extra-row geometry + the `_InitViews`
+  SetSpy seam already in place; each needs its Update/RenderIdle spy-law
+  pair (a roster with claims is a claim; `RenderIdle` zeroes the rows) and
+  one sim test riding the stubbed-message path, exactly as Healthstone's.

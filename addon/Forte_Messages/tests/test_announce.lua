@@ -330,12 +330,16 @@ test("E2: the SHIPPED defaults census -- every group and channel announce "
     end
     -- 24 fade/break checkboxes (6 spells x Fade/Break x Party/Channel) +
     -- ReadyAnnounce/ReadyChannel + ExpireAnnounce/ExpireChannel +
-    -- SoulstoneAnnounce/SoulstoneChannel.
-    assertEquals(30, sends, "the census walked every send row")
+    -- SoulstoneAnnounce/SoulstoneChannel + the 20 cast rows x Party/Channel
+    -- (40, wave 2b T2 - the Druid/Paladin/Warrior raid warnings, docs/
+    -- class-port.md S17): every one of them OFF.
+    assertEquals(70, sends, "the census walked every send row")
     -- 6 fade + 6 break CC texts, plus the announce rows' own texts
     -- (ReadyAnnounceText, ExpireAnnounceText, ExpireAnnounceNoTargetText,
-    -- SoulstoneAnnounceText): the texts are the verbatim half and stay.
-    assertEquals(16, texts, "twelve CC texts + four announce texts")
+    -- SoulstoneAnnounceText) and the 20 cast rows' verbatim texts: the
+    -- texts are the verbatim half and stay.
+    assertEquals(36, texts, "twelve CC texts + four announce texts + "
+        .. "twenty cast texts")
     -- The two master switches are the original's rows (Forte_Core.lua:2518
     -- -2519) and stay verbatim: with every row off they gate nothing alone.
     assertEquals(true, D.OutputRaid)
@@ -389,10 +393,10 @@ function()
     assertEquals(3, FX.Timer.FadeWarnings.Banish)
     -- Mesmerize keeps sharing the Seduction rows (Warlock.lua:250).
     assertEquals("Seduction", P.FADE_SPELL_KEYS.Mesmerize)
-    -- And the two rows the registry can not reach say WHY on the page:
-    -- Seduction/Mesmerize are the Succubus pet's casts and v1 has no pet
-    -- row, so the tip must name pet-cast tracking (no "Fading"/"Broke"
-    -- promise, no claim that it works).
+    -- And the two rows the pet feed reaches say WHY on the page:
+    -- Seduction/Mesmerize are the Succubus pet's casts, so the tip must
+    -- name the pet cast feed (the wave 2b "PetRows v2" registration in
+    -- Forte_Timer) and the live 70707 spell store.
     local seduction
     for _ = 1, #P.FADE_ROWS do
         if P.FADE_ROWS[_].prefix == "Seduction" then
