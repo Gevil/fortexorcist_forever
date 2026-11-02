@@ -5,6 +5,7 @@
 ## Author: Gevil
 ## Dependencies: Forte_Core
 ## OptionalDeps: Forte_Options, Forte_Cooldown
+## LoadOnDemand: 1
 
 Data/Hunter.lua
 Core/Tools.lua

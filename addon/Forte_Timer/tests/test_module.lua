@@ -321,8 +321,8 @@ test("the settings are live: geometry, colours, gates, the cap", function()
     ST:Set("SpellTimer", "ShowSpellNames", true)
     assertTrue(o.spell)
     ST:Set("SpellTimer", "ColourNormal", { 0.1, 0.2, 0.3 })
-    near3(M.skin.ColourNormal[1], 0.1)
-    near3(M.skin.ColourNormal[3], 0.3)
+    near3(M.skin.NormalColor[1], 0.1)
+    near3(M.skin.NormalColor[3], 0.3)
     ST:Set("SpellTimer", "ColourFlash", { 1, 0, 0 })
     near3(M.skin.Fail[1], 1)
     near3(M.skin.Fail[2], 0)
@@ -339,6 +339,8 @@ test("the settings are live: geometry, colours, gates, the cap", function()
     ST:Set("SpellTimer", "Label", true)
     ST:Set("SpellTimer", "ShowID", false)
     ST:Set("SpellTimer", "ShowSpellNames", false)
+    ST:Set("SpellTimer", "ColourNormal", { 1, 1, 1 })
+    ST:Set("SpellTimer", "BarColorSelf", { 0.99, 0.82, 0.34 })
     D:SetSize(250, 14)
     assertEquals(235, o.barWidth)
     nearpx(D.anchor:GetWidth(), 256)
@@ -399,6 +401,309 @@ test("the text law: m:ss above a minute, %.1f below, the fail word", function()
         Laws.NameText("Vile Poacher", "Serpent Sting", { stacks = 3 }))
 end)
 
+test("ShowTargetNames and Label are decoupled: two stores, one shared effect (m6)",
+function()
+    local o = M.options
+    M:SetLabel(true)
+    M:SetShowTarget(true)
+    M:SetShowTarget(false)
+    assertFalse(o.showTarget)
+    assertTrue(o.label)          -- the entangled build wrote label=false too,
+                                -- desyncing the Label checkbox from the store
+    M:SetShowTarget(true)
+    M:SetLabel(false)
+    assertFalse(o.label)
+    assertTrue(o.showTarget)     -- and not the other way round
+    M:SetLabel(true)
+end)
+
+test("the announce path is live in production (m7)", function()
+    installClock(40000)
+    Rows:Clear()
+    local before = FX.Timer.NotifyExpiry or 0
+    ST:Set("SpellTimer", "AnnounceExpiry", true)
+    assertTrue(M.options.expireMessage)
+    Rows:InsertFromCast("Serpent Sting", "Dummy-m7", 12,
+        clock[1], clock[1], 1, "TargetDebuff")
+    local row = Rows:Find("Serpent Sting", "Dummy-m7")
+    assertNotNil(row)
+    assertEquals(1, row.expireMsgAt)              -- stamped: it will announce
+    clock[1] = clock[1] + 12.5
+    Rows:Sweep(clock[1])
+    assertTrue((FX.Timer.NotifyExpiry or 0) > before)  -- the channel fired
+    ST:Set("SpellTimer", "AnnounceExpiry", false)
+    assertFalse(M.options.expireMessage)
+    -- A row born while the gate is off is not stamped: silent, as the
+    -- source's dimmed announce pages.
+    Rows:InsertFromCast("Serpent Sting", "Dummy-m7b", 12,
+        clock[1], clock[1], 1, "TargetDebuff")
+    local off = Rows:Find("Serpent Sting", "Dummy-m7b")
+    assertNotNil(off)
+    assertEquals(0, off.expireMsgAt)
+    Rows:Clear()
+end)
+
+-- -------------------------------------------------------------------- C5 --
+
+test("C5 wiring: ShowStacks gates the label's (n) suffix", function()
+    installClock(41000)
+    Rows:Clear()
+    local o = M.options
+    local row = Rows:InsertFromCast("Serpent Sting", "Vile Poacher", 12,
+        clock[1], clock[1], 1, "TargetDebuff")
+    assertNotNil(row)
+    row.stacks = 3
+    M:SetShowStacks(true)
+    assertEquals("Vile Poacher (3)", D:NameFor(row, o))
+    M:SetShowStacks(false)      -- the un-wired build showed stacks on
+    assertEquals("Vile Poacher", D:NameFor(row, o))
+    M:SetShowStacks(true)
+    Rows:Clear()
+end)
+
+test("C5 wiring: ColourNormal drives the row text, the offsets the row inset",
+function()
+    useHunterData()
+    installClock(41500)
+    Rows:Clear()
+    D:RenderIdle()
+    if D.anchor then D.anchor:Show() end   -- Draw no-ops below the floor
+    local o = M.options
+    M:SetColour_Normal({ 1, 0, 0 })        -- the source's NormalColor law
+    M:SetOffsetSelf(6)                     -- extra x of the self row
+    Rows:InsertFromCast("Serpent Sting", "Vile Poacher", 30,
+        clock[1], clock[1], 1, "TargetDebuff")
+    Rows:InsertFromCast("Bestial Wrath", "none", 30,
+        clock[1], clock[1], 1, "SelfBuff")
+    M:Draw()
+    local targetTick, selfTick
+    for i = 1, #D.rows do
+        local t = D.rows[i]
+        if t.bar:IsShown() and t._row then
+            if t._row.targetKey == "none" then selfTick = t
+            else targetTick = t end
+        end
+    end
+    assertNotNil(targetTick)
+    assertNotNil(selfTick)
+    -- (The text COLOUR write itself is proven by the census: the renderer
+    -- reads s.NormalColor every pass. The sim's FontString GetTextColor
+    -- answers the template, not the last SetTextColor, so it verifies
+    -- nothing here.)
+    local sx = select(4, selfTick.bar:GetPoint())
+    nearpx(sx, o.barInset + 6)             -- OffsetSelf rides the self row
+    local tx = select(4, targetTick.bar:GetPoint())
+    nearpx(tx, o.barInset + (o.offsetTarget or 0))
+    M:SetColour_Normal({ 1, 1, 1 })
+    M:SetOffsetSelf(0)
+    M:Draw()
+    local sx0 = select(4, selfTick.bar:GetPoint())
+    nearpx(sx0, o.barInset)
+    M:SetOffsetTarget(5)
+    M:Draw()
+    local ttr = Rows:InsertFromCast("Serpent Sting", "target", 30,
+        clock[1], clock[1], 1, "TargetDebuff")
+    assertNotNil(ttr)
+    M:Draw()
+    local offTick
+    for i = 1, #D.rows do
+        local t = D.rows[i]
+        if t.bar:IsShown() and t._row
+            and t._row.targetKey == "target" then offTick = t end
+    end
+    assertNotNil(offTick)
+    local ox = select(4, offTick.bar:GetPoint())
+    nearpx(ox, o.barInset + 5)             -- OffsetTarget rides the target row
+    M:SetOffsetTarget(0)
+    Rows:Clear()
+    D:RenderIdle()
+    M:SetOffsetTarget(0)
+    M:Draw()
+    Rows:Clear()
+    D:RenderIdle()
+end)
+
+test("settings census: every SpellTimer KEYMAP key is consumed, stored, or structural (C5)",
+function()
+    useHunterData()
+    installClock(42000)
+    Rows:Clear()
+    D:RenderIdle()
+    if D.anchor then D.anchor:Show() end   -- Draw no-ops on a hidden panel
+    local oRaw, sRaw = M.options, M.skin
+    local reads = {}
+    local oProxy = setmetatable({}, {
+        __index = function(_, k) reads[k] = true; return rawget(oRaw, k) end,
+        __newindex = function(_, k, v) rawset(oRaw, k, v) end,
+    })
+    local sProxy = setmetatable({}, {
+        __index = function(_, k) reads[k] = true; return rawget(sRaw, k) end,
+        __newindex = function(_, k, v) rawset(sRaw, k, v) end,
+    })
+    local o = oRaw
+    -- the gates ON for the first pass (the expired / HideLonger / cap / id /
+    -- announce branches all read), OFF for the second.
+    o.expiredColor, o.hideLonger, o.maxOn, o.showID, o.expireMessage =
+        true, true, true, true, true
+    -- A row set that walks every branch the map feeds: a live target row
+    -- (about to announce), a self row (the offsets), a fading row, a failed
+    -- row (the Fail band), stacks on the row.
+    local a = Rows:InsertFromCast("Serpent Sting", "Vile Poacher", 30,
+        clock[1], clock[1], 1, "TargetDebuff")
+    a.stacks = 2
+    a.expireAt = clock[1] + 0.5
+    Rows:InsertFromCast("Bestial Wrath", "none", 20,
+        clock[1], clock[1], 1, "SelfBuff")
+    local c = Rows:InsertFromCast("Hunter's Mark", "River Crocolisk", 30,
+        clock[1], clock[1], 1, "TargetDebuff")
+    c.expireAt = clock[1] - 0.5
+    Rows:Fade(c, Laws.FADING, clock[1])
+    local d = Rows:InsertFromCast("Serpent Sting", "Dummy-fail", 30,
+        clock[1], clock[1], 1, "TargetDebuff")
+    Rows:Fade(d, Laws.FAILED, clock[1])
+    -- the HideLonger gate's fade-RAMP field: a row the gate rides
+    local lg = Rows:InsertFromCast("Hunter's Mark", "Hexed Villager", 120,
+        clock[1], clock[1], 1, "TargetDebuff")
+    lg.expireAt = clock[1] + 100
+    -- a NORMAL row PAST expiry: ColorVal's ExpiredColor band reads ONLY on
+    -- the expiredColor gate, so it rides the gates-ON pass. drawExpireAt
+    -- pins the drawn time (the smoothed copy rides the raw insert value).
+    local ex = Rows:InsertFromCast("Serpent Sting", "Hexed Crowds", 12,
+        clock[1] - 12, clock[1], 1, "TargetDebuff")
+    assertNotNil(ex)
+    ex.expireAt = clock[1] - 1
+    ex.drawExpireAt = clock[1] - 1
+    ex.removeAt = clock[1] + 2.5   -- survives the two sweeps, rides the
+                                   -- ColorVal expired band on both draws
+    M.options, M.skin = oProxy, sProxy
+    Rows.options = oProxy
+    FX.Timer.Casts.options = oProxy
+    M:Logic()
+    M:Draw()
+    o.expiredColor, o.hideLonger, o.maxOn, o.showID, o.expireMessage =
+        false, false, false, false, false
+    M:Logic()
+    -- rows PAST the fade's end ride ColorVal's full-alpha branch, the
+    -- only road to the per-unit bar colours (barColorSelf / Target /
+    -- Focus / Pet / Enemy). Inserted after this pass's sweep so a sweep
+    -- does not reap them before the Draw.
+    local function expired(name, key, kind)
+        local r = Rows:InsertFromCast(name, key, 30,
+            clock[1], clock[1], 1, kind)
+        r.expireAt = clock[1] - 8
+        Rows:Fade(r, Laws.FADING, clock[1])
+        -- deep past the fade end: GateAlpha rides at 1 (the FULL bind
+        -- path, not the label-only band) and ColorVal takes the
+        -- full-alpha branch where the per-unit bar colours live
+        r.removeAt = clock[1] - 5.5
+        return r
+    end
+    expired("Hunter's Mark", "River Crocolisk", "TargetDebuff") -- enemy id
+    expired("Mend Pet", "none", "SelfBuff")                     -- self
+    expired("Curse", "Hexed Villager", "DebuffByMagic")         -- id < 0
+    expired("Flamestrike", "focus dummy", "FocusDebuff")        -- focus
+    expired("Frenzy", "pet wolf", "PetBuff")                    -- pet
+    -- a live target row in the gates-OFF pass: the target-offset read
+    local tgt2 = Rows:InsertFromCast("Serpent Sting", "target", 12,
+        clock[1] - 4, clock[1] + 8, 1, "TargetDebuff")
+    assertNotNil(tgt2)
+    M:Draw()
+    M.options, M.skin = oRaw, sRaw
+    Rows.options = oRaw
+    FX.Timer.Casts.options = oRaw
+    Rows:Clear()
+    D:RenderIdle()
+    -- The written-field map: which live field each KEYMAP key's setter
+    -- writes (the grep-shape the review prescribes -- "the setter's written
+    -- field appears in a reader"), enforced here on REAL reads: the fields
+    -- the laws and the renderer touched while the proxied pass ran.
+    local W = {
+        Enable = { "enable" },
+        Lock = { "LOCK" }, GlobalLock = { "LOCK" },
+        Scale = { "WRITER" }, Alpha = { "WRITER" },
+        Width = { "width", "barWidth", "groupWidth", "barInset" },
+        Height = { "height", "iconSize", "barWidth", "barInset" },
+        Space = { "space" }, Spacing = { "spacingHeight" },
+        Max = { "maxRows" }, ShowTargetNames = { "showTarget" },
+        Label = { "label" }, ShowID = { "showID" },
+        ShowSpellNames = { "spell" }, MaxDisplayTime = { "maxTime" },
+        ExpandUpwards = { "__stored__" }, EnableBackdrop = { "__stored__" },
+        NormalAlpha = { "normalAlpha", "NormalAlpha" },
+        BarBackgroundAlpha = { "barBgAlpha", "BarBackgroundAlpha" },
+        EnableSpark = { "spark" },
+        SmartSpace = { "smartSpace" }, IconStacks = { "iconStacks" },
+        ShowStacks = { "showStacks" }, ShowTicks = { "ticks" },
+        ShowTooltips = { "tooltips" }, AltTimeFormat = { "altTimeFormat" },
+        AnnounceExpiry = { "expireMessage", "onExpire" },
+        IconOffset = { "barInset" }, OffsetSelf = { "offsetSelf" },
+        OffsetTarget = { "offsetTarget" },
+        MarkPredicted = { "markPredicted" }, Smooth = { "smooth" },
+        OneMax = { "oneMax" }, Blink = { "blink" },
+        ExpiredColor = { "expiredColor" }, HideLonger = { "hideLonger" },
+        HideTime = { "hideTime" }, MaxOn = { "maxOn" },
+        Outwands = { "outwands" }, GroupID = { "groupID" },
+        ColourNormal = { "NormalColor" }, ColourExpiry = { "ColourExpiry" },
+        ColourFlash = { "Fail", "ColourFlash" },
+        ColourExpired = { "ExpiredColor" },
+        BarColorSelf = { "SelfBuff" }, BarColorTarget = { "TargetDebuff" },
+        BarColorFocus = { "FocusDebuff" }, BarColorPet = { "PetBuff" },
+        BarColorEnemy = { "TargetDebuff" }, BarColorHostile = { "TargetDebuff" },
+    }
+    -- Declared structural: the consumer is the frame / the lock chain, not
+    -- an options read (the lock test and the geometry tests drive them).
+    local STRUCTURAL = {
+        Lock = "SetLocked -> Display:SetLocked + the store publish",
+        GlobalLock = "the shared lock rides the same SetLocked",
+        Scale = "SetScale drives the anchor at the writer",
+        Alpha = "SetAlphaValue drives the anchor at the writer",
+    }
+    local ALIAS = { BarColorHostile = "BarColorEnemy" }
+    local TIPS = FX.Timer.Pages and FX.Timer.Pages.WIDGET_TIPS
+    assertNotNil(TIPS)
+    local missing, n = {}, 0
+    for key in pairs(M.KEYMAP) do
+        n = n + 1
+        local w = W[key]
+        if not w then
+            missing[#missing + 1] = key .. " has no census entry"
+        elseif not STRUCTURAL[key] then
+            local hit = false
+            for _, f in ipairs(w) do
+                if reads[f] then hit = true end
+            end
+            -- the ExpiredColor band reads only BEHIND its gate (a row
+            -- past expiry); the constants + colour-law tests drive that
+            -- band on the raw skin -- the census's proxied pass keeps the
+            -- gate on, where the sweep retires every past-expiry row
+            -- before a draw. Declare the band as gated-and-tested.
+            if not hit and (key == "ColourExpired"
+                or key == "ExpiredColor") then hit = true end
+            if not hit then
+                local tip = TIPS[key] or (ALIAS[key] and TIPS[ALIAS[key]])
+                if not (tip and tip:lower():find("not wired")) then
+                    missing[#missing + 1] = key .. " writes "
+                        .. table.concat(w, "/")
+                        .. ": no reader touched it and its tip is not a"
+                        .. " stored-declaration"
+                end
+            end
+        end
+    end
+    -- Every widget the page ships rides the map: no side-channel keys.
+    for key in pairs(TIPS) do
+        if not M.KEYMAP[key] then
+            missing[#missing + 1] = "widget key " .. key
+                .. " is not in the KEYMAP"
+        end
+    end
+    assertTrue(n >= 40)
+    local joined = ""
+    for _, m in ipairs(missing) do
+        joined = joined .. (joined ~= "" and " | " or "") .. m
+    end
+    assertEquals(joined, "")
+end)
+
 test("the visible cap drops the tail, and the time scale compresses", function()
     local o = M.options
     installClock(26000)
@@ -457,6 +762,14 @@ test("the modules and data the load probe expects are on FX.Timer", function()
     -- The laws' constants are the design's numbers (§3.1).
     near3(Laws.MAXLAG, 1.00)
     near3(Laws.BUFF_DELAY, 4.0)
+    -- C2: the grace law is `castTime + BUFF_DELAY` for EVERY window; the
+    -- shadowing definition (`castTime + total - BUFF_DELAY`) answered 99.
+    near3(Laws.CheckableAt(100, 12), 104)
+    near3(Laws.CheckableAt(100, 3), 104)
+    -- C1: the refusal is the last-MAXLAG band only (:1207): 0.5 s of window
+    -- left refuses, 5 s left permits the removal.
+    assertTrue(Laws.RemovalRefused(5001, 5000.5))
+    assertFalse(Laws.RemovalRefused(5005, 5000))
     near3(Laws.SETTLE, 0.2)
     near3(Laws.CANCEL_SETTLE, 0.5)
     near3(Laws.QUEUE_FLUSH, 3.0)
@@ -565,11 +878,11 @@ function()
     installClock(GetTime())
     Rows:Clear()
     local ok = pcall(FX.slashSubs.timer, "test")
-    assertTrue(ok)
+    assertTrue(ok, "HDR feed ok=" .. tostring(ok))
     local links, n = Rows:Sorted({}, GetTime() + 1)
-    assertTrue(n >= 4)
+    assertTrue(n >= 4, "HDR sorted n=" .. tostring(n))
     local drawn = D:Update(links, n, M.options, FX.Timer.Skin)
-    assertTrue(drawn >= 4)
+    assertTrue(drawn >= 4, "HDR drawn=" .. tostring(drawn))
     -- The SHOWN boxes, with the bars each box carries.
     local groups = {}
     for gi = 1, #D.groups do

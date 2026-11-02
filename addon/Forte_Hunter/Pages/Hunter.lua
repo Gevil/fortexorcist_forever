@@ -96,6 +96,10 @@ function P.RegisterHunterPage()
             title = "Hunter Tools",
             colour = O.C.BROWN,
             lockKey = "Lock",
+            -- C4: the n4 law as data -- the page hands its live frame (the
+            -- swing bar, whose publish is Hunter.Lock) to BuildHeader; the
+            -- window no longer branches on the module name.
+            lockFrame = swing,
             build = function(b)
                 ensureWiring()
                 b.Tips({

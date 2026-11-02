@@ -240,18 +240,51 @@ test("refresh: a fact shorter by more than MAXLAG swaps the row", function()
     Rows:Clear()
 end)
 
-test("removal is REFUSED while more than MAXLAG of the window is left", function()
+test("the removal law (:1207): absent + past the grace REMOVES, the last MAXLAG is refused",
+function()
     buildHunterRegistry()
     Rows.options = opts()
     Rows:Clear()
-    -- castTime + total - BuffDelay: the row is checkable at 12 - 4 = 8 s in.
+    -- :1186 makes the row checkable at castTime + BUFF_DELAY = 8004, and
+    -- :1207 ("dont remove if only maxlag left") permits the removal while
+    -- MORE than maxlag of the window is left. A 12 s window cast at 8000
+    -- expires at 8012.
     local row = seededRow("Serpent Sting", "Vile Poacher", 12, 8000)
-    assertEquals("grace", Rows:OnAuraAbsent(row, 8000 + 7))
-    assertEquals("refused", Rows:OnAuraAbsent(row, 8000 + 9))
+    assertEquals("grace", Rows:OnAuraAbsent(row, 8003.5))
+    -- 0.5 s of window left: inside MAXLAG, natural expiry owns the row.
+    -- (The inverted build removed here.)
+    assertEquals("refused", Rows:OnAuraAbsent(row, 8011.5))
     assertEquals(Laws.NORMAL, row.state)
-    -- One second of window left: inside MAXLAG, so the absence is a removal.
-    assertEquals("removed", Rows:OnAuraAbsent(row, 8000 + 11.5))
+    -- 7 s left, past the grace: the absence fact is a removal. (The
+    -- shadowed CheckableAt answered "grace" here -- the 12 s window hides
+    -- the difference only from 8008 on, see the short-window test below.)
+    assertEquals("removed", Rows:OnAuraAbsent(row, 8005))
     assertEquals(Laws.REMOVE, row.state)
+    Rows:Clear()
+end)
+
+test("the grace law: CheckableAt is castTime + BUFF_DELAY for every window",
+function()
+    -- :1186 `(st[i][3] - st[i][1] + t) >= BuffDelay` with st[3]=total and
+    -- st[1]=expireAt (= castTime + total) reduces to `t >= castTime +
+    -- BUFF_DELAY`: the window's total does NOT move the grace. The shadowed
+    -- second definition (castTime + total - BUFF_DELAY) answered 99 for the
+    -- 3 s probe below -- a short-proc row judgable "gone" before the grace
+    -- ended, the exact lag case BUFF_DELAY was measured for (:69).
+    near(Laws.CheckableAt(100, 12), 104)
+    near(Laws.CheckableAt(100, 3), 104)
+    near(Laws.CheckableAt(100, 0), 104)
+    near(Laws.CheckableAt(100, nil), 104)
+    -- Behaviour on a 3 s window: the grace ends at cast+4, one second AFTER
+    -- the window's own end -- the sweep never retires such a row, natural
+    -- expiry owns it. The shadowed build removed it at cast+2.
+    buildHunterRegistry()
+    Rows.options = opts()
+    Rows:Clear()
+    local row = seededRow("Serpent Sting", "Vile Poacher", 3, 100)
+    assertEquals("grace", Rows:OnAuraAbsent(row, 102))
+    assertEquals("refused", Rows:OnAuraAbsent(row, 104.5))
+    assertEquals(Laws.NORMAL, row.state)
     Rows:Clear()
 end)
 
@@ -385,7 +418,41 @@ function()
     Rows:Clear()
 end)
 
-test("an absent aura removes only past the grace and past MAXLAG", function()
+test("the combat gate falls back to InCombatLockdown, the project's probe",
+function()
+    -- C3: the fallback named a global (`InCombat`) that exists on no client,
+    -- so with the injectable seam cleared the production gate answered
+    -- `false` mid-combat and the full sweep issued sealed reads every
+    -- window. The fallback is the project's combat probe, InCombatLockdown
+    -- (Casts.lua:78, Forte_Core/Core/Probe.lua:80), pcall'd the same way.
+    buildHunterRegistry()
+    Rows.options = opts()
+    Rows:Clear()
+    seededRow("Serpent Sting", "target", 12, 16000)
+    Reconcile:Init(Rows, opts())
+    Reconcile.readers = {
+        byName = function() return false end,
+        bulk = function() return false end,
+    }
+    local savedProbe, savedStub = Reconcile.inCombat, _G.InCombatLockdown
+    local savedSS = FX.SecretState and FX.SecretState.aurasSecret
+    if FX.SecretState then FX.SecretState.aurasSecret = nil end
+    Reconcile.inCombat = nil
+    local reads = Reconcile.counts.reads
+    _G.InCombatLockdown = function() return true end
+    assertTrue(Reconcile:Gates(), "in combat the sweep must be gated")
+    assertEquals(0, Reconcile:SweepUnit("target", "HARMFUL", 16005))
+    assertEquals(reads, Reconcile.counts.reads)   -- not one read was issued
+    _G.InCombatLockdown = function() return false end
+    assertFalse(Reconcile:Gates())
+    assertEquals(1, Reconcile:SweepUnit("target", "HARMFUL", 16005))
+    _G.InCombatLockdown = savedStub
+    Reconcile.inCombat = savedProbe
+    if FX.SecretState then FX.SecretState.aurasSecret = savedSS end
+    Rows:Clear()
+end)
+
+test("the aura sweep retires a consumed aura's row while MAXLAG of its window remains", function()
     buildHunterRegistry()
     Rows.options = opts()
     Rows:Clear()
@@ -397,12 +464,14 @@ test("an absent aura removes only past the grace and past MAXLAG", function()
         bulk = function() return false end,
     }
     local before = Reconcile.counts.removed or 0
-    Reconcile:SweepUnit("target", "HARMFUL", 14005)  -- inside the grace
+    Reconcile:SweepUnit("target", "HARMFUL", 14003)   -- inside the grace
     assertEquals(Laws.NORMAL, row.state)
-    Reconcile:SweepUnit("target", "HARMFUL", 14009)  -- > MAXLAG left: refused
+    Reconcile:SweepUnit("target", "HARMFUL", 14011.5) -- 0.5 s left: REFUSED (:1207)
     assertEquals(Laws.NORMAL, row.state)
-    Reconcile:SweepUnit("target", "HARMFUL", 14011.5)
-    assertEquals(Laws.REMOVE, row.state)
+    Reconcile:SweepUnit("target", "HARMFUL", 14005)   -- past the grace, 7 s left: REMOVED
+    assertEquals(Laws.REMOVE, row.state)              -- a consumed aura is
+    -- retired at once, not after ~11 phantom seconds (the C1/C2 reading,
+    -- pinned by the inverted asserts this test used to carry).
     assertTrue((Reconcile.counts.removed or 0) > before)
     Rows:Clear()
 end)

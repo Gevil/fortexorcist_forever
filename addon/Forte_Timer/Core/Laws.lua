@@ -448,17 +448,14 @@ function Laws.ReconcileVerdict(factExpire, predictedExpire)
     return "refresh", d
 end
 
---- The removal-refusal law (:1207): a row may not be judged gone while more
---- than MAXLAG of its own window is left.
+--- The removal-refusal law (:1207, verbatim):
+--- `elseif st[i][10] == 1 and (st[i][1] == 0 or st[i][1] - t > maxlag) then`
+--- -- "dont remove if only maxlag left". The source PERMITS the removal
+--- while more than MAXLAG of the window is left and REFUSES it in the last
+--- MAXLAG seconds, where natural expiry owns the row. This predicate answers
+--- the refusal: true only in that last band.
 function Laws.RemovalRefused(expireAt, now)
-    return (expireAt - now) > Laws.MAXLAG
-end
-
---- The grace law (:1186-1187): a row becomes checkable (removable on a
---- "no such aura" read) only BUFF_DELAY seconds after the window it predicts
---- should have started.
-function Laws.CheckableAt(castTime, total)
-    return (castTime or 0) + (total or 0) - Laws.BUFF_DELAY
+    return (expireAt - now) <= Laws.MAXLAG
 end
 
 FX.Timer.Laws = Laws

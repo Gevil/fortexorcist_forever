@@ -156,6 +156,7 @@ local PAGES = {
     {
         id = "ShardManager", title = "Shard Manager",
         colourKey = "PURPLE", enableKey = "ShardEnable",
+        view = "Shards",           -- C4: the page's live lock frame
         tips = {
             "The soul shard count, read from the bags (the power bar is the second source).",
             "The plate is the count (x<n>); the label right of it prints <n> total and the second line names which source answered.",
@@ -197,6 +198,7 @@ local PAGES = {
     {
         id = "Soulstone", title = "Soulstone Tracker",
         colourKey = "PURPLE", enableKey = "SoulstoneEnable",
+        view = "Soulstone",        -- C4: the page's live lock frame
         build = function(b)
             b.Tips({
                 "The plate prints x<n> and `no ss up` while no stone we cast is up; the second line then carries <bearer> and the m:ss.",
@@ -236,6 +238,7 @@ local PAGES = {
     {
         id = "Healthstone", title = "Healthstone Spy",
         colourKey = "GREEN", enableKey = "HealthstoneEnable",
+        view = "Healthstone",      -- C4: the page's live lock frame
         build = function(b)
             b.Tips({
                 "The plate carries the healthstone count in OUR bags and the stone's item cooldown.",
@@ -271,6 +274,7 @@ local PAGES = {
     {
         id = "Summon", title = "Summon Assistant",
         colourKey = "PURPLE", enableKey = "SummonEnable",
+        view = "Summon",           -- C4: the page's live lock frame
         build = function(b)
             b.Tips({
                 "The bar is the Ritual of Summoning channel: it fills as the channel runs, with the seconds left.",
@@ -324,6 +328,12 @@ function P.RegisterWarlockPages()
                 title = def.title,
                 colour = O.C[def.colourKey],
                 lockKey = "Lock",
+                -- C4: the header glyph reads THIS page's plate. The four
+                -- plates share the one Warlock.Lock key (the shared lock
+                -- law of UI/Frame.lua), so they move as one lock unit; a
+                -- divergence between a plate and the Cooldown bar is the
+                -- n4/C4 case the header must follow, not swallow.
+                lockFrame = function() return FX.Warlock[def.view] end,
                 build = function(b)
                     ensureWiring()
                     def.build(b)

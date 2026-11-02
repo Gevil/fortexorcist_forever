@@ -29,6 +29,20 @@ def sim(*args):
     return p.returncode, ANSI.sub("", p.stdout + p.stderr)
 
 
+# With every class add-on `## LoadOnDemand: 1`, a session parses only the
+# profile class's data + modules, so a suite that leans on one class's data has
+# to run as that class -- Forte_Core excepted on purpose: its `test_loader.lua`
+# asserts "only the player's class add-on is loaded", so it must run as the
+# default (Paladin) class, the one with data and NO modules (PLAN §11).
+#
+# The suites whose fixtures are another class's spells (Forte_Cooldown,
+# Forte_Timer, Forte_Options) and the class suites themselves declare that by
+# loading the add-on they audit (`test_00_class_data.lua`, and the loader call
+# at the top of each class suite's first file): `run-tests` does NOT run a
+# load-on-demand add-on's own files, so without it the suite audits nil data.
+# Every suite runs under the sim's default class exactly as before the split
+# -- `--class` would move `FX._playerClass`, which the class-gate tests assert
+# is NOT the class they audit.
 def run_tests():
     for d in sorted(glob.glob(os.path.join(ADDONS, "Forte_*", "tests"))):
         addon = os.path.basename(os.path.dirname(d))
@@ -37,18 +51,33 @@ def run_tests():
         fails = [l.strip()[:140] for l in out.splitlines() if "\u2717" in l]
         errs = sorted(set(FORTE_ERR.findall(out)))
         ok = rc == 0 and counts and counts[-1][2] == "0" and not fails and not errs
-        print(f"[tests] {addon}: {counts[-1] if counts else 'no summary'} rc={rc} {'OK' if ok else 'FAIL'}")
+        print(f"[tests] {addon}: "
+              f"{counts[-1] if counts else 'no summary'} rc={rc} {'OK' if ok else 'FAIL'}")
         for f in fails: print("        ", f)
         for e in errs: print("         error at", e)
         if not ok: failures.append(f"tests {addon}")
 
 
-EXPECTED_DATA = {"Druid", "Hunter", "Items", "Mage", "Paladin", "Priest", "Rogue", "Shaman", "Warlock", "Warrior"}
-EXPECTED_MODULES = {"Cooldown", "Hunter", "HunterUI", "Probe", "Timer", "Warlock", "WarlockUI"}
+# With `## LoadOnDemand: 1` on every class add-on, a session carries the
+# always-loaded data sets + modules plus EXACTLY the profile class's. Forte_Core
+# is the load probe's own target, so the runs below are plain startup probes
+# (no tests). The sim's headless default class is Paladin (docs/reference/
+# wow-ui-sim-specs/cli-class-spec.md), which has data and no modules -- the
+# shape that proves the gate keeps the other classes out.
+ALWAYS_DATA = {"Items"}
+ALWAYS_MODULES = {"Cooldown", "Probe", "Timer"}
+LOAD_PROBES = {
+    None: {"data": {"Paladin"}, "modules": set()},
+    "Hunter": {"data": {"Hunter"}, "modules": {"Hunter", "HunterUI"}},
+    "Warlock": {"data": {"Warlock"}, "modules": {"Warlock", "WarlockUI"}},
+}
 PROBE = ('local k={} for n in pairs(ForteXorcist.Data or {}) do if not n:find("ByName") then k[#k+1]=n end end '
          'table.sort(k) local m={} for n in pairs(ForteXorcist.modules or {}) do m[#m+1]=n end table.sort(m) '
+         'local c={} for n in pairs(ForteXorcist.CLASS_ADDONS or {}) do if C_AddOns.IsAddOnLoaded(ForteXorcist.CLASS_ADDONS[n]) '
+         'then c[#c+1]=ForteXorcist.CLASS_ADDONS[n] end end '
          'CreateFrame("Frame","FXPROBE__"..table.concat(k,"_").."__M__"..table.concat(m,"_")'
-         '.."__O"..tostring(ForteXorcist.Options~=nil))')
+         '.."__O"..tostring(ForteXorcist.Options~=nil).. "__L"..tostring(#c)'
+         '.."__C"..tostring(ForteXorcist._playerClass))')
 
 
 def lua_errors():
@@ -56,16 +85,36 @@ def lua_errors():
     errs = sorted(set(FORTE_ERR.findall(out)))
     print(f"[load] Forte_* error sites: {errs or 'none'}")
     if errs: failures.append("lua-errors")
-    # The sim's load summary only lists the slowest addons, so prove loading from live globals instead.
-    rc, out = sim("--exec-lua", PROBE, "dump-tree")
-    m = re.search(r"FXPROBE__(\w*?)__M__(\w*?)__O(true|false)", out)
-    if not m:
-        print("[load] FAIL probe frame not found"); failures.append("load probe"); return
-    data, mods, opts = set(filter(None, m.group(1).split("_"))), set(filter(None, m.group(2).split("_"))), m.group(3)
-    print(f"[load] data sets: {sorted(data)}; modules: {sorted(mods)}; options: {opts}")
-    missing = (EXPECTED_DATA - data) | (EXPECTED_MODULES - mods) | ({"Options"} if opts != "true" else set())
-    if missing:
-        print(f"[load] FAIL missing: {sorted(missing)}"); failures.append("load probe")
+    # The sim's load summary only lists the slowest addons, so prove loading from live globals
+    # and -- for the LoD split -- from the live C_AddOns registry, once per profile class.
+    for cls, want in LOAD_PROBES.items():
+        flags = ["--class", cls] if cls else []
+        rc, out = sim(*flags, "--exec-lua", PROBE, "dump-tree")
+        m = re.search(r"FXPROBE__(\w*?)__M__(\w*?)__O(true|false)__L(\d+)__C(\w+)", out)
+        label = cls or "default(Paladin)"
+        if not m:
+            print(f"[load] FAIL {label}: probe frame not found"); failures.append(f"load probe {label}"); continue
+        data = set(filter(None, m.group(1).split("_")))
+        mods = set(filter(None, m.group(2).split("_")))
+        opts, loaded_n, token = m.group(3), int(m.group(4)), m.group(5)
+        want_data = ALWAYS_DATA | want["data"]
+        want_mods = ALWAYS_MODULES | want["modules"]
+        print(f"[load] {label}: data={sorted(data)} modules={sorted(mods)} "
+              f"class addons loaded={loaded_n} class={token} options={opts}")
+        missing = (want_data - data) | (want_mods - mods) | ({"Options"} if opts != "true" else set())
+        extra = (data - want_data) | (mods - want_mods)
+        bad = []
+        if missing: bad.append(f"missing {sorted(missing)}")
+        if extra: bad.append(f"extra {sorted(extra)}")
+        if "Items" not in data:
+            bad.append("Forte_Items data is not always-loaded")
+        if loaded_n != 1:
+            bad.append(f"{loaded_n} class add-ons loaded, expected exactly 1")
+        want_token = (cls or "Paladin").upper()
+        if token != want_token:
+            bad.append(f"profile class {token}, expected {want_token}")
+        if bad:
+            print(f"[load] FAIL {label}: " + "; ".join(bad)); failures.append(f"load probe {label}")
 
 
 def toc_pairs():

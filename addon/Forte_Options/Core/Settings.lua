@@ -111,6 +111,15 @@ function S:Set(moduleName, key, value)
     return value
 end
 
+--- How many change listeners a module carries (read-only test seam,
+--- CodeReview3 m1: the single-registration convention -- Init/hook paths
+--- must not multiply their listeners across class round trips; the count
+--- is the observable of that law).
+function S:CountListeners(moduleName)
+    local fns = listeners[moduleName]
+    return fns and #fns or 0
+end
+
 --- fn(key, value) fires after every Set on this module.
 function S:OnChange(moduleName, fn)
     local fns = listeners[moduleName]

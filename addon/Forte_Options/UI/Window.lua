@@ -96,7 +96,11 @@ O.INDEX = O.INDEX or {
 }
 
 --- Pages/*.lua entry point (load-time data only). def =
---- { id, title, colour, module, scaleKey, alphaKey, lockKey, build }
+--- { id, title, colour, module, scaleKey, alphaKey, lockKey, lockFrame,
+---   build }
+--- lockKey pages MUST also hand lockFrame: a function returning the live
+--- frame whose cfg.locked is the truth for THIS page (BuildHeader); the
+--- store read is only the fallback for a page whose module has no frame.
 function O:RegisterPage(def)
     self.pages[def.id] = def
     -- A page registered after the shell was built lights its index cell
@@ -668,20 +672,25 @@ function O:BuildHeader(def)
         -(C.TITLE_H + C.TABS_H))
     head.bar:SetSize(C.WIN_W - 16, C.HEAD_H)
     self.header = head
-    -- m4: the icon reads the LIVE lock state of the frame THIS page's
-    -- module owns -- the Hunter page drives the swing bar (FX.Hunter.Swing,
-    -- whose lock is Hunter.Lock), every Cooldown/General page drives the
-    -- timeline bar (FX.Cooldown.Display, whose lock is Cooldown.Lock /
-    -- GlobalLock). Reading the Cooldown bar for every page (CodeReview2 n4)
-    -- made the Hunter header show that bar's lock, so after the Hunter
-    -- checkbox was unticked a page re-open painted the locked glyph while
-    -- the checkbox and the bar said unlocked. The store is the fallback for
-    -- a page whose module has no live frame.
+    -- m4/C4: the icon reads the LIVE lock state of the frame THIS page's
+    -- module owns. The page HANDS that frame through def.lockFrame (a
+    -- resolver -- Pages/*.lua know which frame their module drives: the
+    -- Cooldown/General pages FX.Cooldown.Display, the Hunter page
+    -- FX.Hunter.Swing, the SpellTimer page FX.Timer.Display, each Warlock
+    -- page its own plate), so a page added later follows the law with no
+    -- edit here. The n4 family showed the hard-coded branch is the defect:
+    -- the "Hunter / everything-else -> FX.Cooldown.Display" test encoded
+    -- the 2026-11-01 module world, so the pages added since (SpellTimer,
+    -- the four Warlock plates, CodeReview3 C4) read the *Cooldown bar's*
+    -- lock and re-opened the exact n4 divergence -- a locked bar painted a
+    -- locked glyph over an unlocked, draggable plate. The store is the
+    -- fallback for a page whose module has no live frame.
     local locked
     if def.lockKey then
-        local frame = (def.module == "Hunter"
-            and FX.Hunter and FX.Hunter.Swing
-            or (FX.Cooldown and FX.Cooldown.Display))
+        local frame
+        if type(def.lockFrame) == "function" then
+            frame = def.lockFrame()
+        end
         if frame and frame.cfg and frame.cfg.locked ~= nil then
             locked = frame.cfg.locked
         else

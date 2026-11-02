@@ -574,6 +574,18 @@ test("Warlock settings drive the four plates live", function()
         string.format("shard vertex=%.2f/%.2f/%.2f own2=%s", sr, sg, sb,
             tostring(Shards._ownText and Shards._ownText[2])))
     ST:Reset("Warlock", "ShardColor")
+    -- m3 (CodeReview3): the Healthstone page's Count colour had NO
+    -- consumer -- the count text followed only the shared TextColor, so
+    -- the picker painted nothing. Its ShardColor pair is the law: the
+    -- frame's OWN colour key is the specific answer for the count.
+    ST:Set("Warlock", "HealthstoneColor", { 0, 0, 1, 1 })
+    local hr, hg, hb = HS.amountFS:GetVertexColor()
+    assertTrue(hr < 0.01 and hg < 0.01 and hb > 0.99,
+        string.format("healthstone count vertex=%.2f/%.2f/%.2f", hr, hg, hb))
+    ST:Reset("Warlock", "HealthstoneColor")
+    hr, hg, hb = HS.amountFS:GetVertexColor()
+    assertTrue(hr > 0.99 and hg > 0.99 and hb > 0.99,
+        "the recycle restores the white count")
     -- The shared plate colour reaches the PLATE washes of all four frames,
     -- never the bar fills (a plate colour can not repaint a bar).
     local beforeR = Stone.fill:GetVertexColor()
@@ -666,6 +678,45 @@ test("Lock: the frames publish Warlock.Lock; GlobalLock and the Cooldown bar mov
         assertTrue(Stone.cfg.locked)
     end
     ST:Set("Warlock", "Lock", true)
+end)
+
+-- m1 (CodeReview3): Frame:_HookSettings registered its FOUR listeners per
+-- frame on EVERY Init, and UI:OnClassChanged("WARLOCK") -- the T4/T15 class
+-- round trip the suite itself drives -- re-runs _InitViews -> Init. FX.Settings
+-- appends with no dedup, so each round trip added 16 more listeners; every
+-- Set then fired all copies, unbounded across a session. The single-
+-- registration convention (_wired in Module, _lockWired in Window, wired on
+-- the Hunter page) is the law; the store seam counts it.
+test("the class round trip does not multiply the frames' store listeners",
+function()
+    ensureBuilt()
+    assertNotNil(ST.CountListeners, "the counting seam exists")
+    local function total()
+        -- The four listeners a wired frame registers, spread over the
+        -- three modules it follows: Warlock (its keymap + Lock), General
+        -- (the shared keys + GlobalLock) and Cooldown (its Lock relay).
+        return ST:CountListeners("Warlock") + ST:CountListeners("General")
+            + ST:CountListeners("Cooldown")
+    end
+    local before = total()
+    assertTrue(before >= 16,
+        "the four frames carry their four listeners each: " .. before)
+    local savedClass = FX._playerClass
+    -- Three full T4/T15 round trips: away from and back to WARLOCK, the
+    -- exact calls Core's FX.RefreshPlayerClass makes.
+    for _ = 1, 3 do
+        UI:OnClassChanged("WARLOCK")
+        UI:OnClassChanged(savedClass)
+    end
+    assertEquals(before, total(),
+        "the listener list is stable across three round trips")
+    assertEquals(savedClass, FX._playerClass)
+    -- And the seam still WORKS after the guard (the guard skips
+    -- re-registering, not wiring): a live Set reaches the frames.
+    ST:Set("Warlock", "HealthstoneSize", 144)
+    assertEquals(144, HS.anchor:GetWidth())
+    ST:Reset("Warlock", "HealthstoneSize")
+    assertEquals(106, HS.anchor:GetWidth())
 end)
 
 -- -------------------------------------------------------------- position --

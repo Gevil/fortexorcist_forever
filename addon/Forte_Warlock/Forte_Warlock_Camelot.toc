@@ -5,6 +5,7 @@
 ## Author: Gevil
 ## Dependencies: Forte_Core
 ## OptionalDeps: Forte_Cooldown, Forte_Items, Forte_Options
+## LoadOnDemand: 1
 
 Data/Warlock.lua
 Core/Tools.lua

@@ -65,7 +65,7 @@ function Reconcile:Gates()
     -- engine's own gate, and the combat flag is ours -- in combat the read is
     -- sealed and a nil cannot be told from a seal, so the sweep does not run.
     local probe = self.inCombat
-    if probe == nil then probe = InCombat end
+    if probe == nil then probe = InCombatLockdown end
     if type(probe) == "function" then
         local ok, combat = pcall(probe)
         if ok and FX.Compat.PlainOrNil(combat) then return true end

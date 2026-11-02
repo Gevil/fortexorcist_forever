@@ -569,6 +569,89 @@ function()
     O:Close()
 end)
 
+-- CodeReview3 C4: the n4 fix above hard-branched `Hunter / everything-else
+-- -> FX.Cooldown.Display`, encoding that day's module world. The pages
+-- added since -- SpellTimer and the four Warlock plates -- fell into the
+-- `or` branch and read the *Cooldown bar's* lock, re-opening the exact n4
+-- divergence (a locked bar painting a locked glyph over an unlocked,
+-- draggable frame). The law is now data: every page hands BuildHeader its
+-- OWN live frame (def.lockFrame); this test pins every one of the five new
+-- pages against a deliberate divergence from the Cooldown bar.
+test("C4: the SpellTimer and the four Warlock headers follow THEIR frames",
+function()
+    local d = FX.Cooldown and FX.Cooldown.Display
+    assertNotNil(d, "the timeline bar is the reference frame")
+    assertNotNil(FX.Timer and FX.Timer.Display, "the spell-timer panel")
+    local TM = FX.Timer and FX.Timer.Module
+    assertNotNil(TM and TM.SetLocked, "the spell-timer module")
+    assertNotNil(O.pages["SpellTimer"], "the SpellTimer page is registered")
+    local WK = FX.Warlock
+    assertNotNil(WK and WK.Shards, "the warlock plates are loaded")
+    for _, id in ipairs({ "ShardManager", "Soulstone", "Healthstone",
+    "Summon" }) do
+        assertNotNil(O.pages[id], "the page " .. id)
+    end
+
+    -- One locked baseline: the bar's publish (Cooldown.Lock +
+    -- GlobalLock, m4) moves every self-wired frame with it.
+    d:SetLocked(true)
+
+    -- SpellTimer: the module's SetLocked publishes SpellTimer.Lock
+    -- ONLY -- the Cooldown bar never moves -- so the two frames
+    -- legitimately diverge.
+    TM:SetLocked(false)
+    assertEquals(true, d.cfg.locked, "the timeline bar is locked")
+    assertEquals(false, FX.Timer.Display.cfg.locked, "the panel is not")
+    O:Open("SpellTimer")
+    local r, g = O.header.lockText:GetTextColor()
+    assertTrue(g >= 0.70 and r >= 0.99,
+        "the SpellTimer header reads the panel (gold = unlocked)")
+    -- The same session, the Cooldown page: its header still reads ITS bar.
+    O:Open("Cooldown")
+    r, g = O.header.lockText:GetTextColor()
+    assertTrue(r < 0.90 and g < 0.90, "the Cooldown header follows its bar")
+
+    -- The four Warlock pages: set the Soulstone plate free while the bar
+    -- stays locked. Where the plates self-wire (a WARLOCK profile) they
+    -- share the one Warlock.Lock key and move as one unit -- assert that
+    -- law, then every page reads gold. On the gate's profile (not a
+    -- warlock: the plates are un-Init'ed, no wiring, cfg = the skin
+    -- default) only the touched plate frees itself -- its page reads gold,
+    -- the locked plates' pages stay grey.
+    assertEquals(true, d.cfg.locked, "the bar was never touched")
+    WK.Soulstone:SetLocked(false)
+    assertEquals(false, WK.Soulstone.cfg.locked)
+    local movesAsOneUnit = (WK.Shards.cfg.locked == false)
+    for _, pair in ipairs({
+        { id = "ShardManager", view = "Shards" },
+        { id = "Soulstone", view = "Soulstone" },
+        { id = "Healthstone", view = "Healthstone" },
+        { id = "Summon", view = "Summon" },
+    }) do
+        if movesAsOneUnit then
+            assertEquals(false, WK[pair.view].cfg.locked,
+                pair.view .. " rides the shared Warlock.Lock")
+        end
+        O:Open(pair.id)
+        local rr, gg = O.header.lockText:GetTextColor()
+        if WK[pair.view].cfg.locked then
+            assertTrue(rr < 0.90 and gg < 0.90,
+                pair.id .. ": the locked plate paints the grey glyph")
+        else
+            assertTrue(gg >= 0.70 and rr >= 0.99,
+                pair.id .. ": the unlocked plate paints the gold glyph")
+        end
+    end
+
+    -- Shared defaults back for the tests that follow.
+    for _, name in ipairs({ "Shards", "Soulstone", "Healthstone", "Summon" }) do
+        WK[name]:SetLocked(true)
+    end
+    TM:SetLocked(true)
+    d:SetLocked(true)
+    O:Close()
+end)
+
 test("T9 live wiring: a Width edit on the page resizes the live bar", function()
     O:Open("Cooldown")
     local page = O.pagesBuilt["Cooldown"]

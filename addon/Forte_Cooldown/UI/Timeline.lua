@@ -881,8 +881,13 @@ function D:AcquireSlot()
     chargeFS:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -1)
     chargeFS:Hide()
 
-    slot = { frame = frame, tex = tex, spark = spark, timeFS = timeFS,
-             chargeFS = chargeFS, seg = seg }
+    -- m2 (CodeReview3): the missing `local` wrote the SHARED-ENVIRONMENT
+    -- global named `slot` on every pool growth (the reuse branch's local
+    -- at the top of the function dies at its branch). Functional, pure
+    -- hygiene: a trivially collidable name in the environment every addon
+    -- shares.
+    local slot = { frame = frame, tex = tex, spark = spark, timeFS = timeFS,
+                   chargeFS = chargeFS, seg = seg }
     self.slots[i] = slot
     return slot
 end
@@ -1023,6 +1028,10 @@ end
 --- is the only alpha law; PulseCycle 0 switches the wave off), the frame
 --- fading alpha 1 -> 0 linear over PulseSeconds. Grow-only pool.
 function D:SpawnPulse(name, texPath, col, endAt)
+    -- m8 (CodeReview3): a sealed GetSpellTexture read (the secrecy law's
+    -- own case) leaves slot._texPath nil; drawing the ADD-blend spark alone
+    -- would fly a lone glow along the bar. A nil-icon pulse therefore runs the
+    -- fade law as a spark-less flash; an icon pulse keeps its glow.
     local pool = self.pulsePool
     local s
     -- Reuse a spent entry first, like the splash pool (CodeReview2 n2: the old
@@ -1046,6 +1055,7 @@ function D:SpawnPulse(name, texPath, col, endAt)
     end
     s.tex:SetTexture(texPath)
     s.spark:SetVertexColor(fixIntensity(col[1], col[2], col[3]))  -- :1407, :1418
+    if texPath and S.SparkOn then s.spark:Show() else s.spark:Hide() end
     s.frame:ClearAllPoints()
     s.frame:SetPoint("CENTER", self.anchor, "CENTER",
         S.Inset + TM.pos(0, S.Width, S.Height, S.Max, S.Loga) + S.Height * 0.5 - S.Width * 0.5, 0)

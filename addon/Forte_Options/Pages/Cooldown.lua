@@ -97,6 +97,9 @@ O:RegisterPage({
     scaleKey = "Scale",
     alphaKey = "Alpha",
     lockKey = "Lock",
+    -- C4: this page drives the timeline bar; its header glyph reads the
+    -- bar's LIVE cfg.locked (the m4 publish law), never the store copy.
+    lockFrame = display,
     build = function(b)
         ensureWiring()
         -- m4: the checkbox (and the header icon BuildHeader builds after

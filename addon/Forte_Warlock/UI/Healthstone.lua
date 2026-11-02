@@ -47,10 +47,18 @@ local HS = Frame:new({
     module = "Warlock",
     sharedModule = "General",
     lockKey = "Lock",
-    keys = { "HealthstoneSize", "HealthstoneStrikethrough" },
+    keys = { "HealthstoneSize", "HealthstoneColor",
+             "HealthstoneStrikethrough" },
     keymap = {
         HealthstoneEnable = "SetEnabled",
         HealthstoneSize = "SetWidth",            -- the plate width
+        -- m3 (CodeReview3): the Count colour picker on the Healthstone
+        -- page had no consumer -- the plate's count text followed only
+        -- the shared TextColor. The Shards page's ShardColor pair is the
+        -- law: the frame's OWN colour key is the specific answer and wins
+        -- over the General page's shared key (SetTextColor's own-over-
+        -- shared rule, the key arg rides it).
+        HealthstoneColor = "SetTextColor",
         HealthstoneStrikethrough = "SetStrikethrough",
     },
 })

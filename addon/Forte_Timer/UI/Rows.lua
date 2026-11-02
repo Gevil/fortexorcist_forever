@@ -224,7 +224,7 @@ function D:AcquireGroup(i)
     mark:SetAlpha(skin.RaidTargetsAlpha)
     mark:Hide()
     g = { frame = f, label = label, mark = mark, _key = nil, _bg = nil,
-        _labelText = nil, _labelSize = nil, _factor = nil }
+        _labelText = nil, _labelSize = nil, _factor = nil, _ncol = nil }
     self.groups[i] = g
     return g
 end
@@ -333,7 +333,8 @@ function D:AcquireRow(i)
         spark = spark, castarea = castarea, mark = mark, notch = notch,
         ticks = {}, _geometry = nil, _name = nil, _tex = nil, _fill = nil,
         _bg = nil, _alpha = nil, _timeKey = nil, _text = nil, _tag = nil,
-        _notch = nil, _sparkOn = nil, _height = nil, _width = nil }
+        _notch = nil, _sparkOn = nil, _height = nil, _width = nil,
+        _ncol = nil }
     icon:SetScript("OnClick", function(_, button)
         local r = tick._row
         if not r then return end
@@ -586,7 +587,10 @@ function D:Update(links, n, options, skin)
 end
 
 --- The name a row carries (:1878-1884, :2391-2395): the target name, the spell
---- name with ShowSpellNames, with the #id prefix and the (stacks) suffix.
+--- name with ShowSpellNames, with the #id prefix and the (stacks) suffix
+--- (:2517-2523). The suffix rides ShowStacks: the source draws it off the
+--- row's stacks unconditionally (the option did not exist there); the port's
+--- page ships the switch, and off means NO suffix.
 function D:NameFor(row, o)
     local base = row.name
     if not o.spell and row.targetKey ~= "none"
@@ -595,7 +599,7 @@ function D:NameFor(row, o)
     end
     return Laws.NameText(base, row.name, {
         spell = o.spell, showID = o.showID, id = row.groupKey,
-        stacks = row.stacks,
+        stacks = (o.showStacks ~= false) and row.stacks,
     })
 end
 
@@ -606,11 +610,20 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth)
     if not r.bar:IsShown() then r.bar:Show() end
     self:ApplyRowGeometry(r, o, s, link[4])
     r.bar:ClearAllPoints()
-    r.bar:SetPoint("BOTTOMLEFT", g.frame, "BOTTOMLEFT", o.barInset, barOffset)
+    -- The row x-inset: Height+1+Backdrop[6] (:2322), plus the page's extra
+    -- x-offset of your own rows (the `none` key, the self/no-target law
+    -- §3.3) and of the rows riding on your CURRENT target. The source has
+    -- one shared inset law; the per-unit extra is the port's own, applied
+    -- here and nowhere else.
+    local extra = (row.targetKey == "none") and (o.offsetSelf or 0)
+        or ((row.targetKey == "target") and (o.offsetTarget or 0) or 0)
+    r.bar:SetPoint("BOTTOMLEFT", g.frame, "BOTTOMLEFT",
+        o.barInset + extra, barOffset)
 
     -- the colours (:2366-2369): ColorVal decides once, the fill takes the
-    -- triple, the row background takes the alpha, the text is de-saturated by
-    -- FixIntensity (:2369, Forte_Core.lua:796-800).
+    -- triple, the row background takes the alpha. The TEXT is NormalColor
+    -- (:3396; the time :1856, the name :2528), de-saturated by FixIntensity
+    -- (:2369, Forte_Core.lua:796-800) so a picked colour stays legible.
     local total = row.total
     local remaining = (row.drawExpireAt or row.expireAt) - now
     local fillR, fillG, fillB, bgA = Laws.ColorVal(remaining, total,
@@ -625,11 +638,13 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth)
         r._bg = bgKey
         r.back:SetVertexColor(fillR, fillG, fillB, bgA)
     end
-    local nr, ng, nb = Laws.FixIntensity(fillR, fillG, fillB)
-    local nameKey = nr .. "/" .. ng .. "/" .. nb
-    if r._name ~= nameKey then
-        r._name = nameKey
+    local nc = s.NormalColor
+    local ncKey = nc[1] .. "/" .. nc[2] .. "/" .. nc[3]
+    if r._ncol ~= ncKey then
+        r._ncol = ncKey
+        local nr, ng, nb = Laws.FixIntensity(nc[1], nc[2], nc[3])
         r.nameFS:SetTextColor(nr, ng, nb, 1)
+        r.timeFS:SetTextColor(nc[1], nc[2], nc[3], s.TimeAlpha)
     end
 
     -- the fill: the smoothed drawn-expire time over the compressed scale.

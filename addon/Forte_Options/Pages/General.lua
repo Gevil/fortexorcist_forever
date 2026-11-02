@@ -66,6 +66,9 @@ O:RegisterPage({
     scaleKey = "FrameScale",
     alphaKey = "FrameAlpha",
     lockKey = "GlobalLock",
+    -- C4: the page's live lock frame is the Cooldown bar (its published
+    -- lock IS the GlobalLock state); the header glyph reads its cfg.
+    lockFrame = display,
     build = function(b)
         ensureWiring()
         -- m4: mirror the bar's live lock into GlobalLock right before the

@@ -395,6 +395,69 @@ test("ready pulses reuse spent pool frames (bounded pool)", function()
     assertTrue(#Display.pulsePool <= 3, "pool grew to " .. #Display.pulsePool)
 end)
 
+-- CodeReview3 m8: a sealed GetSpellTexture read leaves slot._texPath nil
+-- (the secrecy law's own case). SetTexture(nil) leaves the icon empty, so
+-- the ready-pulse rendered as a LONE ADD-blend spark flying the bar -- the
+-- visual ghost. Such a pulse degrades to the spark-less flash; an icon-
+-- carrying pulse keeps the source's full visual.
+test("a nil-icon pulse rides the spark-less flash; an icon pulse keeps its glow",
+function()
+    Display:Update({}, 500)                      -- retire live pulses
+    local function livePulses()
+        local n = 0
+        for _, p in ipairs(Display.pulsePool) do
+            if p._endAt then n = n + 1 end
+        end
+        return n
+    end
+    local function livePulse()
+        for _, p in ipairs(Display.pulsePool) do
+            if p._endAt then return p end
+        end
+    end
+    assertEquals(0, livePulses(), "clean slate")
+    Display:SpawnPulse("Sealed Enchant", nil, { 1, 0.5, 0 }, 505)
+    Display:Update({}, 500.05)
+    assertEquals(1, livePulses(), "the sealed-icon pulse runs the fade law")
+    local flash = livePulse()
+    assertTrue(flash.frame:IsShown())
+    assertFalse(flash.spark:IsShown(),
+        "no LONE ADD-blend spark flies the bar (the m8 ghost)")
+    Display:Update({}, 505 + S.PulseSeconds + 0.2)
+    assertEquals(0, livePulses(), "the flash retires like every pulse")
+    -- The icon-carrying pulse keeps the full pulse, spark on.
+    Display:SpawnPulse("Real Icon", "Interface\\ICONS\\INV_Misc_Gem_03",
+        { 1, 0.5, 0 }, 525)
+    Display:Update({}, 520)
+    local real = livePulse()
+    assertNotNil(real)
+    assertTrue(real.frame:IsShown())
+    assertTrue(real.spark:IsShown(), "the icon pulse rides its 2.2x glow")
+    Display:Update({}, 525 + S.PulseSeconds + 0.2)
+    assertEquals(0, livePulses())
+end)
+
+-- CodeReview3 m2: the grow branch of AcquireSlot wrote the SHARED-
+-- ENVIRONMENT global named `slot` (missing `local`). Every pool growth in
+-- the suite so far went through that line, so the global is already set
+-- before this test runs when the defect is present.
+test("AcquireSlot leaks no global: _G.slot stays nil through pool growth",
+function()
+    Display:Init()
+    assertEquals(nil, _G.slot, "the shared env has no `slot`")
+    local a = Display:AcquireSlot()
+    local b = Display:AcquireSlot()
+    assertNotNil(a)
+    assertNotNil(b)
+    assertEquals(nil, _G.slot, "the grow branch leaks nothing")
+    Display:ReleaseSlot(a)
+    Display:ReleaseSlot(b)
+    local c = Display:AcquireSlot()              -- the free-list branch
+    assertTrue(c == a or c == b, "released slots are reused (LIFO)")
+    assertEquals(nil, _G.slot, "the reuse branch leaks nothing")
+    Display:ReleaseSlot(c)
+end)
+
 test("Fewer entries hides spare slots; pool never shrinks", function()
     -- Pool-relative and slot-agnostic: the splash-law tests grew the pool
     -- and the free list hands out slots in release order, so asserting on

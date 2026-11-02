@@ -20,9 +20,13 @@
 -- SpellTimer.Lock, never the other way, so the checkbox, the header lock icon
 -- and `/fx lock|unlock` all agree.
 --
--- `Scale` / `Alpha` / `ExpandUpwards` / `ShowTooltips` are stored and labelled
--- as the project's own page law labels them ("not wired yet"): v1 growth is
--- fixed upward (design §5.4) and the tooltip is the frozen path of §5.5.
+-- `Scale` / `Alpha` are wired live (Module.lua's SetScale/SetAlphaValue drive
+-- the anchor frame). `ExpandUpwards` and `ShowTooltips` are stored and
+-- labelled as the project's own page law labels them ("not wired yet"): v1
+-- growth is fixed upward (design §5.4) and the tooltip is the frozen path of
+-- §5.5. Every widget tip lives in `P.WIDGET_TIPS` (one table, the page and
+-- the settings-consumer census in tests/test_module.lua read the same text:
+-- a tip may claim "Applied live" only where a consumer reads the key).
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -64,11 +68,14 @@ local DEFAULTS = {
     ShowTicks = true,
     ShowTooltips = true,
     AltTimeFormat = false,
-    -- Colour law (§5.4, the Skin triples at Forte_Timer.lua:3348-3351 and the
-    -- per-unit bar colours at :3387-3391). The Skin's own defaults are the
-    -- single truth: the store default can not drift from the renderer.
-    ColourNormal = (FX.Timer.Skin and FX.Timer.Skin.ColourNormal)
-        or { 0.25, 0.55, 1 },
+    -- The colour law (§5.4): the text/flash/expired entries ride the Skin's
+    -- source rows (NormalColor :3396, Fail :3375, ExpiredColor :3371); the
+    -- five BarColor* are stored for the per-caster question -- the source
+    -- colours bars PER CATEGORY (ColorVal :1524-1573). The Skin's own
+    -- defaults are the single truth: the store default can not drift from
+    -- the renderer.
+    ColourNormal = (FX.Timer.Skin and FX.Timer.Skin.NormalColor)
+        or { 1.0, 1.0, 1.0 },
     ColourExpiry = (FX.Timer.Skin and FX.Timer.Skin.ColourExpiry)
         or { 0.25, 1.0, 0.25 },
     ColourFlash = (FX.Timer.Skin and FX.Timer.Skin.ColourFlash)
@@ -85,11 +92,117 @@ local DEFAULTS = {
         or { 0.25, 1.0, 0.25 },
     BarColorEnemy = (FX.Timer.Skin and FX.Timer.Skin.BarColorEnemy)
         or { 1.0, 0.25, 0.25 },
-    -- Position (the 14 px icon slot + the 3 px backdrop, §5.4)
+    -- Position (the 14 px icon slot + the 3 px backdrop, §5.4). The offsets
+    -- are EXTRA x on top of the shared inset law (:2322), so the Classic
+    -- defaults are zero: every row rides IconOffset.
     IconOffset = 18,
-    OffsetSelf = 18,
-    OffsetTarget = 18,
+    OffsetSelf = 0,
+    OffsetTarget = 0,
+    -- The expire-message channel (:1049-1056): the source ships its announce
+    -- pages dimmed, so the gate defaults off (m7).
+    AnnounceExpiry = false,
 }
+
+-- The widget tips, one table, keyed by settings key: the widgets below and
+-- the settings-consumer census (tests/test_module.lua) read the SAME text.
+-- A tip that says "Applied live" claims a consumer; the census fails the
+-- build when a live-claiming key has none. Keys whose law is not wired say
+-- "Not wired yet (stored)" (the General page's FrameSnap/ShowTooltips
+-- honesty, Pages/General.lua:10-12).
+FX.Timer.Pages.WIDGET_TIPS = {
+    Enable = "Show the stack. Off hides it live.",
+    Lock = "Lock the stack against dragging (moves with /fx lock|unlock and "
+        .. "Global Frame Lock).",
+    Label = "The target name above each group's box. Off moves the raid mark "
+        .. "onto the bars (Forte_Timer.lua:2351-2364). Applied live.",
+    ShowTargetNames = "Label the rows with the target's name; off labels "
+        .. "them with the spell name. Applied live.",
+    ShowSpellNames = "Label the rows with the spell name instead of the "
+        .. "target (the source's own spell mode, :2391). Applied live.",
+    ShowID = "Prefix the label with #<id> (the source's ShowID, "
+        .. ":2517-2521). Applied live.",
+    Width = "Row width in px (default 250). The bar is Width - Height - 1 "
+        .. "because the icon sits OUTSIDE it. Resizes live.",
+    Height = "Row height in px (default 14) -- also the icon size, the row "
+        .. "x-inset and the group padding. Resizes live.",
+    Space = "Space between the rows inside a group (default 2, :3364). "
+        .. "Applied live.",
+    Spacing = "Space between two groups (default 2, :3345). Applied live.",
+    Max = "Rows drawn (default 32, :3320). Long rows are always sorted last, "
+        .. "so the cap drops only dead ones (:3449-3452). Applied live.",
+    Scale = "Frame scale of this panel (drives the anchor live, "
+        .. "Module:SetScale). Applied live.",
+    Alpha = "Frame alpha of this panel (drives the anchor live, "
+        .. "Module:SetAlphaValue). Applied live.",
+    MaxDisplayTime = "The compressed scale: a row whose total is longer than "
+        .. "this fills proportionally (taller rows fill slower -- the source's "
+        .. "own MaxTime rule, :2164-2169). Default 30. Applied live.",
+    NormalAlpha = "Alpha of the rows that are not the target's (default "
+        .. "0.50, :3366). Applied live.",
+    BarBackgroundAlpha = "Alpha of the row background behind the bar "
+        .. "(default 0.30). Applied live.",
+    EnableSpark = "The leading-edge spark on the bar and the icon "
+        .. "(Forte_Timer.lua:1712). Applied live.",
+    EnableBackdrop = "The per-target box (Background/Border, edge 3, "
+        .. ":3414-3417) is the Classic law and always drawn in v1. Not wired "
+        .. "yet (stored).",
+    SmartSpace = "The time column is as wide as the widest time text in the "
+        .. "group, so the names centre (Forte_Timer.lua:2489-2510). Applied "
+        .. "live.",
+    IconStacks = "Print the stack count on the icon's corner (:1696-1698, "
+        .. "the IconStacks gate :2467). Applied live.",
+    ShowStacks = "Suffix the label with (n) (:2517-2523); off drops the "
+        .. "suffix. Applied live.",
+    ShowTicks = "Mark the data's tick schedule on the bar (:1613-1627). "
+        .. "DISPLAY ONLY -- real tick detection is log-only and the log is "
+        .. "closed. Applied live.",
+    ShowTooltips = "The hover tooltip law (:1730-1759, C_TooltipInfo + "
+        .. "C_Tooltip on hover) has no panel tooltip yet -- the frozen path "
+        .. "of design §5.5. Not wired yet (stored).",
+    AltTimeFormat = "Print mm:ss once the remaining time passes a minute "
+        .. "(the source's AltTimeFormat, :2476). Applied live.",
+    AnnounceExpiry = "The source's expire-message channel (:1049-1056): "
+        .. "print a chat line when a row's window ends; rows born while off "
+        .. "stay silent. The source ships its announce pages dimmed, so this "
+        .. "defaults off. Applied live.",
+    ExpandUpwards = "The Classic cascade grows upward from the frame's "
+        .. "bottom edge (:3321). v1 is always upward. Not wired yet (stored "
+        .. "for the layout work).",
+    ColourNormal = "The row TEXT colour -- the source's NormalColor (:3396: "
+        .. "the time text :1856, the group label :2073, the names :2528), "
+        .. "de-saturated over a bright fill. Applied live.",
+    ColourExpiry = "The source has no colour band for the last seconds -- "
+        .. "the expiry cue is the Blink alpha pulse (:1562-1569) and the "
+        .. "past-the-end colour is the Expired colour below. Not wired yet "
+        .. "(stored).",
+    ColourFlash = "The flash band -- the last 2 s (:3350). Applied live.",
+    ColourExpired = "A row past its end, greyed and faded over a second "
+        .. "(:3351, :2364; the ExpiredColor[0] gate). Applied live.",
+    BarColorSelf = "The source colours bars PER CATEGORY (ColorVal "
+        .. ":1524-1573); a per-caster bar law is the open phase question "
+        .. "(design §3.6). Not wired yet (stored).",
+    BarColorTarget = "The source colours bars PER CATEGORY (ColorVal "
+        .. ":1524-1573); a per-caster bar law is the open phase question "
+        .. "(design §3.6). Not wired yet (stored).",
+    BarColorFocus = "The source colours bars PER CATEGORY (ColorVal "
+        .. ":1524-1573); a per-caster bar law is the open phase question "
+        .. "(design §3.6). Not wired yet (stored).",
+    BarColorPet = "The source colours bars PER CATEGORY (ColorVal "
+        .. ":1524-1573); a per-caster bar law is the open phase question "
+        .. "(design §3.6). Not wired yet (stored).",
+    BarColorEnemy = "The source colours bars PER CATEGORY (ColorVal "
+        .. ":1524-1573); a per-caster bar law is the open phase question "
+        .. "(design §3.6). Not wired yet (stored).",
+    IconOffset = "The row x-inset inside the group box (default 18 = Height "
+        .. "+ 1 + 3, :2322). Applied live.",
+    OffsetSelf = "Extra x-offset of your own rows, added to the row x-inset "
+        .. "(the port's own knob; the source has the one shared inset law "
+        .. ":2322). Applied live.",
+    OffsetTarget = "Extra x-offset of your target's rows, added to the row "
+        .. "x-inset (the port's own knob; the source has the one shared inset "
+        .. "law :2322). Applied live.",
+}
+local TIPS = FX.Timer.Pages.WIDGET_TIPS
 
 local function display()
     return FX.Timer and FX.Timer.Display
@@ -129,6 +242,10 @@ function P.RegisterTimerPage()
             title = "Spell Timer",
             colour = O.C.BROWN,
             lockKey = "Lock",
+            -- C4: the page hands its live lock frame to the header glyph
+            -- (Forte_Options/UI/Window.lua's def.lockFrame resolver) -- the
+            -- icon reads the frame THIS module owns, not the Cooldown bar's.
+            lockFrame = display,
             build = function(b)
                 ensureWiring()
                 b.Tips({
@@ -141,22 +258,19 @@ function P.RegisterTimerPage()
                 })
                 b.Section("Basics", function(s)
                     s.CHK({ module = M, key = "Enable",
-                        label = "Enable spell timers",
-                        tip = "Show the stack. Off hides it live." })
+                        label = "Enable spell timers", tip = TIPS.Enable })
                     s.CHK({ module = M, key = "Lock", label = "Lock",
-                        tip = "Lock the stack against dragging (moves with /fx lock|unlock and Global Frame Lock)." })
+                        tip = TIPS.Lock })
                     s.CHK({ module = M, key = "Label",
-                        label = "Show group labels",
-                        tip = "The target name above each group's box. Off moves the raid mark onto the bars (Forte_Timer.lua:2351-2364). Applied live." })
+                        label = "Show group labels", tip = TIPS.Label })
                     s.CHK({ module = M, key = "ShowTargetNames",
                         label = "Show target names",
-                        tip = "Label the rows with the target's name; off labels them with the spell name. Applied live." })
+                        tip = TIPS.ShowTargetNames })
                     s.CHK({ module = M, key = "ShowSpellNames",
                         label = "Show spell names",
-                        tip = "Label the rows with the spell name instead of the target (the source's own spell mode, :2391). Applied live." })
+                        tip = TIPS.ShowSpellNames })
                     s.CHK({ module = M, key = "ShowID",
-                        label = "Show the buff id",
-                        tip = "Prefix the label with #<id> (the source's ShowID, :2517-2521). Applied live." })
+                        label = "Show the buff id", tip = TIPS.ShowID })
                 end, {
                     module = M,
                     keys = { "Enable", "Lock", "Label", "ShowTargetNames",
@@ -165,26 +279,21 @@ function P.RegisterTimerPage()
                 })
                 b.Section("Frame Sizing", function(s)
                     s.NUM({ module = M, key = "Width", label = "Width",
-                        min = 120, max = 640, step = 1,
-                        tip = "Row width in px (default 250). The bar is Width - Height - 1 because the icon sits OUTSIDE it. Resizes live." })
+                        min = 120, max = 640, step = 1, tip = TIPS.Width })
                     s.NUM({ module = M, key = "Height", label = "Height",
-                        min = 8, max = 40, step = 1,
-                        tip = "Row height in px (default 14) -- also the icon size, the row x-inset and the group padding. Resizes live." })
+                        min = 8, max = 40, step = 1, tip = TIPS.Height })
                     s.NUM({ module = M, key = "Space", label = "Space",
-                        min = 0, max = 12, step = 1,
-                        tip = "Space between the rows inside a group (default 2, :3364). Applied live." })
+                        min = 0, max = 12, step = 1, tip = TIPS.Space })
                     s.NUM({ module = M, key = "Spacing", label = "Spacing",
-                        min = 0, max = 12, step = 1,
-                        tip = "Space between two groups (default 2, :3345). Applied live." })
+                        min = 0, max = 12, step = 1, tip = TIPS.Spacing })
                     s.NUM({ module = M, key = "Max", label = "Max rows",
-                        min = 4, max = 64, step = 1,
-                        tip = "Rows drawn (default 32, :3320). Long rows are always sorted last, so the cap drops only dead ones (:3449-3452). Applied live." })
+                        min = 4, max = 64, step = 1, tip = TIPS.Max })
                     s.NUM({ module = M, key = "Scale", label = "Scale",
                         min = 0.5, max = 2.0, step = 0.05,
-                        tip = "Frame scale (general key, applied by the window). Applied live." })
+                        tip = TIPS.Scale })
                     s.NUM({ module = M, key = "Alpha", label = "Alpha",
                         min = 0.2, max = 1.0, step = 0.05,
-                        tip = "Frame alpha (general key, applied by the window). Applied live." })
+                        tip = TIPS.Alpha })
                 end, {
                     module = M,
                     keys = { "Width", "Height", "Space", "Spacing", "Max",
@@ -195,78 +304,69 @@ function P.RegisterTimerPage()
                     s.NUM({ module = M, key = "MaxDisplayTime",
                         label = "Max display time (s)",
                         min = 5, max = 120, step = 1,
-                        tip = "The compressed scale: a row whose total is longer than this fills proportionally (taller rows fill slower -- the source's own MaxTime rule, :2164-2169). Default 30. Applied live." })
+                        tip = TIPS.MaxDisplayTime })
                     s.NUM({ module = M, key = "NormalAlpha",
                         label = "Normal alpha",
                         min = 0.1, max = 1.0, step = 0.05,
-                        tip = "Alpha of the rows that are not the target's (default 0.50, :3366). Applied live." })
+                        tip = TIPS.NormalAlpha })
                     s.NUM({ module = M, key = "BarBackgroundAlpha",
                         label = "Bar background alpha",
                         min = 0.0, max = 1.0, step = 0.05,
-                        tip = "Alpha of the row background behind the bar (default 0.30). Applied live." })
+                        tip = TIPS.BarBackgroundAlpha })
                     s.CHK({ module = M, key = "EnableSpark",
-                        label = "Enable sparks",
-                        tip = "The leading-edge spark on the bar and the icon (Forte_Timer.lua:1712). Applied live." })
+                        label = "Enable sparks", tip = TIPS.EnableSpark })
                     s.CHK({ module = M, key = "EnableBackdrop",
                         label = "Enable group backdrop",
-                        tip = "Draw the per-target box (Background/Border, edge 3, :3414-3417). Applied live." })
+                        tip = TIPS.EnableBackdrop })
                     s.CHK({ module = M, key = "SmartSpace",
-                        label = "Smart space",
-                        tip = "The time column is as wide as the widest time text in the group, so the names centre (Forte_Timer.lua:2489-2510). Applied live." })
+                        label = "Smart space", tip = TIPS.SmartSpace })
                     s.CHK({ module = M, key = "IconStacks",
                         label = "Stacks on the icon",
-                        tip = "Print the stack count on the icon's corner (:1696-1698). Applied live." })
+                        tip = TIPS.IconStacks })
                     s.CHK({ module = M, key = "ShowStacks",
                         label = "Stacks in the label",
-                        tip = "Suffix the label with (n) (:2517-2523). Applied live." })
+                        tip = TIPS.ShowStacks })
                     s.CHK({ module = M, key = "ShowTicks",
-                        label = "Show tick marks",
-                        tip = "Mark the data's tick schedule on the bar (:1613-1627). DISPLAY ONLY -- real tick detection is log-only and the log is closed. Applied live." })
+                        label = "Show tick marks", tip = TIPS.ShowTicks })
                     s.CHK({ module = M, key = "ShowTooltips",
-                        label = "Show tooltips",
-                        tip = "The hover tooltip law (:1730-1759, C_TooltipInfo + C_Tooltip on hover). Applied live." })
+                        label = "Show tooltips", tip = TIPS.ShowTooltips })
                     s.CHK({ module = M, key = "AltTimeFormat",
                         label = "mm:ss above a minute",
-                        tip = "Print mm:ss once the remaining time passes a minute (the source's AltTimeFormat, :2476). Applied live." })
+                        tip = TIPS.AltTimeFormat })
+                    s.CHK({ module = M, key = "AnnounceExpiry",
+                        label = "Announce expiries (chat)",
+                        tip = TIPS.AnnounceExpiry })
                     s.CHK({ module = M, key = "ExpandUpwards",
-                        label = "Grow upwards",
-                        tip = "The Classic cascade grows upward from the frame's bottom edge (:3321). v1 is always upward; the key is stored for the layout work." })
+                        label = "Grow upwards", tip = TIPS.ExpandUpwards })
                 end, {
                     module = M,
                     keys = { "MaxDisplayTime", "NormalAlpha",
                         "BarBackgroundAlpha", "EnableSpark", "EnableBackdrop",
                         "SmartSpace", "IconStacks", "ShowStacks", "ShowTicks",
-                        "ShowTooltips", "AltTimeFormat", "ExpandUpwards" },
+                        "ShowTooltips", "AltTimeFormat", "AnnounceExpiry",
+                        "ExpandUpwards" },
                     tip = "The display law of the stack.",
                 })
                 b.Section("Coloring", function(s)
                     s.COL({ module = M, key = "ColourNormal",
-                        label = "Normal colour",
-                        tip = "A spell burning normally (:3348). Applied live." })
+                        label = "Normal colour", tip = TIPS.ColourNormal })
                     s.COL({ module = M, key = "ColourExpiry",
                         label = "About-to-expire colour",
-                        tip = "The expiry band -- the last second, 10% of the total, min 4 s / max 10 s (:3349, :2462). Applied live." })
+                        tip = TIPS.ColourExpiry })
                     s.COL({ module = M, key = "ColourFlash",
-                        label = "Flash colour",
-                        tip = "The flash band -- the last 2 s (:3350). Applied live." })
+                        label = "Flash colour", tip = TIPS.ColourFlash })
                     s.COL({ module = M, key = "ColourExpired",
-                        label = "Expired colour",
-                        tip = "A row past its end, greyed and faded over a second (:3351, :2364). Applied live." })
+                        label = "Expired colour", tip = TIPS.ColourExpired })
                     s.COL({ module = M, key = "BarColorSelf",
-                        label = "Self rows",
-                        tip = "The bar colour of your own buffs (:3387). Applied live." })
+                        label = "Self rows", tip = TIPS.BarColorSelf })
                     s.COL({ module = M, key = "BarColorTarget",
-                        label = "Target rows",
-                        tip = "The bar colour of buffs on your target (:3388). Applied live." })
+                        label = "Target rows", tip = TIPS.BarColorTarget })
                     s.COL({ module = M, key = "BarColorFocus",
-                        label = "Focus rows",
-                        tip = "The bar colour of buffs on your focus (:3389). Applied live." })
+                        label = "Focus rows", tip = TIPS.BarColorFocus })
                     s.COL({ module = M, key = "BarColorPet",
-                        label = "Pet rows",
-                        tip = "The bar colour of pet rows (:3390). Applied live." })
+                        label = "Pet rows", tip = TIPS.BarColorPet })
                     s.COL({ module = M, key = "BarColorEnemy",
-                        label = "Hostile rows",
-                        tip = "The bar colour of buffs on a hostile unit (:3391). Applied live." })
+                        label = "Hostile rows", tip = TIPS.BarColorEnemy })
                 end, {
                     module = M,
                     keys = { "ColourNormal", "ColourExpiry", "ColourFlash",
@@ -278,15 +378,15 @@ function P.RegisterTimerPage()
                     s.NUM({ module = M, key = "IconOffset",
                         label = "Icon offset",
                         min = 0, max = 48, step = 1,
-                        tip = "The row x-inset inside the group box (default 18 = Height + 1 + 3, :2322). Applied live." })
+                        tip = TIPS.IconOffset })
                     s.NUM({ module = M, key = "OffsetSelf",
                         label = "Self offset",
                         min = 0, max = 48, step = 1,
-                        tip = "Extra x-offset of your own rows (:3411). Applied live." })
+                        tip = TIPS.OffsetSelf })
                     s.NUM({ module = M, key = "OffsetTarget",
                         label = "Target offset",
                         min = 0, max = 48, step = 1,
-                        tip = "Extra x-offset of your target's rows (:3412). Applied live." })
+                        tip = TIPS.OffsetTarget })
                 end, {
                     module = M,
                     keys = { "IconOffset", "OffsetSelf", "OffsetTarget" },

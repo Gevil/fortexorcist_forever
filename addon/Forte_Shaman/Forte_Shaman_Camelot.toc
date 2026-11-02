@@ -4,5 +4,6 @@
 ## Version: 0.1.0-dev
 ## Author: Gevil
 ## Dependencies: Forte_Core
+## LoadOnDemand: 1
 
 Data/Shaman.lua

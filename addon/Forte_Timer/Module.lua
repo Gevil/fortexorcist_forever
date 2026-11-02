@@ -108,7 +108,10 @@ local function defaultOptions()
         oneMax = true,             -- :3357
         maxTimeOn = true, maxTime = Laws.MAXTIME,      -- :3358
         forceMax = false,          -- :3359
-        hideLonger = false, hideLongerAt = Skin.HideTime, -- :3360 ({[0]=false,30})
+        -- the source's `HideLonger = {[0]=false, 30}` (:3360): the flag AND
+        -- its 30 s threshold ride together; Skin.HideTime never existed
+        -- (nil until the census ran this gate for the first time).
+        hideLonger = false, hideLongerAt = 30,
         hideTime = Laws.HIDE_TIME,                      -- :3337
         hideLongerNoBoss = false,  -- :3361
         blink = true, blinkAt = Laws.BLINK,            -- :3335
@@ -122,6 +125,10 @@ local function defaultOptions()
         normalAlpha = Skin.NormalAlpha,                 -- :3366
         barBgAlpha = Skin.BarBackgroundAlpha,           -- :3367
         markPredicted = true,                           -- §5.5's UI honesty
+        -- the expire-message law (:1049-1056): rows inserted while the gate
+        -- is on announce once at expiry (m7 -- the gate, the stamp and the
+        -- channel all live; the tests drive them through this key)
+        expireMessage = false,
         -- the unit gates (:3349-3355)
         you = true, target = true, focus = true, other = true,
         noTarget = true,
@@ -178,11 +185,9 @@ local KEYMAP = {
     HideLonger = "SetHideLonger",
     HideTime = "SetHideTime",
     MaxOn = "SetMaxOn",
-    Flip = "SetFlip",
     Outwands = "SetOutwands",
     GroupID = "SetGroupID",
-    Time = "SetTime",
-    Icon = "SetIcon",
+    AnnounceExpiry = "SetAnnounceExpiry",
     -- The colour law (§5.4). The four `Colour*` keys land on the skin entries
     -- ColorVal reads; Fail (:3350) = ColourFlash[0] and ExpiredColor (:3351) =
     -- ColourExpired[0] per design §1.4; the five `BarColor*` keys land on the
@@ -197,9 +202,12 @@ local KEYMAP = {
     BarColorPet = "SetColour_BarColorPet",
     BarColorEnemy = "SetColour_BarColorEnemy",
     BarColorHostile = "SetColour_BarColorEnemy",
-    ColourOverride = "SetColour_Override",
     GlobalLock = "SetLocked",
 }
+-- The map is the page's census surface (tests/test_module.lua): every key
+-- here must be consumed, declared stored, or structural -- the C5 guard that
+-- stops a widget shipping with an "Applied live" tip and no consumer.
+M.KEYMAP = KEYMAP
 
 --- The stored shape of the wired keys, per settings module (the page's
 --- defaults are canonical). Lock is deliberately NOT pulled: the live lock
@@ -213,10 +221,10 @@ local STORED = {
         "IconStacks", "ShowStacks", "ShowTicks", "ShowTooltips",
         "AltTimeFormat", "IconOffset", "OffsetSelf", "OffsetTarget",
         "MarkPredicted", "Smooth", "OneMax", "Blink", "ExpiredColor",
-        "HideLonger", "HideTime", "MaxOn", "Flip", "Outwands", "GroupID",
-        "Time", "Icon", "ColourNormal", "ColourExpiry", "ColourFlash",
+        "HideLonger", "HideTime", "MaxOn", "Outwands", "GroupID",
+        "AnnounceExpiry", "ColourNormal", "ColourExpiry", "ColourFlash",
         "ColourExpired", "BarColorSelf", "BarColorTarget", "BarColorFocus",
-        "BarColorPet", "BarColorEnemy", "ColourOverride" },
+        "BarColorPet", "BarColorEnemy" },
     General = {},
 }
 
@@ -292,17 +300,17 @@ function M:SetMaxRows(v)
 end
 
 function M:SetMaxOn(on) self.options.maxOn = not not on end
+--- m6: the two label keys have ONE shared effect (the renderer ANDs them:
+--- UI/Rows.lua's `labelled`) and two independent stores -- this setter used
+--- to write `label` too, so unchecking ShowTarget silently desynced the
+--- Label checkbox/store from the screen. It writes its own key only.
 function M:SetShowTarget(on)
     self.options.showTarget = not not on
-    self.options.label = self.options.showTarget
 end
 function M:SetLabel(on) self.options.label = not not on end
 function M:SetShowID(on) self.options.showID = not not on end
 function M:SetSpellName(on) self.options.spell = not not on end
-function M:SetIcon(on) self.options.icon = not not on end
-function M:SetTime(on) self.options.time = not not on end
 function M:SetExpand(on) self.options.expand = not not on end
-function M:SetFlip(on) self.options.flip = not not on end
 function M:SetOutwands(on) self.options.outwands = not not on end
 function M:SetGroupID(on) self.options.groupID = not not on end
 function M:SetIconStacks(on) self.options.iconStacks = not not on end
@@ -365,11 +373,14 @@ end
 function M:SetBarColor(col) self:SetColorRow("BarColor", col) end
 function M:SetBgColor(col) self:SetColorRow("NormalBgColor", col) end
 
--- The §5.4 colour keys. ColourNormal is the fill ColorVal uses for a row in
--- its ordinary state, ColourFlash the flash entry (`Fail`, :3350), ColourExpired
--- the expired entry (`ExpiredColor`, :3351), ColourExpiry the expiry entry; the
--- five BarColor* keys are the per-unit bar colours (:3387-3391).
-function M:SetColour_Normal(v) self:SetColorRow("ColourNormal", v) end
+-- The §5.4 colour keys. ColourNormal is the SOURCE's text colour (Skin's
+-- NormalColor, :3396 -- the time text :1856, the group label :2073, the bar
+-- name :2528; the renderer reads it in UI/Rows.lua's BindRow), ColourFlash
+-- the flash entry (`Fail`, :3350), ColourExpired the expired entry
+-- (`ExpiredColor`, :3351); the five BarColor* keys are stored for the
+-- per-caster colour work (§5.4, design §3.6) -- the source colours bars
+-- PER CATEGORY (ColorVal), not per unit, so their tips say stored.
+function M:SetColour_Normal(v) self:SetColorRow("NormalColor", v) end
 function M:SetColour_Expiry(v) self:SetColorRow("ColourExpiry", v) end
 function M:SetColour_Flash(v)
     self:SetColorRow("ColourFlash", v)
@@ -384,7 +395,6 @@ function M:SetColour_BarColorTarget(v) self:SetColorRow("BarColorTarget", v) end
 function M:SetColour_BarColorFocus(v) self:SetColorRow("BarColorFocus", v) end
 function M:SetColour_BarColorPet(v) self:SetColorRow("BarColorPet", v) end
 function M:SetColour_BarColorEnemy(v) self:SetColorRow("BarColorEnemy", v) end
-function M:SetColour_Override(v) self:SetColorRow("ColorOverride", v) end
 
 -- The rest of the §5.4 keys, all applied live.
 function M:SetScale(v)
@@ -416,6 +426,11 @@ end
 function M:SetSmartSpace(on) self.options.smartSpace = not not on end
 function M:SetShowStacks(on) self.options.showStacks = not not on end
 function M:SetShowTooltips(on) self.options.tooltips = not not on end
+--- m7: the production gate of the expire-message law (:1049-1056, col-12
+--- stamp). A row inserted while the gate is on is stamped and announces at
+--- expiry through `announceExpiry` (the source's fade-message channel; the
+--- announce pages are the source's RaidMsg/SelfMsg, dimmed there, off here).
+function M:SetAnnounceExpiry(on) self.options.expireMessage = not not on end
 function M:SetAltTimeFormat(on) self.options.altTimeFormat = not not on end
 function M:SetIconOffset(v)
     if type(v) ~= "number" or v < 0 then return end
@@ -436,8 +451,10 @@ end
 function M:SetLocked(locked)
     locked = not not locked
     local d = FX.Timer.Display
+    -- m9: Display.cfg IS self.cfg (both are FX.db.timer.display, see
+    -- OnEnable), so the one write persists both directions; the old
+    -- "only while unlocking" twin branch was unreachable-effect code.
     if d and d.cfg then d.cfg.locked = locked end
-    if not locked and self.cfg then self.cfg.locked = locked end
     local st = FX.Settings
     if st and st.IsRegistered and st:IsRegistered("SpellTimer")
         and st:Get("SpellTimer", "Lock") ~= locked then
@@ -447,6 +464,17 @@ function M:SetLocked(locked)
 end
 
 -- ------------------------------------------------------------------ enable --
+--- The announce channel of the expire-message law (:1049-1056, the source's
+--- `CA:CastShow(ST_OnTimerFade[...])` + sound): the chat line. Called as
+--- `opts.onExpire(row)` from Core/Rows.lua's Sweep, which fires it only for
+--- rows stamped at insert -- and rows are stamped only while the
+--- AnnounceExpiry gate is on, so rows born under "off" stay silent.
+local function announceExpiry(row)
+    if not FX.Print then return end
+    FX.Print(string.format("Forte: %s expired on %s", tostring(row.name),
+        (row.targetKey == "none") and "you" or tostring(row.targetKey)))
+end
+
 --- The module's clock: the Casts' injectable clock so a test can freeze time
 --- across the whole spine (the rows, the queue, the sweep and the draw), and
 --- the engine clock in play.
@@ -509,6 +537,7 @@ function M:OnEnable()
     FX.Timer.Casts:Init(Rows, self.options)
     FX.Timer.Reconcile:Init(Rows, self.options)
     Rows.options = self.options
+    self.options.onExpire = announceExpiry          -- m7's announce channel
     FX.Timer.Casts.onRow = function() self:Kick() end
     self:_WireSettings()
     self:ApplyStoredSettings()
@@ -668,6 +697,10 @@ function M:Status()
         "  laws: maxlag %.2f | buffdelay %.1f | settle %.2f | smooth %g | maxtime %g | blink %g",
         Laws.MAXLAG, Laws.BUFF_DELAY, Laws.SETTLE, opts.smooth, opts.maxTime,
         opts.blinkAt))
+    FX.Print(string.format(
+        "  expire messages announced: %d (gate %s)",
+        FX.Timer.NotifyExpiry or 0,
+        tostring(not not opts.expireMessage)))
     FX.Print(FX.Timer.Casts:StatusLine())
     FX.Print(FX.Timer.Reconcile:StatusLine())
     if FX.SecretState and FX.SecretState.StatusLine then

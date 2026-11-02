@@ -181,7 +181,8 @@ Frame.DEFAULTS = {
         "ShardSize", "ShardColor", "ShardStrikethrough",
         "SoulstoneWidth", "SoulstoneHeight", "SoulstoneColor",
         "SoulstoneStrikethrough",
-        "HealthstoneSize", "HealthstoneStrikethrough",
+        "HealthstoneSize", "HealthstoneColor",
+        "HealthstoneStrikethrough",
         "SummonWidth", "SummonHeight", "SummonColor", "SummonStrikethrough",
     },
     defaults = {
@@ -194,6 +195,7 @@ Frame.DEFAULTS = {
         ShardSize = 106, SoulstoneWidth = 106, SoulstoneHeight = 12,
         HealthstoneSize = 106, SummonWidth = 106, SummonHeight = 12,
         ShardColor = { 1, 1, 1, 1 },
+        HealthstoneColor = { 1, 1, 1, 1 },          -- m3 pair (white count)
         SoulstoneColor = { 0.64, 0.21, 0.93, 1 },    -- Forte_Soulstone.xml:119
         SummonColor = { 0.64, 0.21, 0.93, 1 },       -- Forte_Summon.lua:597
         ShardStrikethrough = false, SoulstoneStrikethrough = false,
@@ -839,6 +841,16 @@ end
 function Frame:_HookSettings()
     self.settings = FX.Settings
     if not self.settings then return end
+    -- m1 (CodeReview3): the single-registration convention (Module:244
+    -- `_wired`, Window `_lockWired`, the Hunter page `wired`). Init runs on
+    -- every UI:OnClassChanged("WARLOCK") -- each T4/T15 class round trip
+    -- re-ran _InitViews -> Init -> _HookSettings, and FX.Settings appends
+    -- listeners with no dedup, so each round trip added this frame's FOUR
+    -- listeners again (unbounded growth, every Set firing all copies).
+    -- The guard runs the apply-from-store pass once; a frame built while
+    -- FX.Settings did not exist stays un-wired and wires on the next call.
+    if self._wired then return end
+    self._wired = true
     local km = {}
     for key, fn in pairs(Frame.BASE_KEYMAP) do km[key] = fn end
     if self.KEYMAP then

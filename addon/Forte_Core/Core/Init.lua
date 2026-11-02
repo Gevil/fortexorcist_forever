@@ -14,8 +14,33 @@ local FX = ForteXorcist
 
 FX.modules = FX.modules or {}      -- [name] = { OnEnable = function(self) ... end }
 FX._moduleOrder = FX._moduleOrder or {}
+-- [name] = true once OnEnable has run: the exactly-once ledger.
+FX._enabledModules = FX._enabledModules or {}
+-- True from the moment the PLAYER_LOGIN enable loop finished. Class add-ons
+-- are load-on-demand (Core/Loader.lua), so their files -- and therefore their
+-- FX.RegisterModule calls -- can land after that loop; those modules are
+-- enabled at once, in registration order, by the tail of FX.RegisterModule.
+FX._loginDone = false
 
---- Call from any Forte_* addon's own Lua, any time before PLAYER_LOGIN.
+--- Run one module's OnEnable exactly once, in a pcall. The single enable
+--- path: the PLAYER_LOGIN loop and the late-registration path below both
+--- go through it, so no module can be enabled twice by the two paths racing
+--- inside one PLAYER_LOGIN.
+function FX.EnableModule(name)
+    if FX._enabledModules[name] then return end
+    local mod = FX.modules[name]
+    if not mod then return end
+    FX._enabledModules[name] = true
+    if mod.OnEnable then
+        local ok, err = pcall(mod.OnEnable, mod)
+        if not ok then
+            FX.Print("|cffff5555" .. name .. " failed to enable:|r " .. tostring(err))
+        end
+    end
+end
+
+--- Call from any Forte_* addon's own Lua: at file load, and -- for the
+--- load-on-demand class add-ons -- from inside the PLAYER_LOGIN handling.
 function FX.RegisterModule(name, mod)
     if FX.modules[name] then
         FX.Print("|cffff5555module '" .. name .. "' registered twice|r")
@@ -23,6 +48,13 @@ function FX.RegisterModule(name, mod)
     end
     FX.modules[name] = mod
     FX._moduleOrder[#FX._moduleOrder + 1] = name
+    -- Late registration (a load-on-demand class add-on whose files ran after
+    -- the login loop): enable it now. Registration order is preserved by the
+    -- loop the class loader drives, and by the order of the add-on's own
+    -- files (Data, Core, UI, Pages) when a LoadAddOn loads several modules.
+    if FX._loginDone then
+        FX.EnableModule(name)
+    end
 end
 
 -- Subcommand registry for /fx: Forte_Options registers "options"/"config"
@@ -92,11 +124,18 @@ end
 --- for tooling that does (the uiforever T4 artifact logged in as the
 --- wrong class). Runs at PLAYER_ENTERING_WORLD; PLAYER_LOGIN below keeps
 --- its own one-time capture.
+---
+--- The new class's add-on is load-on-demand, so it is pulled in here FIRST:
+--- its files register their modules, and FX.RegisterModule enables each one
+--- as it registers (FX._loginDone is true by now), in the add-on's own file
+--- order -- so the new class's modules take part in the OnClassChanged wave
+--- that follows, exactly like the modules that were present at login.
 function FX.RefreshPlayerClass()
     local ok, _, classFile = pcall(UnitClass, "player")
     if not ok or type(classFile) ~= "string" then return end
     if classFile == FX._playerClass then return end
     FX._playerClass = classFile
+    FX.LoadClassAddOn(classFile)
     for _, name in ipairs(FX._moduleOrder) do
         local mod = FX.modules[name]
         if mod and mod.OnClassChanged then
@@ -124,15 +163,20 @@ bootstrap:SetScript("OnEvent", function(_, event, addonName)
     elseif event == "PLAYER_LOGIN" then
         local _, classFile = UnitClass("player")
         FX._playerClass = classFile -- e.g. "HUNTER", "WARLOCK" -- matches ForteXorcist.Data keys title-cased below
+        -- Load-on-demand: every Forte_<Class> add-on is metadata-only until
+        -- this call (Core/Loader.lua). Its files run to completion before
+        -- LoadClassAddOn returns, so its data table and its modules are in
+        -- the registry before the enable loop below -- the class's modules
+        -- enable in the same pass, in registration order, as everyone else's.
+        -- A failure prints one notice there and costs this class its tools,
+        -- nothing else.
+        FX.LoadClassAddOn(classFile)
         for _, name in ipairs(FX._moduleOrder) do
-            local mod = FX.modules[name]
-            if mod and mod.OnEnable then
-                local ok, err = pcall(mod.OnEnable, mod)
-                if not ok then
-                    FX.Print("|cffff5555" .. name .. " failed to enable:|r " .. tostring(err))
-                end
-            end
+            FX.EnableModule(name)
         end
+        -- From here on, a module that registers is enabled at once (see
+        -- FX.RegisterModule); the loop above must never run twice.
+        FX._loginDone = true
         FX.Print(FX.CONST.VERSION .. " loaded. /fx status")
     end
 end)

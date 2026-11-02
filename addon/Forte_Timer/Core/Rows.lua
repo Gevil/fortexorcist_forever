@@ -38,7 +38,8 @@
 -- The laws, verbatim numbers in Core/Laws.lua:
 --   MAXLAG 1.00  the adopt/extend/refresh tolerance (:33, :899-905, :1159-1207)
 --   BUFF_DELAY 4.0 the grace before a row may be judged gone (:69, :1186-1187)
---   removal refused while more than MAXLAG remains (:1207)
+--   removal permitted while more than MAXLAG of the window is left, refused
+--     in its last MAXLAG (:1207 "dont remove if only maxlag left")
 --   shorter by more than MAXLAG => REFRESH: fade the row, re-insert (:924, ST-25)
 --   SMOOTH 5 the drawn-expire interpolation (:1046)
 
@@ -341,8 +342,10 @@ end
 --- The "the aura is not there" half of the law. Two refusals come first:
 ---   * the grace (:1186-1187): a row is not checkable before
 ---     Laws.CheckableAt(castTime) -- the window's start plus BUFF_DELAY;
----   * the removal refusal (:1207, "dont remove if only maxlag left"): while
----     more than MAXLAG of its own window is left the row is never judged gone.
+---   * the last-MAXLAG band (:1207, "dont remove if only maxlag left"): once
+---     MAXLAG or less of its own window is left natural expiry owns the row
+---     and the sweep does not touch it. Past the grace with more than MAXLAG
+---     of window left, the absence fact REMOVES the row (:1207-1211).
 function Rows:OnAuraAbsent(row, now)
     if not row then return nil end
     now = now or GetTime()
