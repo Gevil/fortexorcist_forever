@@ -54,6 +54,24 @@ local Skin = FX.Timer.Skin
 local DRAW_SECONDS = 0.04   -- the display cadence (:2851/:2854, Forte_Core.lua:2473)
 local LOGIC_SECONDS = 0.5   -- the logic/rescan cadence (:2855, Forte_Core.lua:2475)
 
+-- The panel's first-run placement, in one place: OnEnable seeds the saved
+-- config from it and `/fx timer reset` restores it.
+--
+-- The Cooldown bar defaults to CENTER/CENTER at (0, -150) with a 250x24 strip
+-- (`Forte_Cooldown/Core/Pages/PanelHost.lua` DEFAULT_POSITION, the bar size
+-- `UI/Timeline.lua` Width/Height). This panel is 256 px wide (Skin.Width +
+-- GrowPad) and its stack grows DOWNWARD from its centre, so any centre placed
+-- on the bar's vertical band ends up overprinting the bar as soon as two rows
+-- show. The reference addon gives no help: `/tmp/fxref` centres both panels on
+-- UIParent (Forte_Timer.lua's `frame:SetPoint("CENTER", UIParent, "CENTER")`
+-- and the same in Forte_Cooldown.lua), i.e. the original overlapped them too.
+--
+-- So the two panels become a PAIR side by side at the same height: the bar at
+-- x=0, this stack centred at x=261 -- (250 + 256)/2 = 253 needed, 261 with an
+-- 8 px gutter. The rectangles can not intersect at any stack height.
+M.DEFAULT_POSITION = { point = "CENTER", relPoint = "CENTER", x = 261,
+    y = -150, locked = true }
+
 -- --------------------------------------------------------- the live options --
 --- The laws' option view: one table, the defaults from Core/Laws.lua + the
 --- Skin, the options page writing the same keys live. Field names are the
@@ -483,8 +501,7 @@ function M:OnEnable()
         self.cfg = {}
         FX.Timer.Registry:AttachStorage({})
     end
-    for k, v in pairs({ point = "CENTER", relPoint = "CENTER", x = 0,
-        y = -210, locked = true }) do
+    for k, v in pairs(M.DEFAULT_POSITION) do
         if self.cfg[k] == nil then self.cfg[k] = v end
     end
 
@@ -684,16 +701,47 @@ FX.RegisterSlash("timer", function(rest)
             names[#names + 1] = name
         end
         table.sort(names)
+        -- One row per distinct KIND, first name wins: this feed is the
+        -- palette check, so it has to show rows that say what they ARE --
+        -- five same-coloured rows prove nothing. Name-shape through
+        -- Registry.KindFor; no spell id is read or written here.
+        local picked, seenKind, isPicked = {}, {}, {}
+        for _, name in ipairs(names) do
+            if #picked < 5 then
+                local kind = FX.Timer.Registry.KindFor(name)
+                if not seenKind[kind] then
+                    seenKind[kind] = true
+                    isPicked[name] = true
+                    picked[#picked + 1] = name
+                end
+            end
+        end
+        for _, name in ipairs(names) do
+            if #picked >= 5 then break end
+            if not isPicked[name] then
+                isPicked[name] = true
+                picked[#picked + 1] = name
+            end
+        end
         local now = GetTime()
         local targets = { "Dummy-1", "Dummy-2" }
-        for i = 1, math.min(5, #names) do
-            local name = names[i]
+        -- The stamps go into the PAST, settled: a second apart and the
+        -- newest row already past the arrival flash, so the debug view
+        -- shows each row's KIND colour -- which is what the feed exists to
+        -- be looked at. A stamp dated in the FUTURE has a negative elapsed,
+        -- and the arrival-highlight law ((total - remaining) < 0.5,
+        -- Core/Laws.lua) reads that as "arrived" and mixes with a clamped
+        -- factor -- which is why every row the old feed seeded read pure
+        -- white. A real cast still gets its arrival flash.
+        for i = 1, #picked do
+            local name = picked[i]
             local dur = FX.Timer.Registry.BestDuration(name)
+            local started = now - (0.75 + (i - 1))
             Rows:InsertFromCast(name, targets[((i - 1) % 2) + 1], dur,
-                now + (i - 1) * 0.05, now, 1)
+                started, started, 1)
         end
         FX.Print(string.format("timer: seeded %d predicted rows",
-            math.min(5, #names)))
+            #picked))
         M:Kick()
     else
         FX.Print("timer: /fx timer status | clear | test")

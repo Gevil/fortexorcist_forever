@@ -468,6 +468,153 @@ test("the modules and data the load probe expects are on FX.Timer", function()
     assertEquals(30, Laws.MAXTIME)
 end)
 
+-- ---------------------------------------------------- the kind palette law --
+
+test("the Crowds kind resolves to the skin's Crowds colour", function()
+    local s = FX.Timer.Skin
+    assertNotNil(s.Crowds)
+    -- The lookup key the laws use must name a skin entry that EXISTS. The
+    -- shipped table mapped Crowds -> "Crowd", and the skin spells the band
+    -- `Crowds`, so every crowd-control row fell back to the orange Default
+    -- and the green CC palette never reached the screen.
+    assertEquals("Crowds", Laws.COLOR_KEY.Crowds)
+    local cr, cg, cb = Laws.ColorVal(5, 10, Laws.NORMAL, "Crowds", s, {})
+    near3(cr, s.Crowds[1])
+    near3(cg, s.Crowds[2])
+    near3(cb, s.Crowds[3])
+    -- The palette is a real separation, not the Default by another name.
+    assertTrue(s.Crowds[1] ~= s.Default[1] or s.Crowds[2] ~= s.Default[2]
+        or s.Crowds[3] ~= s.Default[3])
+end)
+
+test("every kind in the vocabulary resolves to a skin colour", function()
+    local s = FX.Timer.Skin
+    for _, kind in ipairs(Registry.KindBands()) do
+        local key = Laws.COLOR_KEY[kind] or "Default"
+        local col = s[key]
+        assertEquals("table", type(col))
+        assertNotNil(col and col[1])
+    end
+end)
+
+test("the arrival flash mixes from arrival and never from the future", function()
+    local s = FX.Timer.Skin
+    -- A quarter second into a 1 s window: the highlight is half mixed in.
+    local a, b, c = Laws.ColorVal(0.75, 1, Laws.NORMAL, "TargetDebuff", s, {})
+    near3(a, (s.TargetDebuff[1] + 1) / 2)
+    near3(b, (s.TargetDebuff[2] + 1) / 2)
+    near3(c, (s.TargetDebuff[3] + 1) / 2)
+    -- A stamp dated in the FUTURE (a server clock a hair ahead of the client)
+    -- is not "arrived half a second ago": it reads as its own kind, not as
+    -- full white. The shipped law mixed with a negative factor, clamped to 0,
+    -- and pinned every such row to pure white.
+    local r, g, bl = Laws.ColorVal(-0.5, 1, Laws.NORMAL, "TargetDebuff", s, {})
+    near3(r, s.TargetDebuff[1])
+    near3(g, s.TargetDebuff[2])
+    near3(bl, s.TargetDebuff[3])
+end)
+
+-- ------------------------------------------------------ the /fx debug feed --
+
+test("the /fx timer test feed seeds elapsed, not future, stamps", function()
+    installClock(GetTime())
+    local R = FX.Timer.UI and FX.Timer.UI.Rows
+    Rows:Clear()
+    local ok = pcall(FX.slashSubs.timer, "test")
+    assertTrue(ok)
+    -- The stamps the rows carry are the seed's, read back off the core rows.
+    -- Measured on the same clock the feed stamps with (GetTime), not the
+    -- suite's injected display clock.
+    local seen, now = 0, GetTime()
+    for _, row in ipairs(Rows.rows) do
+        if type(row.castTime) == "number" and row.expireAt > now then
+            local elapsed = now - row.castTime
+            -- The law the screenshot depends on: no seeded row is dated in
+            -- the future (a future stamp reads as "arrived" to the arrival
+            -- law and paints white), and every row is inside the window the
+            -- sweep keeps alive.
+            assertTrue(elapsed >= 0)
+            assertTrue(elapsed < 5)
+            seen = seen + 1
+        end
+    end
+    assertTrue(seen >= 4)
+    Rows:Clear()
+    D:RenderIdle()
+end)
+
+-- ------------------------------------------------------- the drawn fill --
+
+test("each visible row's fill region carries its kind colour", function()
+    local R = FX.Timer.UI and FX.Timer.UI.Rows
+    local panel = M.pages and M.pages.Timer and M.pages.Timer.frame
+    if not (R and R.GetRows and R.Invalidate and R.Render and panel
+        and panel.IsShown and panel:IsShown()) then
+        print('[SKIP] the spell timer page is not live in this run')
+        return
+    end
+    local s = FX.Timer.Skin
+    installClock(GetTime())
+    Rows:Clear()
+    R.Invalidate()
+    -- The public debug feed seeds the rows; its own draw pass runs at the
+    -- seed stamps (inside the arrival flash), so the steady state is reached
+    -- through the public cast path at an advanced clock.
+    local ok = pcall(FX.slashSubs.timer, "test")
+    assertTrue(ok)
+    clock[1] = clock[1] + 1.2
+    dispatch("UNIT_SPELLCAST_SENT", 425737, "Serpent Sting", "target-target")
+    local n = 0
+    for _, row in ipairs(R.GetRows()) do
+        if row.shown and row.bar and row.bar.GetStatusBarColor then
+            local key = Laws.COLOR_KEY[row.kind] or "Default"
+            local want = s[key] or s.Default
+            local br, bg, bb = row.bar:GetStatusBarColor()
+            assertNotNil(br)
+            near3(br, want[1])
+            near3(bg, want[2])
+            near3(bb, want[3])
+            -- The DRAWN fill: a StatusBar paints its fill with the texture's
+            -- vertex colour, which SetStatusBarColor drives.
+            local tex = row.bar.GetStatusBarTexture and row.bar:GetStatusBarTexture()
+            if tex and tex.GetVertexColor then
+                local vr, vg, vb = tex:GetVertexColor()
+                near3(vr, want[1])
+                near3(vg, want[2])
+                near3(vb, want[3])
+            end
+            n = n + 1
+        end
+    end
+    assertTrue(n >= 4)
+    Rows:Clear()
+    R.Invalidate()
+    D:RenderIdle()
+end)
+
+-- ---------------------------------------------------------- the geometry --
+
+test("the default panel position is clear of the Forte_Cooldown bar", function()
+    local CD = FX.Get and FX:Get('Cooldown')
+    local bar = CD and CD.frame
+    local panel = M.pages and M.pages.Timer and M.pages.Timer.frame
+    if not (bar and bar.GetCenter and bar.IsShown and bar:IsShown()
+        and panel and panel.GetCenter and panel:IsShown()) then
+        print('[SKIP] the cooldown bar and the spell timer are not both live')
+        return
+    end
+    local bx, by = bar:GetCenter()
+    local px, py = panel:GetCenter()
+    local bw, bh = bar:GetWidth(), bar:GetHeight()
+    local pw, ph = panel:GetWidth(), panel:GetHeight()
+    local overlapX = math.abs(bx - px) < (bw + pw) / 2
+    local overlapY = math.abs(by - py) < (bh + ph) / 2
+    -- The stack grows downward from its centre, so a straight vertical
+    -- stack is only clear of the bar at one fixed height: the panel defaults
+    -- to the SAME height as the bar and a column beside it.
+    assertTrue(not (overlapX and overlapY))
+end)
+
 test("restore the live seams", function()
     Registry:AttachStorage(FX.db and FX.db.timer and FX.db.timer.learned or {})
     Registry:Build(FX._playerClass)

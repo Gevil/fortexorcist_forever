@@ -67,7 +67,7 @@ Laws.COLOR_KEY = {
     SelfBuff     = "SelfBuff",
     SelfDebuff   = "SelfDebuff",
     TargetDebuff = "TargetDebuff",
-    Crowds       = "Crowd",
+    Crowds       = "Crowds",
     Cooldown     = "Cooldown",
     Channel      = "Channel",
     Enchant      = "Enchant",
@@ -260,9 +260,17 @@ function Laws.ColorVal(remaining, total, state, kind, skin, opts)
         r, g, b = skin.Fail[1], skin.Fail[2], skin.Fail[3]
     else
         local base = opts.colorOverride or category
-        if highlightOn and (total - remaining) < 0.5 then
-            -- the last half second of the row's OWN total (:1535-1546)
-            r, g, b = Laws.Mix((total - remaining) * 2, skin.HighlightColor, base)
+        local elapsed = (tonumber(total) or 0) - (tonumber(remaining) or 0)
+        if highlightOn and elapsed >= 0 and elapsed < 0.5 then
+            -- the arrival flash (:1535-1546): the row is born white and lands
+            -- on its kind colour over its first half second. The window is
+            -- the half second AFTER arrival -- a stamp dated in the future
+            -- (the server clock a hair ahead of the client's GetTime, which
+            -- is what the debug feed's future-dated seeds produced) is not
+            -- "arrived half a second ago": the open-ended test used to mix
+            -- with a negative factor, which clamps to 0 and pins the row to
+            -- pure HighlightColor, so every such row read white.
+            r, g, b = Laws.Mix(elapsed * 2, skin.HighlightColor, base)
         else
             r, g, b = base[1], base[2], base[3]
         end

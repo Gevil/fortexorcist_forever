@@ -164,9 +164,13 @@ function D:SavePosition(f)
 end
 
 function D:Reset()
+    -- One source for the first-run placement (Module.DEFAULT_POSITION); the
+    -- literal copy is only what a headless unit run, where the module file is
+    -- not loaded, falls back to.
+    local d = (FX.Timer.Module and FX.Timer.Module.DEFAULT_POSITION)
+        or { point = "CENTER", relPoint = "CENTER", x = 261, y = -150 }
     local cfg = self.cfg
-    cfg.point, cfg.relPoint, cfg.x, cfg.y =
-        "CENTER", "CENTER", 0, -210
+    cfg.point, cfg.relPoint, cfg.x, cfg.y = d.point, d.relPoint, d.x, d.y
     self:ApplyPosition()
 end
 
