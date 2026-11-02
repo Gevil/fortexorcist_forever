@@ -139,7 +139,12 @@ end
 
 -- The families, as NAME patterns (the WotLK-era "Soulstone Resurrection"
 -- name is in the spec, not in this data set: pattern, not constant name).
-WK.SoulstonePatterns = { "^Create Soulstone", "^Soulstone" }
+-- The soulstone family has ONE home -- `FX.SoulstonePatterns`, declared in
+-- Forte_Core/Core/Constants.lua, which the always-loaded Forte_Messages
+-- announces off (review 4 m7: the two watchers are legitimately separate,
+-- this one tracks the buff and that one the cast, so the shared half is the
+-- pattern list, and Forte_Core is the one add-on both hard-depend on).
+WK.SoulstonePatterns = FX.SoulstonePatterns
 WK.HealthstonePatterns = { "Healthstone$" }
 WK.SummonPatterns = { "^Ritual of Summoning" }
 WK.soulstoneNames = WK.DeriveNames(WK.SoulstonePatterns)

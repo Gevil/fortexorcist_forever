@@ -38,6 +38,16 @@ FX.Messages.Channel = Channel
 Channel.counts = { chat = 0, printed = 0 }
 
 --- The original's FW:Show, colour included. Returns "chat" | "printed".
+---
+--- THE COLOUR SHAPE IS THREE SLOTS (m6, review 4). The source's colour rows
+--- are `{[0]=true, r, g, b}` (Forte_Soulstone.lua:651, :672) and its
+--- `FW:Show(msg, r, g, b, a)` (Forte_Core.lua:559) hands the alpha to
+--- `DEFAULT_CHAT_FRAME:AddMessage`. On this interface the Camelot override of
+--- that call is `AddMessage(text, r, g, b, id)` (Core/Channel.lua:18-23) --
+--- its 5th slot is a chat-line ID, not an alpha -- so no alpha is passed and
+--- the pages' colour rows ship the source's three slots. `UI/Banner.lua` is
+--- the half that owns a real alpha: it paints the text at full alpha and the
+--- banner's own fade drives the frame's.
 function Channel:Show(msg, colour)
     local text = tostring(msg)
     local frame = _G.DEFAULT_CHAT_FRAME

@@ -7,7 +7,7 @@
 -- C_ChatInfo.AreOutgoingAddonChatMessagesRestricted pair NeedRoll gates on.
 -- Only a PLAIN true skips (the SecretState consumer law); a raising send is
 -- counted, never propagated. Routing is the original's ToGroup/ToChannel
--- (Forte_Core.lua:2046-2071); the soulstone row is the Warlock family's
+-- (Forte_Core.lua:2046-2070); the soulstone row is the Warlock family's
 -- SoulstoneSuccess text (Forte_Class/Warlock/Warlock.lua:365) driven off the
 -- PLAYER's own cast events with the family name patterns (Forte_Warlock/
 -- Core/Tools.lua:142).
@@ -309,25 +309,112 @@ local function enableTimer()
     return FX.Timer.Rows
 end
 
-test("the shipped CC defaults are the original's rows and bits verbatim",
+test("E2: the SHIPPED defaults census -- every group and channel announce "
+.. "on the page is OFF, the two masters are the source's", function()
+    enable()
+    local D = FX.Messages.Pages.DEFAULTS.RaidMsg
+    assertNotNil(D)
+    local sends, texts = 0, 0
+    for key, value in pairs(D) do
+        local isSend = (key:find("Party$") ~= nil)
+            or (key:find("Channel$") ~= nil and key ~= "OutputChannel")
+            or (key:find("Announce$") ~= nil)
+        if isSend then
+            sends = sends + 1
+            assertEquals(false, value,
+                "the shipped default of " .. key .. " is OFF (opt-in)")
+        elseif key:find("Text$") ~= nil then
+            texts = texts + 1
+            assertEquals("string", type(value), key .. " keeps its text")
+        end
+    end
+    -- 24 fade/break checkboxes (6 spells x Fade/Break x Party/Channel) +
+    -- ReadyAnnounce/ReadyChannel + ExpireAnnounce/ExpireChannel +
+    -- SoulstoneAnnounce/SoulstoneChannel.
+    assertEquals(30, sends, "the census walked every send row")
+    -- 6 fade + 6 break CC texts, plus the announce rows' own texts
+    -- (ReadyAnnounceText, ExpireAnnounceText, ExpireAnnounceNoTargetText,
+    -- SoulstoneAnnounceText): the texts are the verbatim half and stay.
+    assertEquals(16, texts, "twelve CC texts + four announce texts")
+    -- The two master switches are the original's rows (Forte_Core.lua:2518
+    -- -2519) and stay verbatim: with every row off they gate nothing alone.
+    assertEquals(true, D.OutputRaid)
+    assertEquals(true, D.OutputEnable)
+    assertEquals("SAY", D.OutputChannel)
+    -- The rows the source ships party-ON are ON only in the tip, not in the
+    -- shipped default: the bits the page records for the owner's eye.
+    local P = FX.Messages.Pages
+    local byPrefix = {}
+    for _ = 1, #P.FADE_ROWS do
+        local row = P.FADE_ROWS[_]
+        byPrefix[row.prefix] = row
+    end
+    assertEquals(1, byPrefix.Banish.bits)
+    assertEquals(1, byPrefix.Enslave.bits)
+    assertEquals(1, byPrefix.Seduction.bits)
+    assertEquals(0, byPrefix.Fear.bits)
+    assertEquals(0, byPrefix.Polymorph.bits)
+    assertEquals(0, byPrefix.Sap.bits)
+    for _ = 1, #P.FADE_ROWS do
+        local row = P.FADE_ROWS[_]
+        local note = row.note or ""
+        if row.bits == 1 then
+            assertTrue(note:find("ships this ON") ~= nil,
+                row.prefix .. "'s tip records the source's party-ON")
+            assertTrue(note:find("Warlock%.lua:372%-391") ~= nil,
+                row.prefix .. "'s tip cites the source's rows")
+        end
+    end
+end)
+
+test("E4: the fade registry is keyed by the FOREVER names the Timer tracks",
 function()
+    enable()
+    local P = FX.Messages.Pages
+    -- `Enslave Demon` is what the 2012 source calls it; Forever calls the
+    -- spell Subjugate Demon (mythicsim spells.jsonl 1098/11725/11726,
+    -- ClassFlags.Family 5) and the generated Warlock data names it that --
+    -- a key of "Enslave Demon" can never meet a row.
+    assertEquals("Subjugate Demon", P.FADE_ROWS[3].spell)
+    assertEquals("Enslave", P.FADE_SPELL_KEYS["Subjugate Demon"])
+    assertNil(P.FADE_SPELL_KEYS["Enslave Demon"],
+        "the 2012 name is not a key on this build")
+    assertEquals(3, FX.Timer.FadeWarnings["Subjugate Demon"],
+        "the threshold is published under the name that has a row")
+    assertNil(FX.Timer.FadeWarnings["Enslave Demon"])
+    -- The names the data carries keep theirs.
+    assertEquals("Banish", P.FADE_SPELL_KEYS.Banish)
+    assertEquals("Fear", P.FADE_SPELL_KEYS.Fear)
+    assertEquals("Sap", P.FADE_SPELL_KEYS.Sap)
+    assertEquals(3, FX.Timer.FadeWarnings.Banish)
+    -- Mesmerize keeps sharing the Seduction rows (Warlock.lua:250).
+    assertEquals("Seduction", P.FADE_SPELL_KEYS.Mesmerize)
+    -- And the two rows the registry can not reach say WHY on the page:
+    -- Seduction/Mesmerize are the Succubus pet's casts and v1 has no pet
+    -- row, so the tip must name pet-cast tracking (no "Fading"/"Broke"
+    -- promise, no claim that it works).
+    local seduction
+    for _ = 1, #P.FADE_ROWS do
+        if P.FADE_ROWS[_].prefix == "Seduction" then
+            seduction = P.FADE_ROWS[_]
+        end
+    end
+    assertNotNil(seduction)
+    assertTrue((seduction.note or ""):find("pet") ~= nil,
+        "the Seduction section names the pet-cast gate")
+    local text = FX.Options and FX.Options.pages
+        and FX.Options.pages.RaidMsg
+    assertTrue(type(FX.Settings:Get("RaidMsg", "SeductionFadeText"))
+        == "string", "the text itself is shipped (the verbatim half)")
+end)
+
+test("the shipped CC texts are the original's rows verbatim (E2 moves the "
+.. "SEND, never the text)", function()
     enable()
     local D = FX.Messages.Pages.DEFAULTS.RaidMsg
     assertEquals(">> Banish on %s Fading in 3 seconds! <<", D.BanishFadeText)
     assertEquals(">> Seduction on %s Broke Early! <<", D.SeductionBreakText)
     assertEquals(">> Enslave on %s Fading in 3 seconds! <<", D.EnslaveFadeText)
-    -- bit 1 = party/raid ON (Warlock.lua:387-391):
-    assertEquals(true, D.BanishFadeParty)
-    assertEquals(true, D.BanishBreakParty)
-    assertEquals(true, D.EnslaveFadeParty)
-    assertEquals(true, D.SeductionFadeParty)
-    -- bit 0 = silent (Fear :387 first row, Mage.lua:122, Rogue.lua:102):
-    assertEquals(false, D.FearFadeParty)
-    assertEquals(false, D.PolymorphFadeParty)
-    assertEquals(false, D.SapFadeParty)
-    -- bit 2 (channel) is 0 for every shipped row:
-    assertEquals(false, D.BanishFadeChannel)
-    assertEquals(false, D.SeductionBreakChannel)
     -- The threshold registry: 3 from the texts (the leading number law),
     -- Mesmerize shares the Seduction rows, Corruption is absent.
     assertEquals(3, FX.Timer.FadeWarnings.Banish)
@@ -339,6 +426,11 @@ test("FADING: a Banish row fires the event EXACTLY ONCE crossing 3.0 s, "
 .. "the fade bell rings x2, the fade line goes to the party", function()
     local Rows = enableTimer()
     installReaders({})
+    -- E2: the SHIPPED default of this send is OFF -- the fade is a 3-second
+    -- heads-up on a crowd control, and a default install does not speak to a
+    -- party that never asked. The rest of the test is the opted-in row (the
+    -- box the owner ticks), which is the source's party-ON shape.
+    ST:Set("RaidMsg", "BanishFadeParty", true)
     local clock = { 40000 }
     FX.Timer.Casts.now = function() return clock[1] end
     local row = Rows:InsertFromAura("Banish", "Vile Poacher",
@@ -362,11 +454,35 @@ test("FADING: a Banish row fires the event EXACTLY ONCE crossing 3.0 s, "
     assertEquals("Banish", events[1][1])
     assertEquals("Vile Poacher", events[1][2])
     assertEquals(fade0 + 1, M.counts.fading)
-    clock[1] = clock[1] + 0.5                 -- pumping more: no second fire
+    -- E2, the half the shipped default moves: the BELL and the EVENT are the
+    -- source's law and ride the row's threshold; only the SEND is gated, and
+    -- the gate below is the box this test ticked.
+    ST:Set("RaidMsg", "BanishFadeParty", false)
+    local sent0, off0 = Announce.counts.sent, Announce.counts.offSkipped
+    local rowOff = Rows:InsertFromAura("Banish", "River Crocolisk",
+        clock[1] + 10, 10, 0, nil, 0, clock[1])
+    clock[1] = clock[1] + 7.5
     Rows:Sweep(clock[1])
-    assertEquals(1, #events)
-    -- The original's TimerFadeSound law (Forte_Timer.lua:3297, x2).
-    assertEquals(2, #plays)
+    assertEquals(2, #events, "the fade event rings for the row")
+    assertEquals(sent0, Announce.counts.sent, "the un-ticked send is off")
+    -- Two counted opt-outs, not one: a fade is TWO gated sends (the party
+    -- half and the channel half), and `OnTimerFading` calls both, so one
+    -- un-ticked fade moves `offSkipped` by two. The row's true expiry, which
+    -- arrives on the bus in this same sweep (E3), moves it by NOTHING: its
+    -- announce calls are behind `cfg.ExpireAnnounce`/`ExpireChannel` in the
+    -- subscriber, so an off row never reaches the counting gate at all.
+    assertEquals(off0 + 2, Announce.counts.offSkipped)
+    ST:Set("RaidMsg", "BanishFadeParty", true)
+    clock[1] = clock[1] + 0.5                 -- pumping more: no third fire
+    Rows:Sweep(clock[1])
+    assertEquals(2, #events)
+    assertNotNil(rowOff)
+    -- The original's TimerFadeSound law (Forte_Timer.lua:3297, x2) rings for
+    -- EVERY row that crosses its threshold, and this test has just made two
+    -- of them cross (the ticked row above, the un-ticked one here): two
+    -- crossings x the x2 bell = four plays. The SEND is the gated half, the
+    -- bell is the row's own law (E2's split).
+    assertEquals(4, #plays)
     assertEquals("Sound\\Spells\\ShaysBell.wav", plays[1])
     -- The fade message, bit 1 = the party line (verbatim).
     assertEquals(1, #sent)
@@ -416,6 +532,12 @@ test("BROKEN: the aura sweep's early removal fires the event, the break "
 .. "sound x4, and the break line to the party", function()
     local Rows = enableTimer()
     installReaders({})
+    -- E2: the SHIPPED default of this send is OFF. The source's row
+    -- (Warlock.lua:389) shipped bit1 party ON and the row's tip says so; a
+    -- default install does not announce a crowd-control break to a party
+    -- that never asked. What is NOT gated is the source's law: the event,
+    -- the four sounds -- both ring on every break below.
+    ST:Set("RaidMsg", "BanishBreakParty", true)
     local clock = { 42000 }
     FX.Timer.Casts.now = function() return clock[1] end
     local row = Rows:InsertFromAura("Banish", "Vile Poacher",
@@ -444,6 +566,43 @@ test("BROKEN: the aura sweep's early removal fires the event, the break "
         clock[1] + 20, 20, 0, nil, 0, clock[1])
     Rows:OnAuraAbsent(row2, row2.castTime + 19.5)
     assertEquals(n0, #events)
+    Sounds.playFn = nil
+    FX.Off(h)
+    Rows:Clear()
+    restoreAll()
+end)
+
+test("E2: with the SHIPPED defaults a breaking CC row is SILENT on the chat "
+.. "wire -- the event and the four sounds ring, the send does not",
+function()
+    local Rows = enableTimer()
+    installReaders({})
+    local clock = { 43500 }
+    FX.Timer.Casts.now = function() return clock[1] end
+    local sent0 = Announce.counts.sent
+    local off0 = Announce.counts.offSkipped
+    local plays = {}
+    Sounds.playFn = function(path) plays[#plays + 1] = path end
+    local events = {}
+    local h = FX.On(FX.EVENTS.TIMER_BROKEN, function(s)
+        events[#events + 1] = s end)
+    local row = Rows:InsertFromAura("Sap", "Vile Crocolisk",
+        clock[1] + 20, 20, 0, nil, 0, clock[1])
+    assertNotNil(row)
+    assertEquals(false, ST:Get("RaidMsg", "SapBreakParty"),
+        "the shipped send is OFF")
+    assertNil(row.unitToken, "the token stays nil: the fail-open shape")
+    Rows:OnAuraAbsent(row, clock[1] + 5)
+    assertEquals(1, #events, "the event is the source's law: it rings")
+    assertEquals(4, #plays, "and so do the four break sounds")
+    assertEquals(sent0, Announce.counts.sent, "the SEND is the box, off")
+    -- Two counted opt-outs for the one break: `OnTimerBroken` runs the
+    -- party half AND the channel half (the original's bits 1 and 2,
+    -- Forte_Class/Warlock/Warlock.lua:389), and both of this row's shipped
+    -- defaults are off, so each gate counts its own skip.
+    assertEquals(off0 + 2, Announce.counts.offSkipped,
+        "the gate counts both halves of the opt-out")
+    assertEquals(0, #sent, "no chat line was written")
     Sounds.playFn = nil
     FX.Off(h)
     Rows:Clear()

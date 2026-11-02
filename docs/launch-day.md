@@ -59,7 +59,7 @@ a screenshot of anything that looks wrong is worth more than a description.
 |---|---|---|
 | F1 | `/fx options` | window opens; the **close X** and the profile tab glyphs render (the sim draws them at 0×0, unverified); ESC closes it |
 | F2 | Cast Rapid Fire (or any long cooldown) | its icon appears on the right of the cooldown bar with a white 4× splash that fades over ~1 s, then slides left along the bar |
-| F3 | Wait for a short cooldown (Arcane Shot / Multi-Shot) to finish | the icon reaches the left end and **pulses** once (this pulse never fired live before the 11-02 fix) and chat prints `<spell> ready` |
+| F3 | Wait for a short cooldown (Arcane Shot / Multi-Shot) to finish | the icon reaches the left end and **pulses** once (this pulse never fired live before the 11-02 fix); **no chat line** — the pop prints nothing by design (E1, 11-02), the ready chat line only appears if the Self Messages page's "Chat line" (`ReadyChat`) is ticked, and it is off by default |
 | F4 | Start auto-attacking with a ranged weapon | the Auto Shot **swing bar** appears under the cooldown bar, fills left→right each shot, hides when you stop (it never appeared in a client before the 11-02 fix) |
 | F5 | Drop your aspect, out of combat | the aspect reminder icon pulses; cast an aspect → it hides |
 | F6 | Cast Serpent Sting / Hunter's Mark on a target, then on a second target | Spell Timer rows appear grouped under each target's name, coloured by kind, timer text counting down; out of combat the rows correct themselves to the real aura times |

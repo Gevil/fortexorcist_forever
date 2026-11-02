@@ -110,10 +110,18 @@ test("On refuses bad calls without touching the bus", function()
     assertEquals(0, FX.ListenerCount("FXTEST_BAD"))
 end)
 
-test("the contract names are the wire strings", function()
+test("the contract names are the wire strings, and the contract is exactly "
+.. "those four (E6: no SPLASH seam)", function()
     assertEquals("FX_COOLDOWN_READY", FX.EVENTS.COOLDOWN_READY)
     assertEquals("FX_TIMER_EXPIRED", FX.EVENTS.TIMER_EXPIRED)
-    assertEquals("FX_SPLASH", FX.EVENTS.SPLASH)
+    assertEquals("FX_TIMER_FADING", FX.EVENTS.TIMER_FADING)
+    assertEquals("FX_TIMER_BROKEN", FX.EVENTS.TIMER_BROKEN)
+    assertNil(FX.EVENTS.SPLASH,
+        "E6: the SplashKick seam is gone -- every declared event has a"
+        .. " production producer and a production listener")
+    local declared = 0
+    for _ in pairs(FX.EVENTS) do declared = declared + 1 end
+    assertEquals(4, declared)
 end)
 
 test("a ready-event round trip: the payload contract reaches the listener",

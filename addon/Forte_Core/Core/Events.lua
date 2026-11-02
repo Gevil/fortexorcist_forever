@@ -16,8 +16,14 @@
 --                        ready-pop loop; the hook point is Forte_Cooldown/
 --                        Module.lua's ticker `disp:OnReady(name, now)` call).
 --   "FX_TIMER_EXPIRED"   (spell, target, kind)           fired when a Spell
---                        Timer row's window ends (the Forte_Timer
---                        options.onExpire seam, Core/Rows.lua's Sweep).
+--                        Timer row's window ends, BY FORTE_TIMER ITSELF at
+--                        its own expiry site (`Core/Rows.lua`'s Sweep, the
+--                        `opts.onExpire(row)` block of the :1049-1056 law).
+--                        Independent of the Timer's own `AnnounceExpiry`
+--                        gate: the bus is the shared seam, the chat line the
+--                        gated one. Fired here, not by a subscriber wrapping
+--                        the seam, so no add-on's load/enable order can drop
+--                        it (review 4 E3).
 --   "FX_TIMER_FADING"    (spell, target, kind, secondsLeft)
 --                        fired ONCE per row when a registered CC row's
 --                        remaining crosses its fade threshold -- the
@@ -32,9 +38,17 @@
 --                        sweep removes a row early -- the :1207 law site
 --                        (Rows:OnAuraAbsent's "removed" verdict: the aura
 --                        is gone with more than MAXLAG of window left).
---                        The original's ST_BreakMessages site.
---   "FX_SPLASH"          (name, texPath)                 optional: a ready
---                        icon request for the Secondary Splash.
+--                        The original's ST_BreakMessages site. The kill is
+--                        not a break: the fire is gated on Rows:TargetIsDead
+--                        (the row's stamped identity pair, the source's
+--                        `if not UnitIsDead(unit)` gate of :1208).
+--
+-- The four events above are the whole contract: every one of them has a
+-- producer that fires it itself, at the site of the fact. The bus used to
+-- declare a fifth, "FX_SPLASH", fired only by the SelfMsg page's `SplashKick`
+-- row, which no production code ever listened to (the splash's pops come from
+-- Forte_Cooldown's own `disp/splash:OnReady` call) -- a control with no
+-- consumer, deleted with review 4 E6.
 --
 -- Laws this bus keeps:
 --   * dispatch order = registration order (the registry is the only order
@@ -44,9 +58,12 @@
 --     and never skips a peer;
 --   * Off removes exactly the handle it is given, is idempotent, and answers
 --     false for a handle it does not know;
---   * a listener error never propagates to the firer (FE-01's one-dispatcher
---     rule, Forte_Core.lua:278-306: one module's failure costs that module,
---     not the event);
+--   * a listener error never propagates to the firer. This half is OURS, not
+--     the source's: the original's dispatcher (`FC_OnEvent`,
+--     Forte_Core.lua:306-322 -- the one-dispatcher rule) calls its listeners
+--     RAW (`v(event,...)` at :319), so there one module's raise costs every
+--     later listener of the event; the per-listener `pcall` below is this
+--     port's improvement over that site.
 --   * pcall is spelled `pcall(fn, ...)` -- the payload rides as varargs, so
 --     the bus is allocation-free per fire (the snapshot is the one copy).
 --
@@ -61,7 +78,13 @@ FX.EVENTS = FX.EVENTS or {
     TIMER_EXPIRED  = "FX_TIMER_EXPIRED",
     TIMER_FADING   = "FX_TIMER_FADING",
     TIMER_BROKEN   = "FX_TIMER_BROKEN",
-    SPLASH         = "FX_SPLASH",
+    -- NO SPLASH (E6, code-review-4): the key, the fire and this declaration
+    -- are the half of a seam whose other half is a self-kick -- the splash
+    -- has its own page, its own Enable, and Forte_Cooldown pops it directly
+    -- (disp/splash:OnReady), so no FX_SPLASH listener exists in production.
+    -- Removing the key makes the seam invisible to search, which is the
+    -- honest state: every declared event now has a production producer AND a
+    -- production listener (the law of the table's header above).
 }
 
 FX._bus = FX._bus or { nextId = 1, byEvent = {} }

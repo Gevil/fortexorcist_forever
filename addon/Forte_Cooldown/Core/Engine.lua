@@ -445,7 +445,14 @@ end
 --- entry pops only once the FULL bar is back; a never-anchored "edge" entry
 --- is removed in silence -- an inferred entry never claims the ready moment
 --- (PLAN §3.2).
-function Engine:Sweep(now, out)
+--- `popInfo` (m3, CodeReview4) is the caller's OPTIONAL scratch map: when
+--- given, the popping entry's `{ duration, icon, category }` snapshot is
+--- written to `popInfo[<popped name>]` right here, in the one place that
+--- already touches the entry before deleting it. The pop consumers need
+--- the facts of the window that just ended and the entry is gone after
+--- this loop; capturing at the pop site is why Module:ProcessReadyPops no
+--- longer pre-snapshots every live entry on every 10 Hz tick.
+function Engine:Sweep(now, out, popInfo)
     out = out or {}
     for name, e in pairs(self.entries) do
         local c, done = e.charges, nil
@@ -462,13 +469,22 @@ function Engine:Sweep(now, out)
         if done then
             self.entries[name] = nil
             if not (e.source == "edge" and not e.anchored) then
-                -- The pop names the entry for the chat line and for the
-                -- Display's `_ready` queue, and both speak the DISPLAY
-                -- name. Spell/item entries key by that name already; the
-                -- weapon-enchant entries key `<name>#<slot>` (Core/
-                -- Enchants.lua, CodeReview2 n3), so the key is not
-                -- necessarily the name.
-                out[#out + 1] = e.name or name
+                -- The pop names the entry for the Display's `_ready` queue
+                -- and the event, and both speak the DISPLAY name. Spell/
+                -- item entries key by that name already; the weapon-
+                -- enchant entries key `<name>#<slot>` (Core/Enchants.lua,
+                -- CodeReview2 n3), so the key is not necessarily the name.
+                local popName = e.name or name
+                out[#out + 1] = popName
+                if popInfo then
+                    local info = popInfo[popName]
+                    if not info then
+                        info = {}
+                        popInfo[popName] = info
+                    end
+                    info.duration, info.icon, info.category =
+                        e.duration, e.icon, e.category
+                end
             end
         end
     end

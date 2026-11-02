@@ -80,12 +80,18 @@ end
 
 --- Show one message for `seconds` (the per-event duration the task's
 --- options expose). Synchronous: the frame is up before the call returns.
+--- The colour is the CHAT row's `{r, g, b}` (Core/Channel.lua's m6 note on
+--- the source's three-slot shape); `c[4]`, when a colour picker wrote one,
+--- is the TEXT's own alpha -- the frame's alpha is the banner's fade and is
+--- never the row's. `onActive` (installed by the module) arms the pump
+--- clock: this is the one place a banner becomes live, so the pump never
+--- runs while nothing is on screen (m5).
 function Banner:Show(text, colour, seconds)
     if not self.frame then return false end
     seconds = tonumber(seconds) or 3
     if seconds < 0.5 then seconds = 0.5 end
     if seconds > 10 then seconds = 10 end
-    local c = type(colour) == "table" and colour or { 1, 1, 0, 1 }
+    local c = type(colour) == "table" and colour or { 1, 1, 0 }
     self.text:SetText(tostring(text))
     pcall(self.text.SetTextColor, self.text,
         tonumber(c[1]) or 1, tonumber(c[2]) or 1, tonumber(c[3]) or 1,
@@ -95,6 +101,7 @@ function Banner:Show(text, colour, seconds)
     self.expireAt = self:Clock() + seconds
     self.active = true
     self.counts.shown = self.counts.shown + 1
+    if self.onActive then self.onActive() end
     return true
 end
 

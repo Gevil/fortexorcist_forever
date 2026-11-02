@@ -452,3 +452,117 @@ test("the splash numbers print for the record", function()
     Splash:SetEnabled(false)
     clearPops()
 end)
+
+-- ------------------------------------------------------- the pop's own law --
+-- E1 (CodeReview4, owner ruling): the ready pop prints NOTHING to chat. The
+-- source's pop loop prints nothing (zero "ready" prints in
+-- /tmp/fxref/Forte_Cooldown.lua; its ">> %s is ready in %s <<" trio is the
+-- bar-icon CLICK readout family, Forte_Core.lua:2188 `FW:ShowTimeFor` reached
+-- from Forte_Cooldown.lua:911,1128). The only ready chat line is Forte_
+-- Messages' SelfMsg `ReadyChat` row (templated, coloured, opt-in). The pop
+-- path is the SAME one the 10 Hz ticker drives, so these tests drive the real
+-- path through Module:ProcessReadyPops.
+
+test("a ready pop prints no chat line (E1)", function()
+    Splash:SetEnabled(false)              -- the splash is not the subject
+    local prints, adds = 0, 0
+    local realPrint = FX.Print
+    local realAdd = DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage
+    FX.Print = function() prints = prints + 1 end
+    if DEFAULT_CHAT_FRAME then
+        DEFAULT_CHAT_FRAME.AddMessage = function() adds = adds + 1 end
+    end
+    -- The bus proves the pop REACHED the loop's end (the print sat at the
+    -- top of it): a silent loop would satisfy the print counts by exit, and
+    -- that is not what is under test.
+    local events = 0
+    local realFire = FX.Fire
+    FX.Fire = function(event)
+        if event == "FX_COOLDOWN_READY" then events = events + 1 end
+    end
+    armedSpell("E1TestPopA", 7000, 6)     -- window 7000..7006
+    Engine.entries["E1TestLive"] = {
+        name = "E1TestLive", start = 7005, duration = 900, endTime = 7905,
+        source = "cast", anchored = true,
+    }                                       -- live, NOT popping: no print
+    Module:ProcessReadyPops(7007)
+    FX.Print = realPrint
+    if DEFAULT_CHAT_FRAME and realAdd then
+        DEFAULT_CHAT_FRAME.AddMessage = realAdd
+    end
+    FX.Fire = realFire
+    assertEquals(1, events, "the pop ran: one FX_COOLDOWN_READY")
+    assertEquals(0, prints, "FX.Print at a pop (the E1 ungated line)")
+    assertEquals(0, adds, "DEFAULT_CHAT_FRAME:AddMessage at a pop")
+    Engine.tracked["E1TestPopA"] = nil
+    clearPops()
+end)
+
+-- m3 (CodeReview4): the pop snapshot is a POP-SITE capture, not a per-tick
+-- walk. Every live entry is a proxy whose field reads are COUNTED (the
+-- fields live in the backing table, so every read runs the metamethod); the
+-- old ProcessReadyPops re-snapshotted `duration`, `icon` and `category` of
+-- EVERY live entry on EVERY 10 Hz tick, so a live, non-popping entry saw all
+-- three reads every tick. The Sweep's own reads are charges/endTime (+ the
+-- pop's name/source/anchored), so asserting the three snapshot fields are
+-- read for the popping entry and never for a live one says the per-tick
+-- snapshot work is O(pop), not O(live entries).
+test("the pop snapshot scales with pops, not with live entries (m3)",
+function()
+    Splash:SetEnabled(false)
+    local SNAPSHOT_FIELDS = { duration = true, icon = true, category = true }
+    local function proxy(fields)
+        local reads = {}
+        local t = setmetatable({}, {
+            __index = function(_, k)
+                reads[k] = (reads[k] or 0) + 1
+                return fields[k]
+            end,
+        })
+        return t, reads
+    end
+    local function snapshotReads(reads)
+        local perField = {}
+        for k in pairs(SNAPSHOT_FIELDS) do perField[#perField + 1] = reads[k] or 0 end
+        return perField
+    end
+
+    local function assertEachReads(counts, want, what)
+        for _, n in ipairs(counts) do assertEquals(want, n, what) end
+    end
+
+    -- Five live entries that do not pop this tick + one that does.
+    local live, liveReads = {}, {}
+    for i = 1, 5 do
+        local name = "M3TestLive" .. i
+        Engine.tracked[name] = { name = name, dataId = 1, baseDuration = 900 }
+        local p, reads = proxy({
+            name = name, start = 8000, duration = 900, endTime = 8900,
+            source = "cast", anchored = true,
+        })
+        Engine.entries[name] = p
+        live[i], liveReads[i] = name, reads
+    end
+    local popName = "M3TestPop"
+    Engine.tracked[popName] =
+        { name = popName, dataId = 1, baseDuration = 6 }
+    local popProxy, popReads = proxy({
+        name = popName, start = 8000, duration = 6, endTime = 8006,
+        source = "cast", anchored = true,
+    })
+    Engine.entries[popName] = popProxy
+
+    Module:ProcessReadyPops(8007)
+
+    assertEachReads(snapshotReads(popReads), 1,
+        "the popping entry's snapshot fields are captured exactly once")
+    for i = 1, 5 do
+        assertEachReads(snapshotReads(liveReads[i]), 0,
+            "a live, non-popping entry is never snapshotted: the per-tick"
+            .. " snapshot walk scaled with the live-entry count (m3)")
+        Engine.tracked[live[i]] = nil
+    end
+    Engine.tracked[popName] = nil
+    clearPops()
+end)
+

@@ -31,11 +31,13 @@ local M = "SelfMsg"
 
 P.DEFAULTS = P.DEFAULTS or {}
 P.DEFAULTS[M] = {
-    -- The cooldown-ready pop (the FX_COOLDOWN_READY event). ReadyChat
-    -- defaults OFF deliberately: Forte_Cooldown's own pop already prints
-    -- "<name> ready" (Forte_Cooldown/Module.lua's ProcessReadyPops -- the
-    -- original's line), so the templated chat line here is the richer,
-    -- opt-in replacement, not a second line of the same news.
+    -- The cooldown-ready pop (the FX_COOLDOWN_READY event). E1 (review 4,
+    -- the manager ruling of 2026-11-02): Forte_Cooldown's pop prints NOTHING
+    -- at a pop -- the source's pop loop prints nothing (its "is ready in"
+    -- trio is the bar-icon click readout, Forte_Core.lua:2188 +
+    -- Forte_Cooldown.lua:911,1128). This row is therefore THE ready chat
+    -- line (the templated, coloured, original-shaped one), opt-in: the
+    -- shipped build is silent at a pop until the owner ticks it.
     ReadyEnable = true,
     ReadyChat = false,
     ReadyColor = { 1.00, 1.00, 0.00, 1.00 },
@@ -62,10 +64,6 @@ P.DEFAULTS[M] = {
         -- TimeLeftNoTarg (Forte_Core.lua:2526), the no-target row.
     ExpireBanner = false,     -- NEW; opt-in.
     ExpireSeconds = 3,
-    -- The ready-icon request to the Secondary Splash (FX_SPLASH). The
-    -- splash itself is the Cooldown module's feature; this is the opt-in
-    -- bus kick that asks for it on a pop. New plumbing, opt-in.
-    SplashKick = false,
 }
 
 P.WIDGET_TIPS = P.WIDGET_TIPS or {}
@@ -75,11 +73,17 @@ TIPS.ReadyEnable = "Print the self message when one of your cooldowns pops "
     .. "ready (the Cooldown module's ready pop). Applied live."
 TIPS.ReadyChat = "The line goes to your default chat frame in the colour "
     .. "below -- the original's Self Messages shape (Localization.lua:279, "
-    .. "Forte_Core.lua:559). Off by default: Forte_Cooldown already prints "
-    .. "\"<name> ready\" at a pop -- this is the richer replacement, not a "
-    .. "second line. Applied live."
+    .. "Forte_Core.lua:559). This is THE ready chat line: Forte_Cooldown's "
+    .. "pop prints nothing at all (E1, review 4: the source's pop loop "
+    .. "prints nothing; its 'is ready in' trio is the bar-icon click "
+    .. "readout, Forte_Core.lua:2188 + Forte_Cooldown.lua:911,1128), so tick "
+    .. "this for a ready chat line and leave it off for silence. Applied "
+    .. "live."
 TIPS.ReadyColor = "The chat-line colour (default the original's ReadyColor "
-    .. "{1,1,0}, Forte_Soulstone.lua:651). Applied live."
+    .. "{1,1,0}, Forte_Soulstone.lua:651). The row is the source's THREE-slot "
+    .. "shape: the chat frame takes r, g, b (the Camelot AddMessage's 4th "
+    .. "slot is a line id, not an alpha, Core/Channel.lua:18-23) and the "
+    .. "on-screen banner owns its own fade. Applied live."
 TIPS.ReadyText = "The line's template; %%s is the spell (the original's "
     .. "CooldownLeft shape, Forte_Core.lua:2527). Applied live."
 TIPS.ReadyBanner = "NEW: also flash a centred on-screen banner. The original "
@@ -93,16 +97,16 @@ TIPS.ExpireEnable = "NEW opt-in: message when a Spell Timer row's window "
 TIPS.ExpireChat = "The line goes to your default chat frame in the colour "
     .. "below. Applied live."
 TIPS.ExpireColor = "The chat-line colour (default the original's "
-    .. "SoulstoneMsgColor {1,0,1}, Forte_Soulstone.lua:672). Applied live."
+    .. "SoulstoneMsgColor {1,0,1}, Forte_Soulstone.lua:672). The row is the "
+    .. "source's THREE-slot shape: the chat frame takes r, g, b (the Camelot "
+    .. "AddMessage's 4th slot is a line id, not an alpha, Core/Channel.lua:"
+    .. "18-23) and the on-screen banner owns its own fade. Applied live."
 TIPS.ExpireText = "Template; the first %%s is the spell, the second the "
     .. "target (the original's TimeLeft, Forte_Core.lua:2525). Applied live."
 TIPS.ExpireNoTargetText = "The no-target twin (the original's "
     .. "TimeLeftNoTarg, Forte_Core.lua:2526). Applied live."
 TIPS.ExpireBanner = "NEW: also flash a centred on-screen banner. Applied live."
 TIPS.ExpireSeconds = "NEW: the banner's on-screen seconds. Applied live."
-TIPS.SplashKick = "Ask the Secondary Splash to show the icon when a "
-    .. "cooldown pops (the FX_SPLASH bus event; the splash lives in Forte_"
-    .. "Cooldown). New plumbing, off by default. Applied live."
 
 function P.RegisterSelfMsgPage()
     local O = FX.Options
@@ -168,15 +172,6 @@ function P.RegisterSelfMsgPage()
                         "ExpireText", "ExpireNoTargetText", "ExpireBanner",
                         "ExpireSeconds" },
                     tip = "What you see when a Spell Timer row ends.",
-                })
-                b.Section("Splash", function(s)
-                    s.CHK({ module = M, key = "SplashKick",
-                        label = "Splash the icon on a ready pop",
-                        tip = TIPS.SplashKick })
-                end, {
-                    module = M, keys = { "SplashKick" },
-                    tip = "The ready pop as a big icon (Forte_Cooldown's "
-                        .. "Secondary Splash).",
                 })
             end,
         })

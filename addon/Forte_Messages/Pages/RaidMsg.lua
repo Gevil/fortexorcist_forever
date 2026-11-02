@@ -4,7 +4,7 @@
 -- Window.lua:59). The routing is the original's: bit1 of a message row
 -- sends FW:ToGroup (RAID in a raid, PARTY in a party), bit2 sends
 -- FW:ToChannel (SAY/YELL/a channel) -- the two master switches `OutputRaid`
--- and `Output` are the original's own rows (Forte_Core.lua:2046-2071,
+-- and `Output` are the original's own rows (Forte_Core.lua:2046-2070,
 -- defaults :2518-2519), and each row carries its own group/channel switches
 -- exactly like the row's `{[0]=bits}` bits (Forte_Core.lua:2525-2527).
 --
@@ -13,10 +13,18 @@
 -- chat-messaging-lockdown checks first (Core/Announce.lua) -- inside an
 -- instance a locked-down send is silently swallowed by the client
 -- (EUI_Chat_EditBox.lua:64-68), so we do not pretend it went: the gate
--- skips it, counts it, and `/fx messages` reports the count. The three
--- announce rows all default OFF -- the pattern the original itself ships:
--- its SoulstoneSuccess row defaults to bits 0 (Forte_Class/Warlock/
--- Warlock.lua:365), and the task's opt-in law follows.
+-- skips it, counts it, and `/fx messages` reports the count.
+--
+-- THE SHIPPED-DEFAULT LAW (the manager ruling of 2026-11-02 on review 4 E2):
+-- EVERY group/channel announce on this page ships OFF -- the three announce
+-- rows AND all twelve fade/break checkboxes. A default install therefore
+-- never speaks to a party or a raid without one click per row. The verbatim
+-- half is the TEXTS (and the texts' fade thresholds); the source's own
+-- `{[0]=bits}` values ride each row's `bits` field and are named in that
+-- row's section tip -- the source ships Banish/Enslave/Seduction party-ON
+-- (Forte_Class/Warlock/Warlock.lua:372-373, :382-391), and ticking the box
+-- restores that. The two master switches stay the original's (OutputRaid
+-- true, Output on): with every row off, they gate nothing on their own.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -27,39 +35,68 @@ local P = FX.Messages.Pages
 
 local M = "RaidMsg"
 
--- The CC fade/break rows -- the original's registrations verbatim:
--- ST:RegisterOnTimerFade(Fear/Banish/Enslave Demon/Seduction/Mesmerize --
--- Warlock.lua:246-250, Polymorph Mage.lua:92, Sap Rogue.lua:80) and the
--- shipped message rows (Warlock.lua:373,:387-391, Mage.lua:122, Rogue.lua:102).
--- The texts are verbatim (their first number IS the fade threshold --
--- ST_GetFadeTime, Forte_Timer.lua:1590-1603); the `{[0]=bits}` slot maps to
--- the party/channel checkboxes: Fear/Polymorph/Sap ship bits 0 (silent),
--- Banish/Enslave/Seduction ship bit 1 (party/raid ON -- the source's own
--- default, the legality gate guards the send). Mesmerize shares the
--- Seduction rows (ST:RegisterOnTimerFade(mesmerize,"SeduceFade"),
--- Warlock.lua:250). The rows are NAME-keyed, so every class loads them.
+-- The CC fade/break rows -- the original's registrations (ST:RegisterOnTimerFade
+-- of Fear/Banish/Enslave Demon/Seduction/Mesmerize, Warlock.lua:246-250,
+-- Polymorph Mage.lua:92, Sap Rogue.lua:80) and its message rows
+-- (Warlock.lua:373,:387-391, Mage.lua:122, Rogue.lua:102). WHAT IS VERBATIM is
+-- the TEXT (and the text's first number, which IS the fade threshold --
+-- ST_GetFadeTime, Forte_Timer.lua:1590-1603) and the row's `{[0]=bits}` slot,
+-- carried here as the row's `bits` field (0 silent, 1 group). WHAT IS NOT
+-- VERBATIM is the SEND: every fade/break checkbox ships OFF, because a
+-- default install must not speak to a party/raid the owner never opted into
+-- (the manager ruling of 2026-11-02 on review 4 E2; the source's own party-ON
+-- bits are recorded in the row's section tip).
+--
+-- The KEYS are the FOREVER names (the registry gate, review 4 E4): a fade
+-- entry only bites when Forte_Timer has a row of that exact name, and rows
+-- come from `FX.Timer.Registry:Build(FX._playerClass)` over the GENERATED
+-- data (`addon/Forte_<Class>/Data/<Class>.lua`, the durationMs > 0 gate).
+-- Forever names `Enslave Demon` **Subjugate Demon** (mythicsim
+-- spells.jsonl: 1098/11725/11726, ClassFlags.Family 5 = Warlock; the generated
+-- Warlock data carries `Subjugate Demon` 11726), so the Enslave row keys on
+-- that name -- the TEXTS stay the original's (">> Enslave on %s …").
+-- `Seduction`/`Mesmerize` are the Succubus pet's casts (the original's
+-- `AddSpell(115268, 30, "Pet") -- Mesmerize`, Warlock.lua:74): v1's rows are
+-- born from the PLAYER's own cast events (Forte_Timer/Core/Casts.lua) and
+-- the player/target aura sweeps, so no pet row exists and the pair can not
+-- fire -- the tip says so instead of implying it works (the rows stay for
+-- the day pet-cast tracking exists). Mesmerize shares the Seduction rows
+-- (ST:RegisterOnTimerFade(mesmerize,"SeduceFade"), Warlock.lua:250).
 P.FADE_ROWS = {
-    { prefix = "Fear", spell = "Fear", party = false,
+    { prefix = "Fear", spell = "Fear", bits = 0,
         fade = ">> Fear on %s Fading in 3 seconds! <<",
-        brk = ">> Fear on %s Broke Early! <<" },
-    { prefix = "Banish", spell = "Banish", party = true,
+        brk = ">> Fear on %s Broke Early! <<",
+        note = "The source ships these rows OFF (bits 0, Mage/Warlock :387)." },
+    { prefix = "Banish", spell = "Banish", bits = 1,
         fade = ">> Banish on %s Fading in 3 seconds! <<",
-        brk = ">> Banish on %s Broke Early! <<" },
-    { prefix = "Enslave", spell = "Enslave Demon", party = true,
+        brk = ">> Banish on %s Broke Early! <<",
+        note = "The source ships this ON (party bits 1, Warlock.lua:372-391) "
+            .. "- tick to restore." },
+    { prefix = "Enslave", spell = "Subjugate Demon", bits = 1,
         fade = ">> Enslave on %s Fading in 3 seconds! <<",
-        brk = ">> Enslave on %s Broke Early! <<" },
-    { prefix = "Seduction", spell = "Seduction", party = true,
+        brk = ">> Enslave on %s Broke Early! <<",
+        note = "The source ships this ON (party bits 1, Warlock.lua:372-391) "
+            .. "- tick to restore. Forever names the spell Subjugate Demon; "
+            .. "the texts stay the original's." },
+    { prefix = "Seduction", spell = "Seduction", bits = 1,
         fade = ">> Seduction on %s Fading in 3 seconds! <<",
-        brk = ">> Seduction on %s Broke Early! <<" },
-    { prefix = "Polymorph", spell = "Polymorph", party = false,
+        brk = ">> Seduction on %s Broke Early! <<",
+        note = "The source ships this ON (party bits 1, Warlock.lua:372-391) "
+            .. "- tick to restore. Seduction and its Mesmerize alias are the "
+            .. "Succubus PET's casts: Forte_Timer v1 builds rows from the "
+            .. "player's own casts only, so no pet row exists and this pair "
+            .. "stays silent until pet-cast tracking is built." },
+    { prefix = "Polymorph", spell = "Polymorph", bits = 0,
         fade = ">> Polymorph on %s Fading in 3 seconds! <<",
-        brk = ">> Polymorph on %s Broke Early! <<" },
-    { prefix = "Sap", spell = "Sap", party = false,
+        brk = ">> Polymorph on %s Broke Early! <<",
+        note = "The source ships these rows OFF (bits 0, Mage.lua:122)." },
+    { prefix = "Sap", spell = "Sap", bits = 0,
         fade = ">> Sap on %s Fading in 3 seconds! <<",
-        brk = ">> Sap on %s Broke Early! <<" },
+        brk = ">> Sap on %s Broke Early! <<",
+        note = "The source ships these rows OFF (bits 0, Rogue.lua:102)." },
 }
 P.FADE_SPELL_KEYS = {
-    Fear = "Fear", Banish = "Banish", ["Enslave Demon"] = "Enslave",
+    Fear = "Fear", Banish = "Banish", ["Subjugate Demon"] = "Enslave",
     Seduction = "Seduction", Mesmerize = "Seduction",
     Polymorph = "Polymorph", Sap = "Sap",
 }
@@ -94,10 +131,17 @@ do
     for _ = 1, #P.FADE_ROWS do
         local row = P.FADE_ROWS[_]
         P.DEFAULTS[M][row.prefix .. "FadeText"] = row.fade
-        P.DEFAULTS[M][row.prefix .. "FadeParty"] = row.party
-        P.DEFAULTS[M][row.prefix .. "FadeChannel"] = false
         P.DEFAULTS[M][row.prefix .. "BreakText"] = row.brk
-        P.DEFAULTS[M][row.prefix .. "BreakParty"] = row.party
+        -- E2 (review 4, manager ruling 2026-11-02): EVERY group/channel
+        -- announce ships OFF. The source's `{[0]=bits}` value is the row's
+        -- `bits` field (1 for Banish/Enslave/Seduction, Warlock.lua:372-373,
+        -- :382-391) and is recorded in that row's section tip -- it is not a
+        -- shipped default, because a fresh install must not talk to a
+        -- party/raid the owner never asked it to talk to. The texts are the
+        -- verbatim half; the SEND is the opt-in half.
+        P.DEFAULTS[M][row.prefix .. "FadeParty"] = false
+        P.DEFAULTS[M][row.prefix .. "BreakParty"] = false
+        P.DEFAULTS[M][row.prefix .. "FadeChannel"] = false
         P.DEFAULTS[M][row.prefix .. "BreakChannel"] = false
     end
 end
@@ -111,7 +155,7 @@ TIPS.OutputRaid = "The group master switch (the original's OutputRaid, "
 TIPS.OutputEnable = "The channel master switch (the original's Output, "
     .. "Forte_Core.lua:2519). Applied live."
 TIPS.OutputChannel = "Where the channel half goes: SAY, YELL or CHANNEL1"
-    .. "-CHANNEL10 (the ToChannel law, Forte_Core.lua:2059-2071). Anything "
+    .. "-CHANNEL10 (the ToChannel law, Forte_Core.lua:2058-2070). Anything "
     .. "else is refused. Applied live."
 TIPS.ReadyAnnounce = "Announce to your party/raid when a tracked cooldown "
     .. "pops (the CooldownLeft text below; the original's own default is "
@@ -149,7 +193,7 @@ function P.RegisterRaidMsgPage()
                 b.Tips({
                     "Announcements go to your RAID in a raid and to your PARTY in a party (the ToGroup law), to SAY/YELL/a channel on the channel half (the ToChannel law).",
                     "Inside instances the client locks addon chat (chat-messaging-lockdown): the gate then skips the send, counts it, and /fx messages shows the count -- nothing pretends a swallowed line went.",
-                    "Every announce row is opt-in: the shipped-default-OFF pattern is the original's own (SoulstoneSuccess bits 0, Warlock.lua:365).",
+                    "Every announce row is opt-in: EVERY group and channel checkbox on this page ships OFF, so a default install sends nothing to anyone. The original's own bits ride each row's tip (Banish/Enslave/Seduction ship party-ON, Warlock.lua:372-391) - tick to restore.",
                     "No raid-target data is read anywhere in this module (the target is your own cast's, the names your own events carry).",
                 })
                 b.Section("Master switches", function(s)
@@ -230,9 +274,10 @@ function P.RegisterRaidMsgPage()
                             row.prefix .. "BreakParty",
                             row.prefix .. "BreakChannel" },
                         tip = "The original's " .. row.spell
-                            .. " fade/break rows (the fade text's first "
-                            .. "number IS the warning lead, ST_GetFadeTime, "
-                            .. "Forte_Timer.lua:1590-1603).",
+                            .. " fade/break rows (the texts verbatim; the "
+                            .. "fade text's first number IS the warning "
+                            .. "lead, ST_GetFadeTime, Forte_Timer.lua:"
+                            .. "1590-1603). " .. (row.note or ""),
                     })
                 end
                 b.Section("Soulstone", function(s)

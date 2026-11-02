@@ -154,7 +154,7 @@ FX.Cooldown.TimelineSkin = {
     -- mirrored :1441). Defaults: Vertical = false (:1808), Flip = false
     -- (:1809). CD-35's third mode, HideZero (hide the bar while no cooldown
     -- is on it), is a VISIBILITY gate, so it rides D.frameState.hideZero
-    -- below (the source's `Hide` row, default false :1815).
+    -- below (the source's `Hide` row, default false :1813).
     Vertical = false,
     Flip = false,
     Warn = true,                              -- s.Warn (:1821): a failed cast
@@ -162,10 +162,10 @@ FX.Cooldown.TimelineSkin = {
                                               -- that icon (CD-31)
     WarnSeconds = 0.5,                        -- `local focustime = 0.5` (:32):
                                               -- cd[i][20] = 1 + focustime,
-                                              -- decayed -1/s (:540-542), the
+                                              -- decayed -1/s (:528-530), the
                                               -- attention pulse window
     AttentionScale = 2.2,                     -- the attention spark is
-                                              -- `2.2*ih*(t20)` (:1412-1413)
+                                              -- `2.2*ih*(t20)` (:1409)
 
     -- Category colours, verbatim :1842-1855 (BuffOther/DebuffOther default
     -- off in the original). Default class is Spell (orange); per-spell
@@ -193,7 +193,7 @@ local S = FX.Cooldown.TimelineSkin
 -- fallback; GOTHIC.TTF is Monotype-proprietary and gone.
 local FONT_FILE = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
 local FONT_SIZE = 11
-local ICON_FONT_SIZE = FONT_SIZE - 1   -- FW IconFont = Font size - 1 (:1806)
+local ICON_FONT_SIZE = FONT_SIZE - 1   -- FW IconFont = Font size - 1 (:1810)
 local ICON_FONT_FLAGS = "OUTLINE"
 
 D.fontFile = nil   -- set by validateFont() in Init; nil = template fallback
@@ -208,7 +208,7 @@ D.frameState = {
     scale = 1.0, alpha = 1.0,          -- the Cooldown page's Scale / Alpha
     globalScale = 1.0, globalAlpha = 1.0,   -- General FrameScale / FrameAlpha
     enabled = true, hideCombat = false,     -- Basics: Enable / HideCombat
-    hideZero = false,                       -- CD-35 `Hide` (:1815): the bar is
+    hideZero = false,                       -- CD-35 `Hide` (:1813): the bar is
                                             -- auto-hidden while cd is empty
 }
 local FS = D.frameState
@@ -347,7 +347,7 @@ end
 -- tag path :1260-1263 / :1279-1282 / :1319-1322 and in the draw loop's
 -- icon/segment block :1427-1450). Anchoring an icon to the bar's origin-end
 -- point with offset `+a` is the source's
--- `bar.icon:SetPoint("CENTER", bar, "LEFT", t10, 0)` (:1450); Flip mirrors
+-- `bar.icon:SetPoint("CENTER", bar, "LEFT", t10, 0)` (:1449); Flip mirrors
 -- the whole axis (the source moves the anchor to the far end and negates
 -- the offset), which is why every one of the four modes is this one pair of
 -- helpers. The axis SPAN (the inset bar layer's length along the axis) is
@@ -435,7 +435,7 @@ function D:ApplyBarSize()
         if S.Vertical then
             self.fill:SetTexCoord(1, 0, 0, 0, 1, 1, 0, 1)  -- :1479
         else
-            self.fill:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)  -- :1481
+            self.fill:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)  -- :1483
         end
     end
 end
@@ -697,7 +697,7 @@ function D:SetSize(w, h)
         slot.frame:SetSize(S.Height, S.Height)
         slot.tex:SetSize(S.Height, S.Height)
         slot.spark:SetSize(S.Height * S.SparkScale, S.Height * S.SparkScale)
-        -- The attention spark rides 2.2 x the icon at REST (:1412); an
+        -- The attention spark rides 2.2 x the icon at REST (:1409); an
         -- armed one is resized by the next attention pass.
         slot.alert:SetSize(S.Height * S.AttentionScale, S.Height * S.AttentionScale)
         slot._alertSize = nil
@@ -795,7 +795,7 @@ function D:SetCategoryColor(key, col)
             slot._segCol = c
             slot.spark:SetVertexColor(fr, fg, fb)
             slot.timeFS:SetTextColor(fr, fg, fb)
-            slot.alert:SetVertexColor(fr, fg, fb)   -- :1412-1413 tint
+            slot.alert:SetVertexColor(fr, fg, fb)   -- :1412 tint
         end
     end
 end
@@ -907,7 +907,7 @@ function D:SetHideCombat(on)
 end
 
 --- CD-35 `HideZero` (the source's `Hide` row of the geometry-mode block,
---- :1815 + the auto-hide term of Draw :1348): the bar hides itself while the
+--- :1813 + the auto-hide term of Draw :1348): the bar hides itself while the
 --- cooldown table carries nothing. The gate is the live feed size, so it
 --- self-heals on the Module's 10 Hz pass with no extra event.
 function D:SetHideZero(on)
@@ -1213,7 +1213,7 @@ function D:AcquireSlot()
 
     -- The ATTENTION spark (CD-21/CD-31): the source creates it per bar
     -- (:1100-1103, Spark2, ADD, centred on the icon) and shows it, sized
-    -- 2.2*ih*t20, while t20 > 1 (:1412-1416). It is the "you tried to cast
+    -- 2.2*ih*t20, while t20 > 1 (:1408-1415). It is the "you tried to cast
     -- this while it was cooling" flash -- NOT the running spark, and the
     -- source never gates it on Spark[0], so it is built shown-off and the
     -- attention pass owns its visibility.
@@ -1224,7 +1224,7 @@ function D:AcquireSlot()
     alert:SetSize(S.Height * S.AttentionScale, S.Height * S.AttentionScale)
     alert:Hide()
 
-    -- IconTime text: IconFont = font, size-1, OUTLINE (:1806), anchored
+    -- IconTime text: IconFont = font, size-1, OUTLINE (:1810), anchored
     -- BOTTOMLEFT of the icon (NewBar :1120-1122).
     local timeFS = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     applyFont(timeFS, ICON_FONT_SIZE, ICON_FONT_FLAGS)
@@ -1305,7 +1305,7 @@ function D:BindSlot(slot, e, cx, now)
     slot.spark:SetVertexColor(fr, fg, fb)   -- FixIntensity (:1407, :1417)
     slot.timeFS:SetTextColor(fr, fg, fb)    -- IconTextColor off -> FixIntensity
     -- The attention spark rides the SAME FixIntensity tint as the running
-    -- spark (:1412-1413: r,g,b = FixIntensity(ColorVal(...)) right before the
+    -- spark (:1407-1408: r,g,b = FixIntensity(ColorVal(...)) right before the
     -- t20 > 1 branch); it is re-armed by the Warn pass, hidden at rest.
     slot.alert:SetVertexColor(fr, fg, fb)
     slot._alertEnd, slot._alertShown, slot._alertSize = nil, false, nil
@@ -1371,7 +1371,7 @@ function D:SpawnSplash(cx, texPath, col, now)
     s.tex:SetTexture(texPath)
     s.tex:SetVertexColor(1, 1, 1, 1)      -- the white, untinted splash icon
     s.spark:SetVertexColor(fixIntensity(col[1], col[2], col[3]))  -- :1407, :1418
-    -- The Spark[0] gate (:1385; default {[0]=true} :1822): spark + centre
+    -- The Spark[0] gate (:1385; default {[0]=true} :1820): spark + centre
     -- crop on (:1388), spark off + full texture (:1391).
     if S.SparkOn then
         s.tex:SetTexCoord(S.SplashCrop[1], S.SplashCrop[2],
@@ -1660,7 +1660,7 @@ function D:Update(entries, now)
         islot[i] = slot
         seen[e.name] = true
         -- Anchored on the bar's axis ORIGIN point at pos(t): the original's
-        -- `bar.icon:SetPoint("CENTER", bar, "LEFT", t10, 0)` (:1450), whose
+        -- `bar.icon:SetPoint("CENTER", bar, "LEFT", t10, 0)` (:1449), whose
         -- LEFT/RIGHT/TOP/BOTTOM choice IS the CD-35 mode (:1427-1450). The
         -- number is always TimelineMath.pos(t) -- the mode only says which
         -- edge of the bar it is measured from and in which direction:
@@ -1754,7 +1754,7 @@ function D:Update(entries, now)
         -- CD-31: a failed cast of a spell that is on the bar takes
         -- attention. The stamp rides THIS pass's clock (the source stamps
         -- cd[i][20] = 1 + focustime at the event, :874, and the render pass
-        -- decays it -1/s, :540-542 -- the pass clock is the only clock the
+        -- decays it -1/s, :528-530 -- the pass clock is the only clock the
         -- draw side reads), and the attention spark is drawn by
         -- _UpdateAttention from it.
         local stealIdx
@@ -1859,9 +1859,9 @@ function D:Update(entries, now)
 end
 
 --- CD-21/CD-31: the attention spark of one slot (`bar.icon.attentionspark`,
---- :1412-1416). The source's state is cd[i][20], set to 1 + focustime by
+--- :1408-1415). The source's state is cd[i][20], set to 1 + focustime by
 --- CD_FocusTimer (:874) and decayed by the elapsed seconds while > 1
---- (:540-542), so `t20` runs 1.5 -> 1.0 over `focustime = 0.5` s (:32) and the
+--- (:528-530), so `t20` runs 1.5 -> 1.0 over `focustime = 0.5` s (:32) and the
 --- draw pass shows the ADD-blend Spark2 at `2.2*ih*t20` -- a glow that starts
 --- a third wider than the running spark and contracts onto the icon -- and
 --- hides it the moment t20 reaches 1. `slot._alertEnd` is that t20 window's
@@ -1870,12 +1870,12 @@ function D:_UpdateAttention(slot, now)
     local endAt = slot._alertEnd
     if endAt then
         -- The source decays cd[i][20] by the ELAPSED SECONDS at 1/s
-        -- (:540-542 `cd[i][20] = cd[i][20] - (tim-cd[i][16])`), so `t20 - 1`
+        -- (:528-530 `cd[i][20] = cd[i][20] - (tim-cd[i][16])`), so `t20 - 1`
         -- IS the seconds left in the focustime window; the `> 1` gate is the
-        -- source's own (:540, :1412).
+        -- source's own (:528, :1408).
         local t20 = 1 + (endAt - now)
         if t20 > 1 then
-            local size = S.AttentionScale * S.Height * t20   -- :1412
+            local size = S.AttentionScale * S.Height * t20   -- :1409
             if slot._alertSize ~= size then
                 slot._alertSize = size
                 slot.alert:SetSize(size, size)
@@ -1890,6 +1890,6 @@ function D:_UpdateAttention(slot, now)
     end
     if slot._alertShown then
         slot._alertShown = false
-        slot.alert:Hide()                                  -- :1415
+        slot.alert:Hide()                                  -- :1413
     end
 end

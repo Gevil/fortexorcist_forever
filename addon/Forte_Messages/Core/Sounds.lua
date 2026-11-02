@@ -2,7 +2,7 @@
 -- The sound layer: the original's one sound law, `FW:PlaySound` -- the value
 -- `{[0]=enabled, [1]=path, [2]=times}` played through `PlaySoundFile`
 -- repeated `[2]` times (docs/reference-functional-spec.md FE-18;
--- /tmp/fxref/Forte_Core/Forte_Core.lua:2062-2068; the `[2]` slot is a REPEAT
+-- /tmp/fxref/Forte_Core/Forte_Core.lua:2072-2078; the `[2]` slot is a REPEAT
 -- COUNT, spec ST-38:3297 -- "it is a real FX signature sound").
 --
 -- What is original law and what is new (spec CD-33 is the law the two rows
@@ -21,7 +21,7 @@
 --     original itself ships a default for (SimonGame_Visual_GameStart.wav,
 --     Forte_Timer.lua:3301) -- no invented asset.
 --
--- PlaySoundFile is the original's call (Forte_Core.lua:2067) and the call a
+-- PlaySoundFile is the original's call (Forte_Core.lua:2075) and the call a
 -- working Forever addon makes on the live client (CooldownMaster
 -- UI/ReadyFrames.lua:37 `pcall(PlaySoundFile, path, "SFX")`); it runs in a
 -- pcall here exactly like that pcall, and the repeat loop breaks at the
@@ -59,7 +59,7 @@ Sounds.rows = {
 Sounds.cfg = nil          -- bound by the module at enable
 Sounds.counts = { played = 0, refused = 0, rows = {} }
 
---- The one play loop (Forte_Core.lua:2063-2067 verbatim in shape: gate on
+--- The one play loop (Forte_Core.lua:2073-2077 verbatim in shape: gate on
 --- [0], repeat [2] times, one file). Returns the number of plays issued.
 function Sounds:playRow(row)
     local cfg = self.cfg

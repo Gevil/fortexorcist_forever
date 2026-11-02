@@ -82,8 +82,9 @@
 -- slot's expiry landed the SHARED window and the Sweep retired the entry
 -- out from under the slot that still had 28 minutes of enchant left. With a
 -- slot-scoped key each slot owns its entry; `bySlot[*].entryKey` carries it.
--- Engine:Sweep pops `e.name`, so the "X ready" line and the Display's
--- `_ready` queue keep speaking the display name, never the key.
+-- Engine:Sweep pops `e.name`, so the pop's Display `_ready` pulse, the splash
+-- and the FX_COOLDOWN_READY payload keep speaking the display name, never
+-- the key.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist

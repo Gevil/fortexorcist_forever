@@ -229,7 +229,7 @@ end)
 --   * tint/blend: splashicon = the icon texture (:1382), vertex colour and
 --     blend mode NEVER set -> white + BLEND (:1088-89); the 2.2x spark
 --     (:1386-87) is Spark2 ADD (:1084-85), vertex colour FixIntensity(category)
---     (:1407, :1418); with Spark[0] (default true, :1822) the icon rides the
+--     (:1407, :1418); with Spark[0] (default true, :1820) the icon rides the
 --     0.133..0.867 centre crop (:1388), else the full texture (:1391).
 local function liveSplash()
     for i = 1, #Display.splashPool do
@@ -1315,13 +1315,13 @@ end)
 -- CD-31 (spec §1.5): UNIT_SPELLCAST_FAILED for the player, mapped spellID ->
 -- name, grabs attention on that spell's live cooldown row -- "you tried to
 -- cast something that is cooling": the icon flashes (the source's
--- bar.icon.attentionspark, Forte_Cooldown.lua :1412-1416: the ADD-blend Spark2
+-- bar.icon.attentionspark, Forte_Cooldown.lua :1408-1415: the ADD-blend Spark2
 -- shown while cd[i][20] > 1 at size 2.2*ih*t20, tinted FixIntensity(category))
 -- and steals the group's cross-fade focus (CD_FocusTimer :860-877: the warned
 -- row gets cd[i][15] = 1 and cd[i][14] = 1, EVERY other member of the group
 -- cd[i][14] = cd[i][15] = 0). The window is `local focustime = 0.5` (:32)
 -- stamped as cd[i][20] = 1 + focustime (:874) and decayed by the ELAPSED
--- SECONDS at 1/s (:540-542), so t20 rides 1.5 -> 1.0 over 0.5 s.
+-- SECONDS at 1/s (:528-530), so t20 rides 1.5 -> 1.0 over 0.5 s.
 --
 -- The event dispatch is the suite's established pattern (test_tiers.lua:619-
 -- 640, test_enchants.lua:433-446): the module frame's own OnEvent handler,
@@ -1398,8 +1398,8 @@ test("CD-31: a failed cast of a cooling spell flashes that icon and steals the f
     assertEquals(1, liveAlerts())
     near3(b.alert:GetWidth(), S.AttentionScale * S.Height * 1.5)
     near3(b.alert:GetHeight(), S.AttentionScale * S.Height * 1.5)
-    -- The tint is FixIntensity(category) (:1412-1413 rides the r,g,b the
-    -- running spark got at :1417).
+    -- The tint is FixIntensity(category) (:1412 rides the r,g,b the
+    -- running spark got at :1407).
     local sc = S.Colors.Spell
     local er, eg, eb = 0.7 * sc[1] + 0.3, 0.7 * sc[2] + 0.3, 0.7 * sc[3] + 0.3
     local r, g, b2 = b.alert:GetVertexColor()
@@ -1410,7 +1410,7 @@ test("CD-31: a failed cast of a cooling spell flashes that icon and steals the f
     near3(b.frame:GetAlpha(), 1.0, "the warned icon took the focus")
     near3(a.frame:GetAlpha(), 0.0, "and the group's other members go dark")
     -- The window is focustime long: 0.25 s in the spark has contracted by
-    -- 0.25 of the 2.2*ih base, and at 0.5 s it is gone (:1415 Hide).
+    -- 0.25 of the 2.2*ih base, and at 0.5 s it is gone (:1413 Hide).
     Display:Update(feed, t + S.WarnSeconds * 0.5)
     near3(b.alert:GetWidth(), S.AttentionScale * S.Height * 1.25)
     Display:Update(feed, t + S.WarnSeconds + 0.01)
@@ -1690,7 +1690,7 @@ test("CD-35 HideZero: no entries hides the bar, the first entry in the feed show
     local now = 47000
     local feed = { { name = "ZeroA", start = 0, duration = 999, endTime = now + 90 } }
     Display:Update({}, now)
-    assertTrue(Display.anchor:IsShown(), "the flag is OFF by default (:1815)")
+    assertTrue(Display.anchor:IsShown(), "the flag is OFF by default (:1813)")
     Settings:Set("Cooldown", "HideZero", true)
     Display:Update({}, now + 0.1)
     assertFalse(Display.anchor:IsShown(), "an empty bar is no bar at all")

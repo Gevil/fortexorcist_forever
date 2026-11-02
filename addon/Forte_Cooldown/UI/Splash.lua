@@ -12,7 +12,7 @@
 --  * the frame is its own instance with its own defaults and option tree
 --    (CD_NewSplashFrame :991-1071, instance registration :1540-1552);
 --  * base icon 32 px, the frame sized 32*scale (:1028, :1043-44, :1061-62);
---  * the icon pool centres every icon on the frame (:968);
+--  * the icon pool centres every icon on the frame (:967);
 --  * the pop's curve is the BELL over the SAME 1.0 s expiry window the
 --    bar's pulse uses -- t14 is set to 1 at the ready (:353-354) and the
 --    render loop decays it -1/s (:632-635):
@@ -76,9 +76,9 @@ FX.Cooldown.SplashSkin = {
     IconBase = 32,             -- the base icon edge, :1028
     Window = 1.0,              -- the bell's window: t14 decays 1 -> 0 at 1/s (:353-54, :632-35)
     SparkScale = 2.2,          -- spark size / icon size (:1031-32)
-    Spark = TEX .. "Spark2",   -- the ADD-blend glow (:973)
+    Spark = TEX .. "Spark2",   -- the ADD-blend glow (:975)
     PlaceholderIcon = "Interface\\Icons\\Spell_Shadow_LastingAfflictions",
-                               -- NewIcon's standing texture (:965)
+                               -- NewIcon's standing texture (:970)
     BackdropBG = TEX .. "Background",  -- the plate texture (:1860 Backdrop[1])
     PlateAlpha = 0.7,          -- BgColor[4] x THIS (:1843, CD-27)
     Crop = 0.133,              -- the glow texcoord crop (:980)
@@ -268,13 +268,13 @@ function D:_NewIcon()
     plate:SetPoint("CENTER", frame, "CENTER", 0, 0)
 
     local tex = frame:CreateTexture(nil, "ARTWORK")
-    tex:SetTexture(S.PlaceholderIcon)  -- NewIcon's standing icon (:965)
+    tex:SetTexture(S.PlaceholderIcon)  -- NewIcon's standing icon (:970)
     tex:SetPoint("CENTER", frame, "CENTER", 0, 0)
     tex:SetVertexColor(1, 1, 1, 1)   -- the icon is untinted (:966-970)
 
     local spark = frame:CreateTexture(nil, "OVERLAY")
     spark:SetTexture(S.Spark)
-    spark:SetBlendMode("ADD")        -- :973
+    spark:SetBlendMode("ADD")        -- :975
     spark:SetPoint("CENTER", frame, "CENTER", 0, 0)
 
     -- The plate rides the bar's BgColor (CD-27); a pop re-applies it, the

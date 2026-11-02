@@ -1,5 +1,5 @@
 {
-  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Mage tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped. Forever spellings are verbatim (Darnassus, Thunder Bluff, Orgrimmar). Forever renames/new vs Cata: Arcane Channel->Evocation, Blink->Displacement, Cauterize->Rewind Time, Cold Blood(frost)->Icy Veins, Time Warp->Temporal Anomaly, Arcane Spirit->Arcane Brilliance (Arcane Intellect also present), new fire armor Molten Armor, new spells Frozen Orb / Living Flame / Arcane Surge / Mass Regeneration / Netherwind Focus / Chronostatic Preservation / Evoker / Regeneration. The priest-side spells Circle of Healing / Eye of the Void / Homunculi / Power Word: Barrier / Void Plague also exist here as cross-class Mage talent rows; the generator's family-scoped rank resolution keeps them on the Priest lists.",
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Mage tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped. Forever spellings are verbatim (Darnassus, Thunder Bluff, Orgrimmar). Forever renames/new vs Cata: Arcane Channel->Evocation, Blink->Displacement, Cauterize->Rewind Time, Cold Blood(frost)->Icy Veins, Time Warp->Temporal Anomaly, Arcane Spirit->Arcane Brilliance (Arcane Intellect also present), new fire armor Molten Armor, new spells Frozen Orb / Living Flame / Arcane Surge / Mass Regeneration / Netherwind Focus / Chronostatic Preservation / Evoker / Regeneration. The priest-side spells Circle of Healing / Eye of the Void / Homunculi / Power Word: Barrier / Void Plague also exist here as cross-class Mage talent rows; the generator's family-scoped rank resolution keeps them on the Priest lists. Crowd control rides `utility` (Counterspell, and Polymorph since 2026-11-02 -- CodeReview4 E4: the spell's real Family=3 rows (base 118 + ranks 12824-12826) were simply omitted, which left the Poly fade/break rows of Forte_Messages' raid page with no Spell Timer row to ring on; the Spell Tracker's registry gates on durationMs > 0, rank 4's 50000 ms qualifies it).",
   "cooldowns": [
     "Cold Snap", "Evocation", "Arcane Power", "Icy Veins", "Arcane Surge",
     "Frozen Orb", "Rewind Time", "Living Flame", "Displacement",
@@ -17,7 +17,7 @@
   ],
   "utility": [
     "Mage Armor", "Frost Armor", "Ice Armor", "Molten Armor",
-    "Blink", "Counterspell", "Remove Lesser Curse", "Remove Greater Curse",
+    "Blink", "Counterspell", "Polymorph", "Remove Lesser Curse", "Remove Greater Curse",
     "Teleport: Dalaran", "Teleport: Stormwind", "Teleport: Thunder Bluff",
     "Teleport: Ironforge", "Teleport: Undercity", "Teleport: Orgrimmar",
     "Teleport: Darnassus"

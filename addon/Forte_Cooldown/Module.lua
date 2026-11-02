@@ -21,9 +21,13 @@ local READ_NET_TICKS = 10       -- every 10th tick = 1 Hz safety read pass
 -- so allocating per tick is pure garbage for the collector.
 local readyScratch = {}
 local sortedScratch = {}
--- [name] = { duration, icon, category } snapshotted from the live entry
--- BEFORE the Sweep retires it (ProcessReadyPops): the pop needs the facts
--- of the window that just ended, and the Sweep deletes the entry it pops.
+-- [name] = { duration, icon, category } of a JUST-RETIRED entry: the pop
+-- needs the facts of the window that just ended and the Sweep deletes the
+-- entry it pops, so Engine:Sweep fills this at the pop site (its optional
+-- `popInfo` argument, m3/CodeReview4). Filled ONLY for popping entries --
+-- a per-tick snapshot of every live entry was the old shape. Keys of
+-- already-delivered pops ride on (every pop rewrites its own key whole);
+-- the map is bounded by the tracked-spell count, not by session time.
 local popInfoScratch = {}
 
 -- READ-TIER EVIDENCE (docs/research/secrets-unknowns.md §2 + §5, ranked
@@ -362,27 +366,29 @@ local function resolveReadyIcon(name)
     return nil
 end
 
---- Sweep + dispatch the ready pops: the chat line, the timeline's ready
---- pulse, the Secondary Splash (spec CD-27/CD-28, UI/Splash.lua) and the
---- shared bus event FX_COOLDOWN_READY (name, now, texPath, category) --
---- exactly one fire per pop, nil-guarded so the Module is inert without
---- the Forte_Core event bus. Public: the 10 Hz ticker drives it, and the
---- tests drive the REAL pop path through it (the C_Timer ticker is not
---- reachable headless). The per-entry facts ride a pre-Sweep snapshot:
---- the Sweep deletes the entry it pops.
+--- Sweep + dispatch the ready pops: the timeline's ready pulse, the
+--- Secondary Splash (spec CD-27/CD-28, UI/Splash.lua) and the shared bus
+--- event FX_COOLDOWN_READY (name, now, texPath, category) -- exactly one
+--- fire per pop, nil-guarded so the Module is inert without the Forte_Core
+--- event bus. Public: the 10 Hz ticker drives it, and the tests drive the
+--- REAL pop path through it (the C_Timer ticker is not reachable headless).
+--- The per-entry facts ride the Sweep's pop-site snapshot (Engine:Sweep's
+--- `popInfo` argument): the Sweep deletes the entry it pops, and only a
+--- popping entry is ever touched (m3, CodeReview4 -- the old pre-pass
+--- re-snapshotted every live entry on every 10 Hz tick for a pop that is
+--- rare).
+--- E1 (CodeReview4, owner ruling): the pop prints NOTHING to chat. The
+--- source's pop loop prints nothing at a pop (zero "ready" prints across
+--- /tmp/fxref/Forte_Cooldown.lua); its ">> %s is ready in %s <<" trio
+--- (Forte_Core.lua:2188 `FW:ShowTimeFor`, Forte_Cooldown.lua:911,1128) is
+--- the bar-icon CLICK readout family, not this one. The chat voice is
+--- Forte_Messages' SelfMsg `ReadyChat` row (the templated, coloured,
+--- original-shaped one, opt-in, default off); the gate is the owner's, not
+--- this loop's -- an ungated print here was un-offable chat spam.
 function M:ProcessReadyPops(now)
-    for name, e in pairs(Engine.entries) do
-        local info = popInfoScratch[name]
-        if not info then
-            info = {}
-            popInfoScratch[name] = info
-        end
-        info.duration, info.icon, info.category = e.duration, e.icon, e.category
-    end
     wipe(readyScratch)
     local disp = FX.Cooldown.Display
-    for _, name in ipairs(Engine:Sweep(now, readyScratch)) do
-        FX.Print(name .. " ready")
+    for _, name in ipairs(Engine:Sweep(now, readyScratch, popInfoScratch)) do
         -- The only extra feed the Display needs: "this name just became
         -- ready" drives its ready pulse. Splash/fade come from first-
         -- sighting inside Update itself.

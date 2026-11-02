@@ -2,11 +2,14 @@
 -- The self-messages half: the bus -> chat/banner/sound chain (the public
 -- path is FX.Fire of the contract event -- no test calls a render function,
 -- the UI-test law), the banner's synchronous show and clock retirement (the
--- hidden-frame law: the show rides the kick itself), the sound law (the
--- repeat count of the original's third slot, Forte_Core.lua:2063-2067), the
--- live settings seam, the registered pages lighting the SelfMsg/Sound index
--- cells, and the FORTE_TIMER WRAP: options.onExpire chain-called, the bus
--- fired after it, Forte_Timer untouched.
+-- hidden-frame law: the show rides the kick itself) with its ON-DEMAND pump
+-- clock (m5), the sound law (the repeat count of the original's third slot,
+-- Forte_Core.lua:2073-2077), the live settings seam, the registered pages
+-- lighting the SelfMsg/Sound/RaidMsg index cells, and the EXPIRY CHAIN
+-- (E3): a row expiring through FORTE_TIMER'S OWN SWEEP reaches this module's
+-- listener in a session where Messages enabled BEFORE the Timer and in one
+-- where it enabled AFTER -- the load-order bug the review found, tested at
+-- the order that hid it.
 --
 -- The login law of the suite family (Forte_Hunter/tests/test_swing.lua,
 -- Forte_Timer/tests/test_module.lua): the gate run's login sequence does
@@ -125,22 +128,39 @@ test("a fired ready event prints the chat message on the public path and "
     restoreChat()
 end)
 
-test("the splash kick rides the opt-in flag", function()
+-- E6 (code-review-4) deleted the `SplashKick` row, its FX_SPLASH fire and
+-- the bus declaration: the splash has its own page and its own Enable, and
+-- Forte_Cooldown pops it directly (`disp/splash:OnReady`). What the ready
+-- pop's own clock needs lives in the next test.
+test("m5: the banner pump clock is ON DEMAND -- armed by a show, ended by "
+.. "the lapse, and nothing runs while no banner is up", function()
     enable()
-    local seen = {}
-    local h = FX.On(FX.EVENTS.SPLASH, function(name, tex)
-        seen[#seen + 1] = { name, tex }
-    end)
-    ST:Set("SelfMsg", "SplashKick", false)
-    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 1.0, "Interface\\a", nil)
-    assertEquals(0, #seen)
-    ST:Set("SelfMsg", "SplashKick", true)
-    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 2.0, "Interface\\a", nil)
-    ST:Set("SelfMsg", "SplashKick", false)
-    assertEquals(1, #seen)
-    assertEquals("Rapid Fire", seen[1][1])
-    assertEquals("Interface\\a", seen[1][2])
-    FX.Off(h)
+    installChat()
+    local clockT = 900.0
+    Banner.now = function() return clockT end
+    ST:Set("SelfMsg", "ReadyEnable", true)
+    ST:Set("SelfMsg", "ReadyChat", false)
+    ST:Set("SelfMsg", "ReadyBanner", true)
+    ST:Set("SelfMsg", "ReadySeconds", 2)
+    -- Retire any window a peer left, then retire the pump it armed.
+    Banner:Update(clockT + 60)
+    M:_BannerPumpStep()
+    assertFalse(M:BannerPumpActive(), "idle: no pump is running")
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 1.0, nil, nil)
+    assertTrue(Banner.frame:IsShown(), "the show rode the kick")
+    assertTrue(M:BannerPumpActive(), "the show armed the pump")
+    -- The pump steps: a live window re-arms, the lapse ends the chain.
+    clockT = clockT + 1.0
+    assertTrue(M:_BannerPumpStep(), "live at 1 s of a 2 s window")
+    clockT = clockT + 1.2
+    assertFalse(M:_BannerPumpStep(), "the window lapsed")
+    assertFalse(M:BannerPumpActive(), "and the pump ended with it")
+    assertFalse(Banner.frame:IsShown())
+    assertFalse(M:_BannerPumpStep(), "a step after the end is a no-op")
+    Banner.now = nil
+    ST:Set("SelfMsg", "ReadyChat", true)
+    ST:Set("SelfMsg", "ReadyBanner", false)
+    restoreChat()
 end)
 
 -- --------------------------------------------------------------- the banner --
@@ -218,42 +238,113 @@ function()
     ST:Set("Sound", "TimerExpireEnable", false)
 end)
 
--- ---------------------------------------------------------- the timer wrap --
-
-test("Forte_Timer's onExpire is WRAPPED: the prior handler runs, then the "
-.. "bus fires the expire chain", function()
-    enable()
-    local TM = FX.Timer and FX.Timer.Module
-    assertNotNil(TM, "Forte_Timer loads in the suite (OptionalDep)")
+-- ------------------------------------------------------- the expiry chain --
+-- E3 (code-review-4): the wrapper this suite used to drive (`M:WrapTimerExpire`
+-- plus a hand-called `wrapped({name=...})`) is GONE, and with it the shortcut
+-- that made the load-order bug invisible: the old test called the wrapper by
+-- hand, so it proved the chain while the shipped enable order never installed
+-- it. What is tested now is the REAL producer -- `Forte_Timer.Core.Rows`'s
+-- own Sweep -- reaching this module's listener in BOTH enable orders.
+local function enableTimer()
+    local TM = FX.Timer.Module
     if not TM.options then TM:OnEnable() end
-    local prev = TM.options.onExpire
-    assertNotNil(prev)
-    local chainSaw = nil
-    TM.options.onExpire = function(row) chainSaw = row end
-    M:WrapTimerExpire()
-    assertEquals("wrapped", M.timerHook)
-    local wrapped = TM.options.onExpire
-    assertTrue(M.wrappedFns[wrapped] == true,
-        "the wrap is in the registry (a function carries no fields)")
-    -- Re-enable: the wrap is idempotent, it must not nest.
-    M:WrapTimerExpire()
-    assertEquals(wrapped, TM.options.onExpire)
+    return FX.Timer.Rows
+end
+
+--- Drive ONE row of `spell` through the Timer's own sweep to a true expiry,
+--- on the injectable cast clock. No test touches a render path and no test
+--- fires the event: `Rows:Sweep` is the producer.
+local function expireInRealSweep(Rows, spell, targetKey, base)
+    local clock = { base }
+    FX.Timer.Casts.now = function() return clock[1] end
+    local row = Rows:InsertFromAura(spell, targetKey, base + 4, 4, 0,
+        nil, 0, base)
+    assertNotNil(row)
+    clock[1] = base + 4.5
+    Rows:Sweep(clock[1])
+    FX.Timer.Casts.now = nil
+    return row
+end
+
+local function freshMessagesEnable()
+    M.cfg = nil
+    M:OnEnable()
+end
+
+test("E3 (order A): Messages enabled BEFORE the Timer -- a row expiring in "
+.. "the Timer's real sweep reaches the listener", function()
+    freshMessagesEnable()                 -- the enable that used to be first
+    local TM = FX.Timer.Module
+    TM.options = nil                       -- the Timer enables AFTER
+    local Rows = enableTimer()
+    installChat()
+    ST:Set("SelfMsg", "ExpireEnable", true)
+    ST:Set("SelfMsg", "ExpireChat", true)
+    assertEquals("FX_TIMER_EXPIRED", FX.EVENTS.TIMER_EXPIRED)
+    local e0 = M.counts.expired
+    expireInRealSweep(Rows, "Serpent Sting", "Vile Poacher", 60000)
+    assertEquals(e0 + 1, M.counts.expired,
+        "the Timer's own fire reached the pre-Timer listener")
+    assertNotNil(lastChat())
+    assertEquals(">> Serpent Sting on Vile Poacher is fading <<",
+        lastChat().text)
+    Rows:Clear()
+    restoreChat()
+end)
+
+test("E3 (order B): Messages enabled AFTER the Timer -- the same sweep, the "
+.. "same delivery, and the fire is once-per-row", function()
+    local TM = FX.Timer.Module
+    TM.options = nil
+    local Rows = enableTimer()             -- the Timer first ...
+    freshMessagesEnable()                  -- ... Messages after
     installChat()
     ST:Set("SelfMsg", "ExpireEnable", true)
     ST:Set("SelfMsg", "ExpireChat", true)
     local e0 = M.counts.expired
-    wrapped({ name = "Serpent Sting", targetKey = "Vile Poacher",
-        kind = "Default" })
-    assertEquals(chainSaw and chainSaw.name, "Serpent Sting",
-        "the prior handler got the row first")
-    assertEquals(e0 + 1, M.counts.expired)
-    assertNotNil(lastChat())
-    assertEquals(">> Serpent Sting on Vile Poacher is fading <<",
-        lastChat().text)
-    -- The no-target twin (TimeLeftNoTarg, Forte_Core.lua:2526).
-    wrapped({ name = "Serpent Sting", targetKey = "none", kind = "Default" })
+    local row = expireInRealSweep(Rows, "Serpent Sting", "none", 61000)
+    assertEquals(e0 + 1, M.counts.expired,
+        "the row is rendered with the no-target template")
     assertEquals(">> Serpent Sting is fading <<", lastChat().text)
-    TM.options.onExpire = prev
+    -- Pumping the sweep more does not re-fire: the row's own stamp.
+    FX.Timer.Casts.now = function() return 61010 end
+    Rows:Sweep(61010)
+    FX.Timer.Casts.now = nil
+    assertEquals(e0 + 1, M.counts.expired, "one fire per row")
+    assertNotNil(row)
+    Rows:Clear()
+    restoreChat()
+end)
+
+test("E3: a row whose window is extended past the crossing does not expire, "
+.. "and the expiry is independent of the AnnounceExpiry chat gate",
+function()
+    local Rows = enableTimer()
+    installChat()
+    ST:Set("SelfMsg", "ExpireEnable", true)
+    ST:Set("SelfMsg", "ExpireChat", true)
+    local clock = { 62000 }
+    FX.Timer.Casts.now = function() return clock[1] end
+    local row = Rows:InsertFromAura("Serpent Sting", "Vile Poacher",
+        clock[1] + 4, 4, 0, nil, 0, clock[1])
+    local e0 = M.counts.expired
+    clock[1] = clock[1] + 3
+    Rows:Sweep(clock[1])                  -- 1 s left: not yet
+    assertEquals(e0, M.counts.expired)
+    -- The fact arrives LONGER (the extend law): the crossing moves away.
+    Rows:OnAuraFact(row, clock[1] + 30, 30, 1, clock[1], nil, 0, nil)
+    Rows:Sweep(clock[1])
+    assertEquals(e0, M.counts.expired, "an extended row has not expired")
+    clock[1] = clock[1] + 30.5
+    Rows:Sweep(clock[1])
+    assertEquals(e0 + 1, M.counts.expired, "and it fires at the new end")
+    -- m7's production gate does not gate the bus: `expireMessage` OFF (the
+    -- shipped default) stamped the row's chat column 0 above, and the event
+    -- still rode the expiry -- the SelfMsg/RaidMsg/Sound rows are the gates.
+    assertFalse(FX.Timer.Module.options.expireMessage,
+        "the AnnounceExpiry gate is off by default")
+    FX.Timer.Casts.now = nil
+    Rows:Clear()
     restoreChat()
 end)
 
@@ -308,5 +399,9 @@ function()
     assertTrue(printed[1]:find("fading") ~= nil)
     assertTrue(printed[1]:find("broken") ~= nil)
     assertTrue(printed[2]:find("locked%-skipped") ~= nil)
-    assertTrue(printed[3]:find("timer hook") ~= nil)
+    -- The seam line reports the BUS, not a wrapper: the expiry producer is
+    -- Forte_Timer's own, so the status census is the listener count (E3),
+    -- and the banner pump reports its on-demand state (m5).
+    assertTrue(printed[3]:find("FX_TIMER_EXPIRED") ~= nil)
+    assertTrue(printed[3]:find("banner") ~= nil)
 end)

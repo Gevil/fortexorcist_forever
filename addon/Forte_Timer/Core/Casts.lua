@@ -283,6 +283,23 @@ function Casts:HasteFactor(name)
     return self._haste[name] or 1
 end
 
+--- The PLAIN identity of a unit token at the insert instant, for the row's
+--- CAST-identity stamp (E5). No game call lives here: the reader is
+--- `FX.Timer.Reconcile:TokenGuid`, the one seam the aura path already stamps
+--- through (`Reconcile:SweepRow`/`SweepBulk` pass it to `InsertFromAura`), so
+--- the cast path and the aura path can not disagree about what a token's
+--- identity is, and a test injects the fact once (`Reconcile.liveness`).
+--- The gate is the shared one: a token outside `Rows.LIVENESS_TOKENS` and a
+--- sealed identity both answer nil, and a nil leaves the row without a cast
+--- identity -- which is the fail-open state `Rows:TargetIsDead` documents.
+--- The answer feeds `row.castGuid` ONLY: `row.guid` is the adoption key of the
+--- aura law and the cast path has no part in it.
+function Casts:TokenGuid(token)
+    local R = FX.Timer.Reconcile
+    if R and R.TokenGuid then return R:TokenGuid(token) end
+    return nil
+end
+
 --- Run the jobs that are due and flush the stale queue. Rides the module's
 --- logic cadence (0.5 s), which is finer than the SETTLE window.
 function Casts:Pump(now)
@@ -302,7 +319,45 @@ function Casts:Pump(now)
                     -- The target string is an opaque key; a plain token match
                     -- promotes the row's unit token (CA-19).
                     local token = self:ResolveTarget(job.targetKey)
-                    if token then row.unitToken = token end
+                    if token then
+                        row.unitToken = token
+                        -- E5 (code-review-4): the SAME promotion that makes
+                        -- the token legible is what makes the row's identity
+                        -- testable. The source's break site reads
+                        -- `UnitIsDead(unit)` of the unit its loop is walking
+                        -- (`Forte_Timer.lua:1207-1211`); `Rows:TargetIsDead`
+                        -- answers that only for a row that carries the
+                        -- identity PAIR -- a probeable token AND the plain
+                        -- guid that token had at the stamp. Aura rows have
+                        -- the pair in `unitToken`/`guid`; a row born from one
+                        -- of my own casts had NEITHER, so the common real
+                        -- shape of a crowd-control window -- my banish on my
+                        -- current target, and the target DIES inside it --
+                        -- arrived as a "Broke Early!" raid line plus four
+                        -- break sounds.
+                        --
+                        -- The pair is stamped into the SEPARATE
+                        -- `castToken`/`castGuid` fields, which the LIVENESS
+                        -- GATE is the only consumer of. `row.guid` is the
+                        -- aura law's ADOPTION key (the source's col 11,
+                        -- `:1161`): it is set by the aura-confirming read
+                        -- (`InsertFromAura`/`OnAuraFact`) and by nothing
+                        -- else, because stamping it here would make a
+                        -- prediction adoptable by identity and would move
+                        -- `row.predicted` -- the UI's prediction marking, the
+                        -- §5.5 law -- with it. Stamping costs one guid read
+                        -- per row, at the insert: the reader is the aura
+                        -- path's own seam (no second reader, no new game call
+                        -- in this file), a token outside
+                        -- `Rows.LIVENESS_TOKENS` stamps nil, and a SEALED
+                        -- identity stamps nil -- the row then keeps today's
+                        -- fail-open break. The read is pcall'd: a row that
+                        -- cannot be identified is a row with no identity,
+                        -- never a job that dies mid-queue.
+                        row.castToken = token
+                        local identified = { pcall(self.TokenGuid, self, token) }
+                        row.castGuid = (identified[1] and identified[2]) or nil
+                    end
                     if self.onRow then self.onRow(row, verdict) end
                 end
             elseif job.kind == "fail" then

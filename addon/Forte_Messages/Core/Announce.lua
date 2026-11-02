@@ -5,7 +5,7 @@
 --     a local echo with no group, all behind the `OutputRaid` master switch
 --     (/tmp/fxref/Forte_Core/Forte_Core.lua:2046-2056, default true :2518);
 --   * bit2 -> FW:ToChannel: SAY / YELL / a channel, behind the `Output`
---     master (:2059-2071, default on :2519);
+--     master (:2058-2070, default on :2519);
 --   * the rows themselves are `{[0]=bits, [1]=text}` templates with %s
 --     (Forte_Core.lua:2525-2527; the Warlock family's
 --     "Soulstoned >> %s << Use it well!" is Forte_Class/Warlock/Warlock.lua:365

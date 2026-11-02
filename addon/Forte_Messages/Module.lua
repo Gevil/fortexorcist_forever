@@ -9,14 +9,17 @@
 --     (the :525 ticker path, the `if FX.Fire then` nil-guard) with
 --     (name, now, texPath, category). Pure subscriber here -- Forte_Cooldown
 --     is an OptionalDep and is NOT touched;
---   * FX_TIMER_EXPIRED: Forte_Timer ships no bus fire, so this module WRAPS
---     the Timer's own expire seam -- options.onExpire (set to announceExpiry
---     in Forte_Timer/Module.lua:540, called as opts.onExpire(row) from
---     Core/Rows.lua's Sweep) -- from here, at enable time, chain-calling the
---     previous handler first and then firing the bus with
---     (row.name, row.targetKey, row.kind). Forte_Timer is not edited; if it
---     is absent the wrap is skipped (self.timerHook = "absent") and the bus
---     seam stays open for a later Timer-side fire;
+--   * FX_TIMER_EXPIRED: fired by FORTE_TIMER ITSELF, at its own expiry site
+--     (Forte_Timer/Core/Rows.lua's Sweep, the `opts.onExpire(row)` block, the
+--     :1049-1056 law, nil-guarded `FX.Fire`), with (row.name, row.targetKey,
+--     row.kind). This module only SUBSCRIBES. (Review 4 E3: the earlier shape
+--     here replaced the Timer's `options.onExpire` field with a wrapper at
+--     enable time, which the real load order never ran -- Forte_Messages
+--     enables before Forte_Timer's OnEnable builds `options`, and a Timer
+--     re-enable rebuilds the table and drops the wrapper. The fire now lives
+--     where the expiry happens, so no enable order can lose it; the seam the
+--     wrap used to guard is the producer's own, and `M:_SubscribeToBus()` is
+--     the seam the tests use to play an enable order.);
 --   * the soulstone announce: no FX_SOULSTONE event exists and Forte_Warlock
 --     is a LoadOnDemand class addon (the dependency law: an always-loaded
 --     addon never lists one), so this module listens to the PLAYER's own
@@ -25,13 +28,17 @@
 --     C_Spell.GetSpellInfo in a pcall with PlainOrNil on every field (the
 --     Forte_Cooldown/Module.lua:329-334 RecordCastEvent pattern -- the spellID
 --     is never compared, only looked up), and family-matches the NAME
---     against the Warlock family's shipped patterns { "^Create Soulstone",
---     "^Soulstone" } (Forte_Warlock/Core/Tools.lua:142 -- the patterns are
---     copied as the family's law, the addon is not required; a mage hears
---     "Soulstone Resurrection" named the same way, which is exactly the
---     behaviour that pattern defines). The target is the SENT payload's
---     target name (SUCCEEDED carries no target) -- PlainOrNil'd, used as a
---     string, never compared.
+--     against the soulstone family patterns { "^Create Soulstone",
+--     "^Soulstone" } -- ONE home for the list: `FX.SoulstonePatterns`
+--     (Forte_Core/Core/Constants.lua), which Forte_Warlock/Core/Tools.lua:142
+--     also reads (review 4 m7: the two watchers are legitimately separate --
+--     Tools tracks the buff, this announces the cast -- so only the PATTERN
+--     is shared, the shared home being the one hard dependency both addons
+--     have; Forte_Warlock itself is NOT required, the dependency law). A
+--     mage hears "Soulstone Resurrection" named the same way, which is
+--     exactly the behaviour that pattern defines. The target is the SENT
+--     payload's target name (SUCCEEDED carries no target) -- PlainOrNil'd,
+--     used as a string, never compared.
 --
 -- Live wiring (the task's "keys wired live"): every settings Set reaches
 -- the module through FX.Settings:OnChange (the Forte_Timer/Module.lua:254
@@ -161,9 +168,6 @@ function M:OnCooldownReady(name, now, texPath, category)
         if cfg.ReadyBanner then Banner:Show(text, cfg.ReadyColor, cfg.ReadySeconds) end
     end
     Sounds:CooldownReady()
-    if cfg.SplashKick and FX.Fire then
-        FX.Fire(FX.EVENTS.SPLASH, plain, FX.Compat.PlainOrNil(texPath))
-    end
     if cfg.ReadyAnnounce then
         Announce:Group(Channel.format(cfg.ReadyAnnounceText, plain),
             "ReadyAnnounce")
@@ -174,41 +178,67 @@ function M:OnCooldownReady(name, now, texPath, category)
     end
 end
 
--- ----------------------------------------------------------- the timer wrap --
---- The FX_TIMER_EXPIRED path: the Forte_Timer options.onExpire seam, wrapped
---- (NOT edited) at enable. The row is the Rows.lua table: .name, .targetKey
---- (the "none" sentinel = self/no target), .kind. The previous handler
---- (announceExpiry, Forte_Timer/Module.lua:472) is chain-called FIRST, so
---- the Timer's own behaviour is untouched by our presence.
--- The wrap registry: a FUNCTION carries no fields (indexing one raises), so
--- "is this our wrap?" lives in this weak-keyed table, not on the closure.
-M.wrappedFns = setmetatable({}, { __mode = "k" })
-
-function M:WrapTimerExpire()
-    local TM = FX.Timer and FX.Timer.Module
-    local opts = TM and TM.options
-    if not opts or type(opts.onExpire) ~= "function" then
-        self.timerHook = "absent"   -- no Forte_Timer loaded: bus seam open
-        return
-    end
-    if self.wrappedFns[opts.onExpire] then
-        self.timerHook = "wrapped"  -- idempotent enable
-        return
-    end
-    local prev = opts.onExpire
+-- --------------------------------------------------------- the timer seam --
+--- The four bus subscriptions, factored out of `OnEnable` so a test can play
+--- an enable ORDER (subscribe before vs after `Forte_Timer:OnEnable()`): the
+--- Timer's own `FX_TIMER_EXPIRED` fire (Core/Rows.lua's expiry site) must
+--- reach this module's `OnTimerExpired` in both orders (review 4 E3). The
+--- `On` calls are idempotent by handle: the old handles are Off'd first, so a
+--- re-subscribe never doubles a listener.
+function M:_SubscribeToBus()
     local module = self
-    local wrapped = function(row)
-        if prev then prev(row) end
-        if type(row) == "table" and type(row.name) == "string"
-            and FX.Fire and module.enabled then
-            FX.Fire(FX.EVENTS.TIMER_EXPIRED, row.name,
-                FX.Compat.PlainOrNil(row.targetKey),
-                FX.Compat.PlainOrNil(row.kind))
-        end
+    if self.hReady then FX.Off(self.hReady) end
+    if self.hExpire then FX.Off(self.hExpire) end
+    if self.hFading then FX.Off(self.hFading) end
+    if self.hBroken then FX.Off(self.hBroken) end
+    self.hReady = FX.On(FX.EVENTS.COOLDOWN_READY,
+        function(name, now, texPath, category)
+            module:OnCooldownReady(name, now, texPath, category)
+        end)
+    self.hExpire = FX.On(FX.EVENTS.TIMER_EXPIRED,
+        function(spell, target, kind)
+            module:OnTimerExpired(spell, target, kind)
+        end)
+    self.hFading = FX.On(FX.EVENTS.TIMER_FADING,
+        function(spell, target, kind, secondsLeft)
+            module:OnTimerFading(spell, target, kind, secondsLeft)
+        end)
+    self.hBroken = FX.On(FX.EVENTS.TIMER_BROKEN,
+        function(spell, target, kind)
+            module:OnTimerBroken(spell, target, kind)
+        end)
+end
+
+--- The banner's pump clock (m5, review 4). The hidden-frame law forbids the
+--- banner frame owning an OnUpdate, so the clock is a C_Timer; a `NewTicker`
+--- is a session-lifetime cost, so the pump is a SELF-RESCHEDULING
+--- `C_Timer.After` chain (the debounce idiom Forte_Cooldown/Module.lua:62,
+--- :480, :502 ships -- `DeleteTicker` is not in the pinned catalog): it is
+--- armed by the first `Banner:Show` and the chain STOPS the pass the banner
+--- lapses, so an idle session runs no closure at all.
+function M:_StartBannerPump()
+    if self._bannerPumping then return end
+    self._bannerPumping = true
+    C_Timer.After(BANNER_TICK, function() M:_BannerPumpStep() end)
+end
+
+--- One pump step: the banner's own liveness answer drives the chain -- a live
+--- window re-arms the next step, a lapsed one ends the chain (and with it
+--- every closure this session pays for the banner). Public to the suite: a
+--- test drives the step directly, it never calls a render function.
+function M:_BannerPumpStep()
+    if not self._bannerPumping then return false end
+    if Banner:Update() then
+        C_Timer.After(BANNER_TICK, function() M:_BannerPumpStep() end)
+        return true
     end
-    self.wrappedFns[wrapped] = true
-    opts.onExpire = wrapped
-    self.timerHook = "wrapped"
+    self._bannerPumping = false
+    return false
+end
+
+--- The banner pump's live state (the tests' census, `/fx messages`).
+function M:BannerPumpActive()
+    return self._bannerPumping == true
 end
 
 --- The FX_TIMER_EXPIRED listener (spell, target, kind). The chat text picks
@@ -317,10 +347,14 @@ function M:OnTimerBroken(spell, target, kind)
 end
 
 -- ------------------------------------------------------------- soulstone --
--- The Warlock family's shipped family patterns (Forte_Warlock/Core/Tools.
--- lua:142 -- law copied, the LoadOnDemand addon NOT required: the dependency
--- law). Name-based by construction: every class that gets the spell gets it.
-local SOULSTONE_PATTERNS = { "^Create Soulstone", "^Soulstone" }
+-- The soulstone family patterns, ONE home: `FX.SoulstonePatterns`, declared
+-- in Forte_Core/Core/Constants.lua (the one hard dependency of both this
+-- always-loaded add-on and the LoadOnDemand Forte_Warlock, whose
+-- Core/Tools.lua reads the same table -- review 4 m7: the two watchers are
+-- legitimately separate, Tools tracks the buff and this announces the cast,
+-- so the shared half is the PATTERN list, not the watcher). Name-based by
+-- construction: every class that gets the spell gets it.
+local SOULSTONE_PATTERNS = FX.SoulstonePatterns
 
 local function isSoulstoneName(name)
     for _ = 1, #SOULSTONE_PATTERNS do
@@ -384,13 +418,15 @@ function M:OnEnable()
     self.counts = { ready = 0, expired = 0, soulstone = 0,
         fading = 0, broken = 0 }
     self.enabled = true
-    self.timerHook = "pending"
 
     -- The layers get the SAME live table: a settings Set is seen by all.
     Sounds.cfg = CFG
     Announce.cfg = CFG
     Announce.channelOut = Channel
     Banner:Init()
+    -- m5 (review 4): the banner's pump clock is born with the first banner
+    -- and dies when the window lapses -- never a session-lifetime ticker.
+    Banner.onActive = function() M:_StartBannerPump() end
 
     -- The pages FIRST (they are the defaults home: registering them makes
     -- FX.Settings:Register see the tables, so ApplyStoredSettings below
@@ -420,32 +456,12 @@ function M:OnEnable()
 
     -- The bus subscriptions (the Forte_Core bus; FX.On exists by hard
     -- dependency -- Forte_Messages lists Forte_Core as its one Dependency).
+    -- Factored out so the tests can play the enable ORDER (E3): the
+    -- FX_TIMER_EXPIRED producer is Forte_Timer's own expiry site, so these
+    -- listeners catch it whether they were installed before or after the
+    -- Timer's OnEnable.
     local module = self
-    self.hReady = FX.On(FX.EVENTS.COOLDOWN_READY,
-        function(name, now, texPath, category)
-            module:OnCooldownReady(name, now, texPath, category)
-        end)
-    self.hExpire = FX.On(FX.EVENTS.TIMER_EXPIRED,
-        function(spell, target, kind)
-            module:OnTimerExpired(spell, target, kind)
-        end)
-    self.hFading = FX.On(FX.EVENTS.TIMER_FADING,
-        function(spell, target, kind, secondsLeft)
-            module:OnTimerFading(spell, target, kind, secondsLeft)
-        end)
-    self.hBroken = FX.On(FX.EVENTS.TIMER_BROKEN,
-        function(spell, target, kind)
-            module:OnTimerBroken(spell, target, kind)
-        end)
-
-    -- The Timer seam, wrapped not edited (the header's contract).
-    self:WrapTimerExpire()
-
-    -- The banner clock: the always-live C_Timer ticker (the hidden-frame
-    -- law -- the banner frame never owns an OnUpdate).
-    C_Timer.NewTicker(BANNER_TICK, function()
-        Banner:Update()
-    end)
+    self:_SubscribeToBus()
 
     -- The soulstone watch: one frame, created HERE (the frame law), on the
     -- player's own cast events -- both names verified in the pinned Forever
@@ -461,7 +477,6 @@ function M:OnEnable()
         module:OnCastForSoulstone(event, unit, a, b, c)
     end)
 
-    self:RegisterPages()
     return true
 end
 
@@ -499,8 +514,10 @@ function M:Status()
         Sounds.counts.rows.TimerFade or 0,
         Sounds.counts.rows.TimerBreak or 0, Sounds.counts.played))
     FX.Print(Announce:StatusLines())
-    FX.Print(string.format("timer hook: %s | pages %d/%d",
-        tostring(self.timerHook),
+    FX.Print(string.format(
+        "pages %d/%d | banner %s | %d FX_TIMER_EXPIRED listener(s)",
         self.pages and self.pages.registered or 0,
-        self.pages and self.pages.total or 3))
+        self.pages and self.pages.total or 3,
+        self:BannerPumpActive() and "pump running" or "pump idle",
+        FX.ListenerCount and FX.ListenerCount(FX.EVENTS.TIMER_EXPIRED) or -1))
 end

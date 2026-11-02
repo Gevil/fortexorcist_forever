@@ -34,8 +34,18 @@
 --   guid           col 11  the target unit's GUID as the CONFIRMING aura read
 --                          saw it (`:1161 st[i][11] = guid`), stamped only
 --                          where the unit identity is readable and only
---                          after PlainOrNil; nil = unknown. The liveness gate
---                          of `OnAuraAbsent` is its only consumer.
+--                          after PlainOrNil; nil = unknown. It is the aura
+--                          law's ADOPTION key (the identity the confirming
+--                          read of that unit must match) and the liveness
+--                          gate's aura-side half: the cast path never writes
+--                          it, because a stamp here would make a prediction
+--                          adoptable by identity and move `predicted` with it.
+--   castToken      --      the unit token the CAST's target string resolved
+--   castGuid            to at the insert, plus the plain `UnitGUID` that token
+--                          had then (Core/Casts.lua's Pump). The liveness gate
+--                          of `TargetIsDead` is its ONLY consumer; it is not
+--                          an adoption key and changes nothing else. nil =
+--                          no cast identity, which fails that gate open.
 --   maxTime        link col 6  the compression scale (:2192-2235)
 --   hiddenSince    link col 7  the HideLonger gate's trip stamp (:2151-2162)
 --   alpha          link col 4  the visibility computed per pass (:2146-2168)
@@ -93,6 +103,19 @@ local function newRow()
         state = Laws.NORMAL, kind = "Default", stacks = 0, removeAt = 0,
         expireMsgAt = 0, hasteFactor = 1, predicted = true, unitToken = nil,
         guid = nil,
+        -- The CAST-side identity pair (E5, code-review-4): the token the
+        -- cast's target string resolved to, and the plain guid that token
+        -- had at the insert. `Rows:TargetIsDead` is the only consumer; the
+        -- aura law's `unitToken`/`guid` pair is the adoption key and these
+        -- two fields never touch it.
+        castToken = nil, castGuid = nil,
+        -- The FX_TIMER_EXPIRED bus stamp (review 4 E3): the Sweep fires the
+        -- event once, at the moment the window ENDS, and zeroes this so a
+        -- re-extended row (an adopt/extend at the last second) can not
+        -- announce the same expiry twice. Independent of `expireMsgAt`,
+        -- which is the source's col-12 CHAT stamp (the m7 AnnounceExpiry
+        -- gate) and is 0 for every row born under the gate's default OFF.
+        expiredFired = false,
         maxTime = 0, hiddenSince = 0, alpha = 1, raidMark = 0, tickEvery = nil,
         -- The fade-warning stamp (the original's column 12,
         -- ST_GetFadeTime(spell) at the st:insert sites :888/:937): seconds
@@ -403,6 +426,10 @@ function Rows:OnAuraFact(row, factExpire, factTotal, stacks, now,
     -- refreshed row faces the same unit the old one did, and a confirming
     -- read of that unit is the better answer.
     fresh.guid = (type(guid) == "string") and guid or row.guid
+    -- The cast-side pair rides with it (the same law: it describes the
+    -- (spell, target) pair, and the liveness gate reads it only when no aura
+    -- guid has arrived for the row).
+    fresh.castToken, fresh.castGuid = row.castToken, row.castGuid
     -- The refreshed row owns the (spell, target) key from now on; the old row
     -- stays in the array fading out, outside the index.
     self.byKey[Laws.RowKey(row.name, row.targetKey)] = nil
@@ -442,22 +469,38 @@ end
 --- CC that drops because the target died is the kill, not a break. The row is
 --- faded exactly as before, in both branches.
 ---
---- "Confirmed" is the identity pair: the token's PLAIN `UnitGUID` must
---- PLAIN-equal the row's PLAIN guid (the original's col 11, stamped at the
---- confirming aura read), and the same token's PLAIN liveness must say dead
---- (`UnitIsDead` -- the source's call -- or `UnitIsDeadOrGhost`, which also
---- catches a released spirit; the ghost half is the project's addition, the
---- source's own `UnitIsDead` includes feign death).
+--- "Confirmed" is the identity PAIR, and which pair is consulted follows the
+--- law that stamped the row: a row whose `guid` the aura law set (the
+--- original's col 11, stamped only by the confirming read) is answered by
+--- `unitToken`/`guid`; a row nothing has confirmed yet is answered by the pair
+--- the CAST stamped (`castToken`/`castGuid`, Core/Casts.lua's Pump -- the
+--- token the cast's target string resolved to and the guid that token had at
+--- the insert). A bare `unitToken` is no pair: the cast promotes it with no
+--- identity read behind it. Either way the token's PLAIN `UnitGUID` must
+--- PLAIN-equal the row's PLAIN guid, and the same token's PLAIN liveness must
+--- say dead (`UnitIsDead` -- the source's call -- or `UnitIsDeadOrGhost`, which
+--- also catches a released spirit; the ghost half is the project's addition,
+--- the source's own `UnitIsDead` includes feign death).
 ---
---- FAIL-OPEN LAW: anything short of that pair -- no liveness reader, a token
---- outside `LIVENESS_TOKENS`, a sealed unit identity, a secret/absent guid on
---- either side, a guid of a different unit, a raising read, a secret liveness
---- answer -- returns false and the break FIRES AS IT DID BEFORE THIS GATE
---- EXISTED. The asymmetry is deliberate: a missed break is a missing sound,
---- a false one shouts about a break that never happened.
+--- FAIL-OPEN LAW: anything short of that pair -- no identity stamped at all,
+--- no liveness reader, a token outside `LIVENESS_TOKENS`, a sealed unit
+--- identity, a secret/absent guid on either side, a guid of a different unit, a
+--- raising read, a secret liveness answer -- returns false and the break FIRES
+--- AS IT DID BEFORE THIS GATE EXISTED. The asymmetry is deliberate: a missed
+--- break is a missing sound, a false one shouts about a break that never
+--- happened.
 function Rows:TargetIsDead(row)
     if type(row) ~= "table" then return false end
-    local token = row.unitToken
+    local token, rowGuid
+    if type(row.guid) == "string" then
+        -- The aura law has confirmed this row: its pair is the answer.
+        token, rowGuid = row.unitToken, row.guid
+    else
+        -- Nothing has confirmed it: the cast-time pair, if the cast knew the
+        -- unit. (`row.unitToken` alone is no pair: the cast's token promotion
+        -- sets it without any identity read.)
+        token, rowGuid = row.castToken, row.castGuid
+    end
     if type(token) ~= "string"
         or not (self.LIVENESS_TOKENS and self.LIVENESS_TOKENS[token]) then
         return false
@@ -468,7 +511,7 @@ function Rows:TargetIsDead(row)
     local ok, guid, dead, ghost = pcall(probe, token)
     if not ok then return false end
     guid = FX.Compat.PlainOrNil(guid)
-    local rowGuid = FX.Compat.PlainOrNil(row.guid)
+    rowGuid = FX.Compat.PlainOrNil(rowGuid)
     if type(guid) ~= "string" or type(rowGuid) ~= "string" then return false end
     if guid ~= rowGuid then return false end
     dead = FX.Compat.PlainOrNil(dead)
@@ -554,6 +597,28 @@ function Rows:Sweep(now)
                 row.expireMsgAt = 0
                 FX.Timer.NotifyExpiry = (FX.Timer.NotifyExpiry or 0) + 1
                 if opts.onExpire then opts.onExpire(row) end
+            end
+            -- THE EXPIRY EVENT (review 4 E3): `FX_TIMER_EXPIRED` is fired
+            -- HERE, at the Timer's own expiry site, and nowhere else. The
+            -- subscriber that renders it is Forte_Messages, which used to
+            -- install a wrapper over `opts.onExpire` at ITS enable -- a seam
+            -- the real enable order never reached (Forte_Messages enables
+            -- before Forte_Timer builds `options`, and a Timer re-enable
+            -- rebuilds the table), so the whole "Timer Expiry" group was dead
+            -- on the client while the tests, firing the event by hand, stayed
+            -- green. Firing at the fact makes the enable order irrelevant.
+            -- Independent of the CHAT gate above (m7's AnnounceExpiry): the
+            -- bus event always rides a true expiry, and the subscriber's own
+            -- rows (`ExpireEnable`/`TimerExpire*`/`ExpireAnnounce*`, all
+            -- opt-in) decide whether anything is heard. `FX.Fire` is
+            -- nil-guarded; the payload is the row's plain fields.
+            if not row.expiredFired and remaining <= 0
+                and row.state <= Laws.NORMAL then
+                row.expiredFired = true
+                if FX.Fire then
+                    FX.Fire(FX.EVENTS.TIMER_EXPIRED, row.name, row.targetKey,
+                        row.kind)
+                end
             end
             if row.state == Laws.IGNORE then
                 -- :1058-1063 an ignored row dies at zero
