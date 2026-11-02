@@ -117,7 +117,9 @@ async function forteClearSweep(docArg) {
   };
   const targets = () => allX().filter((b) => {
     const row = rowOf(b);
-    return /\bForte_/.test((row && row.textContent) || '');
+    // The site lists imported addons by title ("Forte Cooldown"), not folder
+    // ("Forte_Cooldown"): match either spelling (manager, live run 2026-11-03).
+    return /\bForte[_ ]/.test((row && row.textContent) || '');
   });
   // Defect 3 (2026-11-02): this sweep once removed 0 of 15 rows and PASSED,
   // because "0 targets" and "nothing to clean" are the same number to a
@@ -307,7 +309,7 @@ async function uifBattery(options) {
       add('IMPORT cleared previous Forte_ imports', clearOk,
         'every Forte_ row removed (per-row \u2715, none left); 0 removed '
         + 'only allowed with no Forte row visible IN THE ADDON LIST PANEL',
-        'selector: button text \'\u2715\' inside a row matching /Forte_/ | '
+        'selector: button text \'\u2715\' inside a row matching /Forte[_ ]/ | '
         + `panel: ${cleared.panel} | `
         + `Forte rows visible in the panel before: ${cleared.visible} | `
         + `${cleared.removed} of ${cleared.matched} matched removed, `
