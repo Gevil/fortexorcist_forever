@@ -44,7 +44,7 @@ def run_tests():
 
 
 EXPECTED_DATA = {"Druid", "Hunter", "Items", "Mage", "Paladin", "Priest", "Rogue", "Shaman", "Warlock", "Warrior"}
-EXPECTED_MODULES = {"Cooldown", "Hunter"}
+EXPECTED_MODULES = {"Cooldown", "Hunter", "HunterUI", "Probe", "Timer", "Warlock"}
 PROBE = ('local k={} for n in pairs(ForteXorcist.Data or {}) do if not n:find("ByName") then k[#k+1]=n end end '
          'table.sort(k) local m={} for n in pairs(ForteXorcist.modules or {}) do m[#m+1]=n end table.sort(m) '
          'CreateFrame("Frame","FXPROBE__"..table.concat(k,"_").."__M__"..table.concat(m,"_")'

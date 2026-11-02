@@ -8,9 +8,18 @@ ForteXorcist © Xus (Xussie of Kazzak EU), v1.980.8 (2012), licensed under **GPL
 - `Textures/Background.blp` — bar backdrop center
 - `Textures/Border.blp` — bar backdrop border
 - `Textures/Spark2.blp` — spark / glow / pulse
+- `Textures/Spark.blp`, `Textures/CastSpark.blp` — Spell Timer bar spark, tick marks, cast slice
+- `Textures/ST.blp` — Spell Timer icon base
+- `Textures/SS1-3.blp`, `HS1-3.blp`, `SH1-2.blp`, `SU1-2.blp`, `SW1-2.blp` — Warlock module art
+  (Soulstone, Healthstone, Shard, Summon, Shard Warn)
+- `Textures/ForteXorcist.blp`, `XusLogo.blp`, `CheckButton.blp` — branding / option widgets
+- Bar textures offered by the original's Bar Texture option: `Bantobar.tga`, `Charcoal.tga`,
+  `Flat.tga`, `Frost.tga`, `Glaze.tga`, `Healbot.tga`, `LiteStep.tga`, `Minimalist.tga`,
+  `Otravi.tga`, `Perl.tga`, `Rocks.tga`, `Runes.tga`, `SWSDefault.tga`, `Smooth.tga`,
+  `Smudge.tga`, `Striped.tga`, `Xeon.tga`, `Xus.tga`
 
 The ForteXorcist-for-WoW-Forever Lua code is an independent reimplementation, not a port of the
-2012 sources; only the textures above are shared with it.
+2012 sources; only the textures above (all unmodified) are shared with it.
 
 ## Font — URW Gothic Book (AGPL-3.0 with font exception)
 (URW)++ Design & Development, from the `urw-base35-fonts` set as packaged by Fedora

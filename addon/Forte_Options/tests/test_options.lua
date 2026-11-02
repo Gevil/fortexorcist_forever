@@ -269,7 +269,14 @@ function()
     assertEquals(true, O.indexButtons[1]:IsEnabled())
     assertEquals(true, O.indexButtons[3]:IsEnabled())
     assertEquals(true, O.indexButtons[16]:IsEnabled())
-    assertEquals(false, O.indexButtons[2]:IsEnabled())    -- Spell Timer
+    -- The Spell Timer cell: Forte_Timer's page registers its `SpellTimer`
+    -- page, so the cell is LIVE (the law of the next test: a cell is enabled
+    -- exactly while its page is registered -- docs/design-spell-timer.md §5.4's
+    -- acceptance is exactly this light-up). A genuinely unbuilt page is the
+    -- disabled case.
+    assertEquals("SpellTimer", O.indexButtons[2].pageId)
+    assertEquals(true, O.indexButtons[2]:IsEnabled())
+    assertNotNil(O.indexButtons[2]:GetScript("OnClick"))
     assertEquals(false, O.indexButtons[13]:IsEnabled())   -- Talent Spy
 end)
 
