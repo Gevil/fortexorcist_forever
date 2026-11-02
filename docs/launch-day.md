@@ -69,6 +69,10 @@ a screenshot of anything that looks wrong is worth more than a description.
 | F10 | (Warlock alt, if you have one) log in | four purple plates: shards `x<n>  <n> total`, soulstone `x0  no ss up`, healthstone, summon; cast Create Soulstone/Soulstone on someone → the soulstone plate shows the target and a timer |
 | F11 | Any Lua error popup at all | screenshot it; `/fx status` output too |
 | F12 | `/run local L={} for _,c in ipairs({"Druid","Hunter","Mage","Paladin","Priest","Rogue","Shaman","Warlock","Warrior"}) do if C_AddOns.IsAddOnLoaded("Forte_"..c) then L[#L+1]=c end end print(table.concat(L,","))` | prints **only your class** (load-on-demand class data; every other class's data must not be loaded) |
+| F13 | `/fx options` → Secondary Splash → tick Enable; let a cooldown finish | a large copy of its icon pops near screen centre, grows to ~2× and fades out within 1 s (`/fx unlock` shows a draggable placeholder) |
+| F14 | Try to cast a spell that is on cooldown (with Cooldown → Warn on) | that icon on the bar flashes and comes to the front |
+| F15 | Right-click the cooldown bar (don't drag) | the options window opens on the Cooldown page; a drag-and-release does **not** open it |
+| F16 | (Warlock) Banish a demon/elemental; (Mage) Polymorph; (Rogue) Sap | ~3 s before it ends you hear the bell twice (ShaysBell); if it breaks early you hear the break sound. **No party chat** unless you ticked it on the Party/Raid Messages page |
 
 
 ## Reading the output (one line per probe group)
