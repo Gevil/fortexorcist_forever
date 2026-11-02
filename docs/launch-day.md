@@ -12,9 +12,17 @@ the relog persistence proof — same probe code, different restriction state.
 
 ## Step list (exact order)
 
-1. **Deploy (copy mode).** `scripts/deploy.sh --copy` from the repo root.
-   `--copy` (not symlink) because third-party tools below edit `.toc` files in
-   place and symlinks would write into the git tree.
+1. **Deploy (copy mode) and verify the install.** `scripts/deploy.sh --copy
+   --verify` from the repo root. `--copy` (not symlink) because third-party
+   tools below edit `.toc` files in place and symlinks would write into the
+   git tree. `--verify` then compares every installed `Forte_*` file against
+   the repo's shipped set and reports `MISSING`/`EXTRA`/`DIFFERENT` per path
+   (plus an `SVFIX` line for a file the SavedVariables fixup has patched,
+   which is expected, not an error) — the deployer exits 1 on a real diff.
+   Re-run `--verify` (read-only, `scripts/deploy.sh --verify`) after any
+   third-party tool touches the tree, and rehearse the whole install in a
+   scratch directory first with `--target /tmp/fxdeploytest` (never against
+   the live client) if the step is unfamiliar.
 2. **ForeverSVFix: uninstall if installed.** (If it edits our `.toc` in place,
    the SavedVariables evidence below is contaminated.) Launch, log in on the
    **Hunter**.
@@ -22,7 +30,12 @@ the relog persistence proof — same probe code, different restriction state.
    present, class=HUNTER, build line sane.
 4. `/fx probe` — the **out-of-combat baseline run** (label `ooc` auto).
    Read the printed lines (guide below); all 20+ lines also print, the run
-   itself is stored.
+   itself is stored. The run **also opens in a copy window**: click in its
+   text (the click selects the whole run), `Ctrl-C`, and paste it into your
+   launch-day notes; the `X` button closes it, and so does `Esc`. Do this for
+   every run in this list — the pasted blocks are the launch-day artefacts,
+   chat scrollback is not. (`/fx probe show` reprints the last run and
+   reopens the window.)
 5. **In combat:** attack a training dummy and keep it attacking you (real
    combat lockdown, not stealthed, not solo-cast-only). Cast **3 tracked
    cooldowns** (e.g. Rapid Fire, Disengage, One Beast's Charge — the cast
@@ -49,6 +62,21 @@ the relog persistence proof — same probe code, different restriction state.
     (`probes`), the event-capture rings (`probesEvents`) and `probeEpoch`.
     (If the folder shows a differently-named file containing
     `ForteXorcistDB`, send that one — note which.)
+
+## Pre-flight, browser only: the uiforever battery (~5 min)
+
+`scripts/uif_battery.js` is one async function for the browser kernel that
+already has an open uiforever.com tab — it needs the kernel's `uifTab`,
+`clickText(text)` and `lua(cmd, waitMs)`. Call
+`await uifBattery({ zip: 'dist/ForteXorcist-<version>.zip' })` and it imports
+that zip, presses `/reload`, and returns a pass/fail table: only the player's
+own class add-on resident (a resident Mage add-on from the site's own log-in
+is tolerated), the module list printed, Splash + Messages present, a ready
+pop sending **0** party/raid chat lines on the shipped defaults, and the
+site's Errors tab free of Lua errors (it prints the table too). These are the
+chat-defaults and F12 checks in browser form; the client session below stays
+the real gate. Build the zip with `python3 scripts/release.py` first, so the
+imported bytes are the release bytes.
 
 ## Feature smoke checks (same session, after step 9; ~10 minutes)
 

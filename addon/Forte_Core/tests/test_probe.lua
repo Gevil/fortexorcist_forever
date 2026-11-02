@@ -266,6 +266,86 @@ test("/fx status prints the Probe epoch/runs line", function()
     assertContains(text, "runs=")
 end)
 
+-- 13. The copy window: the public slash path (probe show) opens it, and its
+-- text is the FULL run -- every line chat printed, in print order, so the
+-- owner can paste the whole battery back (slice H2).
+test("copy window: /fx probe show opens it; text = the printed lines", function()
+    local saved = FX.db.probes
+    FX.db.probes = {}
+    local plan = {
+        { label = "G1", fn = function() return { alpha = "number:7" } end },
+        { label = "G2", fn = function()
+            return { beta = "number:1", gamma = "SECRET" } end },
+    }
+    local ok = pcall(Probe.RunPlan, Probe, "boxed-run", plan)
+    assertTrue(ok)
+    local win = Probe._win
+    assertNotNil(win, "the run built the window")
+    assertNotNil(win.frame)
+    assertTrue(win.frame:IsShown(), "a run shows the window")
+    local text = win.eb:GetText()
+    assertNotNil(text)
+    assertContains(text, "PROBE boxed-run epoch=") -- the probe header
+    assertContains(text, "G1: alpha=7")
+    assertContains(text, "G2: beta=1 gamma=SECRET")
+    -- The window carries every printed line, in order (the compact print
+    -- form, so the paste matches the chat reading).
+    local lines = slash("probe show")
+    assertNotNil(Probe._win.text)
+    assertEquals(table.concat(lines, "\n"), Probe._win.text)
+    assertNotNil(text:find("G1: alpha=7"))
+    assertNotNil(text:find("G2:"))
+    FX.db.probes = saved
+end)
+
+-- 14. Close button + ESC path: the window hides through both, and the frame
+-- is registered for ESC through UISpecialFrames (global frame NAME, the
+-- Forte_Options window's proven contract).
+test("copy window: close button and ESC registration; close hides it", function()
+    local saved = FX.db.probes
+    FX.db.probes = {}
+    pcall(Probe.RunPlan, Probe, "esc-run", oneGroup())
+    local win = Probe._win
+    assertNotNil(win)
+    assertTrue(win.frame:IsShown())
+    local found = false
+    for i = 1, #UISpecialFrames do
+        if UISpecialFrames[i] == Probe.WINDOW.NAME then found = true end
+    end
+    assertTrue(found, "registered in UISpecialFrames so ESC closes it")
+    local close = win.close
+    assertNotNil(close, "the window has a close button")
+    local handler = close:GetScript("OnClick")
+    assertNotNil(handler)
+    handler(close)
+    assertFalse(win.frame:IsShown())
+    -- The EditBox also swallows ESC itself (a focused edit box eats the key
+    -- before the panel manager sees it): its handler closes too.
+    pcall(Probe.RunPlan, Probe, "esc-run2", oneGroup())
+    assertTrue(win.frame:IsShown())
+    local esc = win.eb:GetScript("OnEscapePressed")
+    assertNotNil(esc)
+    esc(win.eb)
+    assertFalse(win.frame:IsShown(), "the edit box's ESC handler closes it")
+    FX.db.probes = saved
+end)
+
+-- 15. Select-all on focus: the focus handler exists and runs clean, so the
+-- first click into the box selects the whole run for Ctrl-C.
+test("copy window: gaining focus selects all (HighlightText, no raise)", function()
+    local saved = FX.db.probes
+    FX.db.probes = {}
+    pcall(Probe.RunPlan, Probe, "focus-run", oneGroup())
+    local win = Probe._win
+    assertNotNil(win)
+    local gain = win.eb:GetScript("OnEditFocusGained")
+    assertNotNil(gain, "select-all rides OnEditFocusGained")
+    assertTrue(pcall(gain, win.eb))
+    assertTrue(pcall(Probe.CloseWindow, Probe))
+    assertFalse(win.frame:IsShown())
+    FX.db.probes = saved
+end)
+
 -- Restore the SavedVariables shapes the file's runs touched.
 test("state restored: epoch and the stored run list", function()
     -- The store is created lazily by Run; a pre-run session had no key at

@@ -536,14 +536,19 @@ local function planRuns()
     return plan
 end
 
--- ------------------------------------------------------------ run/store --
+-- ------------------------------------------------------- run/store/print --
 
-local function printRun(run)
+--- The ONE renderer of a run: the lines chat prints, in print order. The
+--- copy window below shows the SAME list, so the text the owner pastes back
+--- is byte-for-byte what the chat showed (the launch-day guide reads the
+--- chat lines; the paste is the artefact).
+local function runLines(run)
+    local lines = {}
     local build = {}
     for _, v in ipairs(run.build) do build[#build + 1] = tostring(v) end
-    FX.Print(string.format("PROBE %s epoch=%s build=[%s] date=%s",
+    lines[#lines + 1] = string.format("PROBE %s epoch=%s build=[%s] date=%s",
         tostring(run.label), tostring(run.epoch), table.concat(build, "/"),
-        tostring(run.date)))
+        tostring(run.date))
     for _, e in ipairs(run.results) do
         local parts = {}
         if e.raise then
@@ -554,7 +559,157 @@ local function printRun(run)
             end
             table.sort(parts)
         end
-        FX.Print(e.group .. ": " .. table.concat(parts, " "))
+        lines[#lines + 1] = e.group .. ": " .. table.concat(parts, " ")
+    end
+    return lines
+end
+
+local function printRun(run)
+    for _, line in ipairs(runLines(run)) do
+        FX.Print(line)
+    end
+end
+
+-- ------------------------------------------------------------- copy window --
+-- `/fx probe` prints (that is the launch-day reading surface) AND puts the
+-- same lines into a copyable multi-line EditBox window, so the owner can
+-- Ctrl-C the whole run into a paste instead of transcribing chat lines.
+--
+-- The window is built ON DEMAND, from the slash path only -- never at load
+-- (AGENTS.md: frames only in OnEnable/handlers; `Probe:Bar` is this file's
+-- existing precedent). Every widget call is pcall'd and method-guarded: a
+-- surface that lacks multi-line EditBoxes costs the paste, not the run, and
+-- nothing about the printed/stored run changes.
+--
+-- Copy mechanics, all surface-proven (docs/api widget refs, SCRIPT-HANDLERS.md):
+--   * `SetMultiLine(true)` + MaxLetters/MaxBytes 0 (unlimited) -- a run is
+--     many KB, and a positive MaxLetters truncates programmatic SetText;
+--   * `OnEditFocusGained` -> `HighlightText(0, -1)` = select-all, so the
+--     first click/Tab into the box selects the run and Ctrl-C copies it;
+--   * a close Button, and ESC through the UISpecialFrames contract
+--     (UIParentPanelManager.CloseSpecialWindows hides every shown entry --
+--     the same law Forte_Options' window uses) plus the EditBox's own
+--     OnEscapePressed, because a focused EditBox eats the key first.
+
+Probe.WINDOW = {
+    NAME = "ForteXorcistProbeRunBox",   -- global frame name (UISpecialFrames)
+    W = 660, H = 420,
+    TITLE_H = 24, PAD = 10, CLOSE_W = 22,
+}
+
+--- The run's window, built on demand; nil when the surface gives no frames
+--- (the run is printed and stored either way).
+function Probe:Window()
+    if self._win then return self._win end
+    if type(_G.CreateFrame) ~= "function" then return nil end
+    local W = Probe.WINDOW
+    local okF, f = pcall(_G.CreateFrame, "Frame", W.NAME, _G.UIParent)
+    if not okF or not f then return nil end
+    pcall(f.SetSize, f, W.W, W.H)
+    pcall(f.SetPoint, f, "CENTER")
+    pcall(f.SetToplevel, f, true)
+    pcall(f.SetClampedToScreen, f, true)
+
+    local title
+    local okT, t = pcall(f.CreateFontString, f, nil, "OVERLAY",
+        "GameFontHighlightSmall")
+    if okT and t then
+        title = t
+        pcall(title.SetPoint, title, "TOPLEFT", f, "TOPLEFT", W.PAD, -3)
+        pcall(title.SetText, title,
+            "ForteXorcist probe run -- click in the text (selects all), Ctrl-C copies")
+        pcall(title.SetTextColor, title, 1, 0.82, 0, 1)
+    end
+
+    local okE, eb = pcall(_G.CreateFrame, "EditBox", W.NAME .. "Edit", f)
+    if not okE or not eb then
+        pcall(f.Hide, f)
+        return nil
+    end
+    pcall(eb.SetPoint, eb, "TOPLEFT", f, "TOPLEFT", W.PAD, -(W.TITLE_H + W.PAD))
+    pcall(eb.SetPoint, eb, "BOTTOMRIGHT", f, "BOTTOMRIGHT", -W.PAD, W.PAD)
+    pcall(eb.SetMultiLine, eb, true)
+    pcall(eb.SetMaxLetters, eb, 0)     -- 0 = unlimited (the run is many KB)
+    pcall(eb.SetMaxBytes, eb, 0)
+    pcall(eb.SetWordWrap, eb, true)
+    pcall(eb.SetJustifyH, eb, "LEFT")
+    pcall(eb.SetJustifyV, eb, "TOP")
+    pcall(eb.SetSpacing, eb, 2)
+    pcall(eb.SetTextColor, eb, 0.92, 0.93, 0.96, 1)
+    pcall(eb.SetHighlightColor, eb, 0.30, 0.52, 0.85, 0.55)
+    pcall(eb.Enable, eb, true)
+    -- The options window's validated identity font, when it is loaded.
+    local Wc = FX.Options and FX.Options.Widgets and FX.Options.Widgets.C
+    if type(Wc) == "table" and type(Wc.FONT_FILE) == "string"
+        and type(Wc.FONT_SIZE) == "number" then
+        pcall(eb.SetFont, eb, Wc.FONT_FILE, Wc.FONT_SIZE)
+    end
+    pcall(eb.SetScript, eb, "OnEditFocusGained", function(box)
+        pcall(box.HighlightText, box, 0, -1)   -- select-all on focus
+    end)
+    pcall(eb.SetScript, eb, "OnEscapePressed", function()
+        Probe:CloseWindow()
+        return true
+    end)
+
+    local close
+    local okC, c = pcall(_G.CreateFrame, "Button", W.NAME .. "Close", f)
+    if okC and c then
+        close = c
+        pcall(close.SetSize, close, W.CLOSE_W, W.CLOSE_W)
+        pcall(close.SetPoint, close, "TOPRIGHT", f, "TOPRIGHT", -2, -2)
+        pcall(close.SetText, close, "X")
+        pcall(close.SetScript, close, "OnClick", function()
+            Probe:CloseWindow()
+        end)
+    end
+
+    self._win = { frame = f, eb = eb, title = title, close = close,
+                  text = nil }
+    return self._win
+end
+
+--- Hide the window (close button / ESC path). Idempotent.
+function Probe:CloseWindow()
+    local w = self._win
+    if not w then return end
+    if w.eb and w.eb.HasFocus and w.eb:HasFocus()
+        and w.eb.ClearFocus then
+        pcall(w.eb.ClearFocus, w.eb)
+    end
+    pcall(w.frame.Hide, w.frame)
+end
+
+--- Print the run AND show it copyably. The window half is pcall'd: a widget
+--- surface that refuses to build never costs the run.
+local function presentRun(mod, run)
+    printRun(run)
+    local ok, err = pcall(function()
+        local w = mod:Window()
+        if not w then return end
+        local text = table.concat(runLines(run), "\n")
+        pcall(w.eb.SetText, w.eb, text)
+        w.text = text
+        pcall(w.frame.Show, w.frame)
+        pcall(w.eb.SetFocus, w.eb)      -- focus fires the select-all
+        if type(_G.UISpecialFrames) == "table" then
+            -- ESC closes (entries are GLOBAL FRAME NAMES, hidden through
+            -- _G[name]:Hide() by CloseSpecialWindows). The sim's native
+            -- table is a proxy: tInsert is inert, direct indexing works.
+            local present = false
+            for i = 1, #_G.UISpecialFrames do
+                if _G.UISpecialFrames[i] == Probe.WINDOW.NAME then
+                    present = true
+                    break
+                end
+            end
+            if not present then
+                _G.UISpecialFrames[#_G.UISpecialFrames + 1] = Probe.WINDOW.NAME
+            end
+        end
+    end)
+    if not ok then
+        FX.Print("PROBE window unavailable: " .. tostring(err))
     end
 end
 
@@ -585,7 +740,7 @@ function Probe:RunPlan(label, plan)
     local runs = dbRuns()
     runs[#runs + 1] = run
     while #runs > Probe.MAX_RUNS do table.remove(runs, 1) end
-    printRun(run)
+    presentRun(self, run)
     return run
 end
 
@@ -600,7 +755,7 @@ function Probe:ShowLast()
         FX.Print("PROBE show: no stored runs")
         return nil
     end
-    printRun(run)
+    presentRun(self, run)
     return run
 end
 
