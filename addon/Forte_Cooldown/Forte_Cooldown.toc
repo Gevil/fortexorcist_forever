@@ -4,7 +4,7 @@
 ## Version: 0.1.0-dev
 ## Author: Gevil
 ## Dependencies: Forte_Core
-## OptionalDeps: Forte_Hunter, Forte_Items, Forte_Warlock
+## OptionalDeps: Forte_Items
 
 Core/Engine.lua
 Core/Items.lua

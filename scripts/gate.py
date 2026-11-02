@@ -128,6 +128,26 @@ def toc_pairs():
             print(f"[toc] FAIL {os.path.relpath(toc, ROOT)} twin={same} interface={iface and iface.group(1)}")
             failures.append(f"toc {os.path.basename(toc)}")
     print("[toc] checked all pairs")
+    # An always-loaded addon that lists a LoadOnDemand addon in Dependencies/OptionalDeps makes the
+    # client load it for EVERY character (uiforever showed Forte_Warlock resident on a Hunter,
+    # 2026-11-02; wow-ui-sim does not reproduce this, so it is checked statically).
+    meta = {}
+    for toc in glob.glob(os.path.join(ADDONS, "Forte_*", "Forte_*.toc")):
+        if toc.endswith("_Camelot.toc"): continue
+        text = open(toc, errors="replace").read()
+        name = os.path.basename(toc)[:-4]
+        deps = []
+        for key in ("Dependencies", "RequiredDeps", "OptionalDeps"):
+            m = re.search(rf"^## {key}:\s*(.+)$", text, re.M)
+            if m: deps += [d.strip() for d in m.group(1).split(",") if d.strip()]
+        lod = re.search(r"^## LoadOnDemand:\s*1", text, re.M) is not None
+        meta[name] = (lod, deps)
+    for name, (lod, deps) in sorted(meta.items()):
+        if lod: continue
+        bad = [d for d in deps if d in meta and meta[d][0]]
+        if bad:
+            print(f"[toc] FAIL {name} (always loaded) depends on LoadOnDemand {bad}: forces them to load")
+            failures.append(f"toc lod-dep {name}")
 
 
 def syntax():
