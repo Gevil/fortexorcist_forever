@@ -655,3 +655,19 @@ that wave. Each behaviour change ships with a test proven to fail on the old cod
 - H8 Options fidelity pass vs the original option tree (after class pages exist).
 - H9 Review 5 over all wave 1–2 code (`fx-scout`), fixes, full uiforever battery via `scripts/uif_battery.js`, PLAN §6 refresh.
 
+**H10 Data refresh (owner request 2026-11-02, runs beside wave 1)**
+
+Facts (manager, 2026-11-02): `mythicsim-forever-engine` fast-forwarded 21 commits to `f794f2b` — its `data/` is still pinned
+to client **1.60.1.70425** (only `go-tables.json` set-bonus piece counts changed; spells/items/consumables pins identical), its
+new 70707 items (Oil of Immolation 8956, Shadow Oil enchant 25) live in Rust code, not data. `wowsims/forever` (`164d1cf6`,
+2026-11-02) carries a spell store whose per-group builds are **all 1.60.1.70707** (= the live client): `assets/db_inputs/
+spell_store_inputs.json` (gzip; tables Names/Cooldowns/Categories/AuraOptions/ClassOptions/…, `Builds`), `sim/core/
+spelldata/spells_auto_gen.go`, `assets/database/db.json`, plus a new trainer-rank vs book-rank model (AQ20 books).
+Our generated data is 70425 → it may be stale for live.
+
+| Slice | Agent | Owns | Deliverable | Acceptance |
+|---|---|---|---|---|
+| D1 Data diff | `fx-scout` `DataDiff` | `docs/research/data-diff-70707.md` | For every name in `tools/spell_lists/*.json` and every `Forte_Items` row (on-use, procs, consumables): compare our 70425 values (`addon/Forte_*/Data/*.lua`) with wowsims 70707 (spell store / `spells_auto_gen.go` / `db.json`): added/removed/renamed spells, cooldown, category cooldown, duration, cast time, charges, item on-use cooldown/category; spells that exist in 70707 but are missing from our lists; the rank model (trainer vs book rank) and which rank a player has by default | a counted diff table + "must regenerate" list, all values cited |
+| D2 Gap research | `fx-scout` `DataGaps` | `docs/research/forever-data-gaps.md` | Online + local research on known gaps: the generator's uncoded fallbacks (Dismiss Pet, Feed Pet, Vigor) and companion-row shadows; trinket/enchant proc internal cooldowns (the original's `AddHiddenCooldown` list, `/tmp/fxref/Forte_Cooldown/Forte_Cooldown.lua:1636-1693`) and whether Forever data has ICDs; buff-only items without durations (gen_item_data report); Forever patch/hotfix notes since 70425; which public databases cover Forever (and their licence) | each gap: status, source, proposed fix |
+| D3 Generator refresh | `fx-worker` (after D1/D2) | `tools/gen_*.py`, `tools/spell_lists/*.json`, generated `Data/*.lua` | take 70707 values (source + licence recorded), regenerate deterministically, keep the 70425 → 70707 change list in the generated headers | gate PASS incl. determinism; diff list matches D1 |
+
