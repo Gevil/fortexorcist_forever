@@ -29,6 +29,12 @@ local Enchants = Engine.Enchants
 local MH, OH, RH = 0, 1, 2 -- Enum.WeaponSlot (pinned catalog values)
 local MH_LABEL, OH_LABEL = "Main Hand Enchant", "Off Hand Enchant"
 
+-- The Engine.entries KEY of a slot entry (Core/Enchants.lua key law, n3):
+-- the display name plus the slot; `e.name` stays the bare display name.
+local function keyOf(name, slotKey) return name .. "#" .. slotKey end
+local MH_KEY = keyOf(MH_LABEL, "MainHand")
+local OH_KEY = keyOf(OH_LABEL, "OffHand")
+
 local SECRET = "FXTEST-SECRET-VALUE"
 local realPlainOrNil = FX.Compat.PlainOrNil
 local function patchPlain()
@@ -52,7 +58,7 @@ end
 
 local function clearEnchants()
     for _, st in pairs(Enchants.bySlot) do
-        if st.name then Engine.entries[st.name] = nil end
+        if st.entryKey then Engine.entries[st.entryKey] = nil end
     end
     wipe(Enchants.bySlot)
     wipe(Enchants.names)
@@ -101,7 +107,7 @@ test("an enchanted main hand appears: label name, Buff category, endTime = now +
             charges = 0, enchantID = 999999, enchantIconID = 0 } },
         textures = { [16] = 137542 },
     }))
-    local e = Engine.entries[MH_LABEL]
+    local e = Engine.entries[MH_KEY]
     assertNotNil(e, "entry under the main-hand label (no name resolves 999999)")
     assertEquals("Buff", e.category)
     near(1000, e.start)
@@ -132,8 +138,8 @@ test("the enchantID resolves to the spell row, else the Forte_Items enchant row,
             charges = 0, enchantID = 1900 } },
         names = { [1900] = "Enchant Weapon - Windfury" },
     }))
-    assertNotNil(Engine.entries["Enchant Weapon - Windfury"])
-    assertNil(Engine.entries[MH_LABEL])
+    assertNotNil(Engine.entries[keyOf("Enchant Weapon - Windfury", "MainHand")])
+    assertNil(Engine.entries[MH_KEY])
     clearEnchants()
 
     -- 2. No spell name: the generated Forte_Items procs row by effect_id
@@ -149,7 +155,8 @@ test("the enchantID resolves to the spell row, else the Forte_Items enchant row,
                 infos = { [MH] = { hasEnchant = true, timeLeft = 600000,
                     charges = 0, enchantID = 1900 } },
             }))
-            assertNotNil(Engine.entries[has], "Forte_Items enchant row names the entry")
+            assertNotNil(Engine.entries[keyOf(has, "MainHand")],
+                "Forte_Items enchant row names the entry")
             clearEnchants()
         end
     end
@@ -159,7 +166,7 @@ test("the enchantID resolves to the spell row, else the Forte_Items enchant row,
         infos = { [MH] = { hasEnchant = true, timeLeft = 600000,
             charges = 0, enchantID = 999999 } },
     }))
-    assertNotNil(Engine.entries[MH_LABEL])
+    assertNotNil(Engine.entries[MH_KEY])
     clearEnchants()
 end)
 
@@ -172,13 +179,13 @@ test("a plain re-read re-anchors the same entry key", function()
         enchantID = 999999 }
     local r = readersFrom({ infos = { [MH] = info }, textures = { [16] = 137542 } })
     Enchants:ReadAll(1000, r)
-    local e = Engine.entries[MH_LABEL]
+    local e = Engine.entries[MH_KEY]
     near(2200, e.endTime)
     -- 10 s later the read reports 10 s less: the window re-anchors to the
     -- fresh fact (the plain-read law of Engine:OnRead).
     info.timeLeft = 1190000
     Enchants:ReadAll(1010, r)
-    local e2 = Engine.entries[MH_LABEL]
+    local e2 = Engine.entries[MH_KEY]
     assertNotNil(e2)
     near(1010, e2.start)
     near(1190, e2.duration)
@@ -194,7 +201,7 @@ test("a secret read keeps the last plain anchor; a raise keeps it; the clock run
         infos = { [MH] = { hasEnchant = true, timeLeft = 1200000,
             charges = 0, enchantID = 999999 } },
     }))
-    local e = Engine.entries[MH_LABEL]
+    local e = Engine.entries[MH_KEY]
     local start, dur, endTime = e.start, e.duration, e.endTime
     assertNotNil(e)
 
@@ -215,7 +222,7 @@ test("a secret read keeps the last plain anchor; a raise keeps it; the clock run
     }))
     restorePlain()
     assertTrue(ok1 and ok2 and ok3, "secret/raising/typed reads raise nothing")
-    local e2 = Engine.entries[MH_LABEL]
+    local e2 = Engine.entries[MH_KEY]
     assertNotNil(e2, "the entry rides the secret pass")
     near(start, e2.start)
     near(dur, e2.duration)
@@ -233,12 +240,12 @@ test("a plain hasEnchant = false removes the entry SILENTLY (no ready pop)", fun
         infos = { [MH] = { hasEnchant = true, timeLeft = 1200000,
             charges = 0, enchantID = 999999 } },
     }))
-    assertNotNil(Engine.entries[MH_LABEL])
+    assertNotNil(Engine.entries[MH_KEY])
     Enchants:ReadAll(1100, readersFrom({
         infos = { [MH] = { hasEnchant = false, timeLeft = 0,
             charges = 0, enchantID = 0 } },
     }))
-    assertNil(Engine.entries[MH_LABEL], "entry removed")
+    assertNil(Engine.entries[MH_KEY], "entry removed")
     assertEquals(0, Enchants:Count())
     -- The Sweep far past the lapsed endTime pops NOTHING for this name:
     -- the entry left with the read, it never reached the Sweep.
@@ -264,8 +271,8 @@ test("off hand is independent of main hand", function()
                 enchantID = 0 },
         },
     }))
-    assertNotNil(Engine.entries[MH_LABEL])
-    assertNil(Engine.entries[OH_LABEL])
+    assertNotNil(Engine.entries[MH_KEY])
+    assertNil(Engine.entries[OH_KEY])
     assertEquals(1, Enchants:Count())
     -- Now the off hand carries a poison (600 s) and the main hand goes
     -- plain: the two slots turn over independently.
@@ -277,10 +284,72 @@ test("off hand is independent of main hand", function()
                 enchantID = 999998 },
         },
     }))
-    assertNil(Engine.entries[MH_LABEL])
-    local oh = Engine.entries[OH_LABEL]
+    assertNil(Engine.entries[MH_KEY])
+    local oh = Engine.entries[OH_KEY]
     assertNotNil(oh)
     near(1610, oh.endTime)
+    assertEquals(1, Enchants:Count())
+    clearEnchants()
+end)
+
+-- CodeReview2 n3: the same enchant on BOTH weapon slots (one poison/oil on
+-- main hand and off hand -- the dual-wield case) resolved to the SAME
+-- display name, and with the entry keyed by that name both slots shared ONE
+-- Engine.entries entry. The sub-floor / hasEnchant-false landing is a
+-- slot-local read, so the early slot's expiry landed the shared window and
+-- the Sweep retired the entry out from under the slot that still had 28
+-- minutes left. The key carries the slot now (`<name>#<slot>`); `e.name`
+-- stays the display name, so the Sweep pops the plain name.
+test("the same enchant on both weapon slots is two independent entries", function()
+    freshStorage()
+    clearEnchants()
+    local ID = 1900 -- resolves to ONE name for both slots -> the shared key
+    local infos = {
+        -- MH: 2 minutes of the enchant. OH: 30 minutes. Same id.
+        [MH] = { hasEnchant = true, timeLeft = 120000, charges = 0,
+            enchantID = ID },
+        [OH] = { hasEnchant = true, timeLeft = 1800000, charges = 0,
+            enchantID = ID },
+    }
+    local readers = readersFrom({
+        infos = infos,
+        names = { [ID] = "Enchant Weapon - Windfury" },
+    })
+    Enchants:ReadAll(1000, readers)
+    local mhKey = keyOf("Enchant Weapon - Windfury", "MainHand")
+    local ohKey = keyOf("Enchant Weapon - Windfury", "OffHand")
+    local mh = Engine.entries[mhKey]
+    local oh = Engine.entries[ohKey]
+    assertNotNil(mh, "the main hand has its own entry")
+    assertNotNil(oh, "the off hand has its own entry")
+    assertTrue(mh ~= oh, "one shared entry for two slots is the n3 bug")
+    assertEquals("Enchant Weapon - Windfury", mh.name,
+        "the entry keeps the bare display name (the key carries the slot)")
+    assertEquals("Enchant Weapon - Windfury", oh.name)
+    near(1120, mh.endTime)   -- 1000 + 120 s
+    near(2800, oh.endTime)   -- 1000 + 1800 s
+    assertEquals(2, Enchants:Count(), "two slots, two entries")
+
+    -- The main-hand enchant burns out: its next plain read is under the
+    -- tracking floor, which lands THAT slot's window and retires it.
+    infos[MH] = { hasEnchant = true, timeLeft = 1500, charges = 0,
+        enchantID = ID }
+    Enchants:ReadAll(1110, readersFrom({
+        infos = infos,
+        names = { [ID] = "Enchant Weapon - Windfury" },
+    }))
+    local popped
+    for _, nm in ipairs(Engine:Sweep(1111, {})) do
+        if nm == "Enchant Weapon - Windfury" then popped = true end
+    end
+    assertTrue(popped, "the expired slot pops under its DISPLAY name")
+    assertNil(Engine.entries[mhKey], "the burned-out slot entry is gone")
+    local ohLeft = Engine.entries[ohKey]
+    assertNotNil(ohLeft,
+        "the 28-minute off-hand enchant survives its twin's expiry")
+    -- The 1110 pass re-read the off hand too, and a plain read RE-ANCHORS
+    -- the window (the Engine:OnRead law): start 1110, the full 1800 s left.
+    near(2910, ohLeft.endTime)
     assertEquals(1, Enchants:Count())
     clearEnchants()
 end)
@@ -294,7 +363,7 @@ test("a plain charges count rides the row (maxCharges) and the entry never self-
         infos = { [MH] = { hasEnchant = true, timeLeft = 1200000,
             charges = 13, enchantID = 999999 } },
     }))
-    local e = Engine.entries[MH_LABEL]
+    local e = Engine.entries[MH_KEY]
     assertNotNil(e)
     assertNotNil(e.charges, "the charge model is present")
     -- The engine's drained-bar shape (Core/Enchants.lua header): the icon
@@ -312,7 +381,7 @@ test("a plain charges count rides the row (maxCharges) and the entry never self-
         if nm == MH_LABEL then popped = true end
     end
     assertFalse(popped, "no sweep before the window ends")
-    assertNotNil(Engine.entries[MH_LABEL])
+    assertNotNil(Engine.entries[MH_KEY])
 
     -- The landing pass: past the window with no plain read (the reads went
     -- ready-less/nil), the charge snapshot lands and the Sweep retires it
@@ -324,7 +393,7 @@ test("a plain charges count rides the row (maxCharges) and the entry never self-
         if nm == MH_LABEL then popped = true end
     end
     assertTrue(popped, "the lapsed charged entry pops exactly at its landing")
-    assertNil(Engine.entries[MH_LABEL])
+    assertNil(Engine.entries[MH_KEY])
     clearEnchants()
 end)
 
@@ -336,20 +405,20 @@ test("timeLeft under the tracking floor: permanent enchants create nothing, a la
         infos = { [MH] = { hasEnchant = true, timeLeft = 0,
             charges = 0, enchantID = 999999 } },
     }))
-    assertNil(Engine.entries[MH_LABEL])
+    assertNil(Engine.entries[MH_KEY])
     -- A running entry whose next plain read says "1.5 s left": the window
     -- lands (endTime = now) and the Sweep retires it.
     Enchants:ReadAll(1100, readersFrom({
         infos = { [MH] = { hasEnchant = true, timeLeft = 300000,
             charges = 0, enchantID = 999999 } },
     }))
-    local e = Engine.entries[MH_LABEL]
+    local e = Engine.entries[MH_KEY]
     assertNotNil(e)
     Enchants:ReadAll(1400, readersFrom({
         infos = { [MH] = { hasEnchant = true, timeLeft = 1500,
             charges = 0, enchantID = 999999 } },
     }))
-    near(1400, Engine.entries[MH_LABEL].endTime)
+    near(1400, Engine.entries[MH_KEY].endTime)
     local popped
     for _, nm in ipairs(Engine:Sweep(1401, {})) do
         if nm == MH_LABEL then popped = true end
@@ -411,12 +480,12 @@ test("an Engine:Build wipe (SPELLS_CHANGED rebuild) leaves no stale slot entry; 
             charges = 0, enchantID = 999999 } },
     })
     Enchants:ReadAll(1000, readers)
-    assertNotNil(Engine.entries[MH_LABEL])
+    assertNotNil(Engine.entries[MH_KEY])
     Engine:Build("HUNTER", function() return true end) -- wipes entries
-    assertNil(Engine.entries[MH_LABEL])
+    assertNil(Engine.entries[MH_KEY])
     assertEquals(0, Enchants:Count(), "Count follows the live entries")
     Enchants:ReadAll(1100, readers)
-    assertNotNil(Engine.entries[MH_LABEL], "the next read pass recreates the entry")
+    assertNotNil(Engine.entries[MH_KEY], "the next read pass recreates the entry")
     clearEnchants()
 end)
 

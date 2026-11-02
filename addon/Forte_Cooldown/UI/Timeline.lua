@@ -221,9 +221,19 @@ end
 --- re-applies every live string. SetFont returns the object (truthy) on
 --- success in 12.x; treat any false/nil return or raise as a rejection and
 --- restore the template.
+---
+--- n6: the template branch stores a SENTINEL key -- the requested key with
+--- "#tpl" on it -- not nil, so the dirty check holds on the rejected-font
+--- path: a BarFont the client refused used to re-run `SetFontTemplate` on
+--- every fontstring of every BuildTags/SetBarFont pass. The sentinel
+--- carries the requested file, so it is only the accepted state for THAT
+--- request: a later BarFont change (a new D.fontFile, the all-template
+--- state) moves to a new key and the string re-applies.
 local function applyFont(fs, size, flags)
-    local key = (D.fontFile or "tpl") .. "|" .. tostring(size) .. "|" .. (flags or "")
-    if fs._font == key then return end
+    local key = (D.fontFile or "tpl")
+        .. "|" .. tostring(size) .. "|" .. (flags or "")
+    local tplKey = key .. "#tpl"
+    if fs._font == key or fs._font == tplKey then return end
     local ok = false
     if D.fontFile then
         ok = pcall(fs.SetFont, fs, D.fontFile, size, flags)
@@ -231,7 +241,7 @@ local function applyFont(fs, size, flags)
     end
     if not ok then
         pcall(fs.SetFontTemplate, fs, "GameFontHighlightSmall")
-        key = nil
+        key = tplKey
     end
     fs._font = key
 end
@@ -1123,10 +1133,33 @@ function D:_GroupItems(entries, n)
     return items
 end
 
+--- The identity of an overlap group: its member names in order. CodeReview2
+--- n6: the m5 pass left this allocating a `parts` table plus a
+--- `table.concat` string per MULTI-MEMBER GROUP per 10 Hz pass. The group
+--- lists live in the Display's own `_groupsScratch` pool, so the built
+--- string and the names it was built from ride on the list and are reused
+--- whenever the membership is unchanged -- the common case, a group sitting
+--- still while its icons cross-fade. Only the rebuild (a member joining,
+--- leaving, reordering) allocates a string.
 local function groupSignature(g)
-    local parts = {}
-    for i = 1, #g do parts[i] = g[i].name end
-    return table.concat(parts, "|")
+    local n = #g
+    local parts = g._fxParts
+    if not parts then
+        parts = {}
+        g._fxParts = parts
+    end
+    local same = g._fxSig ~= nil and g._fxSigN == n
+    if same then
+        for i = 1, n do
+            if parts[i] ~= g[i].name then same = false break end
+        end
+        if same then return g._fxSig end
+    end
+    for i = 1, n do parts[i] = g[i].name end
+    for i = n + 1, #parts do parts[i] = nil end
+    local sig = table.concat(parts, "|")
+    g._fxSig, g._fxSigN = sig, n
+    return sig
 end
 
 --- Focus rotation over an overlap group (render loop :608-637): the focused

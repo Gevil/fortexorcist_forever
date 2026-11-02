@@ -668,15 +668,25 @@ function O:BuildHeader(def)
         -(C.TITLE_H + C.TABS_H))
     head.bar:SetSize(C.WIN_W - 16, C.HEAD_H)
     self.header = head
-    -- m4: the icon reads the LIVE lock state of the cooldown bar when the
-    -- bar exists (it is the single truth /fx lock|unlock moves); the store
-    -- is the fallback for a page whose module has no live frame.
+    -- m4: the icon reads the LIVE lock state of the frame THIS page's
+    -- module owns -- the Hunter page drives the swing bar (FX.Hunter.Swing,
+    -- whose lock is Hunter.Lock), every Cooldown/General page drives the
+    -- timeline bar (FX.Cooldown.Display, whose lock is Cooldown.Lock /
+    -- GlobalLock). Reading the Cooldown bar for every page (CodeReview2 n4)
+    -- made the Hunter header show that bar's lock, so after the Hunter
+    -- checkbox was unticked a page re-open painted the locked glyph while
+    -- the checkbox and the bar said unlocked. The store is the fallback for
+    -- a page whose module has no live frame.
     local locked
-    local d = FX.Cooldown and FX.Cooldown.Display
-    if def.lockKey and d and d.cfg and d.cfg.locked ~= nil then
-        locked = d.cfg.locked
-    elseif def.lockKey then
-        locked = FX.Settings:Get(def.module, def.lockKey)
+    if def.lockKey then
+        local frame = (def.module == "Hunter"
+            and FX.Hunter and FX.Hunter.Swing
+            or (FX.Cooldown and FX.Cooldown.Display))
+        if frame and frame.cfg and frame.cfg.locked ~= nil then
+            locked = frame.cfg.locked
+        else
+            locked = FX.Settings:Get(def.module, def.lockKey)
+        end
     end
     head.setLockedVisual(locked and true or false)
 

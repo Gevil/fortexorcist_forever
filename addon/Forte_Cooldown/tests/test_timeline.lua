@@ -1167,3 +1167,82 @@ test("m5: TM.group reuses the caller's scratch tables pass over pass", function(
     assertEquals(2, #fresh)
     assertEquals(2, #fresh[1])
 end)
+
+-- ================================================================= n6 perf --
+
+-- CodeReview2 n6 (1/2): the m5 pass left groupSignature allocating a parts
+-- table and a table.concat string per MULTI-MEMBER GROUP per 10 Hz pass. The
+-- signature is the cross-fade state key, and the group lists are the
+-- Display's own scratch, so the string now rides the group and is rebuilt
+-- only when the membership moves.
+test("n6: an unchanged overlap group costs no table.concat on the next pass", function()
+    Display:Init()
+    local now = 36000
+    local a = { name = "SigA", start = 0, duration = 45, endTime = now + 40 }
+    local b = { name = "SigB", start = 0, duration = 45, endTime = now + 41 }
+    local feed = { a, b }
+    Display:Update(feed, now)          -- binds + the first signature build
+    assertNotNil(Display._xf["SigA|SigB"],
+        "the two icons overlap into one cross-fade group")
+
+    local real = table.concat
+    local concats = 0
+    table.concat = function(...) concats = concats + 1; return real(...) end
+    Display:Update(feed, now)
+    Display:Update(feed, now)
+    table.concat = real
+    assertEquals(0, concats,
+        "a settled group must not rebuild its signature string per tick")
+    assertNotNil(Display._xf["SigA|SigB"], "the cached key is the same one")
+
+    -- The cache is per group AND per membership: a member joining rebuilds
+    -- the signature exactly once (the cache is not sticky).
+    local c = { name = "SigC", start = 0, duration = 45, endTime = now + 41.5 }
+    concats = 0
+    table.concat = function(...) concats = concats + 1; return real(...) end
+    Display:Update({ a, b, c }, now)
+    table.concat = real
+    assertEquals(1, concats, "a changed membership rebuilds the signature once")
+    assertNotNil(Display._xf["SigA|SigB|SigC"], "under a new key")
+
+    -- Unchanged again: back to zero allocations.
+    concats = 0
+    table.concat = function(...) concats = concats + 1; return real(...) end
+    Display:Update({ a, b, c }, now)
+    table.concat = real
+    assertEquals(0, concats)
+    Display:Update({}, now + 1)
+end)
+
+-- CodeReview2 n6 (2/2): the template-fallback branch stored `_font = nil`,
+-- so the dirty check never cached and SetFontTemplate re-ran on every
+-- fontstring of every tag rebuild on the rejected-font path.
+test("n6: the template-font fallback caches (no SetFontTemplate re-run)", function()
+    Display:Init()
+    local fs = Display.tagFS[1]
+    assertNotNil(fs, "the tag fontstrings exist after Init")
+    local saved = Display.fontFile
+    -- The rejected-BarFont state the header documents: no accepted file, so
+    -- every string rides the template branch.
+    Display.fontFile = nil
+    Display:BuildTags()                 -- applies the template once
+    local real = fs.SetFontTemplate
+    local calls = 0
+    fs.SetFontTemplate = function(...) calls = calls + 1; return real(...) end
+    Display:BuildTags()
+    Display:BuildTags()
+    fs.SetFontTemplate = real
+    assertEquals(0, calls,
+        "the sentinel key must cache the template state (n6)")
+    -- The sentinel is a SECOND accepted key, not the only key: bringing the
+    -- accepted file back moves past it and the string re-applies.
+    Display.fontFile = saved
+    local realSet = fs.SetFont
+    local sets = 0
+    fs.SetFont = function(...) sets = sets + 1; return realSet(...) end
+    Display:BuildTags()
+    fs.SetFont = realSet
+    if saved then
+        assertTrue(sets >= 1, "a real BarFont after the sentinel re-applies")
+    end
+end)

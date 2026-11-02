@@ -61,8 +61,8 @@
 -- Sweep can never retire at its endTime -- is closed by ReadAll's landing
 -- pass below.
 --
--- Name law: the entry key IS the display name (the Timeline prints it in
--- the group string). Resolved from the plain `enchantID`: first
+-- Name law: the entry's DISPLAY name (`e.name`, what the Timeline prints in
+-- the group string) is resolved from the plain `enchantID`: first
 -- C_Spell.GetSpellInfo(enchantID).name (the enchantment's spell row -- the
 -- classic enchant ids ARE spell ids, e.g. 1900 Enchant Weapon - Crusader),
 -- then a ForteXorcist.Data.Items `procs` row with source == "enchant"
@@ -72,6 +72,18 @@
 -- name"), so an id that resolves LATER (async spell cache) keeps the label
 -- for the session -- acceptable: the slot is still identifiable, and a
 -- changed name re-keys the entry cleanly.
+--
+-- Key law (CodeReview2 n3, 2026-11-02): the `Engine.entries` KEY is the
+-- display name PLUS the slot -- `<name>#<MainHand|OffHand|Ranged>` -- while
+-- `e.name` stays the bare display name. Keying by the name alone made the
+-- SAME enchant on two weapon slots (one poison/oil on main hand and off
+-- hand -- the dual-wield case) ONE entry: the `hasEnchant == false` /
+-- sub-floor branch resolves its entry from the SLOT's state, so the earlier
+-- slot's expiry landed the SHARED window and the Sweep retired the entry
+-- out from under the slot that still had 28 minutes of enchant left. With a
+-- slot-scoped key each slot owns its entry; `bySlot[*].entryKey` carries it.
+-- Engine:Sweep pops `e.name`, so the "X ready" line and the Display's
+-- `_ready` queue keep speaking the display name, never the key.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -80,7 +92,9 @@ local Engine = FX.Cooldown.Engine
 local Enchants = {}
 Engine.Enchants = Enchants
 
-Enchants.bySlot = {}  -- [slotKey] = { name = <current entry key>, enchantID }
+Enchants.bySlot = {}  -- [slotKey] = { name = <display name>,
+                       --   entryKey = <Engine.entries key, name.."#"..slotKey>,
+                       --   enchantID = <plain id> }
 Enchants.names = {}   -- [enchantID] = display name | false (no name known)
 
 -- Resolved lazily (the TRINKET_SLOTS pattern, Core/Items.lua): Enum tables
@@ -179,7 +193,7 @@ end
 --- "ignored".
 function Enchants:OnReadSlot(spec, info, now, getName, getTexture, getEquippedID, getIcon)
     local state = self.bySlot[spec.key]
-    local entryName = state and state.name
+    local entryKey = state and state.entryKey
     if info == nil then return "ignored" end
 
     local has = FX.Compat.PlainOrNil(info.hasEnchant)
@@ -187,8 +201,10 @@ function Enchants:OnReadSlot(spec, info, now, getName, getTexture, getEquippedID
     if not has then
         -- Enchant gone (burned, replaced, weapon un-equipped): the slot
         -- has nothing to show. Silent removal -- Engine.entries[n] = nil
-        -- keeps the name out of the Sweep's pop list entirely.
-        if entryName then Engine.entries[entryName] = nil end
+        -- keeps the name out of the Sweep's pop list entirely. The key is
+        -- SLOT-scoped (n3), so this removes THIS slot's entry and leaves a
+        -- same-enchant entry on another slot alive.
+        if entryKey then Engine.entries[entryKey] = nil end
         self.bySlot[spec.key] = nil
         return "cleared"
     end
@@ -199,19 +215,24 @@ function Enchants:OnReadSlot(spec, info, now, getName, getTexture, getEquippedID
     if remaining < Engine.MIN_COOLDOWN then
         -- Under the tracking floor: a permanent enchant (timeLeft 0 with
         -- no entry) creates nothing; a lapping entry is landed so the
-        -- Sweep ends it with its normal effect.
-        local e = entryName and Engine.entries[entryName]
+        -- Sweep ends it with its normal effect. The landing is a slot-local
+        -- operation -- with the shared name-key of review n3 it landed the
+        -- OTHER slot's window too.
+        local e = entryKey and Engine.entries[entryKey]
         if e then landEntry(e, now) end
         return "ignored"
     end
 
     local id = FX.Compat.PlainOrNil(info.enchantID)
     local name = self:ResolveName(id, getName) or spec.label
-    if entryName and entryName ~= name then
-        Engine.entries[entryName] = nil -- the slot re-keyed: retire the old
+    local key = name .. "#" .. spec.key
+    if entryKey and entryKey ~= key then
+        Engine.entries[entryKey] = nil -- the slot re-keyed: retire the old
     end
 
-    local e = Engine.entries[name] or { name = name }
+    local e = Engine.entries[key] or { name = name }
+    -- The key carries the slot; the entry keeps the bare display name.
+    e.name = name
     e.start, e.duration, e.endTime = now, remaining, now + remaining
     e.predicted, e.source, e.anchored = false, "read", true
     e.category = "Buff"
@@ -222,8 +243,8 @@ function Enchants:OnReadSlot(spec, info, now, getName, getTexture, getEquippedID
     else
         e.charges = nil
     end
-    Engine.entries[name] = e
-    self.bySlot[spec.key] = { name = name, enchantID = id }
+    Engine.entries[key] = e
+    self.bySlot[spec.key] = { name = name, entryKey = key, enchantID = id }
     return "anchored"
 end
 
@@ -267,7 +288,7 @@ function Enchants:ReadAll(now, readers)
     end
     for _, spec in ipairs(slotSpecs()) do
         local st = self.bySlot[spec.key]
-        local e = st and st.name and Engine.entries[st.name]
+        local e = st and st.entryKey and Engine.entries[st.entryKey]
         if e and e.charges and now >= e.endTime then
             landEntry(e, now)
         end
@@ -281,7 +302,7 @@ function Enchants:Count()
     local n = 0
     for _, spec in ipairs(slotSpecs()) do
         local st = self.bySlot[spec.key]
-        if st and st.name and Engine.entries[st.name] then n = n + 1 end
+        if st and st.entryKey and Engine.entries[st.entryKey] then n = n + 1 end
     end
     return n
 end

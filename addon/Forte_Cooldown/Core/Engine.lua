@@ -462,7 +462,13 @@ function Engine:Sweep(now, out)
         if done then
             self.entries[name] = nil
             if not (e.source == "edge" and not e.anchored) then
-                out[#out + 1] = name
+                -- The pop names the entry for the chat line and for the
+                -- Display's `_ready` queue, and both speak the DISPLAY
+                -- name. Spell/item entries key by that name already; the
+                -- weapon-enchant entries key `<name>#<slot>` (Core/
+                -- Enchants.lua, CodeReview2 n3), so the key is not
+                -- necessarily the name.
+                out[#out + 1] = e.name or name
             end
         end
     end

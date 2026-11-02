@@ -515,6 +515,60 @@ function()
     O:Close()
 end)
 
+-- CodeReview2 n4: BuildHeader read the *Cooldown bar's* live lock for EVERY
+-- page. The Hunter page's lockKey is Hunter.Lock and its frame is the swing
+-- bar -- Swing publishes Hunter.Lock only (Swing.lua:278-290), the Cooldown
+-- bar's lock never moves it -- so the two states can legitimately differ.
+test("n4: the Hunter page header follows Hunter.Lock, not the Cooldown bar",
+function()
+    local P = FX.Hunter and FX.Hunter.Pages
+    local swing = FX.Hunter and FX.Hunter.Swing
+    -- Forte_Hunter is in the gate's addon path for every suite; a missing
+    -- page/bar here is a real regression, not a skip.
+    assertNotNil(P and P.RegisterHunterPage, "the Hunter page module")
+    assertNotNil(swing, "FX.Hunter.Swing")
+    P.RegisterHunterPage()
+    -- The Hunter UI module builds the bar for a HUNTER only (Swing.lua's
+    -- OnEnable class gate); this suite's char is whatever the sim picked, so
+    -- the test builds it -- Init is the module's own entry point and is
+    -- idempotent.
+    if not swing.cfg then swing:Init() end
+    assertNotNil(swing.cfg, "the swing bar is built")
+    assertNotNil(swing.cfg.locked, "and its live lock state exists")
+    -- The divergence: the timeline bar LOCKED first (its publish relocks
+    -- the swing bar through the Swing's Cooldown/GlobalLock listeners),
+    -- then the Hunter swing bar is set free -- Hunter.Lock is the only key
+    -- that moves it back, so the two frames now disagree by construction.
+    local d = FX.Cooldown.Display
+    d:SetLocked(true)
+    swing:SetLocked(false)
+    assertEquals(true, d.cfg.locked, "the bar is locked")
+    assertEquals(false, swing.cfg.locked, "the swing bar is not")
+    assertEquals(false, S:Get("Hunter", "Lock"))
+
+    O:Open("Hunter")
+    local r, g = O.header.lockText:GetTextColor()
+    assertTrue(g >= 0.70 and r >= 0.99,
+        "the Hunter header reads the swing bar (gold = unlocked)")
+    -- The header's own click still moves Hunter.Lock.
+    local lock = O.header.lockText:GetParent()
+    lock:GetScript("OnClick")(lock)
+    assertEquals(true, S:Get("Hunter", "Lock"))
+    assertEquals(true, swing.cfg.locked, "and the swing bar followed")
+    assertEquals(true, d.cfg.locked, "the Cooldown bar never moved")
+    r, g = O.header.lockText:GetTextColor()
+    assertTrue(r < 0.90 and g < 0.90, "locked Hunter header is grey")
+
+    -- The same session, the Cooldown page: its header still reads ITS bar.
+    O:Open("Cooldown")
+    r, g = O.header.lockText:GetTextColor()
+    assertTrue(r < 0.90 and g < 0.90, "the Cooldown header follows its bar")
+    -- Shared defaults back for the tests that follow.
+    swing:SetLocked(true)
+    d:SetLocked(true)
+    O:Close()
+end)
+
 test("T9 live wiring: a Width edit on the page resizes the live bar", function()
     O:Open("Cooldown")
     local page = O.pagesBuilt["Cooldown"]
