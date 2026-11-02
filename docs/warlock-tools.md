@@ -221,3 +221,53 @@ which shard source answered.
   onToolEvent(M, ...) end)` (`addon/Forte_Hunter/Core/Tools.lua:361`), which puts the **frame** in
   the `event` parameter — the Hunter tools' event wiring can never match an event name (its own
   tests only assert the script exists). Not this slice's file; reported to `Main`.
+
+## UI layer (`Forte_Warlock/UI/*`, `Pages/Warlock.lua` — added 2026-11-02, agent `WarlockUI`)
+
+Four Classic-skin frames on one shared base plus four options pages. They are **pure
+renderers** of the trackers above: no frame reads a unit/aura/cooldown/bag API, and every
+combat/bag payload the module's event frame receives is forwarded *unread* — an event is
+only "state may have moved".
+
+|Name|Contract|
+|---|---|
+|`FX.Warlock.Frame`|the shared base: the skin tables, `FormatClock`/`ClockKey` (`mm:ss`, the originals' compact clock), the `FX.db.warlockUI` position row, the lock law, the settings seam|
+|`FX.Warlock.Shards`|the Shard Manager plate (34x34, the vendored `SH1` art): the shard **count**, the source label in the tooltip; shown while `Shards:Count()` is known; never time-driven|
+|`FX.Warlock.Soulstone`|the Soulstone bar (140x12): `Soulstone: <target> mm:ss`, the fill draining with the window; shown while `Soulstone:Active()`|
+|`FX.Warlock.Healthstone`|the Healthstone plate (34x34, the vendored `HS1` art): the count, the plate dimmed to `CooldownAlpha` with `mm:ss` under it while the creation cooldown runs|
+|`FX.Warlock.Summon`|the Summon channel bar (140x12): `Summoning <target> mm:ss`, the fill running forward with the channel; lives only while the channel does|
+|`:Init()` / `:Update(now)` → bool|build (idempotent) / render one pass; the return is the **10 Hz ask** (a live countdown/channel) and is the driver's only input|
+|`:SetTracker(t)`|the injected state source (tests, probes); defaults to `FX.Warlock.Tools.<name>`|
+|`:SetShown/RenderIdle`, `SetSize/Width/Height/Scale/Alpha/BarColor/BgColor/TextColor/ShowTime/Font/EnableMouse/SetLocked`|the live seams the pages drive|
+|`FX.Warlock.UI`|module `WarlockUI`: the class gate, the event routing, `Kick`, the single driver frame, `/fx status` lines|
+|`FX.Warlock.Pages.RegisterWarlockPages()`|idempotent registration of the four index cells|
+
+**The driver law** (found live on uiforever 2026-11-02, the Hunter swing bar's bug): a hidden
+frame never receives `OnUpdate`, so the frames own **no** tick script at all. `Kick` renders
+each active view synchronously and the 10 Hz loop runs on `ForteXorcistWarlockUIDriver`, a
+1x1, mouse-off, **always-shown** frame; `OnUpdate` is installed only while a view reports a
+live countdown/channel plus a 0.5 s settle window, and cleared the moment none does.
+
+**Settings** (module `Warlock`, defaults in `UI/Frame.lua`'s `DEFAULTS`): the shared row
+(`Enable`, `Scale`, `Alpha`, `EnableMouse`, `Lock`, `ShowTime`), each frame's own switch
+(`ShardEnable`, `SoulstoneEnable`, `HealthstoneEnable`, `SummonEnable`), the sizes
+(`ShardSize`, `SoulstoneWidth/Height`, `HealthstoneSize`, `SummonWidth/Height`) and the
+colours (`ShardColor`, `SoulstoneColor`, `SummonColor`, the plate wash `BarColor`). The
+Soulstone/Summon fills ride the class's summoning purple `{.64,.21,.93}` (the 2012 mod's own
+`SoulstoneColor`/`SummoningColor`), and the page defaults *read* the frames' skin tables so
+the store and the frames cannot drift. The label font is not a Warlock key: it rides the
+**General** page's shared `BarFont`, as `Forte_Cooldown` and the Hunter bar do. A frame's
+own colour key beats the General page's shared `TextColor`/`BarColor`.
+
+**The `/fx lock|unlock` hook**: each frame publishes its own state into `Warlock.Lock`
+(store-inequality-guarded, the echo stops) and mirrors `General.GlobalLock` and
+`Cooldown.Lock` — the same m4 seam the Hunter frames ride, so one `/fx lock` moves the
+Warlock frames with the cooldown bar's. Locked frames are click-through. Positions:
+`FX.db.warlockUI.{shards,soulstone,healthstone,summon}`.
+
+**Verification (2026-11-02, agent `WarlockUI`)**: `run-tests Forte_Warlock` 36/36 (the 21
+tool tests plus 15 UI tests: geometry, the show law on injected trackers, the label texts,
+the 10 Hz ask, the kick law, real `OnEvent` dispatch, the live settings seam, the lock
+mirror, the class gate, the four pages, the clock format); the gate is green (Cooldown 110,
+Core 16, Hunter 37, Options 44, Timer 34, Warlock 36, api-lint OK, tocs byte-identical).
+Screenshots: `docs/media/sim/fx_warlock_ui.png`, `docs/media/sim/fx_warlock_options.png`.

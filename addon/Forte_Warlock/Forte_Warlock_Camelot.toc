@@ -4,7 +4,14 @@
 ## Version: 0.1.0-dev
 ## Author: Gevil
 ## Dependencies: Forte_Core
-## OptionalDeps: Forte_Cooldown, Forte_Items
+## OptionalDeps: Forte_Cooldown, Forte_Items, Forte_Options
 
 Data/Warlock.lua
 Core/Tools.lua
+UI/Frame.lua
+UI/Shards.lua
+UI/Soulstone.lua
+UI/Healthstone.lua
+UI/Summon.lua
+UI/Module.lua
+Pages/Warlock.lua
