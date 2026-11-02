@@ -260,7 +260,7 @@ end)
 
 test("a failing LoadAddOn prints ONE notice, is remembered, and continues",
 function()
-    local savedAddOns, savedPrint, savedLedger = _G.C_AddOns, FX.Print, FX._loadedClassAddOns
+    local savedAddOns, savedPrint, savedLedger = _G.C_AddOns, FX.Print, FX._loadedAddOns
     local calls = 0
     _G.C_AddOns = {
         IsAddOnLoaded = function() return false, false end,
@@ -279,7 +279,7 @@ function()
     local ok3 = FX.LoadClassAddOn("mage")
     FX.Print = savedPrint
     _G.C_AddOns = savedAddOns
-    FX._loadedClassAddOns = savedLedger
+    FX._loadedAddOns = savedLedger
 
     assertFalse(ok, "a disabled add-on is a failed load")
     assertFalse(ok2, "and it stays failed")
@@ -306,4 +306,66 @@ function()
     assertEquals(0, #printed, "no notice for a repeat load or a classless token")
     assertNil(FX.ClassAddOnFor(nil))
     assertTrue(C_AddOns.IsAddOnLoaded(own))
+end)
+
+-- ------------------------------------------------- the general LoD seam --
+-- `FX.LoadAddOnOnDemand(name)` (H7): the same ledger and the same rules the
+-- class loader runs, for a NON-class add-on. Forte_ItemProcs is the real
+-- subject: the proc data is `## LoadOnDemand: 1`, so a login session must not
+-- carry it, and the feature that owns it (Forte_Cooldown/Core/Procs.lua)
+-- pulls it in through this seam.
+
+test("a load-on-demand data add-on is not parsed at login", function()
+    assertNil(FX.Data.ItemProcs,
+        "Forte_ItemProcs was parsed at login: its data is not load-on-demand")
+    assertFalse(C_AddOns.IsAddOnLoaded("Forte_ItemProcs"))
+    assertTrue(C_AddOns.IsAddOnLoadOnDemand("Forte_ItemProcs"),
+        "the add-on is declared load-on-demand in its .toc")
+    assertFalse(FX.IsAddOnLoadedOnDemand("Forte_ItemProcs"))
+    assertFalse(FX.IsAddOnLoadedOnDemand(nil))
+end)
+
+test("LoadAddOnOnDemand loads a named add-on, is idempotent and quiet",
+function()
+    local printed, realPrint = {}, FX.Print
+    FX.Print = function(...) printed[#printed + 1] = table.concat({ ... }, " ") end
+    local calls = 0
+    local savedAddOns, savedLedger = _G.C_AddOns, FX._loadedAddOns
+    local realLoad = _G.C_AddOns.LoadAddOn
+    _G.C_AddOns = setmetatable({
+        LoadAddOn = function(name)
+            calls = calls + 1
+            return realLoad(name)
+        end,
+    }, { __index = _G.C_AddOns })
+    local first = FX.LoadAddOnOnDemand("Forte_ItemProcs")
+    local second = FX.LoadAddOnOnDemand("Forte_ItemProcs")
+    local third = FX.LoadAddOnOnDemand("Forte_ItemProcs")
+    local loaded = C_AddOns.IsAddOnLoaded("Forte_ItemProcs")
+    local ownIn = FX.LoadAddOnOnDemand(FX.ClassAddOnFor(FX._playerClass))
+    local junkNil, junkEmpty, junkNum = FX.LoadAddOnOnDemand(nil),
+        FX.LoadAddOnOnDemand(""), FX.LoadAddOnOnDemand(42)
+    FX.Print = realPrint
+    _G.C_AddOns = savedAddOns
+    FX._loadedAddOns = savedLedger
+
+    assertTrue(first, "the load reports true")
+    assertTrue(second, "a repeat call reports true")
+    assertTrue(third, "and stays true")
+    assertEquals(1, calls, "the loader ran once; the repeats ride the ledger")
+    assertEquals(0, #printed, "a load and its repeats print nothing")
+    assertTrue(loaded, "the add-on is in the session")
+    -- The add-on's files run to completion before LoadAddOn returns: the
+    -- data table is usable on the caller's next statement.
+    assertNotNil(FX.Data.ItemProcs, "ForteXorcist.Data.ItemProcs arrived")
+    assertNotNil(FX.Data.ItemProcs.procs, "the proc rows")
+    assertNotNil(FX.Data.ItemProcs.ProcsByName, "the proc name index")
+    assertNotNil(FX.Data.ItemProcs.ProcsByBuffName, "the proc buff-name index")
+    assertTrue(FX.IsAddOnLoadedOnDemand("Forte_ItemProcs"))
+    assertTrue(ownIn, "the class half rides the same seam")
+    -- Junk names are false, never a raise and never a loader call.
+    assertFalse(junkNil)
+    assertFalse(junkEmpty)
+    assertFalse(junkNum)
+    assertEquals(1, calls, "a junk name never reaches the loader")
 end)

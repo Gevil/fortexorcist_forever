@@ -41,6 +41,16 @@ FX.Settings:Register(M, {
     PowerScale = 0.33,                 -- Loga
     TimeTags = "0 1 10 30 60 120 300 600",
     IgnoreShort = 2.99,                -- Engine.MIN_COOLDOWN
+    -- The item/weapon proc ICD windows (Core/Procs.lua). NO PAGE ROW (the
+    -- 2026-11-02 ruling: the feature ships behind the flag, not behind a
+    -- checkbox): the key is registered so the store owns the default -- OFF,
+    -- per docs/design-combat-procs.md P-B -- and so `/fx procs on` writes it
+    -- through FX.Settings:Set like every other key. The switch is live
+    -- through Procs:_WireSettings' listener; Procs:ApplyStoredSettings
+    -- applies it at login. Flipping it on loads the load-on-demand
+    -- Forte_ItemProcs data add-on (docs/perf.md §4 fix 1), which is the
+    -- whole reason it is not on by default.
+    Procs = false,
     -- Coloring (Forte_Cooldown.lua :1842-1855, verbatim)
     ColorSpell     = { 1.00, 0.50, 0.00, 1 },
     ColorPowerup   = { 0.00, 0.75, 1.00, 1 },

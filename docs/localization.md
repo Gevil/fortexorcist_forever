@@ -20,6 +20,21 @@ EMPTY, so the English path is bit-identical to before.
   (`C_Spell.GetSpellInfo(id).name`, `C_Item.GetItemNameByID(id)`). No
   hand-typed translations; zero aliases on enUS.
 
+## Data locations (H7, 2026-11-02)
+
+**The item proc data is load-on-demand.** `ProcsByName` / `ProcsByBuffName` moved out of
+`ForteXorcist.Data.Items` into `ForteXorcist.Data.ItemProcs` (the `Forte_ItemProcs` add-on,
+parsed only when the `Cooldown.Procs` switch is on). Two consequences for the table below: a
+locale walker that enumerates the item data walks `Items.onUse + Items.consumables +
+Items.enchantProcs` (what `Core/Locale.lua:WalkItemData` does — the proc rows are keyed by the
+*effect's* `buffName`, the one field the "every alias source names the generated data's English
+name" law excludes), and anything that wants the proc name maps has to load the add-on first
+(`FX.LoadAddOnOnDemand("Forte_ItemProcs")`) — `Forte_Cooldown/tests/test_70707_overlay.lua` is
+the working example. Nothing in the always-loaded stack names a proc row any more:
+`Forte_Cooldown/Core/Enchants.lua` resolves an enchant from
+`C_Spell.GetSpellInfo(effect_id).name` first and the kept `enchantProcs` rows second, and
+`Core/Procs.lua` joins on `buffId`, an id.
+
 ## Shipped seams
 - `addon/Forte_Core/Core/Locale.lua` (module `Locale`, toc-listed after
   `Core/Loader.lua` in both Core tocs):

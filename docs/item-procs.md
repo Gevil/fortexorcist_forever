@@ -1,22 +1,31 @@
 # Item procs / on-use / consumables (`ForteXorcist.Data.Items`)
 
-Human summary of the data emitted by `tools/gen_item_data.py` into
-`addon/Forte_Items/Data/Items.lua`. Nothing here is hand-typed: re-run
-`python3 tools/gen_item_data.py` after pulling `mythicsim-forever-engine` and the file regenerates
-byte-deterministic (order = name, itemId, buffId). All numbers below are for the pin
+Human summary of the data emitted by `tools/gen_item_data.py`. Nothing here is hand-typed:
+re-run `python3 tools/gen_item_data.py` after pulling `mythicsim-forever-engine` and the files
+regenerate byte-deterministic (order = name, itemId, buffId).
+
+**The generator writes two files (H7, 2026-11-02; `docs/perf.md` §4 fix 1).**
+`addon/Forte_Items/Data/Items.lua` (always loaded) carries `onUse`, `consumables` and the 5
+`enchantProcs` rows + `OnUseByName`; `addon/Forte_ItemProcs/Data/Procs.lua` (a
+`## LoadOnDemand: 1` add-on, `ForteXorcist.Data.ItemProcs`) carries the 400 item `procs` rows +
+`ProcsByName` + `ProcsByBuffName`. The enchant rows are the exception that stays: the
+always-loaded `Forte_Cooldown/Core/Enchants.lua` names an enchant from them. A default session
+parses 89.5 KB, not 227.5 KB; the proc file is parsed when the `Cooldown.Procs` switch is
+switched on (`Forte_Cooldown/Core/Procs.lua` -> `FX.LoadAddOnOnDemand`). All numbers below are for the pin
 **client_build 1.60.1.70425** (manifest `engine_revision a667dce8`,
 `items.jsonl` sha256 prefix `79e1e471a9bc`).
 
 ## Lists and counts
 
-| list | entries | trackable | source |
-|---|---|---|---|
-| `onUse` | **238** | `cooldown` | 238 items with `on_use` effects |
-| `procs` | **405** | `buff-window` | 400 item `proc` effects + 5 weapon-enchants |
-| `consumables` | **79** | `cooldown` | 79 of 106 consumables carry a cooldown |
+| list | file | entries | trackable | source |
+|---|---|---|---|---|
+| `onUse` | Forte_Items | **238** | `cooldown` | 238 items with `on_use` effects |
+| `consumables` | Forte_Items | **79** | `cooldown` | 79 of 106 consumables carry a cooldown |
+| `enchantProcs` | Forte_Items | **5** | `buff-window` | 5 weapon-enchants |
+| `procs` | Forte_ItemProcs (LoD) | **400** | `buff-window` | 400 item `proc` effects |
 
-Lookup maps: `OnUseByName` (201 keys, by item name), `ProcsByName` (376 keys, by item name),
-`ProcsByBuffName` (356 keys, by the effect's `buffName`). Keys are ITEM/buff **names**; ids are
+Lookup maps: `OnUseByName` (201 keys, by item name) in Forte_Items; `ProcsByName` (371 keys, by
+item name) and `ProcsByBuffName` (351 keys, by the effect's `buffName`) in Forte_ItemProcs. Keys are ITEM/buff **names**; ids are
 informational (PLAN.md §8 — ids drift between builds). Where a name carries several ids (PvP rank
 variants), the key resolves to the lowest id and every collision is listed in the generated file
 header (15 name collisions, largest: "Insignia of the Horde" ×16, "Signet Ring of the Bronze
@@ -27,8 +36,10 @@ Fields per entry: `name`, `itemId`, `source` (`item`/`enchant`/`consumable`), `c
 `classAllowlist` is emitted only where the source row has one (70 onUse + 36 proc entries, 12
 distinct single-class combos); everything else is class-agnostic and unfiltered. `slotType` is
 composed verbatim from the fields the data states (`type`, `hand_type`, `weapon_type`,
-`ranged_weapon_type`, `armor_type`, joined with ` / `). Deliberately **not** emitted (present in
-source, out of this ticket's schema): `proc.proc_chance` (119 procs), `proc.icd_ms` (49),
+`ranged_weapon_type`, `armor_type`, joined with ` / `), `icdMs` (51 rows: 49 in `procs`, 2 in
+`enchantProcs` — `proc.icd_ms`, `docs/research/forever-data-gaps.md` G2, consumed by
+`Forte_Cooldown/Core/Procs.lua` as the length of a proc's ICD window) and the consumable
+`categoryId`/`categoryCooldownMs`. Deliberately **not** emitted: `proc.proc_chance` (119 procs),
 `on_use.category_id`/`category_cooldown_ms` (181 onUse).
 
 ### slotType distribution — `onUse` (238)

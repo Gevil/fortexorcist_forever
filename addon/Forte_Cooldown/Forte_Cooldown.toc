@@ -9,6 +9,7 @@
 Core/Engine.lua
 Core/Items.lua
 Core/Enchants.lua
+Core/Procs.lua
 UI/TimelineMath.lua
 UI/Timeline.lua
 UI/Splash.lua

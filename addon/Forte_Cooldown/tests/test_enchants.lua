@@ -144,7 +144,8 @@ test("the enchantID resolves to the spell row, else the Forte_Items enchant row,
 
     -- 2. No spell name: the generated Forte_Items procs row by effect_id
     --    (the data ships it; itemId 1900 == the classic enchant spell id).
-    local procs = FX.Data and FX.Data.Items and FX.Data.Items.procs
+    local procs = FX.Data and FX.Data.Items
+        and (FX.Data.Items.enchantProcs or FX.Data.Items.procs)
     if procs then
         local has
         for _, row in ipairs(procs) do

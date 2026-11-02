@@ -65,7 +65,8 @@
 -- the group string) is resolved from the plain `enchantID`: first
 -- C_Spell.GetSpellInfo(enchantID).name (the enchantment's spell row -- the
 -- classic enchant ids ARE spell ids, e.g. 1900 Enchant Weapon - Crusader),
--- then a ForteXorcist.Data.Items `procs` row with source == "enchant"
+-- then a ForteXorcist.Data.Items `enchantProcs` row (the 5 enchant proc rows
+-- the generator keeps in the always-loaded add-on; see ResolveName)
 -- whose itemId is the effect_id (generated-file header, Forte_Items),
 -- then the slot's plain label ("Main Hand Enchant" / "Off Hand Enchant" /
 -- "Ranged Enchant"). Resolution is cached per id (false = "resolved: no
@@ -136,8 +137,14 @@ function Enchants:ResolveName(enchantID, getName)
         if type(plain) == "string" and plain ~= "" then name = plain end
     end
     if not name then
+        -- The enchant proc rows are the ONE proc leg that stays in the
+        -- always-loaded Forte_Items (`enchantProcs`): this file is always
+        -- loaded, and the 400 item proc rows moved to the load-on-demand
+        -- Forte_ItemProcs (H7 / docs/perf.md §4 fix 1) -- an always-loaded
+        -- consumer must not lean on a load-on-demand data set. `data.procs`
+        -- stays as the pre-split shape (nil on a split data set).
         local data = FX.Data and FX.Data.Items
-        local procs = data and data.procs
+        local procs = data and (data.enchantProcs or data.procs)
         if procs then
             for _, row in ipairs(procs) do
                 if row.source == "enchant" and row.itemId == enchantID then

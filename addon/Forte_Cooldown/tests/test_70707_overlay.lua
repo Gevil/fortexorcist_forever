@@ -26,6 +26,11 @@ FX.LoadClassAddOn("PRIEST")
 FX.LoadClassAddOn("ROGUE")
 FX.LoadClassAddOn("SHAMAN")
 FX.LoadClassAddOn("WARLOCK")
+-- The proc data split (H7): the proc rows + ProcsByName live in the
+-- load-on-demand Forte_ItemProcs add-on, so the suite that audits them has to
+-- ask for them through the real loader -- `run-tests` does not run a
+-- load-on-demand add-on's files.
+FX.LoadAddOnOnDemand("Forte_ItemProcs")
 
 local Registry = FX.Timer and FX.Timer.Registry
 
@@ -36,7 +41,10 @@ test("the overlaid classes' data is in the session", function()
             ("Forte_%s's name index did not load"):format(name))
     end
     assertNotNil(FX.Data and FX.Data.Items, "Forte_Items's data did not load")
-    assertNotNil(FX.Data.Items.ProcsByName, "Forte_Items's proc index did not load")
+    assertNotNil(FX.Data and FX.Data.ItemProcs,
+        "Forte_ItemProcs's proc data did not load")
+    assertNotNil(FX.Data.ItemProcs.ProcsByName, "the proc name index did not load")
+    assertNotNil(FX.Data.Items.enchantProcs, "the enchant proc rows did not load")
     assertNotNil(Registry, "Forte_Timer's registry is not in the session")
 end)
 
@@ -232,12 +240,17 @@ test("item proc rows carry their ICDs", function()
     -- docs/research/forever-data-gaps.md G2: 51 proc rows ride
     -- proc.icd_ms; the store confirms 9 through the proc aura's
     -- AuraOptions.ICDMs. Argent Defender is one of the confirmed (20 s).
-    local items = FX.Data.Items
-    local ad = items.ProcsByName["Argent Defender"]
+    -- The split: 49 ride in Forte_ItemProcs, 2 in Forte_Items.enchantProcs.
+    local procs = FX.Data.ItemProcs
+    assertNotNil(procs, "Forte_ItemProcs's data is not in the session")
+    local ad = procs.ProcsByName["Argent Defender"]
     assertNotNil(ad, "Argent Defender lost its proc row")
     assertEquals(20000, ad.icdMs)
     local withIcd = 0
-    for _, row in ipairs(items.procs) do
+    for _, row in ipairs(procs.procs) do
+        if row.icdMs then withIcd = withIcd + 1 end
+    end
+    for _, row in ipairs(FX.Data.Items.enchantProcs or {}) do
         if row.icdMs then withIcd = withIcd + 1 end
     end
     assertTrue(withIcd >= 51,

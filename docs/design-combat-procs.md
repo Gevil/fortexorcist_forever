@@ -43,15 +43,34 @@ Nothing here has run in the real client. The first live session is on/after the 
    Boolean only, no times, stacks only for linear cost slopes. Use only as a fallback, never to place a bar position.
 6. **Native alert**: `SPELL_ACTIVATION_OVERLAY_GLOW_SHOW/HIDE` events; only fires for spells that glow. Bonus signal.
 
-## 4. What we will build (phased, nothing started)
-- P-A: on-use trinkets + consumables on the timeline via the existing cast path (needs item cooldown API probe).
-- P-B: proc list UI (owner chooses which of the 405 to watch) — **owner review pending**.
-- P-C: gate containers per chosen proc, out-of-combat registration, rebuild on `PLAYER_REGEN_ENABLED`.
-- P-D: gate-edge timers + `AddAuraSound` cues; display on the bar like any other entry, marked `source="gate"`.
+## 4. What we will build (phased)
+- P-A: **landed** — on-use trinkets + consumables on the timeline via the cast path (`Forte_Cooldown/Core/Items.lua`, wave 2a).
+- P-B: **landed 2026-11-02 (H7), at its narrowest reading** — `Forte_Cooldown/Core/Procs.lua`
+  behind `Cooldown.Procs` (default OFF): the watched set is the generated rows that carry a
+  plain `buffId` + an `icdMs` clearing `Engine.MIN_COOLDOWN` (class-filtered: 13 for a Hunter),
+  and a proc aura *seen* through one of the two trusted routes — the out-of-combat
+  `C_UnitAuras.GetUnitAuras("player","HELPFUL")` sweep (the Reconcile.lua gate: sealed aura
+  mode or `InCombatLockdown`) or `UNIT_AURA`'s `addedAuras` — puts the proc's **ICD** on the
+  bar (`{start=now, duration=icdMs/1000, predicted=true, source="proc", category="Item"}`,
+  key `<data name>#<buffId>` per the n3 law). The window's length is data and its start is
+  `GetTime()`; no aura number reaches a widget (§4 hard rule). No proc-list UI: the owner's
+  review of "which of the 405 to watch" is still open, and with it the checkbox — the key is
+  registered in `Forte_Options/Pages/Cooldown.lua` with no page row.
+- P-C: **not built** — gate containers per chosen proc. Its evidence (probe 3) is other addons'
+  claims about item-source proc IDs; Q3 keeps in-combat proc work behind the launch-day probes.
+  `Core/Procs.lua` counts every sealed/raised/plain read and prints it at `/fx status`, which is
+  the same evidence probe 2/3 ask for, gathered by the shipped path.
+- P-D: **not built** — gate-edge timers + `AddAuraSound` cues (same reason: the `source="gate"`
+  display has nothing to observe until P-C exists).
 - Hard rule: **nothing secret-derived is ever passed to our own widgets** (`aura-secret-display.md`: tainted code touching
   secrets errors). Gates observe only `GetTime()`.
 
 ## 5. Live probes for 2026-11-04 (cheap, in this order)
+**Instrumented already (H7, 2026-11-02):** `/fx status` prints a `Procs:` pair — the watched/live
+counts and `proc reads N | plain N | secret N | raised N | skipped N` plus the aura-event and
+edge counters. Probes 2/3's question ("is the aura read sealed, and does a proc's appearance
+arrive as a plain `spellId` out of combat / through `UNIT_AURA`?`) is answered off those columns
+by the shipped path, with no hand probe. Probes 4-7 stay manual.
 1. Cast counter: is own-cast `spellID` plain in combat? (`/fx status` → plain/secret/unresolved).
 2. Does a gate for a **self buff by spell ID** show/hide in combat? Use a long-lived known buff first (food, a class aura),
    then a real trinket proc.

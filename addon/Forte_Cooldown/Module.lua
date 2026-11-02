@@ -290,6 +290,14 @@ function M:ReadAll()
     if Engine.Enchants then
         Engine.Enchants:ReadAll(now)
     end
+    -- The proc ICD tracker rides the same pass (Core/Procs.lua): one bulk
+    -- aura read, and its OWN gate -- the pass runs at 1 Hz, out of combat,
+    -- with the secret-state snapshot refreshed at the PLAYER_REGEN_ENABLED
+    -- pass right above, which is exactly the moment its gate opens. An
+    -- enabled-off feature costs one boolean here.
+    if Engine.Procs then
+        Engine.Procs:Scan(now)
+    end
 end
 
 function M:Rebuild()
@@ -301,6 +309,10 @@ function M:Rebuild()
     -- safe read keys are (H1b: they ride IsPlayerSpell).
     wipe(readKeyCache)
     local n, reason = Engine:Build(FX._playerClass, isKnown)
+    -- Engine:Build wiped `entries`: the proc tracker's running ICD windows
+    -- went with them, so its seen model has to go with them too, and on a
+    -- class change the watched set is a fresh question (Core/Procs.lua).
+    if Engine.Procs then Engine.Procs:OnRebuild() end
     if not n then
         -- SPELLS_CHANGED can fire constantly (loot, talents, levels). Say
         -- "no data for your class" once, not once per event.
@@ -558,6 +570,16 @@ function M:OnEnable()
     -- registered below as the out-of-combat read trigger).
     f:RegisterEvent("ADDON_RESTRICTION_STATE_CHANGED")
     f:RegisterEvent("PLAYER_REGEN_DISABLED")
+    -- The proc tracker's in-combat half (Core/Procs.lua). The add-on is
+    -- always loaded; the FEATURE is not: `Init` reads the `Cooldown.Procs`
+    -- switch (default OFF), and only an on switch pulls the load-on-demand
+    -- Forte_ItemProcs data in (`FX.LoadAddOnOnDemand`, idempotent). The
+    -- event registration is unconditional because the tracker's OnUnitAura
+    -- gates on the flag itself -- a registered event for a disabled feature
+    -- is one counter bump, and making registration conditional would make
+    -- switching the feature on mid-session a registration site.
+    f:RegisterUnitEvent("UNIT_AURA", "player")
+    if Engine.Procs then Engine.Procs:Init() end
     -- Item rescan triggers -- every event name verified in the pinned
     -- Forever catalog (SystemDocumentation / ContainerDocumentation /
     -- PaperDollInfoDocumentation) before registration.
@@ -587,6 +609,19 @@ function M:OnEnable()
                     readPending = false
                     M:ReadAll()
                 end)
+            end
+        elseif event == "UNIT_AURA" then
+            -- An aura list changed. The payload is (unitTarget,
+            -- UnitAuraUpdateInfo) and lands in the handler's `unit` /
+            -- `castGUID` slots (the ADDON_RESTRICTION_STATE_CHANGED
+            -- precedent above: a payload in foreign slots is named, not
+            -- ignored). The proc tracker's in-combat half (Core/Procs.lua):
+            -- the event is SecretWhenAurasRestricted and its payload is the
+            -- UnitAuraUpdateInfo struct, so every field read runs pcall'd
+            -- inside OnUnitAura and only a PLAIN spellId from `addedAuras`
+            -- may speak.
+            if Engine.Procs then
+                Engine.Procs:OnUnitAura(unit, castGUID)
             end
         elseif event == "ADDON_RESTRICTION_STATE_CHANGED"
             or event == "PLAYER_REGEN_DISABLED" then
@@ -693,6 +728,19 @@ function M:Status()
     -- weapon slot with a readable timer.
     if Engine.Enchants then
         FX.Print(string.format("Enchants: %d", Engine.Enchants:Count()))
+    end
+    -- Proc ICD windows (Core/Procs.lua) + the launch-day evidence of the
+    -- two seen-routes: reads plain/secret/raised, the edges, the entries.
+    if Engine.Procs then
+        local watched, live = Engine.Procs:Counts()
+        local c = Engine.Procs.counts
+        FX.Print(string.format(
+            "Procs: %s, %d watched, %d live (aura events %d, edges %d, added %d)",
+            Engine.Procs:IsEnabled() and "on" or "off", watched, live,
+            c.events, c.edges, c.added))
+        FX.Print(string.format(
+            "  proc reads %d | plain %d | secret %d | raised %d | skipped %d",
+            c.reads, c.plain, c.secret, c.raised, c.skipped))
     end
     -- Cast-secrecy counters (PLAN §8 "instrument" mitigation): the first
     -- live combat session reads the truth off the `secret` column.

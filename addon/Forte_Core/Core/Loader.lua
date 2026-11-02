@@ -1,14 +1,18 @@
 -- Forte_Core/Core/Loader.lua
 --
--- Load-on-demand loader for the per-class add-ons.
+-- Load-on-demand loader: the per-class add-ons, and the general seam any
+-- Forte add-on that ships `## LoadOnDemand: 1` data uses to ask for it.
 --
 -- Every Forte_<Class> add-on ships `## LoadOnDemand: 1`: at login the client
 -- reads its TOC metadata only and parses NONE of its Lua (docs/research/
 -- secrets-unknowns.md §9 -- the same split Polestar's 13 data add-ons and
 -- EllesmereUI's options/locales slots use on this exact client). That saves a
 -- Hunter the ~300 KB of Mage/Priest/... spell data every character used to pay
--- for. This file decides WHEN the one add-on that matters -- the player's own
--- class -- is pulled in, and reports the failure cases.
+-- for. This file decides WHEN a load-on-demand add-on is pulled in -- the
+-- class loader at PLAYER_LOGIN, a feature loader (Forte_Cooldown/Core/
+-- Procs.lua for Forte_ItemProcs) at the moment its own switch is switched
+-- on -- and reports the failure cases. `FX.LoadAddOnOnDemand(name)` is the
+-- general, idempotent seam; `FX.LoadClassAddOn(token)` is its class half.
 --
 -- The law: a class add-on is loaded inside the PLAYER_LOGIN handling, BEFORE
 -- the module enable loop in Init.lua runs, so its `FX.RegisterModule` calls
@@ -47,7 +51,10 @@ FX.CLASS_ADDONS = {
 
 -- Add-on names this session has already brought in (or failed to). One
 -- notice per name, ever: a per-zone class re-read must not print again.
-FX._loadedClassAddOns = FX._loadedClassAddOns or {}
+-- The ledger is keyed by ADD-ON NAME, not by class token: the class loader
+-- and the general `FX.LoadAddOnOnDemand` share it, so a name a class path
+-- already brought in costs the feature that asks for it next nothing.
+FX._loadedAddOns = FX._loadedAddOns or {}
 
 --- The add-on that carries this class token's data, or nil.
 function FX.ClassAddOnFor(classToken)
@@ -59,30 +66,36 @@ local function notice(text)
     FX.Print("|cffff5555" .. text .. "|r")
 end
 
---- Bring the add-on that carries `classToken` into the running session.
+--- Bring the load-on-demand add-on `name` into the running session.
 --- Returns true when its files are in (already loaded, not load-on-demand,
---- or loaded by this call), false when they are not.
+--- or loaded by this call), false when they are not. IDEMPOTENT: the ledger
+--- settles a name after its first attempt -- a name that is in returns true,
+--- a name that failed returns false, and NEITHER calls the loader (or prints)
+--- a second time.
 ---
 --- Every failure path prints ONE notice (name + the loader's own reason,
 --- e.g. DISABLED for an add-on the player unchecked in the add-on list) and
---- continues: a missing class add-on costs that class its tools, not the
---- shared Cooldown/Timer/UI stack. `FX._loadedClassAddOns` is the once-only
---- ledger: a repeat call for a name that is already in is free, and a repeat
---- call for a name that failed stays quiet.
-function FX.LoadClassAddOn(classToken)
-    local name = FX.ClassAddOnFor(classToken)
-    if not name then return false end -- no Forte add-on for this class: not an error
-    -- The ledger settles a name after its first attempt: a name that is in
-    -- returns true, a name that failed returns false, and NEITHER calls the
-    -- loader (or prints) a second time.
-    local seen = FX._loadedClassAddOns[name]
+--- continues: a missing add-on costs the feature that asked for it, not the
+--- shared Cooldown/Timer/UI stack.
+---
+--- This is the general seam (`FX.LoadClassAddOn` is its class-token half).
+--- A feature that owns a load-on-demand data add-on asks for it here at the
+--- moment its own switch is switched on -- the class loader asks at
+--- PLAYER_LOGIN, `Forte_Cooldown/Core/Procs.lua` asks at the first
+--- `Cooldown.Procs` enable -- and treats `false` as "the feature is off",
+--- never as an error. `C_AddOns.LoadAddOn` runs the add-on's files to
+--- completion before it returns, so the caller's data reads on the next
+--- statement are valid.
+function FX.LoadAddOnOnDemand(name)
+    if type(name) ~= "string" or name == "" then return false end
+    local seen = FX._loadedAddOns[name]
     if seen ~= nil then return seen == true end
 
     local api = _G.C_AddOns
     if type(api) ~= "table" or type(api.LoadAddOn) ~= "function" then
         -- No loader on this engine: nothing to pull in. Loud once, then silent.
-        FX._loadedClassAddOns[name] = false
-        notice("C_AddOns.LoadAddOn is unavailable: " .. name .. " data is not loaded")
+        FX._loadedAddOns[name] = false
+        notice("C_AddOns.LoadAddOn is unavailable: " .. name .. " is not loaded")
         return false
     end
 
@@ -92,19 +105,42 @@ function FX.LoadClassAddOn(classToken)
     -- (loadedOrLoading, loaded).
     local loaded = api.IsAddOnLoaded and api.IsAddOnLoaded(name)
     if loaded then
-        FX._loadedClassAddOns[name] = true
+        FX._loadedAddOns[name] = true
         return true
     end
 
     local ok, value = api.LoadAddOn(name)
     if ok then
-        FX._loadedClassAddOns[name] = true
+        FX._loadedAddOns[name] = true
         return true
     end
 
-    FX._loadedClassAddOns[name] = false
-    notice(name .. " did not load (" .. tostring(value) .. ") -- its class tools stay off")
+    FX._loadedAddOns[name] = false
+    notice(name .. " did not load (" .. tostring(value) .. ") -- its features stay off")
     return false
+end
+
+--- True when the add-on `name` is in the running session (loaded on demand by
+--- us, loaded eagerly, or not load-on-demand at all -- the question the caller
+--- asks is "is its data usable right now").
+function FX.IsAddOnLoadedOnDemand(name)
+    if type(name) ~= "string" then return false end
+    local api = _G.C_AddOns
+    if type(api) ~= "table" or type(api.IsAddOnLoaded) ~= "function" then
+        return FX._loadedAddOns[name] == true
+    end
+    return (api.IsAddOnLoaded(name)) and true or false
+end
+
+--- Bring the add-on that carries `classToken` into the running session.
+--- Returns true when its files are in (already loaded, not load-on-demand,
+--- loaded by this call), false when they are not. A class with no Forte
+--- add-on (Forever 1.60.1 has no Death Knight) loads nothing, prints nothing
+--- and is NOT an error.
+function FX.LoadClassAddOn(classToken)
+    local name = FX.ClassAddOnFor(classToken)
+    if not name then return false end -- no Forte add-on for this class: not an error
+    return FX.LoadAddOnOnDemand(name)
 end
 
 --- True when the add-on that carries `classToken` is in the running session
@@ -113,9 +149,5 @@ end
 function FX.IsClassAddOnLoaded(classToken)
     local name = FX.ClassAddOnFor(classToken)
     if not name then return false end
-    local api = _G.C_AddOns
-    if type(api) ~= "table" or type(api.IsAddOnLoaded) ~= "function" then
-        return FX._loadedClassAddOns[name] == true
-    end
-    return (api.IsAddOnLoaded(name)) and true or false
+    return FX.IsAddOnLoadedOnDemand(name)
 end

@@ -115,6 +115,11 @@ registry in `addon/Forte_Cooldown/`. Both generators read files that carry the v
   cooldownCategory, gcdMs, castMs, rank` — no ICD.
 - items: `tools/gen_item_data.py:14` documents the source field
   "`proc` … `proc.proc_chance` / `proc.icd_ms`" and never emits it.
+  **The item/enchant half has since landed (D2/M, 2026-11-02): 51 rows carry `icdMs` (49 item
+  proc rows — now in the load-on-demand `Forte_ItemProcs` after H7 — + 2 enchant rows in
+  `Forte_Items.enchantProcs`), and `Forte_Cooldown/Core/Procs.lua` consumes it as the length of
+  a proc's ICD window on the bar (H7, `Cooldown.Procs`, default off). The SPELL half of this
+  row (the 11 class-list `ICDMs`) is still not emitted.**
 
 **What the sources hold** (all measured):
 

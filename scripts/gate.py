@@ -177,8 +177,14 @@ def digest(paths):
 
 def generators():
     spell_files = glob.glob(os.path.join(ADDONS, "Forte_*", "Data", "*.lua"))
-    spell_files = [f for f in spell_files if not f.endswith("Items.lua")]
-    item_files = glob.glob(os.path.join(ADDONS, "Forte_Items", "Data", "*.lua"))
+    # Items.lua is gen_item_data.py's, and so is Forte_ItemProcs/Data/
+    # Procs.lua (the H7 proc split, a load-on-demand data add-on): both
+    # belong to the ITEM digest, not the spell one.
+    spell_files = [f for f in spell_files
+                   if not f.endswith("Items.lua")
+                   and "Forte_ItemProcs" not in f]
+    item_files = (glob.glob(os.path.join(ADDONS, "Forte_Items", "Data", "*.lua"))
+                  + glob.glob(os.path.join(ADDONS, "Forte_ItemProcs", "Data", "*.lua")))
     before = (digest(spell_files), digest(item_files))
     originals = {p: open(p, "rb").read() for p in spell_files + item_files}
     cmds = [["python3", "tools/gen_spell_data.py", os.path.splitext(os.path.basename(j))[0]]

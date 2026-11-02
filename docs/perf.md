@@ -188,6 +188,26 @@ display itself is wave-2 `H7` and **off by default** (PLAN §11.1 H7,
 first proc-display enable, procs off ⇒ never loaded. Gain ≈ **0.4 MB resident [E]**
 (60 % of the 686 KB uiforever number; measured byte share × measured 3.2× ratio).
 
+**LANDED 2026-11-02 (H7).** `gen_item_data.py` now writes both files: `Forte_Items/Data/Items.lua`
+**227 513 B → 89 483 B (−138 030 B, −60.7 %)** [M], and the new `## LoadOnDemand: 1` add-on
+`Forte_ItemProcs/Data/Procs.lua` (141 339 B, `ForteXorcist.Data.ItemProcs`, the 5
+weapon-enchant rows the always-loaded `Core/Enchants.lua` names its enchants from staying behind
+as `Data.Items.enchantProcs`). Load path: `FX.LoadAddOnOnDemand(name)`
+(`Forte_Core/Core/Loader.lua`, the general idempotent seam `FX.LoadClassAddOn` now rides) called
+by `Forte_Cooldown/Core/Procs.lua` at the first `Cooldown.Procs` enable (default OFF).
+Gate's load probe prints `data=['Items', <class>]` on all three profiles — the proc data is not
+in a default session [M].
+
+Measured gain, same session (`--class Hunter --no-saved-vars`, `collectgarbage("count")` at the
+exec-lua moment): the flag off→on delta (load the LoD add-on + build its watched set) is
+**+241.5 KB [M]**, reproduced to 0.05 KB (41 133.2 → 41 374.7; 41 104.2 → 41 345.7). That figure is
+the object set's measured cost, and it is exactly what a default session no longer pays — vs the
+0.4 MB [E] extrapolation above, same order, and now measured. The cross-tree instrument
+(HEAD worktree vs split, login heap) reads 41 139.5 mean → 41 103.3 mean = **−36 KB**, which is
+inside the split tree's own 56 KB spread [M]: the login heap is a 41 MB number dominated by the
+Blizzard UI boot, so it can not resolve a 0.3 % change; the on/off delta in one session is the
+readable instrument.
+
 **2. Forte_Timer UI — replace the string dirty-check keys with numbers, gate the text
 formats (garbage + CPU).** `UI/Rows.lua:632,637,643` (colour keys: cache
 `r._fillR/_fillG/_fillB` numbers, compare numerically — 632/637/643 delete), `:378` +
