@@ -3,21 +3,65 @@
 -- Shard Manager, the Soulstone Tracker, the Healthstone Spy and the Summon
 -- Assistant (UI/Shards.lua, UI/Soulstone.lua, UI/Healthstone.lua,
 -- UI/Summon.lua). Forte_Hunter/UI/Swing.lua is the local pattern for
--- everything that is NOT Warlock-specific: the Classic skin of a small
--- anchored frame, the `FX.db` position row, the lock law and the live
--- settings seam are copied from it.
+-- everything that is NOT Warlock-specific: the `FX.db` position row, the lock
+-- law and the live settings seam are copied from it.
+--
+-- THE PLATE LAW (manager comparison of docs/media/sim/fx_warlock_ui.png
+-- against docs/refs/ref4.png; every constant cited from the 2012 source):
+-- each frame is the original's horizontally labelled plate:
+--  * header 106x20  = Width(100) + 2*FW.BORDER(3) x 20
+--    (Forte_Soulstone.lua:65 + Forte_Core.lua:479; Forte_Soulstone.xml:124,
+--     Forte_Healthstone.xml:83, Forte_Summon.xml:91 — all three `106 x 20`);
+--  * the module icon, a 16x16 button at TOPLEFT (2,-2)
+--    (Forte_Soulstone.xml:156,161,182 — NormalTexture SS1;
+--     Forte_Healthstone.xml:113,118,150 — HS1 (+HS2/HS3 swap,
+--     Forte_Healthstone.lua:168,172); Forte_Summon.xml:122,127,146 — SU1);
+--  * the count `x<n>` left of centre: FontString anchored LEFT, offset
+--    x=18, justify CENTER (Forte_Soulstone.xml:131-138; text
+--    `x`..n at Forte_Soulstone.lua:292, Forte_Healthstone.lua:164,
+--    Forte_Summon.lua:165);
+--  * the right label: FontString anchored RIGHT, offset x=-4, justify RIGHT
+--    (Forte_Soulstone.xml:140-146; the `no ss up` / `ready to res` / range
+--    strings at Forte_Soulstone.lua:291 + Localization.lua:57);
+--  * a SECOND LINE under the header: the per-target bar 100x12 anchored
+--    TOPLEFT (BORDER, -18) (Forte_Soulstone.lua:123-124 with
+--    FW.BORDER=3, Forte_Core.lua:479; SoulstoneWidth/Height 100/12 at
+--    Forte_Soulstone.lua:670-671; HealthstoneWidth/Height 100/12 at
+--    Forte_Healthstone.lua:338-339; SummonWidth/Height 100/12 at
+--    Forte_Summon.lua:586-587), the per-target label justify CENTER from
+--    x=1 (Forte_Soulstone.xml:42-51) and the per-target time justify RIGHT
+--    at x=-1 (Forte_Soulstone.xml:14-27); the plate backdrop grows to
+--    21+(Height+Space)*n-Space with the rows (Forte_Soulstone.lua:235; with
+--    n=1 and 12+1 rows that is Height+13);
+--  * the plate backdrop: bgFile Background, edgeFile Border, EdgeSize 5,
+--    BackgroundInsets 5, tinted SoulstoneBgColor {0.31,0.00,0.62,0.75}
+--    (Forte_Soulstone.xml:227-230 + Forte_Soulstone.lua:659; identical
+--    HealthstoneBgColor at Forte_Healthstone.lua:326 and SummonBgColor at
+--    Forte_Summon.lua:599) — the dark-purple bar of ref4.png;
+--  * the bar art is the Blizzard `UI-Character-Skills-Bar`
+--    (Forte_Soulstone.xml:118 BarTexture + :101-104 the Back texture),
+--    the bar's Back tinted at alpha 0.5 (Forte_Soulstone.lua:216), the fill
+--    the module's own colour: the bar BarColor .64/.21/.93
+--    (Forte_Soulstone.xml:119 = SoulstoneMaxColor Forte_Soulstone.lua:652;
+--    SummoningColor Forte_Summon.lua:597; the Healthstone bar max colour
+--    Forte_Healthstone.lua:328);
+--  * every string the module font {GOTHIC.TTF, 11} — the URW Gothic
+--    lookalike at size 11 (Forte_Core.lua:2547 + :606-609,
+--    Forte_Soulstone.lua:662, Forte_Healthstone.lua:332,
+--    Forte_Summon.lua:581) — in the module text colour {1,1,1}
+--    (Forte_Soulstone.lua:660, Forte_Healthstone.lua:325,
+--    Forte_Summon.lua:600).
 --
 -- The skin law (the project's "hard-coded Classic skin, no theme picker"):
 -- every colour/size starts in ONE skin table per frame (ShardsSkin,
 -- SoulstoneSkin, HealthstoneSkin, SummonSkin, each extending FrameSkin); the
 -- style setters below and Pages/Warlock.lua read and write ONLY the skin, so
--- a page and its frame can not drift apart. The Soulstone bar's colour is
--- `SoulstoneColor`, the original's own (the 2012 mod's
--- `SoulstoneColor = { .64, .21, .93, 1 }`, docs/warlock-tools.md), and the
--- Summon bar rides the class's summoning purple.
+-- a page and its frame can not drift apart.
 --
 -- The position law: one row in `FX.db.warlockUI` under the frame's own key,
--- saved on every drag end (the Swing.lua `SavePosition` shape).
+-- saved on every drag end (the Swing.lua `SavePosition` shape). The anchor is
+-- the original's movable FWSSFrame (106x20, Forte_Soulstone.xml:122); the
+-- plate body + second line hang from it and are never the drag unit.
 --
 -- The lock law (mirrored from Swing.lua, the plan's m4 law for
 -- Forte_Cooldown `SetLocked`): a style setter that changes the lock publishes
@@ -58,21 +102,38 @@ local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
 
 -- --------------------------------------------------------------- the skin --
 
---- Everything skinnable about one of the four frames. The two plates override
---- Width/Height/Inset; the two bars override Height.
+--- Everything skinnable about one of the four frames. The `Width` is the
+--- PLATE width: the original's frame width is Width+2*FW.BORDER and the
+--- second-line bar is the Width-wide inner part (Forte_Soulstone.lua:65,
+--- :95); the `Height` is the HEADER row (the fixed 20 of
+--- Forte_Soulstone.xml:124), the `RowHeight` the SoulstoneHeight/
+--- HealthstoneHeight/SummonHeight bar of the second line
+--- (Forte_Soulstone.lua:671, Forte_Healthstone.lua:339,
+--- Forte_Summon.lua:587).
 FX.Warlock.FrameSkin = {
-    Width = 140, Height = 12,
-    BgColor = { 0.12, 0.12, 0.12, 0.90 },          -- the plate backdrop
-    BarColor = { 0.64, 0.21, 0.93, 0.85 },         -- the shared plate wash
-    TextColor = { 1, 1, 1, 1 },
-    TextSize = 11,
+    Width = 106, Height = 20,                    -- Forte_Soulstone.xml:124
+    RowHeight = 12,                              -- Forte_Soulstone.lua:671
+    RowSpace = 1,                                -- Forte_Soulstone.lua:675
+    Border = 3,                                  -- FW.BORDER, Forte_Core.lua:479
+    Inset = 5,                                   -- Forte_Soulstone.xml:228-230
+    BgColor = { 0.31, 0.00, 0.62, 0.75 },         -- Forte_Soulstone.lua:659
+    BarColor = { 0.64, 0.21, 0.93, 1 },           -- Forte_Soulstone.xml:119
+    TextColor = { 1, 1, 1, 1 },                  -- Forte_Soulstone.lua:660
+    TextSize = 11,                               -- Forte_Core.lua:2547
     TextFont = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf",
-    Inset = 3,                                    -- the Aluminium edge inset
+    PlateTexture = TEX .. "Background",          -- Forte_Soulstone.xml:227
+    EdgeTexture = TEX .. "Border",               -- Forte_Soulstone.xml:227
+    BarTexture = "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar",
+    IconSize = 16,                               -- Forte_Soulstone.xml:156
+    IconX = 2, IconY = -2,                       -- Forte_Soulstone.xml:161
+    AmountX = 18,                                -- Forte_Soulstone.xml:135
+    InfoX = -4,                                  -- Forte_Soulstone.xml:144
+    RowX = 3, RowY = -18,                        -- Forte_Soulstone.lua:124
     Strikethrough = false,
     Scale = 1,
     Alpha = 1,
-    CooldownAlpha = 0.55,                         -- a plate during a cooldown
-    Locked = true,                                -- the default: no drag
+    CooldownAlpha = 0.55,                        -- a plate during a cooldown
+    Locked = true,                               -- the default: no drag
     EnableMouse = true,
     ShowTime = true,
     Enable = true,
@@ -104,7 +165,7 @@ Frame.BASE_KEYMAP = {
 --- General.lua, read live — one instance, no copies).
 Frame.SHARED_KEYMAP = {
     BarFont = "SetFont",
-    BarColor = "SetBarColor",
+    BarColor = "SetPlateOnly",
     TextColor = "SetTextColor",
     BarTextSize = "SetTextSize",
 }
@@ -126,11 +187,15 @@ Frame.DEFAULTS = {
     defaults = {
         Enable = true, Scale = 1, Alpha = 1, EnableMouse = true,
         Lock = true, ShowTime = true,
-        ShardSize = 34, SoulstoneWidth = 140, SoulstoneHeight = 12,
-        HealthstoneSize = 34, SummonWidth = 140, SummonHeight = 12,
+        -- The plate width 106 = 100 + 2*3 (Forte_Soulstone.lua:670 + :65 +
+        -- Forte_Core.lua:479); the *Height keys are the second-line bar
+        -- heights, the original's SoulstoneHeight/SummonHeight (Forte_
+        -- Soulstone.lua:671, Forte_Summon.lua:587).
+        ShardSize = 106, SoulstoneWidth = 106, SoulstoneHeight = 12,
+        HealthstoneSize = 106, SummonWidth = 106, SummonHeight = 12,
         ShardColor = { 1, 1, 1, 1 },
-        SoulstoneColor = { 0.64, 0.21, 0.93, 1 },
-        SummonColor = { 0.64, 0.21, 0.93, 1 },
+        SoulstoneColor = { 0.64, 0.21, 0.93, 1 },    -- Forte_Soulstone.xml:119
+        SummonColor = { 0.64, 0.21, 0.93, 1 },       -- Forte_Summon.lua:597
         ShardStrikethrough = false, SoulstoneStrikethrough = false,
         HealthstoneStrikethrough = false, SummonStrikethrough = false,
     },
@@ -159,10 +224,25 @@ function Frame.ClockKey(v)
     return math.floor(v + 0.5)
 end
 
+--- The plate count format: `x<n>` (Forte_Soulstone.lua:292,
+--- Forte_Healthstone.lua:164, Forte_Summon.lua:165).
+function Frame.FormatAmount(n)
+    return "x" .. tostring(n)
+end
+
+--- The second-line target string: the tracker hands over ONE string it owns;
+--- an unread bearer prints the marker (SS-11's honesty, printed, never
+--- hidden — the Hunter swing bar's unread law).
+function Frame.FormatTarget(who)
+    if FX.Compat and FX.Compat.PlainOrNil then who = FX.Compat.PlainOrNil(who) end
+    if type(who) ~= "string" or who == "" then return "(target unread)" end
+    return who
+end
+
 -- ----------------------------------------------------------------- identity --
 
---- `opts` = { name, dbKey, skin, size, keymap, module, lockKey, keys, tip,
---- textDy, strikes }. `name`/`dbKey` drive the frame name and the `FX.db` row.
+--- `opts` = { name, dbKey, skin, size, keymap, module, lockKey, keys, tip }.
+--- `name`/`dbKey` drive the frame name and the `FX.db` row.
 function Frame:new(opts)
     local o = setmetatable({}, { __index = self })
     o.opts = opts
@@ -201,29 +281,65 @@ function Frame:Init()
     self:RenderIdle()
 end
 
---- A skinned plate texture (the Aluminium backdrop inside the frame).
-function Frame:_NewPlate(w, h, inset, color)
-    local t = self.anchor:CreateTexture()
-    -- The skin names the plate art (the vendored Classic textures); the
-    -- Aluminium backdrop is the fallback.
-    t:SetTexture(self.skin.PlateTexture or (TEX .. "Aluminium"))
-    t:SetPoint("CENTER", self.anchor, "CENTER", 0, 0)
-    t:SetSize(w - 2 * inset, h - 2 * inset)
+--- The plate height for the current row state: the header, plus
+--- RowHeight+RowSpace while the second line is shown (the original's
+--- backdrop height 21+(Height+Space)*n-Space at n=1 = Height+Space+Height_of_
+--- row + ... — at Height 20 and one 12+1 row the source's own arithmetic
+--- gives 33 = 20+12+1, Forte_Soulstone.lua:235).
+function Frame:_PlateHeight()
+    local h = self.skin.Height
+    if self._rowShown then h = h + self.skin.RowHeight + self.skin.RowSpace end
+    return h
+end
+
+--- The plate backdrop: the vendored Background tile inside the Border edge,
+--- tinted BgColor (Forte_Soulstone.xml:227-230 + Forte_Soulstone.lua:659).
+function Frame:_ApplyBackdrop()
+    if not self.body then return end
+    local c = self.skin.BgColor
+    self.body:SetBackdrop({
+        edgeFile = self.skin.EdgeTexture,
+        edgeSize = self.skin.Inset,
+        insets = { left = self.skin.Inset, right = self.skin.Inset,
+                   top = self.skin.Inset, bottom = self.skin.Inset },
+        bgFile = self.skin.PlateTexture,
+        bgColor = { c[1], c[2], c[3], c[4] },
+    })
+end
+
+--- The plate wash: the Background art over the backdrop, carrying the
+--- BgColor vertex (the visible wash; the dim/dim-restore and the shared
+--- "Plate colour" key both land on its vertex/alpha).
+function Frame:_NewPlate()
+    local t = self.body:CreateTexture()
+    t:SetTexture(self.skin.PlateTexture)
+    t:SetPoint("TOPLEFT", self.body, "TOPLEFT", self.skin.Inset, -self.skin.Inset)
     t:SetDrawLayer("BACKGROUND")
-    if color then t:SetVertexColor(color[1], color[2], color[3], color[4]) end
+    local c = self.skin.BgColor
+    t:SetVertexColor(c[1], c[2], c[3], c[4])
     return t
 end
 
---- The per-view bar builder (the two timer bars); nil on a plate frame.
-function Frame:_NewBar()
-    return nil
+--- The module icon: a 16x16 texture at TOPLEFT (2,-2)
+--- (Forte_Soulstone.xml:156,161; the art names SS1/HS1/SH1/SU1 from the
+--- NormalTextures at Forte_Soulstone.xml:182, Forte_Healthstone.xml:150,
+--- Forte_Summon.xml:146).
+function Frame:_NewIcon()
+    local t = self.anchor:CreateTexture()
+    t:SetTexture(self.skin.IconTexture)
+    t:SetPoint("TOPLEFT", self.anchor, "TOPLEFT",
+        self.skin.IconX, self.skin.IconY)
+    t:SetSize(self.skin.IconSize, self.skin.IconSize)
+    t:SetDrawLayer("OVERLAY")
+    return t
 end
 
 --- A fontstring with the current font/size/colour; registered so a live font
 --- change reaches every string the frame owns.
-function Frame:_NewFont(dx, dy, size, justify)
+function Frame:_NewFont(dx, dy, size, justify, point, relPoint)
     local fs = self.anchor:CreateFontString()
-    fs:SetPoint("CENTER", self.anchor, "CENTER", dx or 0, dy or 0)
+    fs:SetPoint(point or "CENTER", self.anchor, relPoint or point or "CENTER",
+        dx or 0, dy or 0)
     fs:SetFont(self.state.fontFile, size or self.state.fontSize, 0)
     fs:SetJustifyH(justify or "CENTER")
     local c = self.skin.TextColor
@@ -237,15 +353,84 @@ function Frame:_NewFont(dx, dy, size, justify)
     return fs
 end
 
---- The frame's own label text (a bar's `Soulstone: …` / `Summoning …`; the
---- plates use `text` for the count and add their own label).
-function Frame:_NewText(dy)
-    local fs = self:_NewFont(0, dy, self.skin.TextSize + 1, "CENTER")
-    -- Word-wrap knobs are client extras: a client whose fontstrings do not
-    -- carry them keeps the single-line label.
-    if fs.SetWordWraps then fs:SetWordWraps(false) end
-    if fs.SetNonSpaceWrap then fs:SetNonSpaceWrap(true) end
+--- The count label `x<n>`: LEFT, offset x=18, justify CENTER
+--- (Forte_Soulstone.xml:131-138).
+function Frame:_NewAmount()
+    local fs = self:_NewFont(self.skin.AmountX, 0, self.skin.TextSize,
+        "CENTER", "LEFT", "LEFT")
     fs:SetText("")
+    return fs
+end
+
+--- The right label: RIGHT, offset x=-4, justify RIGHT
+--- (Forte_Soulstone.xml:140-146). ShowTime owns its visibility.
+function Frame:_NewInfo()
+    local fs = self:_NewFont(self.skin.InfoX, 0, self.skin.TextSize,
+        "RIGHT", "RIGHT", "RIGHT")
+    fs:SetText("")
+    return fs
+end
+
+--- The second line: the 100x12 bar TOPLEFT (BORDER,-18)
+--- (Forte_Soulstone.lua:123-124), the Blizzard skills-bar art
+--- (Forte_Soulstone.xml:118), the per-target label justify CENTER from x=1
+--- (Forte_Soulstone.xml:42-51) and the per-target time justify RIGHT at x=-1
+--- (Forte_Soulstone.xml:14-27).
+function Frame:_NewRow()
+    local s = self.skin
+    local row = CreateFrame("Frame", nil, self.body)
+    row:SetPoint("TOPLEFT", self.body, "TOPLEFT", s.RowX, s.RowY)
+    row:SetSize(s.Width - 2 * s.Border, s.RowHeight)
+    row:EnableMouse(false)
+    row:SetClipsChildren(false)
+    self.row = row
+
+    local c = s.BarColor
+    -- The bar's Back texture, the fill colour at alpha 0.5
+    -- (Forte_Soulstone.xml:101-104 + Forte_Soulstone.lua:216).
+    local back = row:CreateTexture()
+    back:SetTexture(s.BarTexture)
+    back:SetAllPoints(row)
+    back:SetDrawLayer("BACKGROUND")
+    back:SetVertexColor(c[1], c[2], c[3], 0.5)
+    self.rowBack = back
+
+    -- The depleting/running fill (the StatusBar value of the original).
+    local fill = row:CreateTexture()
+    fill:SetTexture(s.BarTexture)
+    fill:SetPoint("LEFT", row, "LEFT", 0, 0)
+    fill:SetSize(0, s.RowHeight)
+    fill:SetDrawLayer("OVERLAY")
+    fill:SetVertexColor(c[1], c[2], c[3], c[4])
+    self.fill = fill
+    self.fillBarColor = c
+
+    self.timeFS = self:_NewRowFont("RIGHT", row)
+    self.nameFS = self:_NewRowFont("CENTER", row)
+    return row
+end
+
+--- A fontstring anchored inside the second line (not the anchor).
+function Frame:_NewRowFont(justify, row)
+    local fs = self.anchor:CreateFontString()
+    if justify == "RIGHT" then
+        fs:SetPoint("RIGHT", row, "RIGHT", -1, 0)
+    else
+        fs:SetPoint("TOPLEFT", row, "TOPLEFT", 1, 0)
+        fs:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 0)
+        if self.timeFS then
+            fs:SetPoint("TOPRIGHT", self.timeFS, "TOPLEFT", -1, 0)
+            fs:SetPoint("BOTTOMRIGHT", self.timeFS, "BOTTOMLEFT", -1, 0)
+        end
+    end
+    fs:SetFont(self.state.fontFile, self.state.fontSize, 0)
+    fs:SetJustifyH(justify)
+    local c = self.skin.TextColor
+    fs:SetVertexColor(c[1], c[2], c[3], c[4])
+    if fs.SetStrikethrough then fs:SetStrikethrough(self.state.strike) end
+    fs:SetAlpha(1)
+    fs:Hide()
+    self.fonts[fs] = true
     return fs
 end
 
@@ -259,29 +444,32 @@ function Frame:_Build()
         a = CreateFrame("Frame", nil, UIParent, tmpl)
     end
     if not a then return end
-    a:SetSize(self.skin.Width, self.skin.Height)
+    local s = self.skin
+    a:SetSize(s.Width, s.Height)
     a:SetScale(self.state.scale)
     a:SetAlpha(self.state.alpha)
     a:SetMovable(true)
-    a:SetClipsChildren(true)
-    a:SetBackdrop({
-        edgeFile = self.skin.EdgeTexture or (TEX .. "Aluminium"),
-        edgeSize = self.skin.Inset,
-        insets = { left = self.skin.Inset, right = self.skin.Inset,
-                   top = self.skin.Inset, bottom = self.skin.Inset },
-        bgFile = TEX .. "Aluminium",
-        bgColor = { self.skin.BgColor[1], self.skin.BgColor[2],
-                    self.skin.BgColor[3], self.skin.BgColor[4] },
-    })
+    -- The plate body and the second line hang BELOW the movable header
+    -- (the FWSSBackground/FWSSBar split, Forte_Soulstone.xml:202-208 +
+    -- Forte_Soulstone.lua:124), so the header must not clip them.
+    a:SetClipsChildren(false)
     a:EnableMouse(not self.cfg.locked and self.state.enableMouse)
     a:Hide()
     self.anchor = a
-    local plate = self:_NewPlate(self.skin.Width, self.skin.Height,
-        self.skin.Inset, self.skin.BgColor)
-    self.plate = plate
-    self.bar = self:_NewBar()
-    self.text = self:_NewText((self.opts and self.opts.textDy)
-        or self.TEXT_DY)
+
+    local body = CreateFrame("Frame", nil, self.anchor, tmpl)
+    body:SetPoint("TOPLEFT", self.anchor, "TOPLEFT", 0, 0)
+    body:SetSize(s.Width, self:_PlateHeight())
+    body:EnableMouse(false)
+    body:SetClipsChildren(false)
+    self.body = body
+    self:_ApplyBackdrop()
+    self.plate = self:_NewPlate()
+    self.icon = self:_NewIcon()
+    self.amountFS = self:_NewAmount()
+    self.infoFS = self:_NewInfo()
+    self:_NewRow()
+    self.row:Hide()
     self:_AttachTip()
 end
 
@@ -366,6 +554,7 @@ end
 function Frame:Reset()
     local skin, def = self.skin, self.sizeDefaults
     skin.Width, skin.Height = def.Width, def.Height
+    skin.RowHeight = (def.RowHeight or FrameSkin.RowHeight)
     skin.Scale = FrameSkin.Scale
     skin.Alpha = FrameSkin.Alpha
     local db = FX.db and FX.db.warlockUI
@@ -412,50 +601,67 @@ function Frame:SetWidth(w)
     self:SizeChanged()
 end
 
-function Frame:SetHeight(h)
+--- The `<Name>Height` keys drive the SECOND LINE bar height (the original's
+--- SoulstoneHeight/SummonHeight are the bar heights,
+--- Forte_Soulstone.lua:671, Forte_Summon.lua:587), not the header.
+function Frame:SetRowHeight(h)
     if type(h) ~= "number" then return end
-    self.skin.Height = h
+    self.skin.RowHeight = h
     self:SizeChanged()
 end
 
---- Every sized part follows the plate: the plate texture, the bar, the fill
---- (at its current fraction) and the frame's own hook (a plate refits its
---- icon).
+--- Every sized part follows the plate: the header, the body, the plate wash,
+--- the second-line bar and fill (at its current fraction) and the frame's
+--- own hook.
 function Frame:SizeChanged()
     if not self.anchor then return end
-    self.anchor:SetSize(self.skin.Width, self.skin.Height)
-    local ins = self.skin.Inset
-    if self.plate then
-        self.plate:SetSize(self.skin.Width - 2 * ins,
-            self.skin.Height - 2 * ins)
+    local s = self.skin
+    local plateH = self:_PlateHeight()
+    self.anchor:SetSize(s.Width, s.Height)
+    if self.body then
+        self.body:SetSize(s.Width, plateH)
     end
-    local barW = self.skin.Width - 2 * ins
-    local barH = self.barHeight or (self.skin.Height - 2 * ins)
-    if self.bar then
-        self.bar:SetSize(barW, barH)
-        self.fillBarW = barW
-        if self.fill then
-            self.fill:SetSize(self._fillW or barW, barH)
-        end
+    if self.plate then
+        self.plate:SetSize(s.Width - 2 * s.Inset, plateH - 2 * s.Inset)
+    end
+    local rowW = s.Width - 2 * s.Border
+    if self.row then
+        self.row:SetSize(rowW, s.RowHeight)
+    end
+    self.fillBarW = rowW
+    if self.fill then
+        self.fill:SetSize(self._fillW or 0, s.RowHeight)
     end
     if self.SizeChangedHook then self:SizeChangedHook() end
 end
 
---- The fill's width for a fraction (0..1) of the bar.
+--- Show/hide the second line and grow/shrink the plate with it
+--- (Forte_Soulstone.lua:235: the backdrop height rides the row count).
+function Frame:SetRowShown(on)
+    on = not not on
+    if on == self._rowShown then return end
+    self._rowShown = on
+    if self.row then
+        if on then self.row:Show() else self.row:Hide() end
+    end
+    self:SizeChanged()
+end
+
+--- The fill's width for a fraction (0..1) of the second-line bar.
 function Frame:SetFillFraction(f)
     if type(f) ~= "number" then f = 0 end
     if f < 0 then f = 0 elseif f > 1 then f = 1 end
     self._fillFrac = f
     if not self.fill then return end
-    local w = (self.fillBarW or (self.skin.Width - 2 * self.skin.Inset)) * f
+    local w = (self.fillBarW
+        or (self.skin.Width - 2 * self.skin.Border)) * f
     self._fillW = w
-    self.fill:SetSize(w, self.barHeight
-        or (self.skin.Height - 2 * self.skin.Inset))
+    self.fill:SetSize(w, self.skin.RowHeight)
 end
 
 -- ------------------------------------------------------------------ colour --
 
---- The plate backdrop wash.
+--- The plate backdrop wash (Forte_Soulstone.lua:659 is its default).
 function Frame:SetBgColor(col)
     if type(col) ~= "table" then return end
     local c = self.skin.BgColor
@@ -463,12 +669,13 @@ function Frame:SetBgColor(col)
     if self.plate then
         self.plate:SetVertexColor(c[1], c[2], c[3], c[4])
     end
+    self:_ApplyBackdrop()
 end
 
---- The bar fill colour (the two timer bars); a plate frame has no fill.
+--- The bar colour (the second-line fill + its 0.5 Back tint).
 --- The bar fill colour. `key` names the key it arrived on: the frame's own
 --- colour key (SoulstoneColor, SummonColor) is the specific answer and wins
---- over the General page's shared BarColor (the Reminder's shared font law).
+--- over the General page's shared BarColor (the Reminder's shared-font law).
 function Frame:SetBarColor(col, key)
     if type(col) ~= "table" then return end
     if key == "BarColor" then self._sharedBar = col else self._ownBar = col end
@@ -477,16 +684,17 @@ function Frame:SetBarColor(col, key)
     self:ApplyBarColor()
 end
 
---- The shared `Warlock.BarColor` is the icon PLATE wash: only a frame with a
---- plate and no fill consumes it, so a plate colour can not repaint a bar.
+--- The shared `Warlock.BarColor` is the icon PLATE wash: it recolours the
+--- plate, never a bar fill (a plate colour can not repaint a bar).
 function Frame:SetPlateOnly(col)
-    if self.fill then return end
-    local c = self.skin.BarColor
-    c[1], c[2], c[3], c[4] = col and col[1] or 1, col and col[2] or 1,
-        col and col[3] or 1, col and col[4] or 1
+    if type(col) ~= "table" then return end
+    local c = self.skin.BgColor
+    c[1], c[2], c[3], c[4] = col[1] or 1, col[2] or 1,
+        col[3] or 1, col[4] or 1
     if self.plate then
         self.plate:SetVertexColor(c[1], c[2], c[3], c[4])
     end
+    self:_ApplyBackdrop()
 end
 
 --- The plate wash during a cooldown: the dim, not a colour.
@@ -502,6 +710,11 @@ function Frame:ApplyBarColor()
     c = c or self.skin.BarColor
     if self.fill and c then
         self.fill:SetVertexColor(c[1], c[2], c[3], c[4])
+    end
+    if self.rowBack and c then
+        -- The bar's Back rides the fill colour at alpha 0.5
+        -- (Forte_Soulstone.lua:216).
+        self.rowBack:SetVertexColor(c[1], c[2], c[3], 0.5)
     end
 end
 
@@ -525,9 +738,6 @@ function Frame:ApplyTextColor()
         for fs in pairs(self.fonts) do
             fs:SetVertexColor(c[1], c[2], c[3], c[4])
         end
-    end
-    if self.text then
-        self.text:SetVertexColor(c[1], c[2], c[3], c[4])
     end
 end
 
@@ -566,7 +776,7 @@ function Frame:SetStrikethrough(on)
     on = not not on
     if on == self.state.strike then return end
     self.state.strike = on
-    local strings = { self.text, self.sourceFS, self.cdText }
+    local strings = { self.amountFS, self.infoFS, self.nameFS, self.timeFS }
     for _, fs in ipairs(strings) do
         if fs and fs.SetStrikethrough then fs:SetStrikethrough(on) end
     end
@@ -592,11 +802,19 @@ function Frame:SetShowTime(on)
     self:ApplyTextVisibility()
 end
 
---- Which strings ShowTime owns. The base (bars): the frame's one label text.
+--- Which strings ShowTime owns. The plate law: the right label and the
+--- second line's clock are the label text; the plate, the count and the
+--- second line's target are the module's core readout.
 function Frame:ApplyTextVisibility()
     if not self._shown then return end
-    if self.text then
-        if self.state.showTime then self.text:Show() else self.text:Hide() end
+    if self.amountFS then self.amountFS:Show() end
+    if self.infoFS then
+        if self.state.showTime then self.infoFS:Show() else self.infoFS:Hide() end
+    end
+    if self.nameFS and self._rowShown then self.nameFS:Show() end
+    if self.timeFS then
+        if self.state.showTime and self._rowShown then self.timeFS:Show()
+        else self.timeFS:Hide() end
     end
 end
 

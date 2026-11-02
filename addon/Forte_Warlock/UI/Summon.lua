@@ -1,24 +1,33 @@
 -- addon/Forte_Warlock/UI/Summon.lua
--- FX.Warlock.Summon: the Summon Assistant's channel indicator. One
--- Classic-skinned bar that fills while the SUMMONING channel runs and retires
--- when it ends. All STATE lives in Core/Tools.lua's SummonTracker; this file
--- is a pure renderer of `:Channeling()`, `:Target()`, `:Progress()` (the
--- assignment's names) plus the channel window (PLAN §3.4 "pure renderer").
+-- FX.Warlock.Summon: the Summon Assistant's channel plate — the original's
+-- plate (Forte_Summon.xml:89-114, every constant cited in UI/Frame.lua): the
+-- SU1 icon at the plate's left (Forte_Summon.xml:146), the active-count
+-- `x<n>` next to it (the `x`..count format, Forte_Summon.lua:165), the right
+-- label carrying the channel's `mm:ss` (the plate's Info slot,
+-- Forte_Summon.xml:107-111), and the second line: the target at the bar's
+-- left and the clock at its right (Forte_Summon.xml:14-25, the bar pair
+-- geometry the Soulstone bars share, Forte_Soulstone.xml:42-51). The bar
+-- rides the summoning purple, SummoningColor {0.64,0.21,0.93}
+-- (Forte_Summon.lua:597), and runs FORWARD with the channel (the bar fills
+-- as the cast proceeds).
+--
+-- All STATE lives in Core/Tools.lua's SummonTracker; this file is a pure
+-- renderer of `:Channeling()`, `:Progress()` (the assignment's names) plus
+-- the channel window (PLAN §3.4 "pure renderer").
 --
 -- The original's Summon Assistant was a raid chat conductor (spec §6,
 -- SU-01…SU-09: the portal/summon queues, whisper traffic, the role map, the
 -- "SUMMON ME" spam). docs/warlock-tools.md deliberately drops ALL of it: the
 -- v1 keeps the state machine — the channel, the target, the success and the
--- cancel — and the one widget that state machine needs: the short channel
--- indicator. Nothing is announced, nothing is queued.
+-- cancel — and the one widget that state machine needs: the channel plate.
+-- Nothing is announced, nothing is queued.
 --
--- The channel law (the 2012 baseline's `Forte_Summon` geometry, the
--- 140x12 bar with the label above it and the summoning-purple fill,
--- /tmp/fxref/Forte_Summon/Forte_Summon.lua:11-21): the fill runs FORWARD with
--- the channel (the bar fills as the cast proceeds, the way the original's
--- `SummoningTime` bar does), the label reads `Summoning <target> mm:ss` with
--- the seconds running out, and the bar lives only while the channel does —
--- SU-09's "the indicator retires the moment the cast ends", no lingering.
+-- The channel law: the plate lives only while the channel does — SU-09's
+-- "the indicator retires the moment the cast ends", no lingering. Unlike the
+-- Soulstone plate (a standing readout), the original's Summon frame rides
+-- the live summons (`SU_DrawSummon` prints counts of CURRENT summoners,
+-- Forte_Summon.lua:156-166), and an idle Summon plate would claim a ritual
+-- that is not running: no channel, no plate.
 --
 -- The target law: the tracker hands over ONE string it owns (captured at the
 -- channel's first signal, from the combat-log payload,
@@ -27,7 +36,9 @@
 -- The 10 Hz law: `Update` returns TRUE while a channel is live.
 --
 -- Skin/position/settings/lock/clock: the shared law in UI/Frame.lua.
--- Settings (module "Warlock"): SummonWidth/Height/Color/Strikethrough.
+-- Settings (module "Warlock"): SummonWidth (the plate width), SummonHeight
+-- (the second-line bar height, the original's SummonHeight,
+-- Forte_Summon.lua:587), SummonColor, SummonStrikethrough.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -37,7 +48,7 @@ local Frame = FX.Warlock.Frame
 local Summon = Frame:new({
     name = "Summon",
     dbKey = "summon",
-    size = { Width = 140, Height = 12, Point = "CENTER", X = 60, Y = -240 },
+    size = { Width = 106, Height = 20, Point = "CENTER", X = 60, Y = -240 },
     module = "Warlock",
     sharedModule = "General",
     lockKey = "Lock",
@@ -45,9 +56,9 @@ local Summon = Frame:new({
              "SummonStrikethrough" },
     keymap = {
         SummonEnable = "SetEnabled",
-        SummonWidth = "SetWidth",
-        SummonHeight = "SetHeight",
-        SummonColor = "SetBarColor",
+        SummonWidth = "SetWidth",                -- the plate width
+        SummonHeight = "SetRowHeight",           -- the bar height, :587
+        SummonColor = "SetBarColor",             -- Forte_Summon.lua:597
         SummonStrikethrough = "SetStrikethrough",
     },
 })
@@ -56,56 +67,20 @@ FX.Warlock.Summon = Summon
 local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
 
 FX.Warlock.SummonSkin = setmetatable({
-    Width = 140, Height = 12,
-    Inset = 3,
-    EdgeTexture = TEX .. "Aluminium",       -- the bar's frame art
-    FillTexture = TEX .. "Smooth.tga",      -- the vendored smooth fill
-    BarColor = { 0.64, 0.21, 0.93, 1 },   -- the summoning category tint
-    TextOffset = 11,
-    TextSize = 11,
+    Width = 106, Height = 20,
+    RowHeight = 12,                              -- Forte_Summon.lua:587
+    IconTexture = TEX .. "SU1",                  -- Forte_Summon.xml:146
+    BarColor = { 0.64, 0.21, 0.93, 1 },           -- Forte_Summon.lua:597
+    TextSize = 11,                               -- Forte_Core.lua:2547
 }, { __index = FX.Warlock.FrameSkin })
 Summon.skin = FX.Warlock.SummonSkin
-Summon.sizeDefaults = { Width = 140, Height = 12, Point = "CENTER",
+Summon.sizeDefaults = { Width = 106, Height = 20, Point = "CENTER",
                         X = 60, Y = -240 }
-Summon.TEXT_DY = 11
 
-function Summon:_NewBar()
-    local h = self.skin.Height - 2 * self.skin.Inset
-    self.barHeight = h
-    local bar = self:_NewPlate(self.skin.Width, self.skin.Height,
-        self.skin.Inset, self.skin.BgColor)
-    self.plate:Hide()
-    return bar
-end
-
---- The fill runs forward with the channel, left-anchored inside the bar.
-function Summon:_NewFillBar()
-    local c = self.skin.BarColor
-    self.fillBarColor = c
-    self.fill = self.anchor:CreateTexture()
-    self.fill:SetTexture(self.skin.FillTexture or (TEX .. "Aluminium"))
-    self.fill:SetPoint("LEFT", self.bar, "LEFT", 0, 0)
-    self.fill:SetSize(0, self.barHeight)
-    self.fill:SetDrawLayer("OVERLAY")
-    self.fill:SetVertexColor(c[1], c[2], c[3], c[4])
-end
-
-function Summon:_Build()
-    Frame._Build(self)
-    if self.icon or self.fill then return end
-    self:_NewFillBar()
-end
+-- ----------------------------------------------------------------- the art --
 
 function Summon:SizeChangedHook()
     self:SetFillFraction(self._fillFrac or 0)
-end
-
---- `Summoning <target> mm:ss` (the original's `SummoningText` content,
---- Forte_Summon.lua:142).
-function Summon:FormatText(target, remaining)
-    local who = target
-    if type(who) ~= "string" or who == "" then who = "(target unread)" end
-    return string.format("Summoning %s %s", who, Frame.FormatClock(remaining))
 end
 
 -- ------------------------------------------------------------------ update --
@@ -126,28 +101,46 @@ function Summon:Update(now)
     end
     self:SetShown(live)
     if not live then return false end
+    self:SetRowShown(true)
     if frac ~= self._frac then
         self._frac = frac
         self:SetFillFraction(frac)
     end
+    -- The count: one ritual channeling (the plate's count slot,
+    -- Forte_Summon.lua:165).
+    if self.amountFS:GetText() ~= "x1" then
+        self.amountFS:SetText("x1")
+    end
     local key = Frame.ClockKey(remaining)
     if key ~= self._timeKey then
         self._timeKey = key
-        self.text:SetText(self:FormatText(t:Snapshot().target, remaining))
+        local clock = Frame.FormatClock(remaining)
+        self.timeFS:SetText(clock)
+        self.infoFS:SetText(clock)               -- the plate's Info slot,
+    end                                          -- Forte_Summon.xml:107-111
+    local who = Frame.FormatTarget(t:Snapshot().target)
+    if who ~= self._target then
+        self._target = who
+        self.nameFS:SetText(who)
     end
+    self:ApplyTextVisibility()
     return true
 end
 
 function Summon:RenderIdle()
-    self._frac, self._timeKey = nil, nil
+    self._frac, self._timeKey, self._target = nil, nil, nil
+    self:SetRowShown(false)
     self:SetShown(false)
-    if self.text then self.text:SetText("") end
+    self.amountFS:SetText("")
+    self.infoFS:SetText("")
+    self.nameFS:SetText("")
+    self.timeFS:SetText("")
 end
 
 --- The injected-tracker seam (tests, launch-day probes).
 function Summon:SetTracker(tracker)
     self.Tracker = tracker
-    self._frac, self._timeKey = nil, nil
+    self._frac, self._timeKey, self._target = nil, nil, nil
 end
 
 function Summon:StatusLine()

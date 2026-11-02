@@ -1,12 +1,18 @@
 -- addon/Forte_Warlock/tests/test_warlock_ui.lua
 -- wow-ui-sim tests for the warlock UI (UI/Frame.lua + Shards/Soulstone/
--- Healthstone/Summon + UI/Module.lua + Pages/Warlock.lua): the four frames'
--- geometry, their show/hide law driven by INJECTED trackers and an injected
--- clock, the exact label texts, the 10 Hz ask (which frame says "keep
--- ticking"), the kick law (activity is on screen without any OnUpdate), the
--- real OnEvent dispatch through the module's own frame, the live settings
--- seam, the shared lock mirror, the class gate and the four registered
--- options pages.
+-- Healthstone/Summon + UI/Module.lua + Pages/Warlock.lua): the four plates'
+-- geometry (the original's plate law, every constant cited in UI/Frame.lua:
+-- 106x20 header = 100+2*3 x 20, Forte_Soulstone.lua:65 + Forte_Core.lua:479 +
+-- Forte_Soulstone.xml:124; the x<n> count at x=18, Forte_Soulstone.xml:131-138;
+-- the right label at x=-4, Forte_Soulstone.xml:140-146; the second-line bar
+-- 100x12 at (3,-18), Forte_Soulstone.lua:123-124,:670-671), their show/hide
+-- law driven by INJECTED trackers and an injected clock, the exact label
+-- texts, a numeric VISIBILITY PASS over every label (shown, non-empty, inside
+-- its plate: string width <= its slot budget <= plate width), the 10 Hz ask
+-- (which frame says "keep ticking"), the kick law (activity is on screen
+-- without any OnUpdate), the real OnEvent dispatch through the module's own
+-- frame, the live settings seam, the shared lock mirror, the class gate and
+-- the four registered options pages.
 --
 -- Every tracker here is INJECTED (SetTracker): no real time, no bag read, no
 -- cast driving. The sim profile is not a Warlock, so the module's login gate
@@ -37,6 +43,27 @@ local function fakeClock(box)
     return function() return box[1] end
 end
 
+-- The label-visibility pass: every label the plate prints must be SHOWN,
+-- non-empty, measurably narrower than its slot inside the plate (the slot
+-- budgets are the plate's own geometry: 106 wide, the count centred at x=18
+-- from the LEFT, Forte_Soulstone.xml:135, the right label ending at x=-4 from
+-- the RIGHT, Forte_Soulstone.xml:144; the bar pair runs 1..100 minus the
+-- clock's slot, Forte_Soulstone.xml:32,:18). No clipping is possible when
+-- string width <= slot width.
+local function assertVisibleLabel(fs, label, slotW)
+    assertNotNil(fs, label)
+    local t = fs:GetText()
+    assertTrue(type(t) == "string" and t ~= "",
+        label .. ": text non-empty (got " .. tostring(t) .. ")")
+    assertTrue(fs:IsShown(), label .. ": shown")
+    local ok, w = pcall(function() return fs:GetStringWidth() end)
+    assertTrue(ok and type(w) == "number" and w > 0,
+        label .. ": string width is a positive number")
+    assertTrue(w <= slotW,
+        string.format("%s: %q width %.1f exceeds slot %d", label, t, w, slotW))
+    assertTrue(w <= 106, label .. ": width <= plate width")
+end
+
 -- The frames must exist before the geometry tests; the class gate test drives
 -- the teardown path.
 local function ensureBuilt()
@@ -45,7 +72,7 @@ end
 
 -- -------------------------------------------------------------------- init --
 
-test("the four frames build, are named and sized, idempotent, hidden", function()
+test("the four plates build, are named and sized, idempotent, hidden", function()
     UI:_InitViews()
     assertNotNil(Shards.anchor)
     assertEquals("ForteXorcistWarlockShardsAnchor",
@@ -54,34 +81,52 @@ test("the four frames build, are named and sized, idempotent, hidden", function(
     assertNotNil(ForteXorcistWarlockSoulstoneAnchor)
     assertNotNil(HS.anchor)
     assertNotNil(Summon.anchor)
-    assertEquals(34, Shards.anchor:GetWidth())
-    assertEquals(34, Shards.anchor:GetHeight())
-    assertEquals(34, HS.anchor:GetWidth())
-    assertEquals(140, Stone.anchor:GetWidth())
-    assertEquals(12, Stone.anchor:GetHeight())      -- SoulstoneHeight 12
-    assertEquals(140, Summon.anchor:GetWidth())
-    assertEquals(12, Summon.anchor:GetHeight())     -- SummonHeight 12
+    -- 106x20 = the original's FWSSFrame/FWHSFrame/FWSUFrame
+    -- (Forte_Soulstone.xml:124, Forte_Healthstone.xml:83,
+    --  Forte_Summon.xml:91).
+    assertEquals(106, Shards.anchor:GetWidth())
+    assertEquals(20, Shards.anchor:GetHeight())
+    assertEquals(106, HS.anchor:GetWidth())
+    assertEquals(20, HS.anchor:GetHeight())
+    assertEquals(106, Stone.anchor:GetWidth())
+    assertEquals(20, Stone.anchor:GetHeight())
+    assertEquals(106, Summon.anchor:GetWidth())
+    assertEquals(20, Summon.anchor:GetHeight())
+    -- The plate wash: the Background tile inside the 5px Border inset
+    -- (Forte_Soulstone.xml:227-230).
+    assertEquals(96, Shards.plate:GetWidth())
+    assertEquals(10, Shards.plate:GetHeight())
+    -- The 16x16 icon at TOPLEFT (2,-2) (Forte_Soulstone.xml:156,161).
+    assertEquals(16, Shards.icon:GetWidth())
+    assertEquals(16, Shards.icon:GetHeight())
+    -- The second-line bar: Width-2*BORDER x RowHeight = 100x12
+    -- (Forte_Soulstone.lua:65,:670-671).
+    assertEquals(100, Stone.row:GetWidth())
+    assertEquals(12, Stone.row:GetHeight())
+    -- The dark-purple plate default (Forte_Soulstone.lua:659).
+    local pr, pg, pb, pa = Shards.plate:GetVertexColor()
+    near3(pr, 0.31); near3(pg, 0.00); near3(pb, 0.62); near3(pa, 0.75)
     -- Idempotence: a second Init rebuilds nothing.
     UI:_InitViews()
-    assertEquals(140, Stone.anchor:GetWidth())
-    -- Nothing is active: every frame is hidden and none owns a per-frame
-    -- script (the driver is the one ticker, not the frames).
+    assertEquals(106, Stone.anchor:GetWidth())
+    -- Nothing is active: every frame is hidden, no second line, and none owns
+    -- a per-frame script (the driver is the one ticker, not the frames).
     assertFalse(Shards.anchor:IsShown())
     assertFalse(Stone.anchor:IsShown())
     assertFalse(HS.anchor:IsShown())
     assertFalse(Summon.anchor:IsShown())
+    assertFalse(Stone.row:IsShown())
     assertNil(Stone.anchor:GetScript("OnUpdate"))
     -- The 10 Hz driver is its own frame and is ALWAYS shown (a hidden frame
     -- never receives OnUpdate).
     assertNotNil(UI._driver)
     assertEquals("ForteXorcistWarlockUIDriver", UI._driver:GetName())
     assertTrue(UI._driver:IsShown())
-    print("[fxui] font=" .. tostring(Stone.fontFile))
 end)
 
 -- ------------------------------------------------------------ shard plate --
 
-test("Shard Manager: the count renders, the source label rides it", function()
+test("Shard Manager: the x<n> count, the <n> total label, the source line", function()
     ensureBuilt()
     local s = WK.NewShardCounter({
         countReader = function() return nil end,
@@ -94,13 +139,28 @@ test("Shard Manager: the count renders, the source label rides it", function()
     s.count, s.source = 12, "bag"
     Shards:Update(1000)
     assertTrue(Shards.anchor:IsShown())
-    assertEquals("12", Shards.text:GetText())
-    assertEquals("bag", Shards.sourceFS:GetText())
-    assertTrue(Shards.sourceFS:IsShown())
+    -- `x<n>` (the plate's count slot, Forte_Soulstone.lua:292) and the
+    -- right label `<n> total` (the plate's Info slot,
+    -- Forte_Soulstone.xml:140-146; FWL.TOTAL, Localization.lua:48).
+    assertEquals("x12", Shards.amountFS:GetText())
+    assertEquals("12 total", Shards.infoFS:GetText())
+    -- The source label rides the second line.
+    assertTrue(Shards.row:IsShown())
+    assertEquals("bag", Shards.nameFS:GetText())
+    assertTrue(Shards.nameFS:IsShown())
     -- The power source label rides the same seam.
     s.source = "power"
     Shards:Update(1000)
-    assertEquals("power", Shards.sourceFS:GetText())
+    assertEquals("power", Shards.nameFS:GetText())
+    -- Every label: shown, non-empty, fits its slot (count centred at x=18
+    -- of a 106 plate: 30 of room; right label: 56 of room; source line: the
+    -- whole bar).
+    assertVisibleLabel(Shards.amountFS, "shards.amount", 30)
+    assertVisibleLabel(Shards.infoFS, "shards.info", 56)
+    assertVisibleLabel(Shards.nameFS, "shards.source", 98)
+    -- The plate grows with the second line: 20 + (12+1)
+    -- (Forte_Soulstone.lua:235 at n=1).
+    assertEquals(33, Shards.body:GetHeight())
     -- A count is not time-driven: the 10 Hz ask is always false.
     assertFalse(Shards:Update(1001))
     -- Back to "never read" (a secret read leaves the count, so this is the
@@ -113,7 +173,7 @@ test("Shard Manager: the count renders, the source label rides it", function()
     assertFalse(Shards.anchor:IsShown())
 end)
 
-test("Shard Manager: ShowTime off drops the source label, not the count", function()
+test("Shard Manager: ShowTime off drops the labels, not the count", function()
     ensureBuilt()
     local s = WK.NewShardCounter({
         countReader = function() return 3 end,
@@ -123,42 +183,62 @@ test("Shard Manager: ShowTime off drops the source label, not the count", functi
     Shards:SetTracker(s)
     Shards:Update(1000)
     assertTrue(Shards.anchor:IsShown())
-    assertEquals("3", Shards.text:GetText())
+    assertEquals("x3", Shards.amountFS:GetText())
     ST:Set("Warlock", "ShowTime", false)
     Shards:Update(1000)
-    assertTrue(Shards.text:IsShown())
-    assertFalse(Shards.sourceFS:IsShown())
+    assertTrue(Shards.amountFS:IsShown())
+    assertFalse(Shards.infoFS:IsShown())
+    assertFalse(Shards.row:IsShown())        -- the source line is label text
     ST:Set("Warlock", "ShowTime", true)
     Shards:Update(1000)
-    assertTrue(Shards.sourceFS:IsShown())
+    assertTrue(Shards.infoFS:IsShown())
+    assertTrue(Shards.row:IsShown())
 end)
 
--- --------------------------------------------------------- soulstone bar --
+-- --------------------------------------------------------- soulstone plate --
 
-test("Soulstone bar: the label, the depleting fill, the hidden law", function()
+test("Soulstone plate: no ss up, the live pair, the depleting bar", function()
     ensureBuilt()
     local box = { 1000 }
     local t = WK.NewSoulstoneTracker({
         now = fakeClock(box), duration = 1800,
     })
     Stone:SetTracker(t)
-    -- No stone: hidden, no 10 Hz ask.
+    -- The plate is the standing readout: enabled, no stone -> x0 + no ss up
+    -- (Forte_Soulstone.lua:291 + Localization.lua:57), no second line, no ask.
+    Stone:Update(box[1])
+    assertTrue(Stone.anchor:IsShown())
+    assertEquals("x0", Stone.amountFS:GetText())
+    assertEquals("no ss up", Stone.infoFS:GetText())
+    assertFalse(Stone.row:IsShown())
     assertFalse(Stone:Update(box[1]))
-    assertFalse(Stone.anchor:IsShown())
     t:OnCastSent("Create Soulstone", "Gevil")
     t:OnCast("Create Soulstone")
     assertTrue(Stone:Update(box[1]))                -- live: asks for ticks
     assertTrue(Stone.anchor:IsShown())
-    -- `Soulstone: <target> mm:ss`, the assignment's text.
-    assertEquals("Soulstone: Gevil 30:00", Stone.text:GetText())
-    local ins = StS.Inset
-    nearpx(Stone.fill:GetWidth(), StS.Width - 2 * ins)   -- fraction 1
+    assertTrue(Stone.row:IsShown())
+    -- x1 (one live stone, Forte_Soulstone.lua:292), the clock in the right
+    -- label (Forte_Soulstone.lua:291), the bearer at the bar's left, the
+    -- clock at its right (Forte_Soulstone.xml:42-51, :14-27).
+    assertEquals("x1", Stone.amountFS:GetText())
+    assertEquals("30:00", Stone.infoFS:GetText())
+    assertEquals("Gevil", Stone.nameFS:GetText())
+    assertEquals("30:00", Stone.timeFS:GetText())
+    local w = StS.Width - 2 * StS.Border          -- 100 (Forte_Soulstone.lua:65)
+    nearpx(Stone.fill:GetWidth(), w)              -- fraction 1
+    -- The plate body grew with the line: 20 + (12+1) (Forte_Soulstone.lua:235).
+    assertEquals(33, Stone.body:GetHeight())
+    -- The label pass: count slot 30, right label 56, bearer 60, clock 38.
+    assertVisibleLabel(Stone.amountFS, "ss.amount", 30)
+    assertVisibleLabel(Stone.infoFS, "ss.info", 56)
+    assertVisibleLabel(Stone.nameFS, "ss.name", 60)
+    assertVisibleLabel(Stone.timeFS, "ss.time", 38)
     -- 28:43 left of the 30:00 window.
     box[1] = 1000 + 77
     assertTrue(Stone:Update(box[1]))
-    assertEquals("Soulstone: Gevil 28:43", Stone.text:GetText())
+    assertEquals("28:43", Stone.timeFS:GetText())
     nearpx(Stone.fill:GetWidth(),
-        (1723 / 1800) * (StS.Width - 2 * ins))
+        (1723 / 1800) * w)
     -- An unread bearer (the secret SENT target) prints the marker, the
     -- timer stands.
     local t2 = WK.NewSoulstoneTracker({ now = fakeClock(box), duration = 900 })
@@ -166,16 +246,23 @@ test("Soulstone bar: the label, the depleting fill, the hidden law", function()
     t2:OnCastSent("Create Soulstone", nil)
     t2:OnCast("Create Soulstone")
     Stone:Update(box[1])
-    assertEquals("Soulstone: (target unread) 15:00", Stone.text:GetText())
-    -- The window expires: the bar retires with it.
+    assertEquals("(target unread)", Stone.nameFS:GetText())
+    assertEquals("15:00", Stone.timeFS:GetText())
+    -- The window expires: the second line retires with it, the plate stays
+    -- on no ss up.
     box[1] = box[1] + 901
     assertFalse(Stone:Update(box[1]))
-    assertFalse(Stone.anchor:IsShown())
+    assertTrue(Stone.anchor:IsShown())
+    assertFalse(Stone.row:IsShown())
+    assertEquals("x0", Stone.amountFS:GetText())
+    assertEquals("no ss up", Stone.infoFS:GetText())
+    assertEquals(20, Stone.body:GetHeight())
+    Stone:RenderIdle()
 end)
 
 -- ------------------------------------------------------- healthstone plate --
 
-test("Healthstone: shows on presence, dims and counts the cooldown down", function()
+test("Healthstone: the Total line, the icon swap, the cooldown dim and clock", function()
     ensureBuilt()
     local box = { 2000 }
     local h = WK.NewHealthstoneTracker({
@@ -190,35 +277,50 @@ test("Healthstone: shows on presence, dims and counts the cooldown down", functi
     h:ReadCounts()                      -- the bag read Tools:ReadItems drives
     HS:Update(box[1])
     assertTrue(HS.anchor:IsShown())
-    assertEquals("2", HS.text:GetText())
+    -- `x2` in the count slot (Forte_Healthstone.lua:164); the icon art rides
+    -- the stone state (HS2 with stones, Forte_Healthstone.lua:168).
+    assertEquals("x2", HS.amountFS:GetText())
+    assertEquals("Interface\\AddOns\\Forte_Core\\Textures\\HS2", HS._iconArt)
+    -- The second line: `Total` at the bar's left (FWL.TOTAL,
+    -- Forte_Healthstone/Localization.lua:48, Forte_Healthstone.lua:197), the
+    -- count at its right (the bar Amount, Forte_Healthstone.lua:139).
+    assertTrue(HS.row:IsShown())
+    assertEquals("Total", HS.nameFS:GetText())
+    assertEquals("2", HS.timeFS:GetText())
+    nearpx(HS.fill:GetWidth(), HSS.Width - 2 * HSS.Border)
     assertEquals(1, HS.plate:GetAlpha())          -- ready: full alpha
-    assertFalse(HS.cdText:IsShown())
+    assertFalse(HS.infoFS:IsShown())              -- no cooldown, no clock
+    assertVisibleLabel(HS.amountFS, "hs.amount", 30)
+    assertVisibleLabel(HS.nameFS, "hs.total", 60)
+    assertVisibleLabel(HS.timeFS, "hs.amount2", 38)
     assertFalse(HS:Update(box[1]))               -- a count asks for no tick
-    -- The stone goes on cooldown: the plate dims, mm:ss appears, the frame
-    -- asks for the 10 Hz pass.
+    -- The stone goes on cooldown: the plate dims, mm:ss in the right label,
+    -- the frame asks for the 10 Hz pass.
     h.cdStart, h.cdDuration = 2000, 180
     box[1] = 2060
     assertTrue(HS:Update(box[1]))
-    assertTrue(HS.cdText:IsShown())
-    assertEquals("2:00", HS.cdText:GetText())
+    assertTrue(HS.infoFS:IsShown())
+    assertEquals("2:00", HS.infoFS:GetText())
+    assertVisibleLabel(HS.infoFS, "hs.cd", 56)
     near3(HS.plate:GetAlpha(), HSS.CooldownAlpha)
     box[1] = 2100
     HS:Update(box[1])
-    assertEquals("1:20", HS.cdText:GetText())
-    -- The cooldown self-expires: full alpha, no text, no tick ask.
+    assertEquals("1:20", HS.infoFS:GetText())
+    -- The cooldown self-expires: full alpha, no clock, no tick ask.
     box[1] = 2181
     assertFalse(HS:Update(box[1]))
-    assertFalse(HS.cdText:IsShown())
+    assertFalse(HS.infoFS:IsShown())
     assertEquals(1, HS.plate:GetAlpha())
-    -- A known-empty bag hides the plate.
+    -- A known-empty bag hides the plate (and the icon is the no-stones art,
+    -- Forte_Healthstone.lua:172).
     h.count, h.present = 0, false
     HS:Update(box[1])
     assertFalse(HS.anchor:IsShown())
 end)
 
--- ---------------------------------------------------------- summon channel --
+-- ------------------------------------------------------------ summon plate --
 
-test("Summon: the channel fills the bar and ends with the cast", function()
+test("Summon: the channel runs the bar and retires with the cast", function()
     ensureBuilt()
     local box = { 5000 }
     local s = WK.NewSummonTracker({
@@ -230,14 +332,23 @@ test("Summon: the channel fills the bar and ends with the cast", function()
     s:OnCastSent("Ritual of Summoning", "Alice")
     assertTrue(Summon:Update(box[1]))            -- a channel asks for ticks
     assertTrue(Summon.anchor:IsShown())
-    local ins = SuS.Inset
+    assertTrue(Summon.row:IsShown())
+    assertEquals("x1", Summon.amountFS:GetText())
+    assertEquals("Alice", Summon.nameFS:GetText())
+    assertEquals("0:05", Summon.timeFS:GetText())
+    assertEquals("0:05", Summon.infoFS:GetText())
+    assertVisibleLabel(Summon.amountFS, "su.amount", 30)
+    assertVisibleLabel(Summon.infoFS, "su.info", 56)
+    assertVisibleLabel(Summon.nameFS, "su.name", 60)
+    assertVisibleLabel(Summon.timeFS, "su.time", 38)
+    local w = SuS.Width - 2 * SuS.Border
     nearpx(Summon.fill:GetWidth(), 0)
-    assertEquals("Summoning Alice 0:05", Summon.text:GetText())
     box[1] = 5002.5
     assertTrue(Summon:Update(box[1]))
-    nearpx(Summon.fill:GetWidth(), 0.5 * (SuS.Width - 2 * ins))
-    assertEquals("Summoning Alice 0:02", Summon.text:GetText())
-    -- The channel ends (the tracker retires the prediction).
+    nearpx(Summon.fill:GetWidth(), 0.5 * w)
+    assertEquals("0:02", Summon.timeFS:GetText())
+    -- The channel ends (the tracker retires the prediction): the plate
+    -- retires with it (SU-09).
     s:End("Ritual of Summoning", "succeeded")
     assertFalse(Summon:Update(5010))
     assertFalse(Summon.anchor:IsShown())
@@ -247,7 +358,8 @@ test("Summon: the channel fills the bar and ends with the cast", function()
     Summon:SetTracker(s2)
     s2:OnCastStart("Ritual of Summoning")
     Summon:Update(6000)
-    assertEquals("Summoning (target unread) 0:05", Summon.text:GetText())
+    assertEquals("(target unread)", Summon.nameFS:GetText())
+    assertEquals("0:05", Summon.timeFS:GetText())
     Summon:RenderIdle()
 end)
 
@@ -255,7 +367,7 @@ end)
 -- Manager regression (found live on uiforever 2026-11-02, the Hunter swing
 -- bar's bug): a hidden frame never receives OnUpdate, so activity must be on
 -- screen from the kick alone. No Update call in these tests.
-test("a kick renders the active frames without any OnUpdate", function()
+test("a kick renders the active plates without any OnUpdate", function()
     ensureBuilt()
     UI:StopTicking()
     local box = { 9000 }
@@ -279,7 +391,8 @@ test("a kick renders the active frames without any OnUpdate", function()
     local animating = UI:Kick({ "Soulstone", "Summon", "Healthstone", "Shards" },
         box[1])
     assertTrue(animating, "a live window asks for the ticker")
-    assertTrue(Stone.anchor:IsShown(), "the kick must render the bar itself")
+    assertTrue(Stone.anchor:IsShown(), "the kick must render the plate itself")
+    assertTrue(Stone.row:IsShown(), "and its second line")
     assertTrue(Summon.anchor:IsShown())
     assertTrue(HS.anchor:IsShown())
     assertTrue(Shards.anchor:IsShown())
@@ -328,7 +441,8 @@ test("real OnEvent dispatch drives the views it is routed to", function()
     -- A real UNIT_SPELLCAST_SENT payload: (unitTarget, target, castGUID,
     -- spellID). The UI reads none of it; it is a kick for the soulstone.
     h(f, "UNIT_SPELLCAST_SENT", "player", "Gevil", "Cast-0-1-1", 20757)
-    assertTrue(Stone.anchor:IsShown(), "the routed kick rendered the bar")
+    assertTrue(Stone.anchor:IsShown(), "the routed kick rendered the plate")
+    assertTrue(Stone.row:IsShown(), "with the live second line")
     -- A real bag event reaches the shard plate (payload = the changed itemID).
     Shards:RenderIdle()
     h(f, "ITEM_COUNT_CHANGED", 5720)
@@ -346,27 +460,30 @@ end)
 
 -- ----------------------------------------------------------- live settings --
 
-test("Warlock settings drive the four frames live", function()
+test("Warlock settings drive the four plates live", function()
     ensureBuilt()
     assertNotNil(ST)
     assertTrue(ST:IsRegistered("Warlock"))
-    -- Sizes.
+    -- Sizes: the plate width (Forte_Soulstone.xml:124) and the second-line
+    -- bar height (Forte_Soulstone.lua:671, Forte_Summon.lua:587).
     ST:Set("Warlock", "SoulstoneWidth", 200)
     assertEquals(200, Stone.anchor:GetWidth())
+    assertEquals(194, Stone.row:GetWidth())      -- Width - 2*3
     ST:Reset("Warlock", "SoulstoneWidth")
-    assertEquals(140, Stone.anchor:GetWidth())
+    assertEquals(106, Stone.anchor:GetWidth())
     ST:Set("Warlock", "SummonHeight", 20)
-    assertEquals(20, Summon.anchor:GetHeight())
+    assertEquals(20, Summon.row:GetHeight())
     ST:Reset("Warlock", "SummonHeight")
-    assertEquals(12, Summon.anchor:GetHeight())
-    ST:Set("Warlock", "ShardSize", 48)           -- a plate is square
-    assertEquals(48, Shards.anchor:GetWidth())
-    assertEquals(48, Shards.anchor:GetHeight())
+    assertEquals(12, Summon.row:GetHeight())     -- SoulstoneHeight 12
+    ST:Set("Warlock", "ShardSize", 150)          -- the plate width
+    assertEquals(150, Shards.anchor:GetWidth())
+    assertEquals(20, Shards.anchor:GetHeight())  -- the header row stays 20
     ST:Reset("Warlock", "ShardSize")
-    assertEquals(34, Shards.anchor:GetWidth())
-    ST:Set("Warlock", "HealthstoneSize", 44)
-    assertEquals(44, HS.anchor:GetWidth())
+    assertEquals(106, Shards.anchor:GetWidth())
+    ST:Set("Warlock", "HealthstoneSize", 144)
+    assertEquals(144, HS.anchor:GetWidth())
     ST:Reset("Warlock", "HealthstoneSize")
+    assertEquals(106, HS.anchor:GetWidth())
     -- Colours.
     ST:Set("Warlock", "SoulstoneColor", { 1, 0, 0, 1 })
     local r, g, b = Stone.fill:GetVertexColor()
@@ -381,18 +498,18 @@ test("Warlock settings drive the four frames live", function()
     -- The colour lands on the fontstring's vertex (the shipped widgets'
     -- text-colour idiom); the client's text-colour getter is a different
     -- property, so the assertion reads the one the frame writes.
-    -- The count text carries the colour law: the frame's own key wins over
-    -- the General page's shared TextColor (the Reminder's shared-font law).
-    local sr, sg, sb = Shards.text:GetVertexColor()
+    local sr, sg, sb = Shards.amountFS:GetVertexColor()
     assertTrue(sr < 0.01 and sg > 0.99 and sb < 0.01,
         string.format("shard vertex=%.2f/%.2f/%.2f own2=%s", sr, sg, sb,
             tostring(Shards._ownText and Shards._ownText[2])))
     ST:Reset("Warlock", "ShardColor")
-    -- The shared plate colour reaches the plates, never the bar fills.
+    -- The shared plate colour reaches the PLATE washes of all four frames,
+    -- never the bar fills (a plate colour can not repaint a bar).
     local beforeR = Stone.fill:GetVertexColor()
     ST:Set("Warlock", "BarColor", { 0.5, 0.5, 0.5, 1 })
     local pr = Shards.plate:GetVertexColor()
     near3(pr, 0.5)
+    near3(Stone.plate:GetVertexColor(), 0.5)
     near3(Stone.fill:GetVertexColor(), beforeR)
     ST:Reset("Warlock", "BarColor")
     -- The master switch off hides every frame live.
@@ -426,20 +543,21 @@ test("Warlock settings drive the four frames live", function()
     assertFalse(Stone.anchor:IsShown())
     assertTrue(Shards.anchor:IsShown())
     ST:Reset("Warlock", "SoulstoneEnable")
-    -- The General page's shared bar font reaches the frames' texts.
+    -- The General page's shared bar font reaches the plates' texts: the URW
+    -- Gothic lookalike at the original's 11 (Forte_Core.lua:2547).
     local shipped = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
-    assertTrue(Stone.text:GetFont():lower() == shipped:lower())
+    assertTrue(Stone.infoFS:GetFont():lower() == shipped:lower())
+    assertEquals(11, StS.TextSize)
     -- A font file the client can not load is REFUSED (the shipped font
     -- validation law of Forte_Options/Forte_Hunter): the label keeps the
     -- shipped face, it does not go blank.
     ST:Set("General", "BarFont", "Interface\\AddOns\\Forte_Core\\Fonts\\NOPE.ttf")
-    assertTrue(Stone.text:GetFont():lower() == shipped:lower(),
-        "a missing font file is refused, " .. Stone.text:GetFont())
+    assertTrue(Stone.infoFS:GetFont():lower() == shipped:lower(),
+        "a missing font file is refused, " .. Stone.infoFS:GetFont())
     ST:Reset("General", "BarFont")
-    assertTrue(Stone.text:GetFont():lower() == shipped:lower())
+    assertTrue(Stone.infoFS:GetFont():lower() == shipped:lower())
     Stone:RenderIdle()
     Shards:RenderIdle()
-    print("[fxui] text font=" .. Stone.text:GetFont())
 end)
 
 -- -------------------------------------------------------------------- lock --
@@ -463,7 +581,6 @@ test("Lock: the frames publish Warlock.Lock; GlobalLock and the Cooldown bar mov
     -- The General page's Global Frame Lock (= /fx lock|unlock) drives ours.
     ST:Set("General", "GlobalLock", false)
     assertFalse(Stone.cfg.locked)
-    assertTrue(Stone.anchor:IsShown() == false or true)
     ST:Set("General", "GlobalLock", true)
     assertTrue(Stone.cfg.locked)
     assertEquals(true, ST:Get("Warlock", "Lock"))
@@ -590,8 +707,8 @@ test("Status prints one line per built frame", function()
     assertContains(lines[2], "Soulstone Tracker")
     assertContains(lines[3], "Healthstone")
     assertContains(lines[4], "Summon Assistant")
-    assertContains(Shards:StatusLine(), "34x34")
-    assertContains(Stone:StatusLine(), "140x12")
+    assertContains(Shards:StatusLine(), "106x20")
+    assertContains(Stone:StatusLine(), "106x20")
 end)
 
 test("the clock format is the original's compact m:ss", function()
@@ -605,4 +722,10 @@ test("the clock format is the original's compact m:ss", function()
     assertEquals("0:00", Frame.FormatClock(-5))
     assertEquals(1723, Frame.ClockKey(1723.4))
     assertEquals(-1, Frame.ClockKey(nil))
+    -- The plate count format (Forte_Soulstone.lua:292).
+    assertEquals("x31", Frame.FormatAmount(31))
+    -- The target law.
+    assertEquals("(target unread)", Frame.FormatTarget(nil))
+    assertEquals("(target unread)", Frame.FormatTarget(""))
+    assertEquals("Meinhertz", Frame.FormatTarget("Meinhertz"))
 end)

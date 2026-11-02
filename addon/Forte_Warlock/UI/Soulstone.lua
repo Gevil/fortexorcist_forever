@@ -1,34 +1,46 @@
 -- addon/Forte_Warlock/UI/Soulstone.lua
--- FX.Warlock.Soulstone: the Soulstone Tracker. One Classic-skinned bar under
--- the Shard plate that says `Soulstone: <target> mm:ss` while a soulstone
--- window is running, and is hidden otherwise. All STATE lives in
--- Core/Tools.lua's SoulstoneTracker (`docs/warlock-tools.md` — the
--- single-owner ledger, the expiry window, the one target string, the
+-- FX.Warlock.Soulstone: the Soulstone Tracker — the original's plate
+-- (Forte_Soulstone.xml:122-146, every constant cited in UI/Frame.lua): the
+-- SS1 icon at the plate's left (Forte_Soulstone.xml:182), the live-stone
+-- count `x<n>` next to it (the count format of Forte_Soulstone.lua:292), the
+-- right label `no ss up` while no stone is up (Forte_Soulstone.lua:291 with
+-- Localization.lua:57) and the remaining clock while one is, and the second
+-- line: the bearer's name at the bar's left, the `mm:ss` at its right
+-- (Forte_Soulstone.xml:42-51, :14-27), the bar draining with the window.
+--
+-- All STATE lives in Core/Tools.lua's SoulstoneTracker (`docs/warlock-tools.md`
+-- — the single-owner ledger, the expiry window, the one target string, the
 -- "swept stone is a window, not a read"); this file is a pure renderer of
 -- `:Active()`, `:Target()`, `:Remaining()`, `:Duration()` (PLAN §3.4 "pure
 -- renderer").
 --
 -- Law line (docs/reference-functional-spec.md §4, SS-01…SS-06): the widget
 -- runs its OWN timer — it is not a cooldown-bar entry — and it counts the
--- window DOWN from the tracked expiry, never from a fresh constant. The
--- 2012 mod's own widget is the shape this copies: one bar, the bearer's name
--- and a compact clock on it (the original's `SoulstoneText`,
--- /tmp/fxref/Forte_Soulstone/Forte_Soulstone.lua:206-224), the fill draining
--- with the window.
+-- window DOWN from the tracked expiry, never from a fresh constant.
+--
+-- Show law: the PLATE is the module's standing readout — it rides the module
+-- switch (the original's `SoulstoneEnable`, Forte_Soulstone.lua:55, and its
+-- idle plate prints `no ss up`, Forte_Soulstone.lua:291). A warlock's login
+-- is a KNOWN idle state (the module's PLAYER_ENTERING_WORLD kick), so the
+-- plate has a claim from then on; the second line lives only while a window
+-- does. This widens the pre-v2 "hidden while idle" law by the plate only —
+-- the window, the fill and the second line retire exactly as before.
 --
 -- The target law: the tracker hands over ONE string it owns (the bearer
 -- captured at the stone's STARTED cast); the frame never reads unit fields,
 -- so it can not pick a secret value up. An unread bearer renders
--- `(target unread)` — SS-11's honesty, printed, never hidden (the
--- Hunter swing bar's unread law).
+-- `(target unread)` — SS-11's honesty, printed, never hidden.
 --
 -- The 10 Hz law: `Update` returns TRUE while a window is live, so
 -- UI/Module.lua keeps the driver running for it; when the window expires the
--- bar retires with it.
+-- second line retires with it, the plate staying on `no ss up`.
 --
 -- Skin/position/settings/lock/clock: the shared law in UI/Frame.lua.
--- Settings (module "Warlock"): SoulstoneWidth/Height/Color/Strikethrough;
--- the shared keys ride `General`.
+-- Settings (module "Warlock"): SoulstoneWidth (the plate width),
+-- SoulstoneHeight (the second-line bar height, the original's
+-- SoulstoneHeight, Forte_Soulstone.lua:671), SoulstoneColor (the bar colour,
+-- Forte_Soulstone.xml:119), SoulstoneStrikethrough; the shared keys ride
+-- `General`.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -38,7 +50,7 @@ local Frame = FX.Warlock.Frame
 local Stone = Frame:new({
     name = "Soulstone",
     dbKey = "soulstone",
-    size = { Width = 140, Height = 12, Point = "CENTER", X = 60, Y = -215 },
+    size = { Width = 106, Height = 20, Point = "CENTER", X = 60, Y = -215 },
     module = "Warlock",
     sharedModule = "General",
     lockKey = "Lock",
@@ -46,9 +58,9 @@ local Stone = Frame:new({
              "SoulstoneStrikethrough" },
     keymap = {
         SoulstoneEnable = "SetEnabled",
-        SoulstoneWidth = "SetWidth",
-        SoulstoneHeight = "SetHeight",
-        SoulstoneColor = "SetBarColor",
+        SoulstoneWidth = "SetWidth",             -- the plate width
+        SoulstoneHeight = "SetRowHeight",        -- the bar height, :671
+        SoulstoneColor = "SetBarColor",          -- Forte_Soulstone.xml:119
         SoulstoneStrikethrough = "SetStrikethrough",
     },
 })
@@ -57,67 +69,30 @@ FX.Warlock.Soulstone = Stone
 local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
 
 FX.Warlock.SoulstoneSkin = setmetatable({
-    Width = 140, Height = 12,
-    Inset = 3,
-    EdgeTexture = TEX .. "Aluminium",       -- the bar's frame art
-    FillTexture = TEX .. "Smooth.tga",      -- the vendored smooth fill
-    BarColor = { 0.64, 0.21, 0.93, 1 },      -- the Soulstone category tint
-    TextOffset = 11,                        -- the label rides above the bar
-    TextSize = 11,
+    Width = 106, Height = 20,
+    RowHeight = 12,                              -- Forte_Soulstone.lua:671
+    IconTexture = TEX .. "SS1",                  -- Forte_Soulstone.xml:182
+    BarColor = { 0.64, 0.21, 0.93, 1 },           -- Forte_Soulstone.xml:119
+    TextSize = 11,                               -- Forte_Core.lua:2547
 }, { __index = FX.Warlock.FrameSkin })
 Stone.skin = FX.Warlock.SoulstoneSkin
-Stone.sizeDefaults = { Width = 140, Height = 12, Point = "CENTER",
+Stone.sizeDefaults = { Width = 106, Height = 20, Point = "CENTER",
                        X = 60, Y = -215 }
-Stone.TEXT_DY = 11
+
+-- The plate's idle right label (Forte_Soulstone.lua:291 + Localization.lua:57).
+Stone.NO_SS_UP = "no ss up"
 
 -- ----------------------------------------------------------------- the art --
-
---- The bar box: the Aluminium plate the window drains inside.
-function Stone:_NewBar()
-    local h = self.skin.Height - 2 * self.skin.Inset
-    self.barHeight = h
-    local bar = self:_NewPlate(self.skin.Width, self.skin.Height,
-        self.skin.Inset, self.skin.BgColor)
-    self.plate:Hide()                 -- the bar IS the plate here
-    return bar
-end
-
---- The depleting fill, left-anchored inside the bar.
-function Stone:_NewFillBar()
-    local c = self.skin.BarColor
-    self.fillBarColor = c
-    self.fill = self.anchor:CreateTexture()
-    self.fill:SetTexture(self.skin.FillTexture or (TEX .. "Aluminium"))
-    self.fill:SetPoint("LEFT", self.bar, "LEFT", 0, 0)
-    self.fill:SetSize(self.skin.Width - 2 * self.skin.Inset, self.barHeight)
-    self.fill:SetDrawLayer("OVERLAY")
-    self.fill:SetVertexColor(c[1], c[2], c[3], c[4])
-end
-
-function Stone:_Build()
-    Frame._Build(self)
-    if self.icon or self.fill then return end
-    self:_NewFillBar()
-end
-
-function Stone:ApplyBarColor()
-    Frame.ApplyBarColor(self)
-end
 
 function Stone:SizeChangedHook()
     self:SetFillFraction(self._fillFrac or 1)
 end
 
---- `Soulstone: <target> mm:ss` (the assignment's text, SS-02: the bearer and
---- the window on one line).
-function Stone:FormatText(target, remaining)
-    local who = target
-    if who == nil then
-        who = FX.Compat and FX.Compat.PlainOrNil and FX.Compat.PlainOrNil(target)
-            or nil
-    end
-    if type(who) ~= "string" or who == "" then who = "(target unread)" end
-    return string.format("Soulstone: %s %s", who, Frame.FormatClock(remaining))
+--- The plate's right label while a window runs: the compact remaining clock
+--- (the plate's Time string, Forte_Soulstone.lua:291 — one tracked stone, so
+--- the range collapses to its single endpoint).
+function Stone:FormatInfo(remaining)
+    return Frame.FormatClock(remaining)
 end
 
 -- ------------------------------------------------------------------ update --
@@ -126,51 +101,79 @@ end
 function Stone:Update(now)
     local t = self.Tracker
     local live = false
-    local remaining, duration
+    local remaining, duration, target
     if t and self:Enabled() and t:Active() then
         remaining = t:Remaining()
         if type(remaining) == "number" then
             live = true
             duration = t:Snapshot().duration
+            target = t:Target()
         end
     end
-    self:SetShown(live)
-    if not live then return false end
-    -- The fill drains with the window (SS-01: "fills as the timer runs").
-    local frac = 1
-    if type(duration) == "number" and duration > 0 then
-        frac = remaining / duration
-        if frac < 0 then frac = 0 elseif frac > 1 then frac = 1 end
+    -- The plate rides the module switch (the standing `no ss up` readout).
+    self:SetShown(self:Enabled() and self.state.master)
+    if not self:Enabled() then return false end
+    -- The second line lives with the window (SS-09's retire law).
+    self:SetRowShown(live)
+    -- The count slot: the live stones of the ledger, `x<n>`
+    -- (Forte_Soulstone.lua:292) — one window tracked, x1 live, x0 idle.
+    local n = live and "x1" or "x0"
+    if n ~= self._amt then
+        self._amt = n
+        self.amountFS:SetText(n)
     end
-    if frac ~= self._frac then
-        self._frac = frac
-        self:SetFillFraction(frac)
+    if live then
+        -- The fill drains with the window (SS-01: "fills as the timer runs").
+        local frac = 1
+        if type(duration) == "number" and duration > 0 then
+            frac = remaining / duration
+            if frac < 0 then frac = 0 elseif frac > 1 then frac = 1 end
+        end
+        if frac ~= self._frac then
+            self._frac = frac
+            self:SetFillFraction(frac)
+        end
+        local key = Frame.ClockKey(remaining)
+        if key ~= self._timeKey then
+            self._timeKey = key
+            local clock = Frame.FormatClock(remaining)
+            self.timeFS:SetText(clock)
+            self.infoFS:SetText(self:FormatInfo(remaining))
+        end
+        local who = Frame.FormatTarget(target)
+        if who ~= self._target then
+            self._target = who
+            self.nameFS:SetText(who)
+        end
+    else
+        self._frac, self._timeKey, self._target = nil, nil, nil
+        self.infoFS:SetText(self.NO_SS_UP)
     end
-    local key = Frame.ClockKey(remaining)
-    if key ~= self._timeKey then
-        self._timeKey = key
-        self.text:SetText(self:FormatText(t:Target(), remaining))
-    end
-    return true
+    self:ApplyTextVisibility()
+    return live
 end
 
 function Stone:RenderIdle()
-    self._frac, self._timeKey = nil, nil
+    self._frac, self._timeKey, self._target, self._amt = nil, nil, nil, nil
+    self:SetRowShown(false)
     self:SetShown(false)
-    if self.text then self.text:SetText("") end
+    self.amountFS:SetText("")
+    self.infoFS:SetText("")
+    self.nameFS:SetText("")
+    self.timeFS:SetText("")
 end
 
 --- The injected-tracker seam (tests, launch-day probes).
 function Stone:SetTracker(tracker)
     self.Tracker = tracker
-    self._frac, self._timeKey = nil, nil
+    self._frac, self._timeKey, self._target, self._amt = nil, nil, nil, nil
 end
 
 function Stone:StatusLine()
     local t = self.Tracker
     local active = t and t:Active()
     return string.format("Soulstone Tracker: %s%s | %dx%d | %s",
-        active and "window" or "idle",
+        active and "window" or self.NO_SS_UP,
         active and (" " .. Frame.FormatClock(t:Remaining())) or "",
         self.skin.Width, self.skin.Height,
         self:Enabled() and "on" or "off")

@@ -1,10 +1,19 @@
 -- addon/Forte_Warlock/UI/Healthstone.lua
--- FX.Warlock.Healthstone: the Healthstone Spy's plate. One Classic-skinned
--- plate carrying the HEALTHSTONE count, dimmed while the creation cooldown
--- runs, with `mm:ss` under it while it counts down. All STATE lives in
--- Core/Tools.lua's HealthstoneTracker; this file is a pure renderer of
--- `:Present()`, `:Count()`, `:CooldownRemaining()` (PLAN §3.4 "pure
--- renderer", the Forte_Warlock/UI/Shards.lua shape).
+-- FX.Warlock.Healthstone: the Healthstone Spy's plate — the original's plate
+-- (Forte_Healthstone.xml:81-105, every constant cited in UI/Frame.lua): the
+-- HS1 icon at the plate's left (Forte_Healthstone.xml:150), the count `x<n>`
+-- next to it (`x`..GotHealthstone(), Forte_Healthstone.lua:164), the right
+-- label carrying the stone's item cooldown clock, and the second line: the
+-- `Total` label at the bar's left (FWL.TOTAL,
+-- Forte_Healthstone/Localization.lua:48, printed by Forte_Healthstone.lua:197)
+-- and the count at the bar's right (the bar's Amount, Forte_Healthstone.lua:139
+-- with Forte_Healthstone.xml:14-26). The icon art follows the stone state the
+-- way the original swaps it: HS2 while stones are in the bags, HS3 while they
+-- are not (Forte_Healthstone.lua:168,172).
+--
+-- All STATE lives in Core/Tools.lua's HealthstoneTracker; this file is a pure
+-- renderer of `:Present()`, `:Count()`, `:CooldownRemaining()` (PLAN §3.4
+-- "pure renderer", the Forte_Warlock/UI/Shards.lua shape).
 --
 -- The plate is on screen only while the module KNOWS about stones
 -- (`Present()` non-nil): a known-empty bag hides it, a bag that has never
@@ -15,16 +24,16 @@
 -- HS-01…HS-07: per-member aura scans, roster distance sampling, chat
 -- broadcasts). docs/warlock-tools.md deliberately drops all of it, and the
 -- two sources it kept are trusted "for a count only"; so the v1 is the count
--- plus its cooldown, in our own Classic skin, with no reference geometry to
--- copy.
+-- plus its cooldown on the original's plate, with the original's own plate
+-- geometry.
 --
 -- The 10 Hz law: a KNOWN count is not time-driven (bag events update it), so
 -- the plate asks the driver for a tick only while a cooldown counts down.
 --
 -- Skin/position/settings/lock/clock: the shared law in UI/Frame.lua.
--- Settings (module "Warlock"): HealthstoneSize, HealthstoneStrikethrough,
--- plus the shared Enable/Scale/Alpha/EnableMouse/Lock/ShowTime/BgColor/
--- BarColor.
+-- Settings (module "Warlock"): HealthstoneSize (the plate width),
+-- HealthstoneStrikethrough, plus the shared Enable/Scale/Alpha/EnableMouse/
+-- Lock/ShowTime/BgColor/BarColor.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -34,14 +43,14 @@ local Frame = FX.Warlock.Frame
 local HS = Frame:new({
     name = "Healthstone",
     dbKey = "healthstone",
-    size = { Width = 34, Height = 34, Point = "CENTER", X = 190, Y = -215 },
+    size = { Width = 106, Height = 20, Point = "CENTER", X = 190, Y = -215 },
     module = "Warlock",
     sharedModule = "General",
     lockKey = "Lock",
     keys = { "HealthstoneSize", "HealthstoneStrikethrough" },
     keymap = {
         HealthstoneEnable = "SetEnabled",
-        HealthstoneSize = "SetSize",
+        HealthstoneSize = "SetWidth",            -- the plate width
         HealthstoneStrikethrough = "SetStrikethrough",
     },
 })
@@ -50,38 +59,34 @@ FX.Warlock.Healthstone = HS
 local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
 
 FX.Warlock.HealthstoneSkin = setmetatable({
-    Width = 34, Height = 34,
-    Inset = 3,
-    TextSize = 16,
-    PlateTexture = TEX .. "HS1.blp",        -- the vendored healthstone art
-    EdgeTexture = TEX .. "Aluminium",
+    Width = 106, Height = 20,
+    RowHeight = 12,                              -- Forte_Healthstone.lua:339
+    IconTexture = TEX .. "HS1",                  -- Forte_Healthstone.xml:150
+    -- The healthstone bar colour (HealthstoneMaxColor,
+    -- Forte_Healthstone.lua:328).
+    BarColor = { 0.53, 1.00, 0.00, 1 },
     CooldownAlpha = 0.55,               -- the plate during a creation cooldown
+    TextSize = 11,                               -- Forte_Core.lua:2547
 }, { __index = FX.Warlock.FrameSkin })
 HS.skin = FX.Warlock.HealthstoneSkin
-HS.sizeDefaults = { Width = 34, Height = 34, Point = "CENTER",
+HS.sizeDefaults = { Width = 106, Height = 20, Point = "CENTER",
                     X = 190, Y = -215 }
+
+-- The second line's label (FWL.TOTAL, Forte_Healthstone/Localization.lua:48).
+HS.TOTAL = "Total"
 
 -- ----------------------------------------------------------------- the art --
 
-function HS:_NewText(_dy)
-    local fs = self:_NewFont(0, 0, self.skin.TextSize, "CENTER")
-    fs:SetText("")
-    return fs
-end
-
-function HS:_Build()
-    Frame._Build(self)
-    if self.cdText then return end          -- idempotence (a rebuild is a leak)
-    -- The cooldown text under the plate; ShowTime owns its visibility.
-    self.cdText = self:_NewFont(0, -(self.skin.Height / 2) - 7, 10, "CENTER")
-    self.cdText:SetText("")
-end
-
---- A plate is square: one number drives both edges.
-function HS:SetSize(w, _h)
-    if type(w) ~= "number" then return end
-    self.skin.Width, self.skin.Height = w, w
-    self:SizeChanged()
+--- The icon art rides the stone state (the original's NormalTexture swap,
+--- Forte_Healthstone.lua:168,172).
+function HS:SetIconForCount(count)
+    if not self.icon then return end
+    local art = (type(count) == "number" and count > 0)
+        and (TEX .. "HS2") or (TEX .. "HS3")
+    if art ~= self._iconArt then
+        self._iconArt = art
+        self.icon:SetTexture(art)
+    end
 end
 
 -- ------------------------------------------------------------------ update --
@@ -104,12 +109,31 @@ function HS:Update(now)
     end
     self:SetShown(show)
     if not show then return false end
-    local n = (type(count) == "number" and count > 0) and tostring(count)
-        or "0"
+    self:SetIconForCount(count)
+    local n = Frame.FormatAmount((type(count) == "number" and count > 0)
+        and count or 0)
     if n ~= self._count then
         self._count = n
-        self.text:SetText(n)
+        self.amountFS:SetText(n)
     end
+    -- The second line: the Total label + the count on the bar (the original's
+    -- FWHSBar1, Forte_Healthstone.lua:197 + :139).
+    self:SetRowShown(true)
+    if self.nameFS:GetText() ~= self.TOTAL then
+        self.nameFS:SetText(self.TOTAL)
+    end
+    local amount = tostring(type(count) == "number" and count or 0)
+    if amount ~= self._amount then
+        self._amount = amount
+        self.timeFS:SetText(amount)
+    end
+    local frac = (type(count) == "number" and count > 0) and 1 or 0
+    if frac ~= self._frac then
+        self._frac = frac
+        self:SetFillFraction(frac)
+    end
+    -- The right label: the creation cooldown's clock, in the plate's Info
+    -- slot (Forte_Soulstone.xml:140-146 is that slot's geometry).
     local cooling = type(remaining) == "number" and remaining > 0
     -- The dim is the plate's own alpha, not the frame's (the frame's alpha
     -- stays `Warlock.Alpha`'s, so a scale/alpha setting change can not fight
@@ -119,41 +143,45 @@ function HS:Update(now)
     local key = cooling and Frame.ClockKey(remaining) or -1
     if key ~= self._timeKey then
         self._timeKey = key
-        if self.cdText then self.cdText:SetText(cd or "") end
+        self.infoFS:SetText(cd or "")
     end
-    local showCd = cooling and self.state.showTime
-    if showCd ~= self._cdShown then
-        self._cdShown = showCd
-        if self.cdText then
-            if showCd then self.cdText:Show() else self.cdText:Hide() end
-        end
-    end
+    self:ApplyTextVisibility()
     return cooling
 end
 
---- The plate's count text always shows; the cooldown text under it is the
---- ShowTime-owned text (and only rides a live cooldown).
+--- The plate's count, the Total bar and its amount are the module's core
+--- readout; the cooldown clock in the right label is the ShowTime-owned text
+--- (and only rides a live cooldown).
 function HS:ApplyTextVisibility()
     if not self._shown then return end
-    if self.text then self.text:Show() end
-    if self.cdText then
-        if self.state.showTime and self._cdShown then self.cdText:Show()
-        else self.cdText:Hide() end
+    if self.amountFS then self.amountFS:Show() end
+    if self.nameFS and self._rowShown then self.nameFS:Show() end
+    if self.timeFS and self._rowShown then self.timeFS:Show() end
+    if self.infoFS then
+        if self.state.showTime and self._timeKey ~= nil
+            and self._timeKey >= 0 then
+            self.infoFS:Show()
+        else
+            self.infoFS:Hide()
+        end
     end
 end
 
 function HS:RenderIdle()
-    self._count, self._timeKey, self._cdShown = nil, nil, nil
+    self._count, self._timeKey, self._amount, self._frac = nil, nil, nil, nil
+    self:SetRowShown(false)
     self:SetShown(false)
     self:SetBarAlpha(1)
-    if self.text then self.text:SetText("") end
-    if self.cdText then self.cdText:SetText("") end
+    self.amountFS:SetText("")
+    self.infoFS:SetText("")
+    self.nameFS:SetText("")
+    self.timeFS:SetText("")
 end
 
 --- The injected-tracker seam (tests, launch-day probes).
 function HS:SetTracker(tracker)
     self.Tracker = tracker
-    self._count, self._timeKey, self._cdShown = nil, nil, nil
+    self._count, self._timeKey, self._amount, self._frac = nil, nil, nil, nil
 end
 
 function HS:StatusLine()

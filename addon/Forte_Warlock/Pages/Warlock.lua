@@ -61,6 +61,11 @@ local function skin(skinName, key, fallback)
     return v
 end
 
+-- The plate geometry is the original's: the frame is Width(100)+2*BORDER(3)
+-- = 106 wide x 20 high (Forte_Soulstone.lua:65 + Forte_Core.lua:479;
+-- Forte_Soulstone.xml:124), the `<Name>Height` keys are the second-line bar
+-- heights (the original's SoulstoneHeight/SummonHeight/HealthstoneHeight,
+-- Forte_Soulstone.lua:671, Forte_Summon.lua:587, Forte_Healthstone.lua:339).
 local DEFAULTS = {
     -- Shared Basics (the four frames' master switch, the shared lock, the
     -- shared time/label text switch).
@@ -69,28 +74,30 @@ local DEFAULTS = {
     ShowTime = true,
     -- Shard Manager
     ShardEnable = true,
-    ShardSize = 34,
+    ShardSize = 106,
     ShardColor = skin("ShardsSkin", "TextColor", { 1, 1, 1, 1 }),
     -- Soulstone Tracker
     SoulstoneEnable = true,
-    SoulstoneWidth = 140,
+    SoulstoneWidth = 106,
     SoulstoneHeight = 12,
     SoulstoneColor = skin("SoulstoneSkin", "BarColor",
-        { 0.64, 0.21, 0.93, 1 }),
+        { 0.64, 0.21, 0.93, 1 }),                 -- Forte_Soulstone.xml:119
     -- Healthstone Spy
     HealthstoneEnable = true,
-    HealthstoneSize = 34,
+    HealthstoneSize = 106,
     HealthstoneColor = skin("HealthstoneSkin", "TextColor", { 1, 1, 1, 1 }),
     -- Summon Assistant
     SummonEnable = true,
-    SummonWidth = 140,
+    SummonWidth = 106,
     SummonHeight = 12,
-    SummonColor = skin("SummonSkin", "BarColor", { 0.64, 0.21, 0.93, 1 }),
-    -- Shared appearance (the Classic Aluminium-on-black law, PLAN §3.5): the
-    -- plate wash and the backdrop are ONE pair for the four frames.
-    BarColor = skin("ShardsSkin", "BarColor", { 0.64, 0.21, 0.93, 0.85 }),
+    SummonColor = skin("SummonSkin", "BarColor",
+        { 0.64, 0.21, 0.93, 1 }),                -- Forte_Summon.lua:597
+    -- Shared appearance (the Classic purple-plate law of ref4.png, the
+    -- original's SoulstoneBgColor, Forte_Soulstone.lua:659): the plate wash
+    -- and the backdrop are ONE pair for the four frames.
+    BarColor = skin("ShardsSkin", "BgColor", { 0.31, 0.00, 0.62, 0.75 }),
     TextColor = skin("ShardsSkin", "TextColor", { 1, 1, 1, 1 }),
-    BgColor = { 0, 0, 0, 0.50 },
+    BgColor = skin("ShardsSkin", "BgColor", { 0.31, 0.00, 0.62, 0.75 }),
 }
 
 local VIEWS = { "Shards", "Soulstone", "Healthstone", "Summon" }
@@ -139,9 +146,9 @@ local function colours(s, colourKey, colourLabel, colourTip)
     s.COL({ module = M, key = colourKey, label = colourLabel,
         tip = colourTip })
     s.COL({ module = M, key = "BarColor", label = "Plate colour",
-        tip = "Aluminium plate wash of the icon frames. Applied live." })
+        tip = "The dark-purple plate wash (default the original's SoulstoneBgColor .31/0/.62/.75). Applied live." })
     s.COL({ module = M, key = "BgColor", label = "Background colour",
-        tip = "Frame backdrop (default black a 0.50). Applied live." })
+        tip = "Plate backdrop (default the original's SoulstoneBgColor .31/0/.62/.75). Applied live." })
 end
 
 -- ------------------------------------------------------------------ pages --
@@ -151,7 +158,7 @@ local PAGES = {
         colourKey = "PURPLE", enableKey = "ShardEnable",
         tips = {
             "The soul shard count, read from the bags (the power bar is the second source).",
-            "The small plate is the count; the label under it names which source answered.",
+            "The plate is the count (x<n>); the label right of it prints <n> total and the second line names which source answered.",
             "Count only: ForteXorcist never spends or gates on shards.",
             "The original's Shard Spy half was a removed module; the raid-wide half is not built.",
         },
@@ -171,12 +178,12 @@ local PAGES = {
                 tip = "Master switches of the Shard Manager.",
             })
             b.Section("Frame Sizing", function(s)
-                s.NUM({ module = M, key = "ShardSize", label = "Plate size",
-                    min = 16, max = 96, step = 1,
-                    tip = "Shard plate size in px (default 34, square). Resizes live." })
+                s.NUM({ module = M, key = "ShardSize", label = "Plate width",
+                    min = 60, max = 400, step = 1,
+                    tip = "Shard plate width in px (default 106 = 100 + 2*3, the original's frame width). Resizes live." })
             end, {
                 module = M, keys = { "ShardSize" },
-                tip = "Size of the shard plate.",
+                tip = "Width of the shard plate.",
             })
             b.Section("Coloring", function(s)
                 colours(s, "ShardColor", "Count colour",
@@ -192,9 +199,9 @@ local PAGES = {
         colourKey = "PURPLE", enableKey = "SoulstoneEnable",
         build = function(b)
             b.Tips({
-                "The bar reads Soulstone: <bearer> m:ss while a stone we cast is live.",
+                "The plate prints x<n> and `no ss up` while no stone we cast is up; the second line then carries <bearer> and the m:ss.",
                 "The window is PREDICTED from our own cast: Forever hides auras in combat, so no raid-wide panel is built (SS-05).",
-                "Drag the bar with Lock off; the position is saved per character.",
+                "Drag the plate with Lock off; the position is saved per character.",
                 "The recycle icon on a section restores that section's defaults.",
             })
             b.Section("Basics", function(s)
@@ -206,15 +213,15 @@ local PAGES = {
                 tip = "Master switches of the Soulstone Tracker.",
             })
             b.Section("Frame Sizing", function(s)
-                s.NUM({ module = M, key = "SoulstoneWidth", label = "Width",
+                s.NUM({ module = M, key = "SoulstoneWidth", label = "Plate width",
                     min = 60, max = 1024, step = 1,
-                    tip = "Timer bar width in px (default 140: the whole label fits). Resizes live." })
-                s.NUM({ module = M, key = "SoulstoneHeight", label = "Height",
+                    tip = "Plate width in px (default 106 = 100 + 2*3, the original's frame width). Resizes live." })
+                s.NUM({ module = M, key = "SoulstoneHeight", label = "Bar height",
                     min = 4, max = 64, step = 1,
-                    tip = "Timer bar height in px (default 12, the original's SoulstoneHeight). Resizes live." })
+                    tip = "Second-line bar height in px (default 12, the original's SoulstoneHeight). Resizes live." })
             end, {
                 module = M, keys = { "SoulstoneWidth", "SoulstoneHeight" },
-                tip = "Geometry of the soulstone bar.",
+                tip = "Geometry of the soulstone plate and its bar.",
             })
             b.Section("Coloring", function(s)
                 colours(s, "SoulstoneColor", "Bar colour",
@@ -246,11 +253,11 @@ local PAGES = {
             })
             b.Section("Frame Sizing", function(s)
                 s.NUM({ module = M, key = "HealthstoneSize",
-                    label = "Plate size", min = 16, max = 96, step = 1,
-                    tip = "Healthstone plate size in px (default 34, square). Resizes live." })
+                    label = "Plate width", min = 60, max = 400, step = 1,
+                    tip = "Healthstone plate width in px (default 106 = 100 + 2*3, the original's frame width). Resizes live." })
             end, {
                 module = M, keys = { "HealthstoneSize" },
-                tip = "Size of the healthstone plate.",
+                tip = "Width of the healthstone plate.",
             })
             b.Section("Coloring", function(s)
                 colours(s, "HealthstoneColor", "Count colour",
@@ -280,15 +287,15 @@ local PAGES = {
                 tip = "Master switches of the Summon Assistant.",
             })
             b.Section("Frame Sizing", function(s)
-                s.NUM({ module = M, key = "SummonWidth", label = "Width",
+                s.NUM({ module = M, key = "SummonWidth", label = "Plate width",
                     min = 60, max = 1024, step = 1,
-                    tip = "Channel bar width in px (default 140). Resizes live." })
-                s.NUM({ module = M, key = "SummonHeight", label = "Height",
+                    tip = "Plate width in px (default 106 = 100 + 2*3, the original's frame width). Resizes live." })
+                s.NUM({ module = M, key = "SummonHeight", label = "Bar height",
                     min = 4, max = 64, step = 1,
-                    tip = "Channel bar height in px (default 12, the original's SummonHeight). Resizes live." })
+                    tip = "Second-line bar height in px (default 12, the original's SummonHeight). Resizes live." })
             end, {
                 module = M, keys = { "SummonWidth", "SummonHeight" },
-                tip = "Geometry of the channel bar.",
+                tip = "Geometry of the summon plate and its bar.",
             })
             b.Section("Coloring", function(s)
                 colours(s, "SummonColor", "Bar colour",
