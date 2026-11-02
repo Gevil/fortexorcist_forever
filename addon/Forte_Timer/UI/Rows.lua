@@ -39,6 +39,15 @@
 -- dirty-checked; the pools only grow (acquire/hide, never destroy); the
 -- per-tick path allocates nothing (PLAN §3.4).
 --
+-- THE KEY LAW (docs/perf.md §4 fix 2 + 3, the Timeline's own discipline). Every
+-- dirty key is a NUMBER: the colour triples compare component-wise, the size
+-- and anchor keys compare the layout numbers, and a text is rebuilt only when
+-- the identity of its SHOWN value changes (`timeKey` for the time column, the
+-- row's own name inputs for the name column). Geometry is touched on a layout
+-- change only -- a group box, a bar, a header and the static tick marks keep
+-- their anchoring across ticks; the bar spark is the one element that must
+-- move every tick and it does.
+--
 -- Lock/position: its OWN anchor frame (`ForteXorcistTimerAnchor`) and its OWN
 -- saved table (FX.db.timer.display) -- the Cooldown Timer owns its anchor
 -- (delta D15). `/fx lock|unlock` reaches it through the FX.Settings mirroring
@@ -52,8 +61,49 @@ FX.Timer = FX.Timer or {}
 local D = {}
 FX.Timer.Display = D
 
+--- The COUNTED SEAMS: how many times per pass the layout and the texts were
+--- actually APPLIED. They are the proof of the key law above, asserted by
+--- Forte_Timer/tests/test_perf_gates.lua (a steady pass must apply zero
+--- anchoring, zero geometry, zero texts; a layout change must move them; the
+--- spark must move every pass), in the same pattern
+--- `Forte_Timer/Core/Reconcile.lua`'s `counts.reads` is for the aura law.
+--- Incremented at the apply sites only, so they cost an add per applied
+--- setter, never per inspected row.
+D.counts = { anchorGroup = 0, anchorRow = 0, anchorLabel = 0,
+    anchorTicks = 0, sizeGroup = 0, geometry = 0, timeText = 0,
+    nameText = 0, spark = 0 }
+
 local Laws = FX.Timer.Laws
 local Rows = FX.Timer.Rows
+local counts = D.counts
+
+-- ------------------------------------------------------- the display keys --
+--- The identity of the DISPLAYED time string for `Laws.TimeText` -- the
+--- Timeline's law (`Forte_Cooldown/UI/Timeline.lua:312-320`): one whole second
+--- for the `m:ss` / `Nh/Nm/Ns` branches, one rounded tenth for the `%.1f`
+--- branch. The render pass compares THIS, so `string.format` + `SetText` run
+--- only when the shown number changes (docs/perf.md §4 fix 2), not every tick.
+--- A key may therefore change more often than the text (a tenth step in the
+--- m:ss band never happens; the alt band keys per second, which is finer than
+--- its `h`/`m`/`s` steps) -- never less often, which is the only direction a
+--- stale label can come from. The `+ 2` keeps every numeric key clear of the
+--- two constant-text sentinels, so a row whose `total` arrives later, or whose
+--- state crosses REMOVE, repaints.
+local TIMEKEY_GONE = -2      -- state > REMOVE: the constant "gone"
+local TIMEKEY_EMPTY = -1     -- total == 0: the constant ""
+local function timeKey(remaining, total, state, alt)
+    if state > Laws.REMOVE then return TIMEKEY_GONE end
+    if total == 0 then return TIMEKEY_EMPTY end
+    local shown = remaining > 0 and remaining or 0
+    if alt or shown >= 60 then return math.floor(shown) + 2 end
+    return math.floor(shown * 10 + 0.5) + 2
+end
+
+--- The `Laws.NameText` options carrier. One table for the whole module,
+--- refilled in full by `NameFor` before every call: the name text is built at
+--- most once per row per layout change, so the literal this replaces (one
+--- table per row per tick, docs/perf.md §2) is the only thing lost.
+local nameOpts = {}
 
 -- ------------------------------------------------------------------- font --
 --- The shipped-file validator, the Forte_Hunter/UI/Swing.lua law (CreateFont +
@@ -135,9 +185,14 @@ function D:SetSize(w, h)
     o.barInset = o.height + 1 + (o.inset or 3)
     o.groupWidth = o.width + (o.inset or 3) * 2
     self:ApplySize()
+    -- The geometry caches are numeric now (fix 3): drop them so the next
+    -- ApplyRowGeometry re-sizes and re-anchors from the new numbers.
     for i = 1, #self.rows do
         local row = self.rows[i]
-        if row then row._geometry = nil end
+        if row then
+            row._gBarW, row._gHeight, row._gIcon, row._gIconRight =
+                nil, nil, nil, nil
+        end
     end
 end
 
@@ -224,8 +279,12 @@ function D:AcquireGroup(i)
     mark:SetTexture(skin.RaidMark)
     mark:SetAlpha(skin.RaidTargetsAlpha)
     mark:Hide()
+    -- `_ax`/`_ay`/`_hy` are the anchoring the box was LAST anchored with, and
+    -- `_sizeW`/`_sizeH` the box size, so the pass touches geometry on a layout
+    -- change only (docs/perf.md §4 fix 3).
     g = { frame = f, label = label, mark = mark, _key = nil, _bg = nil,
-        _labelText = nil, _labelSize = nil, _factor = nil, _ncol = nil }
+        _labelText = nil, _labelSize = nil, _factor = nil, _ncol = nil,
+        _ax = nil, _ay = nil, _hy = nil, _sizeW = nil, _sizeH = nil }
     self.groups[i] = g
     return g
 end
@@ -332,10 +391,25 @@ function D:AcquireRow(i)
     local tick = { bar = bar, back = back, icon = icon, iconSpark = iconSpark,
         tag = tag, nameFS = nameFS, timeFS = timeFS, dummy = dummy,
         spark = spark, castarea = castarea, mark = mark, notch = notch,
-        ticks = {}, _geometry = nil, _name = nil, _tex = nil, _fill = nil,
-        _bg = nil, _alpha = nil, _timeKey = nil, _text = nil, _tag = nil,
-        _notch = nil, _sparkOn = nil, _height = nil, _width = nil,
-        _ncol = nil }
+        ticks = {}, _name = nil, _tex = nil, _alpha = nil, _timeKey = nil,
+        _text = nil, _tag = nil, _notch = nil, _sparkOn = nil,
+        _height = nil, _width = nil,
+        -- Numeric dirty keys (docs/perf.md §4 fix 2): the colour triples are
+        -- compared component-wise, so no per-tick string key is built.
+        _fillR = nil, _fillG = nil, _fillB = nil, _bgA = nil,
+        _ncR = nil, _ncG = nil, _ncB = nil, _timeAlt = nil,
+        _twWidth = nil, _nwWidth = nil, _tagStacks = nil, _tagOn = nil,
+        -- The name text's own inputs (fix 2): the text is rebuilt only when
+        -- one of them changes.
+        _nName = nil, _nTarget = nil, _nStacks = nil, _nId = nil,
+        _nSpell = nil, _nShowID = nil, _nShowStacks = nil,
+        -- Geometry: the sizes the row was sized with (`_g*`) and the anchoring
+        -- it carries (`_ap` the group frame, `_ax`/`_ay` the offset) -- fix 3.
+        _gBarW = nil, _gHeight = nil, _gIcon = nil, _gIconRight = nil,
+        _ap = nil, _ax = nil, _ay = nil,
+        -- The tick-mark layout the marks are anchored for (fix 3).
+        _tkEvery = nil, _tkMax = nil, _tkBarW = nil, _tkHeight = nil,
+        _tkCount = nil }
     icon:SetScript("OnClick", function(_, button)
         local r = tick._row
         if not r then return end
@@ -372,12 +446,15 @@ local function nearEq(a, b)
     return a ~= nil and b ~= nil and math.abs(a - b) < 0.01
 end
 
---- Size/anchor one row to the live geometry, dirty-checked (`_geometry` caches
---- the numbers it was built with).
+--- Size/anchor one row to the live geometry, dirty-checked (the `_g*` fields
+--- cache the numbers it was last built with — compared numerically, never
+--- stringified: docs/perf.md §4 fix 2).
 function D:ApplyRowGeometry(row, o, skin, vis)
-    local key = o.barWidth .. "|" .. o.height .. "|" .. o.iconSize
-    if row._geometry ~= key then
-        row._geometry = key
+    if row._gBarW ~= o.barWidth or row._gHeight ~= o.height
+        or row._gIcon ~= o.iconSize or row._gIconRight ~= o.iconRight then
+        row._gBarW, row._gHeight = o.barWidth, o.height
+        row._gIcon, row._gIconRight = o.iconSize, o.iconRight
+        counts.geometry = counts.geometry + 1
         row.bar:SetSize(o.barWidth, o.height)
         row.icon:SetSize(o.iconSize, o.iconSize)
         row.icon:ClearAllPoints()
@@ -479,13 +556,22 @@ function D:Update(links, n, options, skin)
             run.slot[j] = self:AcquireRow(ri)
         end
 
-        local sizeKey = o.groupWidth .. "/" .. h
-        if g._size ~= sizeKey then
-            g._size = sizeKey
+        if g._sizeW ~= o.groupWidth or g._sizeH ~= h then
+            g._sizeW, g._sizeH = o.groupWidth, h
+            counts.sizeGroup = counts.sizeGroup + 1
             g.frame:SetSize(o.groupWidth, h)
         end
-        g.frame:ClearAllPoints()
-        g.frame:SetPoint("BOTTOMLEFT", self.anchor, "BOTTOMLEFT", 0, y)
+        -- The box rides the anchor's BOTTOMLEFT at a y that ONLY a layout
+        -- change moves (the cascade height, the group width): re-anchor on
+        -- change, not per tick (docs/perf.md §4 fix 3). The anchor frame's own
+        -- move/resize needs no re-anchoring here -- an anchored child tracks
+        -- its parent.
+        if g._ax ~= 0 or g._ay ~= y then
+            g._ax, g._ay = 0, y
+            counts.anchorGroup = counts.anchorGroup + 1
+            g.frame:ClearAllPoints()
+            g.frame:SetPoint("BOTTOMLEFT", self.anchor, "BOTTOMLEFT", 0, y)
+        end
         if not g.frame:IsShown() then g.frame:Show() end
         if g._alpha ~= run.alpha then
             g._alpha = run.alpha
@@ -515,10 +601,17 @@ function D:Update(links, n, options, skin)
             -- lifted the header LabelHeight above its reserved strip and
             -- overprinted the neighbouring group's first bar (measured in
             -- docs/media/sim/fx_timer_rows.png 2026-11-02).
-            label:ClearAllPoints()
+            -- `headerY` is the whole layout input, so the pair is rebuilt on
+            -- a layout change only (docs/perf.md §4 fix 3).
             local headerY = h - o.labelHeight
-            label:SetPoint("BOTTOMLEFT", g.frame, "BOTTOMLEFT", 0, headerY)
-            label:SetPoint("BOTTOMRIGHT", g.frame, "BOTTOMRIGHT", 0, headerY)
+            if g._hy ~= headerY then
+                g._hy = headerY
+                counts.anchorLabel = counts.anchorLabel + 1
+                label:ClearAllPoints()
+                label:SetPoint("BOTTOMLEFT", g.frame, "BOTTOMLEFT", 0, headerY)
+                label:SetPoint("BOTTOMRIGHT", g.frame, "BOTTOMRIGHT", 0,
+                    headerY)
+            end
         elseif label:IsShown() then
             label:Hide()
         end
@@ -541,21 +634,35 @@ function D:Update(links, n, options, skin)
         -- the smart space (:2489-2495, :2510, D4): the time column is as wide
         -- as the widest time string in the group, so the names centre on the
         -- remaining bar. Texts first (dirty-checked), measured, then widths.
+        -- Both texts ride a NUMERIC key (docs/perf.md §4 fix 2): the
+        -- `string.format` inside `Laws.TimeText` and the `NameText` concats
+        -- run only when the SHOWN value changes, not every 25 Hz tick.
         local usewidth = 0
         for j = 1, run.count do
             local r = run.slot[j]
             local row = Rows.rows[run.links[j][1]]
             local remaining = (row.drawExpireAt or row.expireAt) - now
-            local text = Laws.TimeText(remaining, row.total, row.state,
+            local tKey = timeKey(remaining, row.total, row.state,
                 o.altTimeFormat)
-            if r._timeKey ~= text then
-                r._timeKey = text
+            if r._timeKey ~= tKey or r._timeAlt ~= o.altTimeFormat then
+                r._timeKey, r._timeAlt = tKey, o.altTimeFormat
+                counts.timeText = counts.timeText + 1
+                local text = Laws.TimeText(remaining, row.total, row.state,
+                    o.altTimeFormat)
                 r.timeFS:SetText(text)
                 r.dummy:SetText(text)
             end
-            local nameText = self:NameFor(row, o)
-            if r._text ~= nameText then
+            if r._nName ~= row.name or r._nTarget ~= row.targetKey
+                or r._nStacks ~= row.stacks or r._nId ~= row.groupKey
+                or r._nSpell ~= o.spell or r._nShowID ~= o.showID
+                or r._nShowStacks ~= o.showStacks then
+                r._nName, r._nTarget = row.name, row.targetKey
+                r._nStacks, r._nId = row.stacks, row.groupKey
+                r._nSpell, r._nShowID, r._nShowStacks = o.spell, o.showID,
+                    o.showStacks
+                local nameText = self:NameFor(row, o)
                 r._text = nameText
+                counts.nameText = counts.nameText + 1
                 r.nameFS:SetText(nameText)
             end
             local w = r.dummy:GetWidth()
@@ -598,10 +705,15 @@ function D:NameFor(row, o)
         and row.targetKey ~= "server" and row.targetKey ~= "self" then
         base = row.targetKey
     end
-    return Laws.NameText(base, row.name, {
-        spell = o.spell, showID = o.showID, id = row.groupKey,
-        stacks = (o.showStacks ~= false) and row.stacks,
-    })
+    -- The shared carrier, refilled in FULL (every field the law reads) before
+    -- the call, so no per-call table literal rides the render pass.
+    local opts = nameOpts
+    opts.spell = o.spell
+    opts.showID = o.showID
+    opts.id = row.groupKey
+    opts.maxId = nil
+    opts.stacks = (o.showStacks ~= false) and row.stacks
+    return Laws.NameText(base, row.name, opts)
 end
 
 --- One live row: geometry, colours, fill, texts, icon, spark, slice, mark,
@@ -610,39 +722,46 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth)
     local row = Rows.rows[link[1]]
     if not r.bar:IsShown() then r.bar:Show() end
     self:ApplyRowGeometry(r, o, s, link[4])
-    r.bar:ClearAllPoints()
     -- The row x-inset: Height+1+Backdrop[6] (:2322), plus the page's extra
     -- x-offset of your own rows (the `none` key, the self/no-target law
     -- §3.3) and of the rows riding on your CURRENT target. The source has
     -- one shared inset law; the per-unit extra is the port's own, applied
-    -- here and nowhere else.
+    -- here and nowhere else. BOTH halves are layout numbers, never time, so
+    -- the bar keeps its anchoring across ticks and is re-anchored only when
+    -- the inset, the cascade slot or the owning group box changes (fix 3).
     local extra = (row.targetKey == "none") and (o.offsetSelf or 0)
         or ((row.targetKey == "target") and (o.offsetTarget or 0) or 0)
-    r.bar:SetPoint("BOTTOMLEFT", g.frame, "BOTTOMLEFT",
-        o.barInset + extra, barOffset)
+    local ax = o.barInset + extra
+    if r._ap ~= g.frame or r._ax ~= ax or r._ay ~= barOffset then
+        r._ap, r._ax, r._ay = g.frame, ax, barOffset
+        counts.anchorRow = counts.anchorRow + 1
+        r.bar:ClearAllPoints()
+        r.bar:SetPoint("BOTTOMLEFT", g.frame, "BOTTOMLEFT", ax, barOffset)
+    end
 
     -- the colours (:2366-2369): ColorVal decides once, the fill takes the
     -- triple, the row background takes the alpha. The TEXT is NormalColor
     -- (:3396; the time :1856, the name :2528), de-saturated by FixIntensity
     -- (:2369, Forte_Core.lua:796-800) so a picked colour stays legible.
+    -- Every comparison is component-wise NUMERIC (docs/perf.md §4 fix 2): the
+    -- stringified triples this replaces were the panel's largest allocator.
     local total = row.total
     local remaining = (row.drawExpireAt or row.expireAt) - now
     local fillR, fillG, fillB, bgA = Laws.ColorVal(remaining, total,
         row.state, row.kind, s, o)
-    local fillKey = fillR .. "/" .. fillG .. "/" .. fillB
-    if r._fill ~= fillKey then
-        r._fill = fillKey
+    local fillChanged = r._fillR ~= fillR or r._fillG ~= fillG
+        or r._fillB ~= fillB
+    if fillChanged then
+        r._fillR, r._fillG, r._fillB = fillR, fillG, fillB
         r.bar:SetStatusBarColor(fillR, fillG, fillB, 1)
     end
-    local bgKey = fillKey .. "/" .. bgA
-    if r._bg ~= bgKey then
-        r._bg = bgKey
+    if fillChanged or r._bgA ~= bgA then
+        r._bgA = bgA
         r.back:SetVertexColor(fillR, fillG, fillB, bgA)
     end
     local nc = s.NormalColor
-    local ncKey = nc[1] .. "/" .. nc[2] .. "/" .. nc[3]
-    if r._ncol ~= ncKey then
-        r._ncol = ncKey
+    if r._ncR ~= nc[1] or r._ncG ~= nc[2] or r._ncB ~= nc[3] then
+        r._ncR, r._ncG, r._ncB = nc[1], nc[2], nc[3]
         local nr, ng, nb = Laws.FixIntensity(nc[1], nc[2], nc[3])
         r.nameFS:SetTextColor(nr, ng, nb, 1)
         r.timeFS:SetTextColor(nc[1], nc[2], nc[3], s.TimeAlpha)
@@ -655,15 +774,26 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth)
     r.bar:SetValue(barval)
 
     -- widths from the smart space (:2391, :2510).
-    r.timeFS:SetWidth(usewidth)
-    r.nameFS:SetWidth(math.max(1, o.barWidth - 2 * usewidth - 4))
+    if r._twWidth ~= usewidth then
+        r._twWidth = usewidth
+        r.timeFS:SetWidth(usewidth)
+    end
+    local nameWidth = math.max(1, o.barWidth - 2 * usewidth - 4)
+    if r._nwWidth ~= nameWidth then
+        r._nwWidth = nameWidth
+        r.nameFS:SetWidth(nameWidth)
+    end
 
-    -- the stacks tag on the icon's BOTTOMRIGHT (:2467-2471, D8).
-    local tag = (o.iconStacks and row.stacks and row.stacks ~= 0)
-        and tostring(row.stacks) or ""
-    if r._tag ~= tag then
-        r._tag = tag
-        r.tag:SetText(tag)
+    -- the stacks tag on the icon's BOTTOMRIGHT (:2467-2471, D8). The number
+    -- is the key; `tostring` runs on a change (fix 2).
+    if r._tagStacks ~= row.stacks or r._tagOn ~= o.iconStacks then
+        r._tagStacks, r._tagOn = row.stacks, o.iconStacks
+        local tag = (o.iconStacks and row.stacks and row.stacks ~= 0)
+            and tostring(row.stacks) or ""
+        if r._tag ~= tag then
+            r._tag = tag
+            r.tag:SetText(tag)
+        end
     end
 
     -- the icon texture, written each bind (:2542).
@@ -689,6 +819,7 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth)
         if sparkOn then r.spark:Show() else r.spark:Hide() end
     end
     if sparkOn then
+        counts.spark = counts.spark + 1
         r.spark:ClearAllPoints()
         r.spark:SetPoint("CENTER", r.bar, "LEFT", barval * o.barWidth, 0)
     end
@@ -738,14 +869,28 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth)
     local every = row.tickEvery
     if o.ticks and every and every > 0 and row.maxTime > 0 then
         local count = math.min(12, math.floor(row.maxTime / every))
+        -- The marks are STATIC for a row: their spacing is the data's
+        -- schedule over the row's scale, the size is the row's geometry. The
+        -- layout is rebuilt when one of those changes, not every tick; the
+        -- show/hide pass below is what keeps them visible (fix 3).
+        if r._tkEvery ~= every or r._tkMax ~= row.maxTime
+            or r._tkBarW ~= o.barWidth or r._tkHeight ~= o.height
+            or r._tkCount ~= count then
+            r._tkEvery, r._tkMax = every, row.maxTime
+            r._tkBarW, r._tkHeight, r._tkCount = o.barWidth, o.height, count
+            counts.anchorTicks = counts.anchorTicks + count
+            for t = 1, count do
+                local tk = self:AcquireTick(r, t)
+                tk:SetSize(o.height * s.TickWidthFactor,
+                    o.height * s.TickHeightFactor)
+                tk:ClearAllPoints()
+                tk:SetPoint("CENTER", r.bar, "LEFT",
+                    (t * every / row.maxTime) * o.barWidth, 0)
+            end
+        end
         for t = 1, count do
-            local tk = self:AcquireTick(r, t)
-            tk:SetSize(o.height * s.TickWidthFactor,
-                o.height * s.TickHeightFactor)
-            tk:ClearAllPoints()
-            tk:SetPoint("CENTER", r.bar, "LEFT",
-                (t * every / row.maxTime) * o.barWidth, 0)
-            if not tk:IsShown() then tk:Show() end
+            local tk = r.ticks[t]
+            if tk and not tk:IsShown() then tk:Show() end
         end
         for t = count + 1, #r.ticks do
             if r.ticks[t]:IsShown() then r.ticks[t]:Hide() end

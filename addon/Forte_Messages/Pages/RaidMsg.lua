@@ -57,25 +57,23 @@ local M = "RaidMsg"
 -- that name -- the TEXTS stay the original's (">> Enslave on %s …").
 -- `Seduction`/`Mesmerize` are the Succubus pet's casts (the original's
 -- `AddSpell(6358, 30, "Pet")` / `AddSpell(115268, 30, "Pet") -- Mesmerize`,
--- Warlock.lua:73-74), and the pair is INERT on this build because **the
--- spell is not in the Forever data** -- all 7503 rows of
--- `mythicsim-forever-engine/data/spells.jsonl` (client_build 1.60.1.70425)
--- were searched for the names `Seduction`, `Seduction`, `Mesmerize` (plus
--- the Succubus' other tools `Devour Magic`, `Spell Lock`, the charm family
--- `Clamp`/`Grip of the Dead` and the source's `Enslave Demon`): no row of
--- any of them, the source's ids 6358/6359 and 115268/115269 are absent, and
--- the file's only Succubus row is the form `Perm. Illusion Succubus` (8315).
--- The client's live table agrees: `C_Spell.GetSpellInfo(6358)` and
--- `(115268)` answer nil, and a scan of ids 1..1500000 finds no name
--- containing `Seduction`, `Seduction` or `Mesmeriz`. No data row means the
--- registry's `durationMs > 0` gate never sees the name, so Forte_Timer can
--- not have a row of it, the fade threshold is never read, and the two
--- sections can not fire -- the rows and their texts ship so the owner sees
--- the pair (the census, review 4 E2) and the tip names the real gate. The
--- gate BEHIND that is the cast feed: these are PET casts, and the Timer
--- registers the cast spine for `player` only. Mesmerize shares the
--- Seduction rows (ST:RegisterOnTimerFade(mesmerize,"SeduceFade"),
--- Warlock.lua:250).
+-- Warlock.lua:73-74). CORRECTION (Iteration H wave 1, 2026-11-02, PLAN §11.1):
+-- the Iteration G verdict that the pair is not in the Forever data was
+-- measured on the **70425** data set and on the simulator client only. The
+-- live 70707 client's own spell store carries the kit --
+-- `wowsims/forever` (`164d1cf6`) `sim/core/spelldata/spells_auto_gen.go`:
+-- `6358 Seduction`, `6359 Seduction` (ranks), `24594 Mesmerize`, alongside
+-- `Devour Magic`, `Spell Lock`, `Soothing Kiss`, `Lash of Pain`, `Suffering`.
+-- The pair is therefore LIVE data, and the reason the two sections are still
+-- silent is narrower and structural: they are the PET's casts, and
+-- Forte_Timer registers the cast spine for `player` only -- no pet-cast row,
+-- no row of the name, no threshold read, nothing to fire. The pet-cast rows
+-- are wave 2b (PLAN §11.1 "PetRows v2"), which lights these two rows; the
+-- generated data rows arrive with wave 2a D3. `Seduction` 6358 is already a
+-- generated Warlock row, and `Mesmerize` 24594 lands as its name row. The
+-- rows and their texts ship so the owner sees the pair (the census, review 4
+-- E2) and the tip names the real gate. Mesmerize shares the Seduction rows
+-- (ST:RegisterOnTimerFade(mesmerize,"SeduceFade"), Warlock.lua:250).
 P.FADE_ROWS = {
     { prefix = "Fear", spell = "Fear", bits = 0,
         fade = ">> Fear on %s Fading in 3 seconds! <<",
@@ -96,14 +94,17 @@ P.FADE_ROWS = {
         fade = ">> Seduction on %s Fading in 3 seconds! <<",
         brk = ">> Seduction on %s Broke Early! <<",
         note = "The source ships this ON (party bits 1, Warlock.lua:372-391) "
-            .. "- tick to restore. INERT on this build: no spell named "
-            .. "Seduction, Seduction or Mesmerize exists in the Forever "
-            .. "1.60.1.70425 data (all 7503 rows of mythicsim spells.jsonl "
-            .. "searched; the source's ids 6358/115268 are absent), so "
-            .. "Forte_Timer has no row of the name and the pair stays "
-            .. "silent. The gate behind that is the cast feed: these are "
-            .. "the Succubus pet's casts, and Forte_Timer's rows are the "
-            .. "player's own casts. See docs/messages-sounds.md." },
+            .. "- tick to restore. Silent on this build for ONE structural "
+            .. "reason: these are the Succubus PET's casts, and Forte_Timer "
+            .. "registers the cast spine for the player only, so no pet-cast "
+            .. "row of the name exists to carry a fade threshold. The spells "
+            .. "themselves are live on the 70707 client (the client's own "
+            .. "spell store: Seduction 6358/6359, Mesmerize 24594 - the "
+            .. "Iteration G 'no such spell' verdict measured the 70425 data "
+            .. "set and the simulator only); pet-cast rows are wave 2b, and "
+            .. "they light this pair and the Mesmerize alias that shares it. "
+            .. "See docs/messages-sounds.md.",
+    },
     { prefix = "Polymorph", spell = "Polymorph", bits = 0,
         fade = ">> Polymorph on %s Fading in 3 seconds! <<",
         brk = ">> Polymorph on %s Broke Early! <<",

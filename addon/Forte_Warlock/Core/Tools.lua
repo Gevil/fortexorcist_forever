@@ -119,12 +119,16 @@ function WK.DeriveItemNames(patterns)
     return names
 end
 
+--- The family gate for a name the CLIENT said: `FX.MatchesFamily`
+--- (Forte_Core/Core/Constants.lua) canonicalizes the name onto the generated
+--- data key first, so the English name patterns below -- which describe DATA
+--- names, not client names -- match on every client (H1b,
+--- docs/localization.md: on a localized client the raw English prefix
+--- compare made every tracker deaf to its own family: `Seelenstein
+--- erstellen` is not `^Create Soulstone`, so the soulstone window, the
+--- ritual channel and the bag re-read all stayed shut).
 function WK.MatchesAny(name, patterns)
-    if type(name) ~= "string" then return false end
-    for _, pattern in ipairs(patterns) do
-        if name:find(pattern) then return true end
-    end
-    return false
+    return FX.MatchesFamily(name, patterns)
 end
 
 --- One ms field of a data row in seconds, nil when the row is missing the
@@ -190,11 +194,19 @@ end
 --- same ItemInfo argument -- the shard NAME is that argument by the §8
 --- no-hand-typed-ids rule. Only plain numbers are summed; every name that
 --- answers nothing is skipped, and nil = "no reliable read".
+---
+--- H1b (docs/localization.md): the shard has NO generated data row, so there
+--- is no itemID to hand the seam and the name is the only key available --
+--- which makes it the one place in this file where the client-facing string
+--- must be the CLIENT's: `FX.L(name)` (the Locale's item alias map is built
+--- from the generated item ids, so a name the data set does not carry is its
+--- own key and this is the identity on enUS as well as on a client whose item
+--- alias for the shard has not arrived).
 function WK.DefaultShardCountReader()
     if not (C_Item and C_Item.GetItemCount) then return nil end
     local total
     for _, name in ipairs(WK.SHARD_ITEM_NAMES) do
-        local ok, count = pcall(C_Item.GetItemCount, name)
+        local ok, count = pcall(C_Item.GetItemCount, FX.L(name))
         -- NOT `ok and plainNumber(count)`: a raise makes that FALSE, and
         -- `false ~= nil` is true -- the comparison below would then be a
         -- number/boolean compare, which RAISES on this client.
@@ -373,12 +385,16 @@ end
 -- ============================================================ HealthstoneTracker
 
 --- Sum the healthstone family over the generated names, by NAME (see the
---- shard reader for the ItemInfo argument's provenance).
+--- shard reader for the ItemInfo argument's provenance). H1b: the name the
+--- client resolves is the CLIENT's -- `FX.L(name)`, the locale alias of the
+--- data label (the identity on enUS). The stone's item COOLDOWN read below
+--- needs no such leg: it goes by the generated row's itemID, which is
+--- locale-free by construction.
 function WK.DefaultHealthstoneCountReader()
     if not (C_Item and C_Item.GetItemCount) then return nil end
     local total
     for _, name in ipairs(WK.healthstoneNames) do
-        local ok, count = pcall(C_Item.GetItemCount, name)
+        local ok, count = pcall(C_Item.GetItemCount, FX.L(name))
         local plain
         if ok then plain = plainNumber(count) end -- (no `ok and …`: see the shard reader)
         if plain ~= nil then total = (total or 0) + plain end
@@ -651,6 +667,24 @@ local function resolveTargetName(target)
 end
 M.ResolveTargetName = resolveTargetName
 
+--- The data key of a resolved cast name (H1b, docs/localization.md): the
+--- trackers' family gates (`^Create Soulstone`, `^Soulstone`,
+--- `^Ritual of Summoning`) and the `^Create ` bag-refresh gate below are
+--- ENGLISH DATA-NAME patterns, while `resolveCastName` answers the CLIENT's
+--- name -- so on a localized client no cast of a tracked family spell was
+--- ever recognized (no soulstone window, no ritual channel, no bag re-read).
+--- Canonicalizing once at the seam puts every gate back on the key space the
+--- patterns were written in; `M.ResolveCastName` stays the untouched
+--- client-name seam. The identity on enUS.
+local function castKey(spellID)
+    local name = resolveCastName(spellID)
+    if type(name) ~= "string" then return nil end
+    local Locale = FX.Locale
+    if Locale and Locale.CanonicalName then return Locale.CanonicalName(name) end
+    return name
+end
+M.CastKey = castKey
+
 --- The trackers, built from the generated data. The live read seams are
 --- installed here (and only here) so every tracker can be rebuilt in a test
 --- with fakes -- the module's own copies are the ones the event frame feeds.
@@ -687,7 +721,7 @@ end
 --- every one of them and `interruptedBy` is never touched.
 local function onToolEvent(self, event, a1, a2, a3, a4)
     if event == "UNIT_SPELLCAST_SENT" then
-        local name = resolveCastName(a4)
+        local name = castKey(a4)
         local target = resolveTargetName(a2)
         if name then
             self.Soulstone:OnCastSent(name, target)
@@ -695,10 +729,10 @@ local function onToolEvent(self, event, a1, a2, a3, a4)
         end
     elseif event == "UNIT_SPELLCAST_START"
         or event == "UNIT_SPELLCAST_CHANNEL_START" then
-        local name = resolveCastName(a3)
+        local name = castKey(a3)
         if name then self.Summon:OnCastStart(name) end
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-        local name = resolveCastName(a3)
+        local name = castKey(a3)
         if not name then return end
         self.Soulstone:OnCast(name)
         self.Summon:End(name, "succeeded")
@@ -711,7 +745,7 @@ local function onToolEvent(self, event, a1, a2, a3, a4)
         or event == "UNIT_SPELLCAST_FAILED"
         or event == "UNIT_SPELLCAST_INTERRUPTED"
         or event == "UNIT_SPELLCAST_CHANNEL_STOP" then
-        local name = resolveCastName(a3)
+        local name = castKey(a3)
         if name then
             self.Summon:End(name, event == "UNIT_SPELLCAST_FAILED"
                 and "failed" or "cancelled")

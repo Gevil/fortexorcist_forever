@@ -299,7 +299,29 @@ function M:RefreshFadeWarnings()
         local text = CFG[keys[spell] .. "FadeText"]
         local seconds = fadeSecondsFor(text)
         FX.Timer.FadeWarnings[spell] = seconds or 0.1
+        -- H1b (docs/localization.md): the Forte_Timer row keys are the
+        -- generated data's English names, and `Casts:NameOf` canonicalizes
+        -- into that space -- so the English key above is the one the rows
+        -- meet. The localized alias is published alongside it (identity on
+        -- enUS, zero extra keys) for the producer that hands a row's client
+        -- name straight to `Rows:FadeWarnFor`, so a German `Verwandlung` row
+        -- gets the Polymorph threshold instead of 0 = "no fade warning".
+        local localized = FX.L(spell)
+        if localized ~= spell and FX.Timer.FadeWarnings[localized] == nil then
+            FX.Timer.FadeWarnings[localized] = seconds or 0.1
+        end
     end
+end
+
+--- The FADE_SPELL_KEYS lookup key of a spell name that arrives from the
+--- Timer bus (H1b): the row keys are the data's English names, a bus payload
+--- may be the client's, and `CanonicalName` folds the second onto the first
+--- (the identity on enUS).
+local function fadeKey(spell)
+    if type(spell) ~= "string" then return spell end
+    local Locale = FX.Locale
+    if Locale and Locale.CanonicalName then return Locale.CanonicalName(spell) end
+    return spell
 end
 
 local function targetWord(target)
@@ -318,7 +340,7 @@ function M:OnTimerFading(spell, target, kind, secondsLeft)
     if type(plain) ~= "string" then return end
     local cfg = self.cfg
     local keys = P.FADE_SPELL_KEYS
-    local prefix = keys and keys[plain]
+    local prefix = keys and keys[fadeKey(plain)]
     if not prefix then return end
     self.counts.fading = self.counts.fading + 1
     Sounds:TimerFade()
@@ -336,7 +358,7 @@ function M:OnTimerBroken(spell, target, kind)
     if type(plain) ~= "string" then return end
     local cfg = self.cfg
     local keys = P.FADE_SPELL_KEYS
-    local prefix = keys and keys[plain]
+    local prefix = keys and keys[fadeKey(plain)]
     if not prefix then return end
     self.counts.broken = self.counts.broken + 1
     Sounds:TimerBreak()
@@ -356,12 +378,15 @@ end
 -- construction: every class that gets the spell gets it.
 local SOULSTONE_PATTERNS = FX.SoulstonePatterns
 
+--- The family gate of the announce watch: the name that arrives here is the
+--- CLIENT's (`spellNameFor` below resolves a spellID through
+--- `C_Spell.GetSpellInfo`), and the family patterns are the ENGLISH DATA
+--- NAMES, so a localized client's `Seelenstein erstellen` never announced
+--- (H1b, docs/localization.md). `FX.MatchesFamily` canonicalizes onto the
+--- data key first -- the identity on enUS, where this is the plain
+--- `name:match` it always was.
 local function isSoulstoneName(name)
-    for _ = 1, #SOULSTONE_PATTERNS do
-        local pattern = SOULSTONE_PATTERNS[_]
-        if name:match(pattern) then return true end
-    end
-    return false
+    return FX.MatchesFamily(name, SOULSTONE_PATTERNS)
 end
 
 --- spellID -> name, the Forte_Cooldown RecordCastEvent shape: the id rides

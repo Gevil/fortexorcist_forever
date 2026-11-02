@@ -30,6 +30,13 @@
 -- The readers are COUNTED SEAMS (`Reconcile.counts.reads`) so
 -- tests/test_reconcile.lua can assert "zero aura calls while secret" and
 -- "nothing mutates on a raising reader" -- the launch-day safety story, T10.
+--
+-- THE ALLOCATION LAW (docs/perf.md §4 fix 4). The sweep runs out of combat at
+-- 2 Hz over every live row, so nothing on the per-read path may allocate: the
+-- two pcall'd field readers are module-scope functions handed the aura as an
+-- argument, and the byIndex fallback enumerates into `Reconcile._byIndexScratch`.
+-- The sealed-read contract (pcall, PlainOrNil, "a nil changes nothing") rides
+-- the argument, not a closure, so the safety story is unchanged.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -47,6 +54,10 @@ Reconcile.lastSweep = {}            -- [token] = stamp
 Reconcile.counts = { reads = 0, plain = 0, secret = 0, raised = 0, adopted = 0,
     extended = 0, refreshed = 0, removed = 0, refused = 0, grace = 0, added = 0,
     learned = 0, skipped = 0 }
+
+--- The bulk readers' fallback collector, allocated once on the first
+--- byIndex sweep and reused ever after (docs/perf.md §4 fix 4).
+Reconcile._byIndexScratch = nil
 
 --- The injectable readers (tests, and the fallback shapes):
 ---   byName(unit, spellName, filter) -> AuraData | nil
@@ -82,6 +93,20 @@ end
 
 local function plain(v) return FX.Compat.PlainOrNil(v) end
 
+--- The pcall'd field readers, HOISTED to module scope (docs/perf.md §4 fix 4):
+--- a 2 Hz sweep of 30 rows used to allocate one closure per aura read, which
+--- was the bulk of the sweep's out-of-combat garbage. `pcall(f, aura)` hands
+--- the aura over as an argument, so the raise-on-field-read contract (the
+--- sealed proxy) is untouched -- the call is still a pcall of the field read.
+local function readFactFields(aura)
+    return plain(aura.expirationTime), plain(aura.duration),
+        plain(aura.applications)
+end
+
+local function readExpiration(aura)
+    return aura.expirationTime
+end
+
 --- The plain AuraData triple the reconciliation eats:
 --- (expirationTime - GetTime() => expireAt, duration seconds, applications).
 --- Returns (expireAt, total, stacks) all PLAIN, or nil when any half is
@@ -93,10 +118,7 @@ function Reconcile:ReadFact(aura, now)
     if aura == nil then return nil end
     local iss = _G.issecretvalue
     if iss and iss(aura) then return nil end
-    local ok, exp, dur, app = pcall(function()
-        return plain(aura.expirationTime), plain(aura.duration),
-            plain(aura.applications)
-    end)
+    local ok, exp, dur, app = pcall(readFactFields, aura)
     if not ok then return nil end
     if type(exp) ~= "number" then return nil end
     local total = (type(dur) == "number" and dur > 0) and dur or nil
@@ -141,7 +163,7 @@ local function call(self, fn, ...)
     -- The seal's signature is a raise on the field read (the sim's
     -- `MakeSecret` proxy) or a value `PlainOrNil` refuses; both are "no
     -- answer", never an absence.
-    local okRead, exp = pcall(function() return aura.expirationTime end)
+    local okRead, exp = pcall(readExpiration, aura)
     if not okRead then
         self.counts.secret = self.counts.secret + 1
         return nil, "secret"
@@ -247,13 +269,21 @@ function Reconcile:SweepBulk(token, filter, now)
         return 0
     end
     if list == nil and readers and readers.byIndex then
-        -- the bounded fallback enumeration
-        local out = {}
+        -- the bounded fallback enumeration. The collector is a PREALLOCATED
+        -- scratch (docs/perf.md §4 fix 4): the sweep runs at 2 Hz over every
+        -- token, and a fresh table per sweep was a third of this leg's
+        -- out-of-combat garbage. It is emptied by the `count` cursor plus the
+        -- one trailing nil, and consumed before the next sweep can run.
+        local out = self._byIndexScratch
+        if not out then out = {} self._byIndexScratch = out end
+        local count = 0
         for i = 1, 40 do
             local aura = call(self, readers.byIndex, token, i, filter)
             if aura == nil or aura == false then break end
-            out[#out + 1] = aura
+            count = count + 1
+            out[count] = aura
         end
+        out[count + 1] = nil
         list = out
         how = "ok"
     end

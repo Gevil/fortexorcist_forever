@@ -121,7 +121,170 @@ test("locale: an enUS client adds zero aliases", function()
     local added = Locale.BuildSpellAliases()
     assertEquals(0, added, "the English client builds no aliases")
     assertEquals("Rapid Fire", FX.L("Rapid Fire"),
-        "FX.L is the identity on enUS")
+        "the identity on enUS")
     assertEquals("Schnellfeuer", Locale.CanonicalName("Schnellfeuer"),
         "with no alias the German name is its own key")
+end)
+
+-- ============================================================= H1b reads ==
+-- The second half of the localization law: `C_Spell.GetSpellCooldown`,
+-- `GetSpellCharges`, `GetSpellCooldownDuration` and `GetSpellTexture` all
+-- take a SpellIdentifier (the pinned catalog, SpellDocumentation), and the
+-- read pass used to hand them the ENGLISH DATA NAME. On the German client
+-- below the name is a string the client's spell table does not contain, so
+-- the whole read ladder answered "nothing" -- predictions never got
+-- certified, the charges bar was never measured, the pop icon was nil. The
+-- data row's id is the other half of the same identifier, locale-free, and it
+-- is what Module.lua's `readKey` now hands the reads.
+--
+-- The German C_Spell stub is the strict half on purpose: it resolves a
+-- NUMBER id and NOTHING else (an English name answers nil, the way a real
+-- deDE client answers a name it does not have), so a test that passes only
+-- because the stub is generous proves nothing.
+
+local readHits  -- [spellIdentifier] = calls, every read the Module made
+
+local function germanReads(on)
+    if not on then
+        _G.C_Spell = _C_Spell
+        readHits = nil
+        return
+    end
+    readHits = {}
+    local function record(id)
+        readHits[id] = (readHits[id] or 0) + 1
+    end
+    local function knownInfo(id)
+        -- Rapid Fire (data row 3045): 300 s, 30 s gone.
+        if id ~= 3045 then return nil end
+        return {
+            startTime = 1000, duration = 300, modRate = 1, isEnabled = true,
+            isActive = true, isOnGCD = false,
+            spellID = 3045, name = DE_SPELL[3045], icon = "INTERFACE\\ICONS\\RF",
+        }
+    end
+    _G.C_Spell = setmetatable({
+        GetSpellInfo = function(x)
+            if type(x) == "number" then
+                local name = DE_SPELL[x]
+                if name then return { spellID = x, name = name } end
+                return nil
+            end
+            return nil -- an English name is not in the German table
+        end,
+        GetSpellCooldown = function(id)
+            record(id)
+            return knownInfo(id)
+        end,
+        GetSpellCharges = function(id)
+            record(id)
+            if id ~= 3045 then return nil end
+            return {
+                currentCharges = 1, maxCharges = 2, cooldownStartTime = 0,
+                cooldownDuration = 0, chargeModRate = 1, isActive = false,
+            }
+        end,
+        GetSpellTexture = function(id)
+            record(id)
+            local info = knownInfo(id)
+            return info and info.icon or nil
+        end,
+        GetSpellCooldownDuration = function(id)
+            record(id)
+            return nil -- tier 3 off: the numeric tier carries this test
+        end,
+    }, { __index = _C_Spell })
+end
+
+test("locale: the read pass reads by data id on a German client", function()
+    FX.LoadClassAddOn("HUNTER")
+    Locale.Reset()
+    german(true)
+    Locale.BuildSpellAliases()
+    local n = Engine:Build("HUNTER", M.IsKnown)
+    assertTrue(type(n) == "number" and n > 0, "the set built")
+    germanReads(true)
+    local now = GetTime()
+    M:ReadAll()
+    local rf = Engine.entries["Rapid Fire"]
+    assertNotNil(rf,
+        "the numeric read reached the row (the English-name read is blind here)")
+    assertEquals("read", rf.source, "the entry is a certified read, not a prediction")
+    assertTrue(rf.anchored == true, "the plain read certified the window")
+    assertTrue((readHits[3045] or 0) > 0,
+        "the read carried the data row's id")
+    assertTrue(readHits["Rapid Fire"] == nil,
+        "no read ever carried the English data name")
+    germanReads(false)
+    Engine.entries["Rapid Fire"] = nil
+    rebuildEnglish()
+end)
+
+test("locale: the charges sweep measures by data id on a German client", function()
+    FX.LoadClassAddOn("HUNTER")
+    Locale.Reset()
+    german(true)
+    Locale.BuildSpellAliases()
+    Engine:Build("HUNTER", M.IsKnown)
+    germanReads(true)
+    Engine:DetectCharges(M.ReadChargesFor)
+    local rf = Engine.tracked["Rapid Fire"]
+    assertNotNil(rf, "Rapid Fire is tracked")
+    assertEquals(2, rf.maxCharges,
+        "the NeverSecret maxCharges was measured through the id path")
+    germanReads(false)
+    rf.maxCharges = nil
+    rebuildEnglish()
+end)
+
+test("locale: the ready pop resolves its icon by data id on a German client", function()
+    FX.LoadClassAddOn("HUNTER")
+    Locale.Reset()
+    german(true)
+    Locale.BuildSpellAliases()
+    Engine:Build("HUNTER", M.IsKnown)
+    germanReads(true)
+    -- A live entry that lapses now: ProcessReadyPops pops it and resolves the
+    -- icon through the Module's own read (the pop/splash/bus contract).
+    Engine.entries["Rapid Fire"] = {
+        name = "Rapid Fire", start = 1000, duration = 300,
+        endTime = 1300, predicted = false, source = "read",
+    }
+    local seen = {}
+    local handle = FX.On(FX.EVENTS.COOLDOWN_READY,
+        function(name, at, texPath) seen[name] = texPath end)
+    M:ProcessReadyPops(1301)
+    if handle then FX.Off(handle) end
+    assertNotNil(seen["Rapid Fire"], "the pop fired")
+    assertEquals("INTERFACE\\ICONS\\RF", seen["Rapid Fire"],
+        "the pop's icon resolved through the data row id")
+    germanReads(false)
+    Engine.entries["Rapid Fire"] = nil
+    rebuildEnglish()
+end)
+
+test("locale: the enUS read pass keeps asking the English name", function()
+    german(false)
+    Locale.Reset()
+    Locale.BuildSpellAliases()
+    FX.LoadClassAddOn("HUNTER")
+    local asked = {}
+    local real = _G.C_Spell
+    _G.C_Spell = setmetatable({
+        GetSpellCooldown = function(id)
+            asked[#asked + 1] = id
+            return nil
+        end,
+        GetSpellCharges = function() return nil end,
+        GetSpellCooldownDuration = function() return nil end,
+    }, { __index = real })
+    Engine:Build("HUNTER", function() return true end)
+    M:ReadAll()
+    _G.C_Spell = real
+    assertTrue(#asked > 0, "the pass ran")
+    for _, id in ipairs(asked) do
+        assertEquals("string", type(id),
+            "enUS: the English data name is the read key (bit-identical)")
+    end
+    rebuildEnglish()
 end)

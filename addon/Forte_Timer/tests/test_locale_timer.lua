@@ -54,3 +54,43 @@ test("locale: a German cast name canonicalizes to the row key", function()
     Casts.resolveName = nil
     restore()
 end)
+
+-- The kind-term sweep (H1b, docs/localization.md's
+-- `Registry.lua:88-210` audit row). `KIND_RULES` is a table of ENGLISH family
+-- terms -- `^Curse`, `Amplify Curse`, `^Touch of Weakness`, the pet terms,
+-- `^Healthstone`/`^Soulstone`/`Spellstone`/`Firestone`/`^Teleport`,
+-- `Corruption$`/`Agony$`/`Immolate`, `Expose Armor`/`Sunder Armor`,
+-- `Judgement`, the taunt/interrupt/CC bands. A row named by a localized
+-- client matched no band and drew the neutral `Default` colour, and the
+-- coverage census measured that as a real band. `kindFor` now runs the terms
+-- on the canonicalized key.
+test("locale: the kind bands reach a German spell name", function()
+    FX.LoadClassAddOn("MAGE")
+    Locale.Reset()
+    german(true)
+    Locale.BuildSpellAliases()
+    assertEquals("Crowds", Registry._kindFor("Verwandlung"),
+        "the German CC name reaches the `^Poly` band through its data key")
+    assertEquals("Crowds", Registry._kindFor("Polymorph"),
+        "the English name answers the same band")
+    assertEquals("Default", Registry._kindFor("Ein ganz fremder Name"),
+        "a name with no alias and no term stays Default")
+    restore()
+end)
+
+test("locale: the kind bands are English-term complete (the census floor)", function()
+    -- The bands carry the 70707 Warlock pet kit (the wave 2a data rows), so a
+    -- localized install of the pet's casts draws a real band, not `Default`.
+    local kit = {
+        ["Seduction"] = "Crowds", ["Mesmerize"] = "Crowds",
+        ["Soothing Kiss"] = "Crowds", ["Spell Lock"] = "Crowds",
+        ["Lash of Pain"] = "TargetDebuff", ["Devour Magic"] = "TargetDebuff",
+        ["Suffering"] = "SelfDebuff", ["Fire Shield"] = "SelfBuff",
+        ["Tainted Blood"] = "SelfBuff", ["Consume Shadows"] = "SelfBuff",
+        ["Lesser Invisibility"] = "SelfBuff", ["Paranoia"] = "SelfBuff",
+    }
+    for name, kind in pairs(kit) do
+        assertEquals(kind, Registry._kindFor(name),
+            name .. " lands on the " .. kind .. " band")
+    end
+end)

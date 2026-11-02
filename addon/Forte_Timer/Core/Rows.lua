@@ -672,6 +672,29 @@ function Rows:Clear()
 end
 
 -- ------------------------------------------------------------- the link pass --
+--- The sort's option pair, module scope, refreshed at the top of every
+--- `Rows:Sorted` (docs/perf.md §4 fix 5). They live here, not in the
+--- comparator's enclosing expression, so the comparator below is a CONSTANT
+--- function: `table.sort` is handed the one function this file was loaded
+--- with, so a 25 Hz pass creates zero closures even at 0 rows (the closure the
+--- inline form allocated was part of the 0-row GC floor). The shape is the
+--- Timeline's: `Forte_Cooldown/Core/Engine.lua:536-539` hands table.sort a
+--- comparator that reads nothing from the call site.
+local sortGrouping = true
+local sortOutwands = true
+
+--- The comparator: `Laws.CompareLinks` with the two option halves already
+--- resolved, so the law itself stays the single source.
+local function compareLinks(a, b)
+    return Laws.CompareLinks(a, b, sortGrouping, sortOutwands)
+end
+
+--- The link pass's option pair, read back by the tests that prove the sort
+--- order rides the options and not a captured closure.
+function Rows:SortOptions()
+    return sortGrouping, sortOutwands
+end
+
 --- The draw pass's bookkeeping, the port of :2140-2241: build the link table
 --- (row index, group key, drawn expire, visibility, hide-gate stamp, scale),
 --- sort it, then apply the per-instance visible cap and the time-band
@@ -680,7 +703,10 @@ end
 function Rows:Sorted(out, now)
     out = out or self.links
     local opts = self.options or {}
-    local grouping = opts.groupID ~= false
+    -- The comparator's options, resolved here (fix 5) — the hoisted
+    -- `compareLinks` reads these module-scope values.
+    sortGrouping = opts.groupID ~= false
+    sortOutwands = opts.outwands ~= false
     local n = 0
     for i = 1, self.rows_n do
         local row = self.rows[i]
@@ -705,9 +731,7 @@ function Rows:Sorted(out, now)
         end
     end
     for i = n + 1, #out do out[i] = nil end
-    table.sort(out, function(a, b)
-        return Laws.CompareLinks(a, b, grouping, opts.outwands ~= false)
-    end)
+    table.sort(out, compareLinks)
 
     -- the visible cap (:2192 `(not s.Max[0] or visible < s.Max[1]) and
     -- links[k][4] > 0`) + the time-band target (:2195-2212)

@@ -87,3 +87,33 @@ test("locale: item aliases and the cold-cache request path", function()
         "the id join carries the data label")
     Locale.Reset()
 end)
+
+-- H1b (docs/localization.md, the `Forte_Core/Core/Constants.lua:29` audit
+-- row): the soulstone family is declared as ENGLISH NAME PATTERNS
+-- (`{ "^Create Soulstone", "^Soulstone" }`), and two add-ons match the
+-- CLIENT's cast names against them. `FX.MatchesFamily` is the shared gate:
+-- canonicalize the client name onto the data key, run the patterns on that
+-- key, and keep the raw name as the leg for the half of a family no
+-- generated row carries ("Soulstone Resurrection" is in the spec, not in the
+-- data). On an English client CanonicalName is the identity, so the gate is
+-- the plain `find` it always was.
+test("locale: the family gate canonicalizes the client name first", function()
+    Locale.Reset()
+    Locale.localizedToEnglish["Seelenstein erstellen"] = "Create Soulstone"
+    Locale.englishToLocal["Create Soulstone"] = "Seelenstein erstellen"
+    assertTrue(FX.MatchesFamily("Seelenstein erstellen", FX.SoulstonePatterns),
+        "the German cast name reaches the English family pattern")
+    assertTrue(FX.MatchesFamily("Create Soulstone", FX.SoulstonePatterns),
+        "the English data name matches as before")
+    assertTrue(FX.MatchesFamily("Soulstone Resurrection", FX.SoulstonePatterns),
+        "the spec-only member matches on the raw leg (no alias to ride)")
+    assertFalse(FX.MatchesFamily("Use Soulstone", FX.SoulstonePatterns),
+        "the family's exclusion is the pattern's law")
+    assertFalse(FX.MatchesFamily("Heilstein erstellen", FX.SoulstonePatterns),
+        "an unrelated German name is not in the family")
+    assertFalse(FX.MatchesFamily(nil, FX.SoulstonePatterns),
+        "a nil name is not in a family")
+    Locale.Reset()
+    assertFalse(FX.MatchesFamily("Seelenstein erstellen", FX.SoulstonePatterns),
+        "with no alias the German name is not in the family (enUS shape)")
+end)

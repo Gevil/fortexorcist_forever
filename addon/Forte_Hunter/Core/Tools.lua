@@ -262,6 +262,16 @@ local M = FX.Hunter.Tools
 
 --- Aspect names derived from the generated data by the "^Aspect of" name
 --- pattern. Never hard-coded IDs; regeneration-safe.
+---
+--- H1b (docs/localization.md): the pattern runs over `FX.Data.Hunter` -- the
+--- GENERATED table, whose names are the data set's English labels -- so it is
+--- the data key space, not a live client name, and it needs no locale leg at
+--- all. What has to speak the client's language is the JOIN out of that key
+--- space, and both of those are locale-safe now: the live aura probe through
+--- `auraLookup` (the row's id / `FX.L` name) and the cast-name path through
+--- `M.CanonicalCastName` at the event seam. A German `Aspekt des Falken`
+--- canonicalizes onto `Aspect of the Falcon` (the alias map is built from the
+--- row ids), so the aspect family is recognized on every client.
 function M.DeriveAspectNames()
     local names = {}
     local data = FX.Data and FX.Data.Hunter
@@ -278,16 +288,44 @@ end
 
 M.aspectNames = M.DeriveAspectNames()
 
+--- The client-facing lookup key of one data aspect name (H1b,
+--- docs/localization.md): on an English client the English name itself
+--- (data name == client name, the shape this file always had), on a localized
+--- client the generated row's id -- `C_UnitAuras.GetPlayerAuraBySpellID` is
+--- the player-scoped, SpellIdentifier-keyed lookup the catalog ships -- and
+--- for a row with no id the client's display name (`FX.L`, the FW:SpellName
+--- law). Returns the key and whether it is a spellID.
+local function auraLookup(name)
+    local Locale = FX.Locale
+    if not (Locale and Locale.IsEnglish) then return name, false end
+    if Locale.IsEnglish() then return name, false end
+    local ids = Locale.RankIDsForName(name)
+    if ids and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
+        return ids[1], true
+    end
+    return FX.L(name), false
+end
+
 --- Default live aura reader: plain-presence probe for one aspect on the
 --- player. Contract matches AspectTracker:Reconcile's readAura.
---- C_UnitAuras.GetAuraDataBySpellName(unit, spellName, filter) -- the
---- name-resolving player-scoped lookup the Forever catalog actually ships
---- (unit is NeverSecret, filter Nilable so we pass nil). Its return is
---- SecretWhenUnitAuraRestricted: a secret value reads as "no reliable
---- information" (nil), a plain nil as "confirmed not active" (false).
+--- `C_UnitAuras.GetAuraDataBySpellName(unit, spellName, filter)` -- the
+--- name-resolving player-scoped lookup the Forever catalog ships
+--- (UnitAuraDocumentation.lua:244, SecretWhenUnitAuraRestricted, filter
+--- Nilable so we pass nil), fed the `auraLookup` key so the name it resolves
+--- is the CLIENT's. Its return is SecretWhenUnitAuraRestricted: a secret
+--- value reads as "no reliable information" (nil), a plain nil as "confirmed
+--- not active" (false).
 function FX.Hunter.DefaultAuraReader(name)
-    if not (C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName) then return nil end
-    local ok, aura = pcall(C_UnitAuras.GetAuraDataBySpellName, "player", name, nil)
+    local key, bySpellID = auraLookup(name)
+    if key == nil then return nil end
+    local ok, aura
+    if bySpellID then
+        ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, key)
+    elseif C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName then
+        ok, aura = pcall(C_UnitAuras.GetAuraDataBySpellName, "player", key, nil)
+    else
+        return nil
+    end
     if not ok then return nil end
     if aura == nil then return false end
     local iss = _G.issecretvalue
@@ -326,9 +364,27 @@ M.ResolveCastName = resolveCastName
 --- PLAYER_SWING_RANGE_UPDATE(swingType, isInRange, checksRange) TYPE
 --- LEADS; PLAYER_REGEN_ENABLED = out of combat, the moment the cast
 --- prediction gets re-anchored (PLAN §3.2).
+---
+--- H1b (docs/localization.md): the resolved cast name is the CLIENT's name,
+--- while both trackers key on the GENERATED DATA's English names (the aspect
+--- set is derived from `FX.Data.Hunter` by the `^Aspect of` data-name
+--- pattern, the swing gate is the `Auto Shot` data name). On a localized
+--- client the raw name therefore matched NOTHING: the aspect prediction never
+--- adopted, and the Auto Shot swing fallback never started. One canonicalize
+--- at the seam -- the data key space, `Locale.CanonicalName` (the identity on
+--- enUS) -- puts both trackers back on their own keys; `M.ResolveCastName`
+--- stays the client-name seam (the display half, unchanged).
+local function canonicalName(name)
+    if type(name) ~= "string" then return name end
+    local Locale = FX.Locale
+    if Locale and Locale.CanonicalName then return Locale.CanonicalName(name) end
+    return name
+end
+M.CanonicalCastName = canonicalName
+
 local function onToolEvent(self, event, a1, a2, a3)
     if event == "UNIT_SPELLCAST_SUCCEEDED" then
-        local name = resolveCastName(a3)
+        local name = canonicalName(resolveCastName(a3))
         if name then
             self.Aspects:OnCast(name)
             self.Swing:OnCast(name)

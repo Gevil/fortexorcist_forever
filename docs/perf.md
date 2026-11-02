@@ -264,3 +264,102 @@ set (~76, Warlock) ~0.4 ms/s [E].
    measure before any Max increase.
 
 Probe scripts: `/tmp/perf/probe0-6.lua` (throwaway, outside the repo).
+
+---
+
+## 6. Wave 2a H5 — fixes 2, 3, 4, 5 applied (after)
+
+Same rig, same probes: `Casts.now`-injected clock, the public tick bodies
+(`Module:Draw`, `Rows:Sorted`, `Module:Logic`), `os.clock()` for CPU (µs) and
+`collectgarbage("count")` deltas × 1024 for bytes. Files:
+`Forte_Timer/UI/Rows.lua` (fixes 2 + 3), `Forte_Timer/Core/Rows.lua` (fix 5,
+comparator only), `Forte_Timer/Core/Reconcile.lua` (fix 4).
+
+**The renderer reads the global `GetTime()`** for the times, the fills and the
+spark (`UI/Rows.lua`'s `now`), while the sort, the gates and the logic cadence
+ride the module's injectable `Casts.now`. Two clocks, and the sim's `GetTime`
+advances in whole seconds: a measurement body that runs 20+ passes crosses a
+second boundary, which is a *shown value changing* — the reason
+`Forte_Timer/tests/test_perf_gates.lua` stubs the global for its bodies, and
+the reason the numbers below advance `Casts.now` (the renderer's `now` is
+fixed) and move each row's `drawExpireAt` (the fill and the times move)
+together.
+
+### Draw (`Module:Draw`, 25 Hz; µs/tick, bytes/tick)
+
+| rows | before | after | ∆ CPU | ∆ GC |
+|---|---|---|---|---|
+| 0  | 12.6 / 168  | 7.9 / 72   | −37 % | −57 % |
+| 10 | 402.2 / 2113 | 149.7 / 74 | −63 % | −97 % |
+| 30 | 1098.0 / 6305 | 562.0 / 437 | −49 % | −93 % |
+
+At 30 rows the panel goes from 27 ms + 158 KB of garbage **per session-second**
+to 14 ms + 11 KB. The row's per-tick bytestream is now ~15 B at 10 rows (the
+pool, the spark's `SetPoint`s and the `SparkOffset` string the frame's law
+requires), and the steady-state 30-row figure (437 B/tick) is dominated by the
+*fill* leg's `SparkOffset` concats, not by dirty-check keys: §4's fix 2 "2000
+formats/s" was 100 % of the string keying and is gone.
+
+### Sorted (`Rows:Sorted`, per call; µs, bytes)
+
+| rows | before | after |
+|---|---|---|
+| 0 (fresh out table) | 3.9 / 168  | 2.4 / 72 |
+| 0 (reused out)      | 3.7 / 96   | 0.6 / 0  |
+| 10 | 58.7 / 168  | 39.6 / 72 |
+| 30 | 143.9 / 168 | 119.9 / 72 |
+
+The 0-row reuse leg is the clean read of fix 5: **96 B and 3.1 µs → 0 B and
+0 µs** — the per-call comparator closure, charged even when there is nothing to
+sort, 25 times a second on an idle panel. The 72 B in the "fresh out table"
+column is the caller's table literal, not the pass's.
+
+### Logic / aura sweep (`Module:Logic`, 2 Hz out of combat; µs, bytes)
+
+| rows | before | after |
+|---|---|---|
+| 0  | 293.4 / 15104 | 116.9 / 11705 |
+| 30 | 275.6 / 15176 | 125.7 / 11776 |
+
+**Attribution.** ~11.6 KB of both columns is the *sim's* live aura readers
+allocating a fresh aura list per read: the leg is 596 reads/call (2 rows walked
+× 12 reader passes + the liveness probes), 808 reads/s at 2 Hz, ~19 B per read.
+The preallocated-stub-reader rig (facts handed as prebuilt tables, so the
+readers allocate nothing) separates the code from the harness, 12 rows:
+
+| leg | before | after |
+|---|---|---|
+| sealed auras (12 sealed reads/call; the sealed leg exits the row's path) | 463 B/call | 36 B/call |
+| 0 rows | 144 B/call | 72 B/call |
+| live readers, 12 rows | 5447 B/call | 1544 B/call |
+
+Fix 4's own cost is the sealed column: a sealed read is a `pcall` that raises,
+so the sealed leg is where the two hoisted field readers run, and it is 12
+closures per call before and 0 after. The live-readers column's 5447 → 1544 is
+the `SweepBulk` `out = {}` per pass plus the closure rides on the same path.
+
+### Tests (the gates, `Forte_Timer/tests/test_perf_gates.lua`)
+
+Every ceiling sits between a measured before and after number, so each one
+fails on the pre-fix code (the three files' fix sites were reverted to their
+pre-fix bodies on 2026-11-02, each seam on its own and all together, and this
+file failed: the counters raise (`D.counts` is
+new), 20 steady passes formatted 20 time texts (ceiling 0), a 40-pass run
+re-anchored groups 40 times (ceiling 0), the sweep read 463 B/call (ceiling
+150), the 0-row sort cost 3.7 µs (ceiling 3.4), the 30-row draw 6305 B/tick
+(ceiling 1500)).
+
+One gate is NOT a GC gate: `Rows:Sorted`'s closure is a compile-time-visible
+allocation the LuaJIT backend hoists out of a measurement loop at 0 rows, so
+the byte counter reads the same on both builds. Fix 5 is gated on **time**
+(3.9 → 2.4 µs/call at 0 rows) plus an order-parity test against
+`Laws.CompareLinks` under all four `{groupID, outwands}` combinations, and the
+zero-allocation fact is read from the hoist's shape, not measured.
+
+### Visual
+
+`docs/media/sim/fx_timer_perf_before.png` / `_after.png`: the same
+`/fx timer test` panel, bars, fills, tick marks, sparks and headers identical.
+
+Probe scripts: `/tmp/perf/probe_h5.lua`, `/tmp/perf/probe_h5r.lua` (throwaway,
+outside the repo).

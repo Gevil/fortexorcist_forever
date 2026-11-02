@@ -91,6 +91,79 @@ end
 -- needs the module's own isKnown, and it is module-local by law.
 M.IsKnown = isKnown
 
+-- H1b (docs/localization.md "Lookup-critical", the `Module.lua:119,154,379`
+-- audit rows): every live cooldown read in this file used to be keyed by the
+-- ENGLISH DATA NAME (`C_Spell.GetSpellCooldown("Rapid Fire")`,
+-- GetSpellCharges, GetSpellTexture, GetSpellCooldownDuration). A
+-- `SpellIdentifier` is legal as a name OR an id (the pinned catalog,
+-- SpellDocumentation), and on an English client the name is the row's own
+-- client name -- on a localized client it is a string the client's spell
+-- table does not contain, so the whole read ladder (the numeric anchor, the
+-- charges pair, the duration object, the pop icon) went blind while the cast
+-- events and the learned durations kept the rows alive. The fix is the id
+-- half of the same SpellIdentifier, and the data row's id is the join key the
+-- Locale module already walks: `Locale.RankIDsForName(english)`.
+--
+-- The English path must not move: on a client whose locale IS English the
+-- data name and the client name are the same string, so `readKey` returns the
+-- name and every read is bit-identical to before. On any other client the
+-- data id takes over, with `FX.L(name)` (the client's own display name, the
+-- FW:SpellName law) as the fallback for a name no generated row carries.
+--
+-- The answer is memoized per name (one IsPlayerSpell chain per spell per
+-- rebuild, not one per 1 Hz read of ~40 spells) and the cache is cleared by
+-- Rebuild, the one place the known-spell set is a fresh question.
+local readKeyCache = {}
+local readKeyStamp = nil
+
+local function readKey(name)
+    if type(name) ~= "string" then return name end
+    local Locale = FX.Locale
+    local stamp = (Locale and Locale.GetLocale and tostring(Locale.GetLocale()))
+        or ""
+    -- The memo is a function of the LOCALE: the alias maps it reads are
+    -- rebuilt per client locale (and per login), so a locale change -- the
+    -- test seam, and the shape of a client that answers with a new locale --
+    -- invalidates every key in it.
+    if stamp ~= readKeyStamp then
+        readKeyStamp = stamp
+        wipe(readKeyCache)
+    end
+    local cached = readKeyCache[name]
+    if cached ~= nil then return cached end
+    local key = name
+    if Locale and Locale.IsEnglish then
+        local english = Locale.IsEnglish()
+        if not english then
+            local ids = Locale.RankIDsForName(name)
+            if ids then
+                key = ids[1]
+                for i = 1, #ids do
+                    if FX.Compat.IsPlayerSpell(ids[i]) then
+                        key = ids[i]
+                        break
+                    end
+                end
+            elseif FX.L then
+                key = FX.L(name)
+            end
+        end
+    end
+    readKeyCache[name] = key
+    return key
+end
+
+--- The charges reader `Engine:DetectCharges` gets: the same locale-safe key,
+--- the same FX.Compat seam (the Engine's own default is the raw C_Spell read,
+--- which on a localized client answers for no tracked spell at all and so
+--- never sets a `maxCharges` flag).
+function M.ReadChargesFor(name)
+    local read = FX.Compat.GetSpellCharges
+    if not read then return nil end
+    return read(readKey(name))
+end
+
+
 
 --- LuaDurationObject probes, hoisted so the 1 Hz pass allocates nothing.
 --- Every one runs inside a pcall at the call site: a client object may lack
@@ -115,10 +188,10 @@ end
 --- pinned catalog) and `GetRemainingDuration()` is a plain number. Anything
 --- secret, absent, un-callable or raising changes nothing -- this tier is
 --- opportunistic by construction.
-local function readDurationObject(name, now)
+local function readDurationObject(name, now, key)
     local read = FX.Compat.GetSpellCooldownDurationObject
     if not read then return nil end
-    local ok, obj = pcall(read, name, true)
+    local ok, obj = pcall(read, key or name, true)
     if not ok or not obj then return nil end
     local okS, has = pcall(durationHasSecret, obj)
     local plainSecret = okS and FX.Compat.PlainOrNil(has)
@@ -145,13 +218,18 @@ function M:ReadAll()
         and FX.SecretState.CooldownReadsAreSecret ~= nil
         and FX.SecretState.CooldownReadsAreSecret()
     for name in pairs(Engine.tracked) do
+        -- H1b: every C_Spell read of this pass takes the locale-safe key
+        -- (the data row's id on a localized client, the English name on an
+        -- English one). `name` stays the Engine's key -- the reads are keyed
+        -- on the client's identifier space, the state on the data key space.
+        local key = readKey(name)
         local isActive, isOnGCD
         local ok, info = false, nil
         if not skipNumeric then
             -- pcall: a live read can itself throw on Forever (secret values
             -- propagate as a raise, not just a bad value). One spell blowing
             -- up must not abort the rest of the pass.
-            ok, info = pcall(FX.Compat.GetSpellCooldownInfo, name)
+            ok, info = pcall(FX.Compat.GetSpellCooldownInfo, key)
         end
         if ok and info then
             -- Count the tier only when the read MOVED state: an "anchored"
@@ -168,7 +246,7 @@ function M:ReadAll()
             -- this very call may have come back secret, the pair did not).
             isActive, isOnGCD = info.isActive, info.isOnGCD
             if chargesReader then
-                local okC, charge = pcall(chargesReader, name)
+                local okC, charge = pcall(chargesReader, key)
                 if okC and charge then
                     Engine:OnReadCharges(name, charge.currentCharges,
                         charge.cooldownStartTime, charge.cooldownDuration, now)
@@ -178,7 +256,7 @@ function M:ReadAll()
             -- Legacy multi-return client: no info table means no booleans
             -- and no charge pair -- plain numbers only, no boolean tier.
             local hadEntry = Engine.entries[name] ~= nil
-            local okG, start, duration = pcall(FX.Compat.GetSpellCooldown, name)
+            local okG, start, duration = pcall(FX.Compat.GetSpellCooldown, key)
             if okG then
                 local verdict = Engine:OnRead(name, start, duration, now)
                 if verdict == "anchored" or (verdict == "cleared" and hadEntry) then
@@ -195,7 +273,7 @@ function M:ReadAll()
             readTiers.boolean = readTiers.boolean + 1
         end
         -- Tier 3.
-        if readDurationObject(name, now) == "anchored" then
+        if readDurationObject(name, now, key) == "anchored" then
             readTiers.duration = readTiers.duration + 1
         end
     end
@@ -219,6 +297,9 @@ function M:Rebuild()
     -- the recorded source so Build's isKnown calls repopulate it (nil =
     -- no source answered during this Rebuild).
     FX.Compat.isPlayerSpellSource = nil
+    -- The known-spell set is a fresh question now, so the memoized locale-
+    -- safe read keys are (H1b: they ride IsPlayerSpell).
+    wipe(readKeyCache)
     local n, reason = Engine:Build(FX._playerClass, isKnown)
     if not n then
         -- SPELLS_CHANGED can fire constantly (loot, talents, levels). Say
@@ -247,8 +328,12 @@ function M:Rebuild()
     end
     -- Multi-charge detection: a live C_Spell.GetSpellCharges sweep marks
     -- tracked spells whose (NeverSecret) maxCharges is > 1. Runtime facts,
-    -- not data -- see Engine:DetectCharges and the Engine header.
-    Engine:DetectCharges()
+    -- not data -- see Engine:DetectCharges and the Engine header. H1b: the
+    -- sweep gets this module's locale-safe reader (the Engine's default is
+    -- the raw C_Spell read keyed by the English data name, which a localized
+    -- client answers for no tracked spell at all -- the flag would then never
+    -- be measured on a non-enUS install).
+    Engine:DetectCharges(M.ReadChargesFor)
     M:ReadAll()
 end
 
@@ -371,13 +456,17 @@ function M:RecordCastEvent(spellID, inCombat)
 end
 
 --- The pop's icon (the event contract's texPath): item entries carry the
---- texture on the snapshot; a spell resolves by name (the Timeline's
---- BindSlot law). pcall + PlainOrNil: a sealed GetSpellTexture read raises
+--- texture on the snapshot; a spell resolves through the locale-safe read
+--- key (H1b: `C_Spell.GetSpellTexture(<English name>)` is a lookup in the
+--- CLIENT's name table -- nil for every tracked spell on a localized client,
+--- so the pop, the splash and the FX_COOLDOWN_READY listeners lost their
+--- icon; the data row's id is the same SpellIdentifier, locale-free).
+--- pcall + PlainOrNil: a sealed GetSpellTexture read raises
 --- or returns a secret (CodeReview3 m8), and a secret texture is no
 --- poppable icon.
 local function resolveReadyIcon(name)
     if C_Spell and C_Spell.GetSpellTexture then
-        local ok, v = pcall(C_Spell.GetSpellTexture, name)
+        local ok, v = pcall(C_Spell.GetSpellTexture, readKey(name))
         if ok then return FX.Compat.PlainOrNil(v) end
     end
     return nil

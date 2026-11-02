@@ -73,11 +73,14 @@ test("the Warlock and Rogue CC spells the pages name ARE tracked", function()
     -- `Enslave Demon`, Seduction, Polymorph and Sap. The Forever names of
     -- the Warlock pair are Fear + Banish + Subjugate Demon (1098 is
     -- `Subjugate Demon` on this client, NOT the 2012 `Enslave Demon`);
-    -- Sap is Rogue. The page's other two names have no generated row on
-    -- this build (see the next test), which is the E4 report.
+    -- Sap is Rogue. Seduction joined this set on the 70707 data refresh
+    -- (DataRefresh wave 2a): the store names 6358 with a 15 s duration, so
+    -- the page's fade/break row is live now (LocaleB lights it). The page's
+    -- remaining names have no trackable row on this build (see the next
+    -- test), which is the E4 report.
     local warlock = tracked("WARLOCK")
     assertNotNil(warlock, "no generated Warlock data to build on")
-    for _, name in ipairs({ "Fear", "Banish", "Subjugate Demon" }) do
+    for _, name in ipairs({ "Fear", "Banish", "Subjugate Demon", "Seduction" }) do
         local entry = warlock[name]
         assertNotNil(entry, name .. " is not in the Warlock tracked set")
         assertTrue(entry.duration > 0, name .. " has no positive duration")
@@ -91,18 +94,22 @@ end)
 
 test("the page names with no generated row are reported, not hidden", function()
     -- The second half of E4's fact, pinned so the day the data grows these
-    -- rows is a signal to light the page rows, not a silent drift: the
-    -- Forte_Messages raid page registers `Enslave Demon`, `Seduction` and
-    -- the `Mesmerize` pet alias, and on this build's generated Warlock data
-    -- none of the three exists (the client's name for 1098 is Subjugate
-    -- Demon; Seduction 20707 and Mesmerize 115268 are not in the class list).
+    -- rows is a signal to light the page rows, not a silent drift. The
+    -- 70707 data refresh (DataRefresh wave 2a) RESOLVED two of the three:
+    -- Seduction 6358 now rides the tracked set (pinned in the test above,
+    -- and in test_70707_overlay.lua), and the Mesmerize pet alias 24594 is
+    -- in the data NAME-ONLY (the store's Names table has the id, its value
+    -- tables carry no row) -- an inert row is no CC window, so the
+    -- fade/break row for it stays dark. `Enslave Demon` (2012) remains
+    -- absent: the client's 1098 name is Subjugate Demon.
     local warlock = tracked("WARLOCK")
     assertNotNil(warlock, "no generated Warlock data to build on")
-    for _, name in ipairs({ "Enslave Demon", "Seduction", "Mesmerize" }) do
-        assertNil(warlock[name],
-            name .. " just entered the Warlock data: Forte_Messages'"
-            .. " fade/break rows for it are live now -- light them")
-    end
+    assertNil(warlock["Enslave Demon"],
+        "Enslave Demon just entered the Warlock data: Forte_Messages'"
+        .. " fade/break rows for it are live now -- light them")
+    assertNil(warlock["Mesmerize"],
+        "Mesmerize just gained a duration: Forte_Messages' fade/break rows"
+        .. " for it are live now -- light them")
 end)
 
 -- Hand the registry back to the session's own class (the Forte_Timer

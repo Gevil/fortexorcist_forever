@@ -118,6 +118,11 @@ local KIND_RULES = {
         "^Subjugate Demon", "^Seduction", "^Seduce", "^Cyclone",
         "^Asphyxiate", "^Freezing Trap", "^Frost Trap", "^Ensnaring Trap",
         "^Black Ice", "^Mind Soothe",
+        -- The 70707 Succubus kit (wave 2a D3's data rows; the live client's
+        -- own store: Mesmerize 24594, Soothing Kiss, the kick Spell Lock):
+        -- the CC pair and the interrupt join the CC band, and the
+        -- target-side buff-eat goes to TargetDebuff below.
+        "^Mesmerize", "^Soothing Kiss", "^Spell Lock",
         "^Dread", "^Dread Spin", "^Druids of the Fang", "^Worm Burst",
         "^Worm Storm", "^Noxious Frenzy", "^Carnivous Gas", "^Spore Veil",
         "^Mind-numbing Poison", "^Numbing Poison",
@@ -158,6 +163,8 @@ local KIND_RULES = {
         "^Blood Fury", "^Retaliate", "^Death Coil", "^Soul Siphon",
         "^Blood Leech", "^Blood Vortex", "^Blood Rage", "^Blood Sacrifice",
         "^Dark Pact", "^Pact of the", "^Shattered Illusions", "^Curse of Self",
+        -- the Succubus' self-pain window (70707 kit, wave 2a D3)
+        "^Suffering",
     } },
     { key = "Buff", terms = {
         "^Blessing", "^Greater Blessing", "^Prayer of", "^Arcane Brilliance",
@@ -175,6 +182,11 @@ local KIND_RULES = {
         "^Death's Decree", "^Concussive", "^Distracting", "^Tranquilizing",
         "^Viper", "^Scorpid", "^Black Arrow", "Infectious",
         "^Siphon Mana", "^Spreading Pain",
+        -- the Succubus kit's target-side windows (70707, wave 2a D3): the
+        -- pain window and the buff-eat (Devour Magic eats the TARGET's buff,
+        -- so it is a target window, not a CC -- the CC band above runs first
+        -- and does not carry it)
+        "^Lash of Pain", "^Devour Magic",
         "^Malevolent", "^Torment", "^Punishment", "^Rune of", "^Unbalancing",
         "^Overpower", "^Mortal Strike", "^Shocking", "^Thunderfury",
         "^Demoralize", "^Shadow Word: Pain", "^Void Zone", "^Void Plague",
@@ -247,6 +259,9 @@ local KIND_RULES = {
         "^Way of", "^Feral Spirit", "^Earth Shield", "^Water Shield",
         "^Energized Shield", "^Regeneration", "^Windfury",
         "^Soul Fire", "^Soul Harvest", "^Shadow Spark",
+        -- the Succubus kit's self windows (70707, wave 2a D3)
+        "^Fire Shield", "^Tainted Blood", "^Consume Shadows",
+        "^Lesser Invisibility", "^Paranoia",
     
         "Stance", "^Shot", "^Slam", "^Whirlwind", "^Intercept",
         "^Intervene", "^Revenge", "^Charge", "^Last Stand", "^Raging Blow",
@@ -284,7 +299,31 @@ local function termMatches(name, term)
     return name:find(core, 1, true) ~= nil
 end
 
+--- The key the bands run on (H1b, docs/localization.md "Lookup-critical",
+--- the `Registry.lua:88-210` audit row): the bands are ENGLISH family terms
+--- (the CC pair `^Curse`, the stone family `^Healthstone`/`^Soulstone`/
+--- `Spellstone`/`Firestone`, `^Teleport`, the DoT tails `Corruption$`/
+--- `Agony$`/`Immolate`, `Expose Armor`, `Judgement`, the taunt/interrupt/CC
+--- bands), so a row named by a localized client fell to `Default` and drew
+--- the neutral colour. Canonicalizing the incoming name onto the generated
+--- data key first puts every band back on the language it was written in --
+--- `Verwandlung` reaches `^Poly`, `Seelenstein` reaches `^Soulstone`. The
+--- registry's own alias rows (Build) already share the English entry, so this
+--- leg is what makes the bands answer for a name BEFORE any entry exists:
+--- the coverage census, `KindBands` diagnostics and the fade/row-class paths
+--- that read `_kindFor` directly. `CanonicalName` is the identity on enUS and
+--- a pass-through for an unknown name, so an English client sees exactly the
+--- terms it always saw.
+local function kindKey(name)
+    local Locale = FX.Locale
+    if type(name) == "string" and Locale and Locale.CanonicalName then
+        return Locale.CanonicalName(name)
+    end
+    return name
+end
+
 local function kindFor(name)
+    name = kindKey(name)
     for _, rule in ipairs(KIND_RULES) do
         local terms = rule.terms
         for i = 1, #terms do
