@@ -87,6 +87,71 @@ function Compat.GetSpellCharges(spellIdentifier)
     return nil
 end
 
+--- The raw LuaDurationObject of C_Spell.GetSpellCooldownDuration(spell,
+--- ignoreGCD), nil where the API is absent. THE opportunistic exact anchor
+--- of the cooldown read tiers (docs/research/secrets-unknowns.md §2): this
+--- is the one cooldown-timing read with NO output-restriction annotation
+--- (pinned catalog C_Spell.GetSpellCooldownDuration
+--- @SpellDocumentation.lua:326 declares only
+--- `SecretArguments = AllowedWhenTainted` and returns a LuaDurationObject),
+--- and the duration-object family is the value type the restriction
+--- machinery deliberately leaves non-secret. The object's methods, all in
+--- the pinned catalog @LuaDurationObjectAPIDocumentation.lua:
+---   :350 HasSecretValues() -> bool (`ReturnsNeverSecret = true`)
+---   :270 GetRemainingDuration() -> **Seconds**
+---   :318 GetTotalDuration()     -> **Seconds**
+---   :302 GetStartTime() / :240 GetEndTime() -> FrameTime (GetTime() units)
+--- SECONDS, not ms -- the same scale GetTime() and the Engine's
+--- start/duration/endTime live on. The call is declared `MayReturnNothing`,
+--- so nil is a normal answer; call sites pcall it (a live read can raise).
+function Compat.GetSpellCooldownDurationObject(spellIdentifier, ignoreGCD)
+    if C_Spell and C_Spell.GetSpellCooldownDuration then
+        return C_Spell.GetSpellCooldownDuration(spellIdentifier,
+            ignoreGCD and true or false)
+    end
+    return nil
+end
+
+--- Is the add-on restriction of `restrictionType` active right now?
+--- C_RestrictedActions.IsAddOnRestrictionActive(type) -> bool
+--- (pinned catalog @RestrictedActionsDocumentation.lua:54);
+--- `AddOnRestrictionType` = {Combat=0, Encounter=1, ChallengeMode=2,
+--- PvPMatch=3, Map=4, Chat=5} (@RestrictedActionsConstantsDocumentation.lua:18).
+--- The clean-room native read of this surface (Forever 70707): it answers one
+--- byte of a per-type state array (docs/research/secrets-unknowns.md §5).
+--- nil where the API is absent -- the wow-ui-sim build does NOT ship
+--- `C_RestrictedActions` (measured 2026-11-02: the table exists, the method is
+--- no function), so the caller must treat nil as "unknown", never as false.
+--- Call sites pcall (the call is `SecretArguments = AllowedWhenUntainted`).
+function Compat.IsAddOnRestrictionActive(restrictionType)
+    if C_RestrictedActions and C_RestrictedActions.IsAddOnRestrictionActive then
+        return C_RestrictedActions.IsAddOnRestrictionActive(restrictionType)
+    end
+    return nil
+end
+
+--- Are cooldown reads going to come back secret right now?
+--- C_Secrets.ShouldCooldownsBeSecret() -> bool
+--- (pinned catalog @SecretPredicateAPIDocumentation.lua:128). nil where the
+--- API is absent (the sim does not ship C_Secrets -- measured 2026-11-02).
+function Compat.ShouldCooldownsBeSecret()
+    if C_Secrets and C_Secrets.ShouldCooldownsBeSecret then
+        return C_Secrets.ShouldCooldownsBeSecret()
+    end
+    return nil
+end
+
+--- Are aura reads going to come back secret right now?
+--- C_Secrets.ShouldAurasBeSecret() -> bool
+--- (pinned catalog @SecretPredicateAPIDocumentation.lua:118). nil where the
+--- API is absent.
+function Compat.ShouldAurasBeSecret()
+    if C_Secrets and C_Secrets.ShouldAurasBeSecret then
+        return C_Secrets.ShouldAurasBeSecret()
+    end
+    return nil
+end
+
 --- Which spell-known source last answered a Compat.IsPlayerSpell query:
 --- "IsPlayerSpell", "IsSpellKnownOrInSpellBook", "IsSpellKnown", or nil
 --- while none has answered. /fx status and the Module:Rebuild zero-tracked
@@ -253,4 +318,105 @@ function Compat.GetItemCooldownInfo(itemID, slot)
         return C_Item.GetItemCooldown(itemID)
     end
     return nil, nil, nil
+end
+
+-- ---------------------------------------------------------------------------
+-- FX.SecretState -- the cached "are reads secret RIGHT NOW" mode switch
+-- (docs/research/secrets-unknowns.md §5, ranked design change 1).
+--
+-- Six cheap per-type queries (`C_RestrictedActions.IsAddOnRestrictionActive`
+-- over AddOnRestrictionType 0..5, NATIVE-verified on 70707 as one byte of a
+-- per-type state array) plus the two zero-arg `C_Secrets.Should*BeSecret()`
+-- predicates, cached in one table and recomputed on
+-- `ADDON_RESTRICTION_STATE_CHANGED(type, state)`
+-- (@RestrictedActionsDocumentation.lua:96) and
+-- `PLAYER_REGEN_DISABLED`/`PLAYER_REGEN_ENABLED`
+-- (@UnitDocumentation.lua:3884/:3890) -- the same event set the research note
+-- prescribes, and the set Musca/EverAuras watch live. Refreshing is a handful
+-- of zero/one-arg calls, so it runs on the event, never per value.
+--
+-- FIELD MEANINGS (all true / false / nil -- nil = the query is absent, raised
+-- or answered with a secret value, i.e. UNKNOWN):
+--   combat, encounter, challenge, pvp, map,chat  the six add-on restriction
+--       types (AddOnRestrictionType 0..5).
+--   cooldownsSecret  C_Secrets.ShouldCooldownsBeSecret()
+--   aurasSecret      C_Secrets.ShouldAurasBeSecret()
+--
+-- CONSUMER LAW: this mode saves WORK (skip the numeric cooldown reads while
+-- the engine says they come back secret) and labels the state in `/fx
+-- status` for the launch-day evidence. It NEVER decides correctness -- the
+-- field-level guard stays `Compat.PlainOrNil` at every read, because the
+-- restriction is also driven by per-spell exceptions the mode cannot see
+-- (docs/research/secrets-unknowns.md §2).
+FX.SecretState = FX.SecretState or {}
+local SecretState = FX.SecretState
+
+-- { field, AddOnRestrictionType } -- the enum's six values, in the enum's
+-- order (pinned catalog @RestrictedActionsConstantsDocumentation.lua:18).
+SecretState.RESTRICTION_TYPES = {
+    { field = "combat",    type = 0 },
+    { field = "encounter", type = 1 },
+    { field = "challenge", type = 2 },
+    { field = "pvp",       type = 3 },
+    { field = "map",       type = 4 },
+    { field = "chat",      type = 5 },
+}
+
+--- Recompute the whole cache. `readers` is the test seam
+--- ({ isActive(type)->bool, cooldownsSecret()->bool, aurasSecret()->bool });
+--- production uses the Compat seams above. Every call runs in a pcall (a
+--- restricted client raises; the sim does not ship C_RestrictedActions/
+--- C_Secrets at all) and its result passes PlainOrNil before it is stored, so
+--- a secret answer degrades to nil = unknown, never to a false "all plain".
+function SecretState.Refresh(readers)
+    readers = readers or {}
+    local isActive = readers.isActive or Compat.IsAddOnRestrictionActive
+    for _, spec in ipairs(SecretState.RESTRICTION_TYPES) do
+        local active
+        if isActive then
+            -- `ok and PlainOrNil(v)` is NOT the idiom here: a raise makes
+            -- `ok` false, `false and ...` is FALSE, and false is a perfectly
+            -- good-looking "not restricted" answer. An unknown must be nil.
+            local ok, value = pcall(isActive, spec.type)
+            if ok then
+                local plain = Compat.PlainOrNil(value)
+                if plain ~= nil then active = plain and true or false end
+            end
+        end
+        SecretState[spec.field] = active
+    end
+    local cbs = readers.cooldownsSecret or Compat.ShouldCooldownsBeSecret
+    if cbs then
+        local ok, value = pcall(cbs)
+        if ok then
+            local plain = Compat.PlainOrNil(value)
+            if plain ~= nil then SecretState.cooldownsSecret = plain and true or false end
+        end
+    end
+    local abs = readers.aurasSecret or Compat.ShouldAurasBeSecret
+    if abs then
+        local ok, value = pcall(abs)
+        if ok then
+            local plain = Compat.PlainOrNil(value)
+            if plain ~= nil then SecretState.aurasSecret = plain and true or false end
+        end
+    end
+    return SecretState
+end
+
+--- The one `/fx status` line: combat / encounter / cooldowns / auras. `nil`
+--- in a slot is the honest "this client gives me no answer" (the wow-ui-sim
+--- build ships neither C_RestrictedActions nor C_Secrets), which is itself
+--- the launch-day datum the probe asks for.
+function SecretState.StatusLine()
+    return string.format("secret-state: combat=%s encounter=%s cooldowns=%s auras=%s",
+        tostring(SecretState.combat), tostring(SecretState.encounter),
+        tostring(SecretState.cooldownsSecret), tostring(SecretState.aurasSecret))
+end
+
+--- Convenience for read passes: the numeric cooldown reads are known to come
+--- back secret. ONLY a plain `true` answers; unknown answers false, i.e. "do
+--- not skip" -- the mode may save work, it never skips on a guess.
+function SecretState.CooldownReadsAreSecret()
+    return SecretState.cooldownsSecret == true
 end

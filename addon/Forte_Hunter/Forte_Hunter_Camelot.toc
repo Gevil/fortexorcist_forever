@@ -4,6 +4,10 @@
 ## Version: 0.1.0-dev
 ## Author: Gevil
 ## Dependencies: Forte_Core
+## OptionalDeps: Forte_Options, Forte_Cooldown
 
 Data/Hunter.lua
 Core/Tools.lua
+UI/Swing.lua
+UI/Reminder.lua
+Pages/Hunter.lua

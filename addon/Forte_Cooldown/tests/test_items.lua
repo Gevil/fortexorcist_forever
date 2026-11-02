@@ -291,6 +291,28 @@ test("a secret read leaves the predicted clock alone", function()
     assertTrue(e2.predicted)
 end)
 
+test("a non-number read (string/table) raises nothing and leaves the clock", function()
+    if not (FX.Data and FX.Data.Items) then return end
+    freshStorage()
+    asHunter()
+    Items:Rescan(readersFrom({
+        equipped = { [13] = GEM_ID },
+        names = { [GEM_ID] = GEM },
+        spells = { [GEM_ID] = "Arcane Infusion" },
+    }))
+    Items:OnCastBySpellName("Arcane Infusion", 3000)
+    local e = Engine.entries[GEM]
+    local endTime = e.endTime
+    -- Old guard (`start == nil or duration == nil`) let these through to `start > 0`.
+    local ok1, r1 = pcall(Items.OnRead, Items, GEM, "12.5", 30, 3010)
+    local ok2, r2 = pcall(Items.OnRead, Items, GEM, 3000, {}, 3010)
+    assertTrue(ok1, "string start must not raise")
+    assertTrue(ok2, "table duration must not raise")
+    assertEquals("secret", r1)
+    assertEquals("secret", r2)
+    near(endTime, Engine.entries[GEM].endTime)
+end)
+
 test("ReadAll routes the seam through OnRead; raises leave entries alone", function()
     if not (FX.Data and FX.Data.Items) then return end
     freshStorage()

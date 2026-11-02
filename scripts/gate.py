@@ -129,9 +129,15 @@ def generators():
         if os.path.exists(p) and normalized(p) == b"".join(l for l in raw.splitlines(True) if not STAMP.match(l)):
             open(p, "wb").write(raw)
 
+def api_lint():
+    p = subprocess.run(["python3", os.path.join(ROOT, "scripts", "api_lint.py")], capture_output=True, text=True)
+    for line in (p.stdout + p.stderr).strip().splitlines()[-12:]:
+        print("[api]", line)
+    if p.returncode: failures.append("api-lint")
+
 
 if __name__ == "__main__":
-    run_tests(); lua_errors(); toc_pairs(); syntax()
+    run_tests(); lua_errors(); toc_pairs(); syntax(); api_lint()
     if "--fast" not in sys.argv: generators()
     print("\nGATE:", "PASS" if not failures else "FAIL -> " + ", ".join(failures))
     sys.exit(1 if failures else 0)

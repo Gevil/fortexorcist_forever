@@ -308,7 +308,10 @@ function Items:OnRead(name, start, duration, now)
     if not t then return "ignored" end
     start = FX.Compat.PlainOrNil(start)
     duration = FX.Compat.PlainOrNil(duration)
-    if start == nil or duration == nil then return "secret" end
+    -- Type guard, not a nil guard: a read can hand back a non-number (the sim's
+    -- name-keyed table path does), and `start > 0` would then raise. Same law as
+    -- Engine:OnRead.
+    if type(start) ~= "number" or type(duration) ~= "number" then return "secret" end
 
     if start > 0 and duration >= Engine.MIN_COOLDOWN then
         local e = Engine.entries[name] or { name = name }

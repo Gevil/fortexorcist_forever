@@ -166,12 +166,124 @@ end)
 test("Fade-in completes, splashes retire, pool stays (grow-only)", function()
     Display:Update(THREE, 100.4)
     near3(slotOf("Disengage").frame:GetAlpha(), S.AlphaMax)
-    -- Splashes ended at 100.35 and hid; the pool kept its slots.
+    -- Splashes end at 100 + SplashSeconds and hid; the pool kept its slots.
+    Display:Update(THREE, 100 + S.SplashSeconds + 0.01)
     assertFalse(Display.splashPool[1].frame:IsShown())
     assertEquals(3, #Display.splashPool)
     -- Re-rendering the SAME names must not grow the pool (no re-sightings).
-    Display:Update(THREE, 100.5)
+    Display:Update(THREE, 100 + S.SplashSeconds + 0.1)
     assertEquals(3, #Display.splashPool)
+end)
+
+-- ============================================================ splash law ==
+-- The cast splash is the source's t15==-1 expiry visual, re-derived 1:1 from
+-- /tmp/fxref/Forte_Cooldown/Forte_Cooldown.lua:
+--   * window: CD_EndCooldown starts the bar at t14 = 1 (:354) and the draw
+--     pass decays it -1/s, clamped (:629-632) -> SplashSeconds = 1.0 s
+--     (the old 0.35 / SplashAlpha 0.7 came from the DISABLED secondary
+--     splash-window instance, :1868-1874, not the in-bar splash);
+--   * size: SplashFactor*ih*(1-t14) (:1381) with SplashFactor = 4 (:1812)
+--     and ih = Height (IconSize[0] off, :1364, :1803) -> LINEAR ramp
+--     0 -> 4*24 = 96 px over the window;
+--   * alpha: bar:SetAlpha(t14) (:1403) -> SplashAlpha = 1.0 fading linearly
+--     to 0; the whole frame (icon + spark) rides it;
+--   * tint/blend: splashicon = the icon texture (:1382), vertex colour and
+--     blend mode NEVER set -> white + BLEND (:1088-89); the 2.2x spark
+--     (:1386-87) is Spark2 ADD (:1084-85), vertex colour FixIntensity(category)
+--     (:1407, :1418); with Spark[0] (default true, :1822) the icon rides the
+--     0.133..0.867 centre crop (:1388), else the full texture (:1391).
+local function liveSplash()
+    for i = 1, #Display.splashPool do
+        local s = Display.splashPool[i]
+        if s._endAt then return s end
+    end
+end
+
+test("Splash law: size 0 -> 4x icon and alpha 1 -> 0, both linear over 1.0 s", function()
+    -- Window constants straight from the source law.
+    near3(S.SplashSeconds, 1.0)
+    near3(S.SplashAlpha, 1.0)
+    assertEquals(4, S.SplashFactor)
+    local peak = S.SplashFactor * S.Height          -- 96 px at t14 = 0
+
+    local now = 12345
+    local feed = {
+        { name = "SplashLaw", start = 0, duration = 60, endTime = now + 60 },
+    }
+    Display:Update(feed, now)
+    local s = liveSplash()
+    assertNotNil(s)
+
+    -- t = 0: t14 = 1 -> size 0, frame alpha = SplashAlpha = 1.
+    near3(s.tex:GetWidth(), S.SplashFactor * S.Height * (1 - 1.0))
+    near3(s.tex:GetHeight(), 0)
+    near3(s.frame:GetAlpha(), S.SplashAlpha)
+
+    -- mid: t = SplashSeconds/2 -> t14 = 0.5: size 48, alpha 0.5. The spark
+    -- rides 2.2x the splash size (:1386-87).
+    Display:Update(feed, now + S.SplashSeconds * 0.5)
+    near3(s.tex:GetWidth(), S.SplashFactor * S.Height * 0.5)
+    near3(s.frame:GetAlpha(), S.SplashAlpha * 0.5)
+    near3(s.spark:GetWidth(), s.tex:GetWidth() * S.SparkScale)
+
+    -- end (just before the window closes): t14 -> 0 -> peak size, alpha -> 0.
+    Display:Update(feed, now + S.SplashSeconds - 1e-6)
+    near3(s.tex:GetWidth(), peak)
+    near3(s.tex:GetHeight(), peak)
+    near3(s.spark:GetWidth(), peak * S.SparkScale)
+    assertTrue(s.frame:GetAlpha() < 1e-3)
+
+    -- At SplashSeconds the bar gate t14 > 0 (:1371) retires the splash.
+    Display:Update(feed, now + S.SplashSeconds + 1e-6)
+    assertFalse(s.frame:IsShown())
+    assertTrue(liveSplash() == nil)
+end)
+
+test("Splash tint/blend: white BLEND icon, Spark2 ADD glow FixIntensity-tinted, 0.133 crop", function()
+    local now = 12445
+    Display:Update({
+        { name = "SplashTint", start = 0, duration = 60, endTime = now + 60 },
+    }, now)
+    local s = liveSplash()
+    assertNotNil(s)
+    -- splashicon: vertex colour never set in the source (:1088) -> white.
+    local r, g, b = s.tex:GetVertexColor()
+    near3(r, 1); near3(g, 1); near3(b, 1)
+    -- The spark: Spark2 ADD (:1084-85) and FixIntensity(category) (:1407,
+    -- :1418). Spell = (1, 0.5, 0): largest == 1 -> 0.7c + 0.3.
+    assertEquals("Interface\\AddOns\\Forte_Core\\Textures\\Spark2",
+        s.spark:GetTexture())
+    local fr, fg, fb = s.spark:GetVertexColor()
+    near3(fr, 0.7 * 1.00 + 0.3)
+    near3(fg, 0.7 * 0.50 + 0.3)
+    near3(fb, 0.7 * 0.00 + 0.3)
+    -- Spark[0] on (default): the 0.133..0.867 centre crop (:1388). The sim
+    -- GetTexCoord returns the four corners (ulX,ulY, blX,blY, urX,urY,
+    -- brX,brY): every left corner carries L, every right corner R, the top
+    -- edge T and the bottom edge B.
+    local ulx, uly, blx, bly, urx, _, brx, bry = s.tex:GetTexCoord()
+    near3(ulx, S.SplashCrop[1]); near3(blx, S.SplashCrop[1])
+    near3(urx, S.SplashCrop[2]); near3(brx, S.SplashCrop[2])
+    near3(uly, S.SplashCrop[1])                  -- top edge
+    near3(bly, S.SplashCrop[2]); near3(bry, S.SplashCrop[2])  -- bottom edge
+    assertTrue(s.spark:IsShown())
+    Display:Update({}, now + S.SplashSeconds + 0.01)
+end)
+
+test("Pulse and cross-fade constants equal the source's 1/s visibility law", function()
+    -- Expiry starts the bar at t14 = 1 (:354) and decays it -1/s clamped
+    -- (:629-632): the splash window and the end-of-cooldown pulse share this
+    -- 1.0 s. The source's ONLY alpha law for them is the linear
+    -- bar:SetAlpha(t14) (:1403) -- there is no sin wave anywhere in the
+    -- draw loop, so PulseCycle = 0 (off) and the spark rides the constant
+    -- vertex alpha (:1418).
+    near3(S.PulseSeconds, 1.0)
+    assertEquals(0, S.PulseCycle)
+    -- Focus rotation: the focused member's t14 ramps +1/s (:619) to 1, the
+    -- hand-off (:621-633) hands a fresh 0 to the next member, and the
+    -- outgoing side decays -1/s (:629-632) -- a 1.0 s dwell per member.
+    near3(S.CrossfadeSeconds, 1.0)
+    near3(S.SplashSeconds, S.PulseSeconds)  -- one shared source window
 end)
 
 test("OnReady pulses the left end and dies after PulseSeconds", function()
@@ -188,6 +300,22 @@ test("OnReady pulses the left end and dies after PulseSeconds", function()
         + S.Height * 0.5 - S.Width * 0.5
     near3(xoff, expected)
 
+    -- Source expiry law (:1380-1403): frame alpha = t14 = SplashAlpha*1 at
+    -- the window start (:354, :1403), the spark at CONSTANT alpha (no wave,
+    -- PulseCycle 0; :1418) tinted FixIntensity(Spell) = (1.00, 0.65, 0.30)
+    -- (:1407, :1418).
+    near3(s.frame:GetAlpha(), S.SplashAlpha)
+    near3(s.spark:GetAlpha(), S.SparkAlpha)
+    local r, g, b = s.spark:GetVertexColor()
+    near3(r, 1.00); near3(g, 0.65); near3(b, 0.30)
+
+    -- Halfway: the linear t14 fade -- alpha = SplashAlpha * 0.5 (+- a tick).
+    Display:Update({
+        { name = "Disengage", start = 100, duration = 1, endTime = 101 },
+    }, 101 + S.PulseSeconds * 0.5)
+    near3(s.frame:GetAlpha(), S.SplashAlpha * 0.5)
+    near3(s.spark:GetAlpha(), S.SparkAlpha)
+
     Display:Update({
         { name = "Disengage", start = 100, duration = 1, endTime = 101 },
     }, 101 + S.PulseSeconds + 0.1)
@@ -195,15 +323,23 @@ test("OnReady pulses the left end and dies after PulseSeconds", function()
 end)
 
 test("Fewer entries hides spare slots; pool never shrinks", function()
+    -- Pool-relative and slot-agnostic: the splash-law tests grew the pool
+    -- and the free list hands out slots in release order, so asserting on
+    -- fixed indices is meaningless -- the invariant is: EXACTLY the fed
+    -- name's slot stays shown, the pool never shrinks.
+    local poolBefore = #Display.slots
     Display:Update({
         { name = "Disengage", start = 100, duration = 26, endTime = 126 },
     }, 110)
-    -- Disengage keeps ITS slot; the two dropped names released theirs
+    -- Disengage keeps ITS slot; every dropped name released its slot
     -- (hidden, on the free list) -- the pool itself never shrinks.
     assertTrue(slotOf("Disengage").frame:IsShown())
-    assertFalse(Display.slots[2].frame:IsShown())
-    assertFalse(Display.slots[3].frame:IsShown())
-    assertEquals(3, #Display.slots)
+    local shown = 0
+    for i = 1, #Display.slots do
+        if Display.slots[i].frame:IsShown() then shown = shown + 1 end
+    end
+    assertEquals(1, shown)
+    assertEquals(poolBefore, #Display.slots)
 end)
 
 test("Slash handles lock, unlock and reset", function()

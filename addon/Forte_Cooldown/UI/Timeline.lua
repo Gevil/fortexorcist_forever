@@ -6,9 +6,17 @@
 -- TimelineMath.pos(t) and slides left as it burns, parking at the right end
 -- over Max = 300 s; custom time tags (0 1 10 30 60 120 ...) print under the
 -- same curve; icons overlapping by more than half an icon form a group that
--- cross-fades focus between its members (~1 s each); at the end of a
--- cooldown the icon lands at the left end and pulses a Spark2 glow before
--- vanishing; a fresh cast flashes a 4x splash. Source law:
+-- cross-fades focus between its members over exactly 1.0 s (the focus
+-- visibility t14 ramps +1/s, the hand-off at t14 >= 1, the outgoing side
+-- decays -1/s, :619-633). The splash AND the end-of-cooldown pulse are the
+-- source's single t15==-1 expiry effect (:353-354 sets t14 = 1, :629-632
+-- decays it at 1/s -> a 1.0 s window): a WHITE icon texture (vertex colour
+-- never set, :1088; BLEND), size SplashFactor*ih*(1-t14) = 0 -> 4*ih linear
+-- (:1381, :1812), a 2.2x Spark2 ADD glow behind it tinted
+-- FixIntensity(category) (:1083-85, :1386-87, :1407, :1418), the whole bar
+-- fading alpha t14 = 1 -> 0 linear (:1403). We fire that curve on a cast's
+-- first sighting (name-keyed slots) at the icon centre, and the pulse at
+-- the left end, over the same 1.0 s law. Source law:
 -- /tmp/fxref/Forte_Cooldown/Forte_Cooldown.lua (render loop :499-642, tags
 -- :1233-1330, defaults :1801-1874).
 --
@@ -92,12 +100,27 @@ FX.Cooldown.TimelineSkin = {
     SparkAlpha = 1.0,                         -- Spark = {[0]=true, 1}
     Alpha = 0.2, AlphaMax = 1.0,              -- icon fade-in endpoints
     FadeSeconds = 0.3,                        -- ... over this many seconds
-    CrossfadeSeconds = 1.0,                   -- group focus dwell per member
-    SplashFactor = 4,                         -- cast splash = 4x the icon
-    SplashAlpha = 0.7,
-    SplashSeconds = 0.35,
-    PulseSeconds = 1.2,                       -- end-of-cooldown pulse life
-    PulseCycle = 0.4,                         -- spark alpha pulse cycle
+    CrossfadeSeconds = 1.0,                   -- group focus dwell: t14 ramps
+                                              -- +1/s, hand-off at >= 1,
+                                              -- outgoing -1/s (:619-633)
+    SplashFactor = 4,                         -- splash peak = 4x the icon
+                                              -- (size = SplashFactor*ih*
+                                              -- (1-t14) :1381; =4 :1812)
+    SplashAlpha = 1.0,                        -- frame alpha at splash start
+                                              -- = t14 = 1 (:354, :1403; the
+                                              -- 0.7 default is the DISABLED
+                                              -- secondary splash window,
+                                              -- :1872, not the bar splash)
+    SplashSeconds = 1.0,                      -- t14 decays -1/s clamped (:629-632)
+    SplashCrop = { 0.133, 0.867 },            -- spark-on splash texcoord crop
+                                              -- (:1388; full 0,1,0,1 :1391)
+    PulseSeconds = 1.0,                       -- same expiry window: t14 = 1
+                                              -- decaying at -1/s (:354,
+                                              -- :629-632)
+    PulseCycle = 0,                           -- NO alpha wave in the source
+                                              -- (:1403 is the only alpha
+                                              -- law: linear 1->0); 0 = the
+                                              -- spark rides a constant alpha
 
     -- Category colours, verbatim :1842-1855 (BuffOther/DebuffOther default
     -- off in the original). Default class is Spell (orange); per-spell
@@ -484,7 +507,11 @@ function D:SetSize(w, h)
     end
     for i = 1, #self.splashPool do
         local sp = self.splashPool[i]
+        -- The animated sizes are re-set by _SplashCurve every pass; these
+        -- are the geometry caps (peak splash = SplashFactor x the icon).
         sp.tex:SetSize(S.Height * S.SplashFactor, S.Height * S.SplashFactor)
+        sp.spark:SetSize(S.Height * S.SplashFactor * S.SparkScale,
+            S.Height * S.SplashFactor * S.SparkScale)
     end
     for i = 1, #self.pulsePool do
         local p = self.pulsePool[i]
@@ -575,6 +602,20 @@ function D:SetSparkOn(on)
     for i = 1, #(self.pulsePool or {}) do
         if S.SparkOn then self.pulsePool[i].spark:Show()
         else self.pulsePool[i].spark:Hide() end
+    end
+    -- The splash spark is the gate for the icon's crop too: Spark[0] on ->
+    -- the 0.133..0.867 centre crop (:1388), off -> the full texture
+    -- (:1391); the original branches on exactly this flag (:1385).
+    for i = 1, #(self.splashPool or {}) do
+        local sp = self.splashPool[i]
+        if S.SparkOn then
+            sp.spark:Show()
+            sp.tex:SetTexCoord(S.SplashCrop[1], S.SplashCrop[2],
+                S.SplashCrop[1], S.SplashCrop[2])
+        else
+            sp.spark:Hide()
+            sp.tex:SetTexCoord(0, 1, 0, 1)
+        end
     end
 end
 
@@ -883,8 +924,31 @@ function D:BindSlot(slot, e, cx, now)
     self:SpawnSplash(cx, slot._texPath, col, now)
 end
 
---- Cast splash: the spell icon at 4x the bar height, alpha 0.7 -> 0 over
---- 0.35 s, centred where the icon sits. Grow-only pool.
+--- The source's t15==-1 expiry curve (:1380-1403), shared by spawn and the
+--- per-pass update. `t14` is the source's bar visibility (1 at spawn,
+--- decaying -1/s to 0 over SplashSeconds, :629-632): icon size =
+--- SplashFactor*ih*(1-t14) (:1381; ih = Height -- IconSize[0] off, :1364,
+--- :1803), the spark rides 2.2x the splash (:1386-87), and the FRAME alpha
+--- is t14 itself (:1403; SplashAlpha = 1.0).
+function D:_SplashCurve(s, t14)
+    local size = S.SplashFactor * S.Height * (1 - t14)
+    -- The original's splashicon is a texture ON the sized bar frame
+    -- (:1088); our pool frames centre the icon, so the frame rides the same
+    -- size (a 0x0 frame clips its children in some renderers).
+    s.frame:SetSize(size, size)
+    s.tex:SetSize(size, size)
+    local g = size * S.SparkScale
+    s.spark:SetSize(g, g)
+    s.frame:SetAlpha(S.SplashAlpha * t14)
+end
+
+--- Cast splash: the source's t15==-1 expiry visual (:1380-1403) fired on a
+--- name's first sighting: the spell icon WHITE with a BLEND draw (the
+--- splashicon's vertex colour and blend mode are never set, :1088-89),
+--- growing 0 -> SplashFactor x the icon LINEARLY over SplashSeconds
+--- (:1381, :1812), with the 2.2x Spark2 ADD glow behind it tinted
+--- FixIntensity(category) (:1083-85, :1407, :1418) and the whole frame
+--- fading alpha 1 -> 0 linear (:1403). Grow-only pool.
 function D:SpawnSplash(cx, texPath, col, now)
     local pool = self.splashPool
     local s
@@ -895,29 +959,50 @@ function D:SpawnSplash(cx, texPath, col, now)
         end
     end
     if not s then
-        local splashSize = S.Height * S.SplashFactor
         -- Named for dump-tree checks: a visible frame named
         -- ForteXorcistCooldownSplash<n> is a splash on screen.
         local f = CreateFrame("Frame", "ForteXorcistCooldownSplash" .. (#pool + 1), UIParent)
-        local iconTex = f:CreateTexture(nil, "ARTWORK")
-        iconTex:SetSize(splashSize, splashSize)
+        -- Spark first, icon on top: NewBar creates splashiconspark
+        -- (:1083-85) BEFORE splashicon (:1088-89), same OVERLAY layer.
+        local sparkTex = f:CreateTexture(nil, "OVERLAY")
+        sparkTex:SetTexture(S.Spark)
+        sparkTex:SetBlendMode("ADD")
+        sparkTex:SetPoint("CENTER", f, "CENTER", 0, 0)
+        sparkTex:SetAlpha(S.SparkAlpha)
+        local iconTex = f:CreateTexture(nil, "OVERLAY")
         iconTex:SetPoint("CENTER", f, "CENTER", 0, 0)
-        s = { frame = f, tex = iconTex }
+        s = { frame = f, tex = iconTex, spark = sparkTex }
         pool[#pool + 1] = s
     end
     s.tex:SetTexture(texPath)
+    s.tex:SetVertexColor(1, 1, 1, 1)      -- the white, untinted splash icon
+    s.spark:SetVertexColor(fixIntensity(col[1], col[2], col[3]))  -- :1407, :1418
+    -- The Spark[0] gate (:1385; default {[0]=true} :1822): spark + centre
+    -- crop on (:1388), spark off + full texture (:1391).
+    if S.SparkOn then
+        s.tex:SetTexCoord(S.SplashCrop[1], S.SplashCrop[2],
+            S.SplashCrop[1], S.SplashCrop[2])
+        s.spark:Show()
+    else
+        s.tex:SetTexCoord(0, 1, 0, 1)
+        s.spark:Hide()
+    end
     s.frame:ClearAllPoints()
     -- cx is icon-centre x relative to the bar/anchor centre (both are at the
     -- same screen point: the bar layer is inset symmetrically).
     s.frame:SetPoint("CENTER", self.anchor, "CENTER", cx, 0)
-    s.frame:SetAlpha(S.SplashAlpha)
     s._endAt = now + S.SplashSeconds
+    self:_SplashCurve(s, 1)              -- t = 0: size 0, alpha SplashAlpha
     s.frame:Show()
 end
 
---- End-of-cooldown pulse: the icon parked at the LEFT end (CD_EndCooldown
---- :346-351 parks it at f2*W) with its Spark2 glow flared to 2.2x and its
---- alpha pulsing, fading out over PulseSeconds. Grow-only pool.
+--- End-of-cooldown pulse: the source's SAME t15==-1 expiry curve
+--- (:1380-1403) riding the parked icon (CD_EndCooldown parks the bar value
+--- at ih/W, :343-351 => the icon centre sits at the bar's LEFT end): the
+--- icon at bar size with its 2.2x Spark2 glow tinted FixIntensity(category)
+--- (:1407, :1418) at CONSTANT alpha (the source has no alpha wave -- :1403
+--- is the only alpha law; PulseCycle 0 switches the wave off), the frame
+--- fading alpha 1 -> 0 linear over PulseSeconds. Grow-only pool.
 function D:SpawnPulse(name, texPath, col, endAt)
     local pool = self.pulsePool
     local s = pool[#pool + 1]
@@ -931,11 +1016,12 @@ function D:SpawnPulse(name, texPath, col, endAt)
         spark:SetBlendMode("ADD")
         spark:SetSize(S.Height * S.SparkScale, S.Height * S.SparkScale)
         spark:SetPoint("CENTER", f, "CENTER", 0, 0)
+        if not S.SparkOn then spark:Hide() end
         s = { frame = f, tex = tex, spark = spark }
         pool[#pool + 1] = s
     end
     s.tex:SetTexture(texPath)
-    s.spark:SetVertexColor(col[1], col[2], col[3])
+    s.spark:SetVertexColor(fixIntensity(col[1], col[2], col[3]))  -- :1407, :1418
     s.frame:ClearAllPoints()
     s.frame:SetPoint("CENTER", self.anchor, "CENTER",
         S.Inset + TM.pos(0, S.Width, S.Height, S.Max, S.Loga) + S.Height * 0.5 - S.Width * 0.5, 0)
@@ -955,9 +1041,17 @@ function D:UpdatePulses(now)
                 s._endAt = nil
                 s.frame:Hide()
             else
-                s.frame:SetAlpha(t)
-                local wave = (math.sin((endAt - now) / S.PulseCycle * 2 * math.pi) + 1) * 0.5
-                s.spark:SetAlpha(0.3 + 0.7 * wave)
+                s.frame:SetAlpha(S.SplashAlpha * t)  -- bar:SetAlpha(t14), :1403
+                if S.PulseCycle > 0 then
+                    local wave = (math.sin((endAt - now) / S.PulseCycle * 2 * math.pi) + 1) * 0.5
+                    s.spark:SetAlpha(0.3 + 0.7 * wave)
+                else
+                    -- The source law: the spark rides a constant alpha
+                    -- (SetVertexColor(r,g,b) -> alpha 1, :1418); the frame
+                    -- alpha t14 modulates it. PulseCycle > 0 keeps the
+                    -- legacy wave available as an option.
+                    s.spark:SetAlpha(S.SparkAlpha)
+                end
             end
         end
     end
@@ -969,12 +1063,14 @@ function D:UpdateSplashes(now)
         local s = pool[i]
         local endAt = s._endAt
         if endAt then
-            local t = (endAt - now) / S.SplashSeconds
-            if t <= 0 then
+            -- t14: the source's bar visibility, decaying -1/s clamped
+            -- (:629-632); the bar's draw gate is t14 > 0 (:1371).
+            local t14 = (endAt - now) / S.SplashSeconds
+            if t14 <= 0 then
                 s._endAt = nil
                 s.frame:Hide()
             else
-                s.frame:SetAlpha(S.SplashAlpha * t)
+                self:_SplashCurve(s, t14)
             end
         end
     end

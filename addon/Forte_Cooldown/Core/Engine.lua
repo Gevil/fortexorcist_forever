@@ -28,6 +28,26 @@
 --            but an "edge" entry that no plain read ever anchored never
 --            pops ready (inferred-entries rule, PLAN §3.2); it is swept in
 --            silence when its window lapses.
+--  * "duration"
+--            anchored by OnReadDuration from a plain LuaDurationObject of
+--            C_Spell.GetSpellCooldownDuration -- the one cooldown-timing
+--            read with NO output-restriction annotation
+--            (docs/research/secrets-unknowns.md §2). Always `anchored`.
+--
+-- The read ladder (docs/research/secrets-unknowns.md §2 + §5, PLAN §8
+-- mitigations; the launch-day evidence is Engine counts in FX.db.diag
+-- .readTiers, printed by `/fx status`):
+--  1. NUMERIC  OnRead / OnReadCharges -- the full truth, may be secret.
+--  2. BOOLEAN  OnReadActive -- the NeverSecret isActive/isOnGCD pair: detects
+--              an EARLY end (a reset/proc: a predicted entry the engine says
+--              is no longer running) and a cooldown START no event named.
+--              Booleans carry no numbers, so they never teach a duration;
+--              the numbers of a spell they cleared stay predicted.
+--  3. DURATION OnReadDuration -- the unannotated duration object: an exact
+--              endTime (+ a learnable total) even when tier 1 is secret.
+-- Tiers 2/3 are opportunistic: each does its one thing on a plain signal and
+-- leaves everything else to tier 1. `FX.SecretState` only says when tier 1 is
+-- not worth asking at all (skip work), never what is true.
 --
 -- Multi-charge model (owner ruling 2026-11-01: multi-charge is MISSING in
 -- the original -- built new; the DISPLAY draws charge counts later, this
@@ -78,6 +98,13 @@ FX.Cooldown.Engine = Engine
 -- 2.99 (not 2.5) matches the original ForteXorcist `FW.Default.IgnoreCooldown`:
 -- anything under a 3 s GCD band is noise, not a tracked cooldown.
 Engine.MIN_COOLDOWN = 2.99
+
+-- Fresh-prediction read-lag grace (seconds). The law of every read tier: a
+-- read taken right after our own cast event can still report the PRE-cast
+-- state, so a "ready" signal inside this window proves nothing. Core/Items.lua
+-- carries the same 1.6 as its file-local `PREDICTION_GRACE` for the item side
+-- (owner law, single value; kept local there so that file stays self-contained).
+Engine.PREDICTION_GRACE = 1.6
 
 Engine.tracked = {}   -- [name] = { name, dataId, baseDuration, maxCharges? (runtime, DetectCharges) }
 -- [name] = { name, start, duration, endTime, predicted, source =
@@ -185,7 +212,14 @@ function Engine:OnRead(name, start, duration, now)
     if not t then return "ignored" end
     start = FX.Compat.PlainOrNil(start)
     duration = FX.Compat.PlainOrNil(duration)
-    if start == nil or duration == nil then return "secret" end
+    -- A number is what this tier needs. The nil-only check used to live here
+    -- let a NON-number through into the `start > 0` compare below, and the
+    -- compare on a string raises (measured in wow-ui-sim 2026-11-02: on a
+    -- name-keyed read whose table path raised, the legacy multi-return
+    -- `GetSpellCooldown` hands strings -- "attempt to compare number with
+    -- string" out of Engine.lua, i.e. out of the whole 1 Hz pass). A read we
+    -- cannot do arithmetic on is exactly what "secret" means here.
+    if type(start) ~= "number" or type(duration) ~= "number" then return "secret" end
 
     if start > 0 and duration >= self.MIN_COOLDOWN then
         local e = self.entries[name] or { name = name }
@@ -211,7 +245,8 @@ function Engine:OnRead(name, start, duration, now)
         -- lifecycle of a charge entry -- this read only ever anchors.
         return "ignored"
     end
-    if e and e.predicted and now < e.endTime and (now - e.start) < 1.6 then
+    if e and e.predicted and now < e.endTime
+        and (now - e.start) < self.PREDICTION_GRACE then
         return "ignored"
     end
     self.entries[name] = nil
@@ -296,6 +331,113 @@ function Engine:OnActiveEdge(name, now)
                 endTime = now + duration, predicted = true, source = "edge" }
     self.entries[name] = e
     return e
+end
+
+--- TIER 2 -- the boolean ready tier. `isActive` / `isOnGCD` are the raw
+--- SpellCooldownInfo booleans: DOCS `NeverSecret`
+--- (`SpellCooldownInfo @SpellSharedDocumentation.lua:18`, cited
+--- docs/research/secrets-unknowns.md §2), so they answer in a combat
+--- lockdown of the numbers this file's numeric tier goes blind on. They are
+--- still routed through PlainOrNil: a claim about an *output annotation* is
+--- not a claim about a runtime value, and `x == true` on a secret raises.
+--- `now` is a plain GetTime() frame time, never a read.
+---
+--- What the two bits can prove, and nothing else:
+---  * `isActive == false` with `isOnGCD ~= true` on OUR OWN PREDICTION that
+---    is older than `PREDICTION_GRACE` -- the read-lag law of `OnRead`: a
+---    read right after a cast can still report the pre-cast window, so the
+---    bit only speaks once the cast has had time to land. Then the real
+---    cooldown ended EARLY (a reset, a proc, a clear) and the prediction is
+---    the only thing keeping the icon on the bar. The window is landed right
+---    here (`endTime = now`, `duration` kept consistent with `start`), so the
+---    next `Sweep` retires the entry with the NORMAL ready pop -- the
+---    inferred-entries law stays in the Sweep: a never-anchored "edge" entry
+---    still dies in silence.
+---  * `isActive == true` with no live entry -- a cooldown is running that no
+---    cast event named (the secret-spellID case): the existing
+---    `OnActiveEdge` fallback, tagged source = "edge".
+--- Anything else -- a "read"/"duration" window the numbers own, a charge bar
+--- the charges read owns (file header), a plain-true with a live entry, a
+--- GCD-only active, a secret/absent bit -- leaves the state alone. Booleans
+--- carry NO numbers: this tier never learns a duration.
+--- Returns "cleared" | "edge" | "kept" | "ignored".
+function Engine:OnReadActive(name, isActive, isOnGCD, now)
+    if not self.tracked[name] then return "ignored" end
+    isActive = FX.Compat.PlainOrNil(isActive)
+    isOnGCD = FX.Compat.PlainOrNil(isOnGCD)
+    local e = self.entries[name]
+    if isActive == false then
+        if not e then return "ignored" end
+        -- The GCD's own activity is not a statement about this spell.
+        if isOnGCD == true then return "kept" end
+        -- A charge bar is the charges read's lifecycle (file header); the
+        -- GetSpellCooldown booleans say nothing trustworthy mid-bar.
+        if e.charges then return "kept" end
+        -- Only a *predicted* window: a plain read's entry is the numbers'
+        -- own business (its next plain read, or the Sweep, retires it).
+        if not e.predicted then return "kept" end
+        if (now - e.start) < self.PREDICTION_GRACE then return "kept" end
+        e.endTime, e.duration = now, now - e.start
+        return "cleared"
+    end
+    if isActive == true then
+        if e then return "kept" end
+        if isOnGCD == true then return "ignored" end
+        local created = self:OnActiveEdge(name, now)
+        return created and "edge" or "ignored"
+    end
+    return "kept"
+end
+
+--- TIER 3 -- the opportunistic exact anchor. `remaining` / `total` are the
+--- raw `GetRemainingDuration()` / `GetTotalDuration()` of the
+--- LuaDurationObject of `C_Spell.GetSpellCooldownDuration` (the caller
+--- probed `HasSecretValues()` and passed only a plain object's numbers; the
+--- values are guarded HERE too, so no caller can forget). Both are
+--- documented **Seconds** (`LuaDurationObjectAPIDocumentation.lua:270` /
+--- `:318`, cited at the Compat seam) -- the scale the entry model already
+--- lives on, so no conversion happens anywhere.
+---
+--- A plain object is engine-sourced timing, which is what `OnRead`'s
+--- "anchored" branch has always certified, so the entry is re-anchored
+--- exactly like that: `endTime = now + remaining`, `start = endTime -
+--- total`, `duration = total`, `source = "duration"`, `anchored = true`,
+--- `predicted = false`. With no readable total only the END is fact: `start`
+--- is kept and the window's own length absorbs the difference
+--- (`duration = endTime - start`), which keeps the
+--- `start + duration == endTime` invariant the Timeline draws on. A full
+--- total is learned exactly under `OnRead`'s law (a real length, never a
+--- GCD-band value). A drained charge bar's clock follows the real end (`+
+--- rechargeEnd`, the file header's mirror). With no entry at all an anchor
+--- needs the total to have a start -- without it, nothing.
+--- Returns "anchored" | "ignored".
+function Engine:OnReadDuration(name, remaining, total, now)
+    if not self.tracked[name] then return "ignored" end
+    remaining = FX.Compat.PlainOrNil(remaining)
+    total = FX.Compat.PlainOrNil(total)
+    if type(remaining) ~= "number" or remaining <= 0 then return "ignored" end
+    local endTime = now + remaining
+    -- A total only counts as a length when it is a real cooldown length
+    -- (the OnRead >= MIN_COOLDOWN law); a GCD-band total is the GCD's, not
+    -- this spell's, so it must not be learned nor written into the window.
+    local full = (type(total) == "number" and total >= self.MIN_COOLDOWN)
+        and total or nil
+    local e = self.entries[name]
+    if not e then
+        if not full then return "ignored" end
+        e = { name = name }
+        self.entries[name] = e
+    end
+    local duration = full or (endTime - (e.start or now))
+    if duration <= 0 then duration = remaining end
+    e.start, e.duration, e.endTime = endTime - duration, duration, endTime
+    e.predicted, e.source, e.anchored = false, "duration", true
+    if e.charges and e.charges.nextAt ~= nil then
+        e.charges.nextAt = endTime
+        e.rechargeEnd = endTime
+    end
+    if full then self.learned[name] = full end
+    return "anchored"
 end
 
 --- Remove entries whose time ran out. Returns an array of names that just

@@ -103,6 +103,57 @@ Open issue: without `Forte_Cooldown` installed, `/fx status` prints no Hunter li
 8. **`Trueshot Aura`** (data row, name `Aspect of …` pattern does not match it): confirm
    it behaves as a castable-aura, not a stance; keep it out of the aspect list (as now).
 
+## UI layer (`Forte_Hunter/UI/*`, `Pages/Hunter.lua` — added 2026-11-02, agent `HunterUI`)
+
+Two Classic-skin frames (the `Forte_Cooldown/UI/Timeline.lua` law: Aluminium fill on the
+`Background`/`Border` backdrop, URW Gothic text) plus one options page. They are **pure
+renderers** of the trackers above — no frame reads a unit/aura/cooldown API, and every
+payload the UI's event frame receives is forwarded *unread*.
+
+| Name | Contract |
+|---|---|
+| `FX.Hunter.Swing` | the Auto Shot swing bar (200x12 default) |
+| `:Init()` / `:Update(now)` → bool | build frames (login/class-gated) / render one pass (`now` injectable) |
+| `:SetTracker(t)` | the injected state source (tests; defaults to `Tools.Swing`) |
+| `:Kick()` / `:OnSwingEvent()` | a swing event arrived: a running tracker starts the 10 Hz ticker |
+| `:SetEnabled/Width/Height/BarColor/BgColor/ShowTime/Locked` | the live seams the options page drives |
+| `:RenderIdle()` / `:StartTicking/StopTicking` | the idle law: bar hidden **and** `SetScript("OnUpdate", nil)`; the script exists only mid-swing |
+| `FX.Hunter.Reminder` | the aspect reminder (32x32 icon, pulsing alpha 0.35..1.0 over 1.2 s) |
+| `:Refresh(now)` → bool | show while `Aspects:Missing()` (its out-of-combat gate included), hide otherwise |
+| `:SetAspects(t)` / `:IconName()` | injected state source / the icon's aspect (live → last-known → the generic first) |
+| `:SetEnabled/SetSize/SetColor` | live seams |
+| `FX.Hunter.UI` | module `"HunterUI"`: class-gated `OnEnable` + `OnClassChanged`, the shared event frame, `/fx status` lines |
+| `FX.Hunter.Pages.RegisterHunterPage()` | idempotent settings+page registration (load-time fast path, `HunterUI:OnEnable` fallback) |
+
+**Settings** (module `Hunter`, defaults in `Pages/Hunter.lua`): `Enable`, `Lock`,
+`ShowTime`, `EnableReminder`, `Width`, `Height`, `ReminderSize`, `BarColor`, `BgColor`,
+`ReminderColor`. Positions: `FX.db.hunterSwing` / `FX.db.hunterReminder`.
+
+**The `/fx lock|unlock` hook** (the question the assignment flagged): Forte_Cooldown exposes
+no callback, but `FX.Cooldown.Display:SetLocked` **publishes** the live lock state into
+`FX.Settings` (`Cooldown.Lock` + `General.GlobalLock`, its m4 rule). `FX.Hunter.Swing:_WireSettings`
+mirrors exactly those two keys and publishes its own state into `Hunter.Lock`
+(store-inequality-guarded, so the echo stops) — no Forte_Cooldown change was needed.
+The shared lock moves both bars; the Hunter page's own checkbox moves only the Hunter frames.
+
+**Module index**: `FX.Options.INDEX` is the original's fixed 15-entry list and
+`Forte_Options/tests/test_options.lua` asserts `assertEquals(15, #O.indexButtons)`; the grid
+builds one cell per INDEX entry (enabled iff a page of that id is registered). There is **no
+Hunter entry**, so lighting a Hunter cell needs a Forte_Options change (INDEX row + that
+count) — reported, not edited. The page is registered and opens through
+`FX.Options:Open("Hunter")` / `SetPage("Hunter")`.
+
+**Verification (2026-11-02, agent `HunterUI`)**: `run-tests Forte_Hunter` → **32 tests, 32
+passed, 0 failed** (15 data/tracker tests + 17 new UI tests in `tests/test_swing.lua`), rc 0,
+0 `Forte_*` error sites. `scripts/gate.py --fast` → PASS (Forte_Cooldown 92, Forte_Core 13,
+Forte_Hunter 32, Forte_Options 42; modules `Cooldown, Hunter, HunterUI`; tocs byte-identical;
+syntax + api-lint OK). Screenshots `docs/media/sim/fx_hunter_swing.png`,
+`fx_hunter_options.png`; dump-tree numbers: bar `200x12` at centre (800,775) with the fill
+100 px at fraction 0.5, text `1.0`, and the URW Gothic file accepted (`_FONTURW`); reminder
+`32x32` at centre (960,775), icon `Aspect of the Beast` (the generic first aspect, no live
+aura in the sim), alpha pulsing (0.36 / 0.57 / 0.93 in three captures); options window
+`780x650` with the Hunter page = 4 sections (Tips + 3) / 10 bound rows, content height 350.
+
 ## Verification (2026-11-01)
 
 - `luajit -e "assert(loadfile(...)))"` — `Core/Tools.lua`, `tests/test_hunter.lua`: clean.

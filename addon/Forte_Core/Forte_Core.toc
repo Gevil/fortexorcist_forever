@@ -8,3 +8,4 @@
 Core/Compat.lua
 Core/Constants.lua
 Core/Init.lua
+Core/Probe.lua
