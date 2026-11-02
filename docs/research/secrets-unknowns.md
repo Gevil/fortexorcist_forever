@@ -672,6 +672,32 @@ DEFAULT_CHAT_FRAME:AddMessage(("FXDATA=%s"):format(tostring(rawget(_G,"ForteXorc
 (Expected: `lod=true`, `loaded=false`, second `load=true`, `ADDON_LOADED Forte_Hunter`, `FXDATA=true`
 after the load — plus in WTF: that ForteXorcist's SavedVariables are complete for the late-loaded addon.)
 
+
+**Shipped in FX (2026-11-02, agent `LoadOnDemand`; PLAN §9):** the split is live, so the *FX-specific* half of
+the confidence line above is no longer a forecast. The nine `Forte_<Class>` add-ons carry `## LoadOnDemand: 1`
+in both toc twins; `addon/Forte_Core/Core/Loader.lua` maps a `UnitClass` token to the add-on name and calls
+`C_AddOns.LoadAddOn` from `PLAYER_LOGIN` (before the module enable loop) and from `FX.RefreshPlayerClass`
+(class change). Proven in the sim, in-product: at startup `IsAddOnLoadOnDemand("Forte_Hunter")` is true with
+`IsAddOnLoaded` false and `IsAddOnLoadable` true, `ForteXorcist.Data.Hunter` is nil, and a session carries
+`Forte_Items` + exactly the profile class's data with exactly one class add-on loaded (the gate's load probe,
+per profile class). Late-loaded modules register *and enable* (Core's `FX.RegisterModule` enables a late
+registration at once, once, in registration order), and the class's own `OnEnable` sees the class token already
+set. The `## RequiredDep: Forte_Core` form was NOT taken: the tocs already ship `## Dependencies: Forte_Core`,
+which the spec's LoD half honours identically (dependencies of a LoD add-on are loaded with it, once).
+
+**New harness fact (the client does not have it, so do not generalise):** the sim's `run-tests <addon>` does
+NOT execute a load-on-demand add-on's own files for its own tests. A suite that audits a class's data has to
+request the add-on itself (`addon/Forte_*/tests/test_00_class_data.lua` calls `FX.LoadClassAddOn`); passing
+`--class <Class>` to the suite is the wrong lever -- it moves `FX._playerClass`, which the class-gate tests
+assert is NOT the class they audit.
+
+**Login win (the Ellesmere yardstick), measured in the sim:** a Paladin-profile session parses 7.9 KB of the
+385 KB of class Lua (97% not parsed; the class files are ~224 KB of generated data); process peak RSS is
+indistinguisable (1205.8 vs 1205.6 MiB over 3 runs -- the sim's peak is not login-bound), minor page faults
+drop 391439 -> 390500. The real number is a launch-day client probe: the day-1 `/run` battery above.
+
+**Still open:** the day-1 client probe below (SavedVariables completeness for a late-loaded add-on is a client
+question the sim cannot answer -- `saved-variables.md:50`).
 ---
 
 ## 10. SavedVariables write timing + `## SavedVariablesPerCharacter`
