@@ -160,21 +160,22 @@ function()
     assertEquals("function", type(handler))
     local frame = C._eventFrame
     handler(frame, "CHAT_MSG_ADDON", "FXWK", "HS1 2", "party", "Alice")
-    assertEquals(2, g.members.Alice.hs)
-    assertEquals(true, g.members.Alice.addon)
+    local alice = FX.Identity.Canonical("Alice")
+    assertEquals(2, g.members[alice].hs)
+    assertEquals(true, g.members[alice].addon)
     -- A foreign prefix is not even counted as ours.
     assertEquals("foreignPrefix",
         C:OnAddonMessage("DBM", "HS1 9", "Alice"))
-    assertEquals(2, g.members.Alice.hs)
+    assertEquals(2, g.members[alice].hs)
     -- The self-echo law (CA-24): our own line never re-enters the model.
     handler(frame, "CHAT_MSG_ADDON", "FXWK", "HS1 9", "party", "Me")
-    assertEquals(2, g.members.Alice.hs)
+    assertEquals(2, g.members[alice].hs)
     assertEquals(1, C.counts.selfIgnored)
     -- Malformed: counted, dropped, state untouched.
     local junk0 = C.counts.malformedIgnored
     handler(frame, "CHAT_MSG_ADDON", "FXWK", "HS1 banana", "party", "Alice")
     assertEquals(junk0 + 1, C.counts.malformedIgnored)
-    assertEquals(2, g.members.Alice.hs)
+    assertEquals(2, g.members[alice].hs)
     -- A summon claim about a third player (sender != by) is ignored.
     local q0 = g:QueueCount()
     handler(frame, "CHAT_MSG_ADDON", "FXWK", "SU1 Zelda Bob", "party", "Alice")
@@ -211,6 +212,102 @@ function()
     hs.present, hs.count = savedPresent, savedCount
     C:DisableEvents()
     C.readers = {}
+end)
+
+-- ======================================================== identity spellings --
+-- The spelling law of docs/research/upstream-api-2026-11-03.md §2 (slice
+-- I2a): the CHAT_MSG_ADDON sender, the roster-scan UnitName and the wire
+-- carry the SAME player in DIFFERENT spellings. The self-echo, the summon
+-- claim and the roster merge ride FX.Identity's canonical form, so a
+-- spelling split is no longer a reason to treat a peer as someone else.
+
+test("a comms self-echo survives every spelling of my own two-part name",
+function()
+    resetComms()
+    C.readers.selfName = function() return "Aria Dawnsong" end
+    C:EnableEvents()
+    local frame = C._eventFrame
+    local handler = frame:GetScript("OnEvent")
+    local s0 = C.counts.selfIgnored
+    -- Sender spellings: the event layer's spaced one, the wire's joined
+    -- one, the display-side short one. All three are ME.
+    handler(frame, "CHAT_MSG_ADDON", "FXWK", "HS1 9", "party", "aria dawnsong")
+    handler(frame, "CHAT_MSG_ADDON", "FXWK", "HS1 9", "party", "AriaDawnsong")
+    handler(frame, "CHAT_MSG_ADDON", "FXWK", "HS1 9", "party",
+        "Aria Dawnsong-Wildhammer")
+    assertEquals(s0 + 3, C.counts.selfIgnored,
+        "CA-24 on every spelling: my line never re-enters the model")
+    local peer = FX.Identity.Canonical("Aria Two")
+    handler(frame, "CHAT_MSG_ADDON", "FXWK", "HS1 9", "party", "Aria Two")
+    assertEquals(s0 + 3, C.counts.selfIgnored, "a sibling is not me")
+    assertEquals(9, (C.group:Member("Aria Two")).hs, "and rides the model")
+    assertNotNil(peer)
+    -- The own summon pair: the two-part name rides the wire in the
+    -- identity layer's joined-parts form (the grammar is space-separated,
+    -- the raw spelling would be refused by the encoder).
+    local sent = {}
+    C.readers.send = function(prefix, text)
+        sent[#sent + 1] = { text = text }; return 0
+    end
+    C.readers.isRaid = function() return true end
+    assertEquals("sent", C:OnSelfSummon("start", "Gvil"))
+    assertEquals("SU1 AriaDawnsong Gvil", sent[1].text)
+    C:DisableEvents()
+    C.readers = {}
+end)
+
+test("the roster merge folds a sender spelling into the scan's member row",
+function()
+    resetComms()
+    C.readers.selfName = function() return "Me" end
+    local g = C.group
+    -- The scan spells the name the UnitName way, the wire the %S+ way.
+    g:SetRoster({
+        { name = "Aria Dawnsong", class = "WARLOCK", present = true,
+          alive = true },
+    })
+    local canon = FX.Identity.Canonical("Aria Dawnsong")
+    assertEquals(1, g:ActiveCount())
+    C:EnableEvents()
+    local frame = C._eventFrame
+    local handler = frame:GetScript("OnEvent")
+    handler(frame, "CHAT_MSG_ADDON", "FXWK", "SH1 12", "party", "AriaDawnsong")
+    C:DisableEvents()
+    assertEquals(1, g:ActiveCount(), "one member, not a twin")
+    assertEquals(12, g.members[canon].shards, "the count landed on HER row")
+    assertEquals("Aria Dawnsong", g.members[canon].name,
+        "the row keeps the spelling the game scanned")
+    -- The claim law with a spelling split: SU1 whose <by> is the sender's
+    -- wire spelling, sender the spaced one -> the claim is about the
+    -- sender, it rides the model.
+    handler(frame, "CHAT_MSG_ADDON", "FXWK", "SU1 AriaDawnsong Gvil",
+        "party", "Aria Dawnsong")
+    assertEquals(1, g:QueueCount())
+    assertEquals("Aria Dawnsong", g:Queue(10)[1].warlock,
+        "the queue row rides the sender's own spelling")
+    -- The next scan keeps her: a spelling split must not make the
+    -- DeleteOld sweep delete her comms state.
+    g:SetRoster({
+        { name = "Aria Dawnsong", class = "WARLOCK", present = true },
+    })
+    assertEquals(1, g:ActiveCount())
+    assertEquals(12, g.members[canon].shards, "her counts rode the scan")
+    C.readers = {}
+end)
+
+test("a send over the client's 255-byte cap is dropped and counted, never sent",
+function()
+    resetComms()
+    local sent = {}
+    C.readers.send = function(prefix, text) sent[#sent + 1] = text; return 0 end
+    C.readers.isRaid = function() return true end
+    local t0 = C.counts.tooLongSkipped
+    assertEquals("tooLong", C:Send(string.rep("x", 300), "RAID"))
+    assertEquals(t0 + 1, C.counts.tooLongSkipped)
+    assertEquals(0, #sent, "the client would have eaten it; we drop it counted")
+    assertEquals("sent", C:Send(string.rep("x", C.MAX_WIRE_BYTES), "RAID"),
+        "the cap itself rides")
+    assertEquals(1, #sent)
 end)
 
 -- ============================================================ the gates ----

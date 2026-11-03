@@ -15,9 +15,13 @@
 --
 -- The model (Core/Settings.lua FX.Profiles, the v1 shape in
 -- Forte_Core/Core/Database.lua, docs/profiles.md): a profile is one settings
--- set; BY DEFAULT every character rides its own, keyed `Name-Realm` (the
--- original's `FW:FullName()`, Forte_Core.lua:1074-1076, and its
--- `Profiles.Characters[name] = index` binding at :1078-1084 / :2142-2162);
+-- set; BY DEFAULT every character rides its own, keyed by its FULL PLAIN
+-- NAME — the original keyed `FW:FullName()` = `Name-Realm`
+-- (Forte_Core.lua:1074-1076, its `Profiles.Characters[name] = index` binding
+-- at :1078-1084 / :2142-2162), and Forever retired that half: a character is
+-- its first+last name and GetRealmName() is a mutable connection label —
+-- the schema v3 migration of Core/Database.lua re-keys the old rows
+-- (docs/research/upstream-api-2026-11-03.md §2);
 -- the account-wide shared profile is the `PerCharacter` row off. Switching
 -- applies LIVE: FX.Profiles.Select pushes the new profile's every key
 -- through Settings:Set, which is the same notification a checkbox click
@@ -130,7 +134,7 @@ O:RegisterPage({
     build = function(b)
         ensureWiring()
         b.Tips({
-            "A profile is one character's whole set of settings, keyed Name-Realm.",
+            "A profile is one character's whole set of settings, keyed by the character's name.",
             "By default every character rides its own; turn sharing on for one account-wide profile.",
             "The tabs under the title bar are the switcher; this page is the editor.",
             "The original had no Profiles cell in its module grid, so this page has none either.",
@@ -155,7 +159,7 @@ O:RegisterPage({
             s.INFO({
                 label = "This character",
                 value = function() return P.Self() end,
-                tip = "The key of this character: Name-Realm (the realm from GetRealmName). The original keyed its characters the same way.",
+                tip = "The key of this character: its full plain name. On Forever a character is its first+last name — the realm a connection reports (GetRealmName) is a label, not identity, so a connection change can not orphan this profile. The original's Name-Realm key of FW:FullName() was migrated to this key.",
             })
             s.INFO({
                 label = "Profiles in this install",

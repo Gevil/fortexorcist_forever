@@ -1,8 +1,10 @@
 -- addon/Forte_Core/tests/test_database.lua
 -- The SavedVariables schema of Forte_Core/Core/Database.lua: the ordered
 -- migration ladder (v0 = the flat settings map -> v1 = the profiles table
--- -> v2 = the default-equal prune), its idempotence, the never-fatal law,
--- the shape guard and the `Name-Realm` profile key. Synthetic DB tables --
+-- -> v2 = the default-equal prune -> v3 = the Name-Realm -> plain-name
+-- re-key), its idempotence, the never-fatal law, the shape guard and the
+-- plain-name profile key (docs/research/upstream-api-2026-11-03.md §2).
+-- Synthetic DB tables --
 -- plus one look at the live FX.db to prove the bootstrap in Core/Init.lua ran
 -- the ladder at ADDON_LOADED, before any module could read the DB.
 --
@@ -36,9 +38,10 @@ end
 
 test("FX.DB ships the schema surface", function()
     assertNotNil(DB, "Forte_Core/Core/Database.lua loaded")
-    assertEquals(2, DB.SCHEMA_VERSION)
+    assertEquals(3, DB.SCHEMA_VERSION)
     assertEquals("function", type(DB.MIGRATIONS[1]))
     assertEquals("function", type(DB.MIGRATIONS[2]))
+    assertEquals("function", type(DB.MIGRATIONS[3]))
     assertEquals("function", type(DB.Migrate))
     assertEquals("function", type(DB.Guard))
     assertEquals("function", type(DB.CharacterKey))
@@ -110,7 +113,7 @@ test("the ladder is idempotent: a second pass rewrites nothing", function()
     assertEquals(nil, db.settings)
 end)
 
-test("a fresh install lands on the v2 shape with empty profiles", function()
+test("a fresh install lands on the shipped shape with empty profiles", function()
     local db = {}
     assertEquals(DB.SCHEMA_VERSION, DB.Migrate(db))
     local key = DB.CharacterKey()
@@ -181,7 +184,7 @@ function()
             },
         },
     }
-    assertEquals(2, DB.Migrate(db))
+    assertEquals(DB.SCHEMA_VERSION, DB.Migrate(db))
     local cd = db.profiles.byName[key].settings.Cooldown
     assertEquals(311, cd.Width, "a user-set value survives v2")
     assertEquals(false, cd.Lock,
@@ -194,9 +197,9 @@ function()
     assertNotNil(db.defaultsPruned.Cooldown,
         "the modules registered at the ladder are marked done in the file")
     -- Idempotence: the marker is the step's own output; a retried ladder of
-    -- an install stamped at 2 runs no step at all.
+    -- an install stamped at the top runs no step at all.
     cd.Height = 24
-    assertEquals(2, DB.Migrate(db))
+    assertEquals(DB.SCHEMA_VERSION, DB.Migrate(db))
     assertEquals(24, cd.Height,
         "a retried login of a stamped install drops nothing new")
 end)
@@ -261,20 +264,362 @@ test("the shape guard repairs hand-edited shape and keeps the data", function()
     assertEquals(7, p.byName.Good.settings.Cooldown.Width)
 end)
 
-test("the character key is Name-Realm and a session constant", function()
+-- The key law of docs/research/upstream-api-2026-11-03.md §2 (slice I2a):
+-- the key is the FULLEST PLAIN NAME, the realm label is not identity, and
+-- a failed/secret read never reaches the cache. The fakes drive the three
+-- name APIs; every one of them, and the caches, is restored at the end of
+-- every test.
+local function clearKeyCaches()
+    DB._clearKeyCache()
+    FX.Identity._clearSelfName()
+end
+local function saveNameAPIs()
+    return { UnitName = _G.UnitName, UnitNameUnmodified = _G.UnitNameUnmodified,
+        UnitFullName = _G.UnitFullName, GetRealmName = _G.GetRealmName,
+        issecretvalue = _G.issecretvalue, UNKNOWNOBJECT = _G.UNKNOWNOBJECT }
+end
+local function restoreNameAPIs(saved)
+    _G.UnitName, _G.UnitNameUnmodified, _G.UnitFullName =
+        saved.UnitName, saved.UnitNameUnmodified, saved.UnitFullName
+    _G.GetRealmName, _G.issecretvalue = saved.GetRealmName, saved.issecretvalue
+    _G.UNKNOWNOBJECT = saved.UNKNOWNOBJECT
+    clearKeyCaches()
+end
+local function v3Profiles(active, characters, byName)
+    return {
+        version = 3,
+        profiles = {
+            perCharacter = true,
+            shared = DB.SHARED_NAME,
+            active = active,
+            characters = characters,
+            byName = byName,
+        },
+        defaultsPruned = { Cooldown = true, General = true },
+    }
+end
+
+test("the character key is the fullest plain name, realm-free, and a session constant",
+function()
     local key = DB.CharacterKey()
     assertNotNil(key)
     local name = UnitName("player")
-    assertTrue(key:find(name, 1, true) ~= nil, "the key leads with the name: " .. key)
+    assertTrue(key:find(name, 1, true) ~= nil, "the key is built on the name: " .. key)
     local realm = GetRealmName and GetRealmName()
     if type(realm) == "string" and realm ~= "" then
-        assertEquals(name .. "-" .. realm, key,
-            "the realm comes from GetRealmName (GetServerName is not in the catalog)")
+        assertTrue(key:find(realm, 1, true) == nil,
+            "no realm label in the key (a connection label, not identity): " .. key)
+        assertTrue(key:find("-", 1, true) == nil,
+            "no hyphen: the old Name-Realm shape is gone: " .. key)
     end
     assertEquals(key, DB.CharacterKey(), "cached: a mid-session nil can not orphan the profile")
 end)
 
-test("the live FX.db reached the v2 shape through the bootstrap", function()
+test("a two-part name is the whole name: the key packs the parts, keeps them all",
+function()
+    local saved = saveNameAPIs()
+    clearKeyCaches()
+    _G.UnitNameUnmodified = function() return "Aria Dawnsong" end
+    _G.UnitFullName = function() return "Aria Dawnsong", "Somewhere" end
+    _G.UnitName = function() return "Aria Dawnsong" end
+    assertEquals("AriaDawnsong", DB.CharacterKey(),
+        "first+last is ONE character: the space is packed out, nothing cut")
+    restoreNameAPIs(saved)
+end)
+
+test("the UNKNOWNOBJECT placeholder is a failed read: nil key, nothing cached",
+function()
+    local saved = saveNameAPIs()
+    clearKeyCaches()
+    -- Early in loading the name reads answer the localized placeholder
+    -- (the live enUS string; the global for the other locales) instead of
+    -- nil. A profile key built on it is an orphan factory.
+    _G.UnitNameUnmodified = function() return tostring(_G.UNKNOWNOBJECT) end
+    _G.UnitFullName = function() return "UNKNOWN" end
+    _G.UnitName = function() return "Unknown" end
+    assertEquals(nil, DB.CharacterKey(), "the placeholder is no name")
+    -- The next good read wins: the placeholder read cached nothing.
+    _G.UnitNameUnmodified = function() return "Aria Dawnsong" end
+    _G.UnitFullName = nil
+    _G.UnitName = nil
+    assertEquals("AriaDawnsong", DB.CharacterKey(),
+        "the good read after the placeholder is THE key")
+    restoreNameAPIs(saved)
+end)
+
+test("the key rides the API with the MOST name parts, not the first answer",
+function()
+    local saved = saveNameAPIs()
+    clearKeyCaches()
+    -- The live-unknown of the research note: UnitName's surname is
+    -- display-conditional. The two-part answer must win from ANY of the
+    -- three APIs, and the raising ones may not spoil the good reads.
+    _G.UnitNameUnmodified = function() error("locked") end
+    _G.UnitFullName = function() return "Aria Dawnsong" end
+    _G.UnitName = function() return "Aria" end
+    assertEquals("AriaDawnsong", DB.CharacterKey(), "the fuller read wins")
+    clearKeyCaches()
+    _G.UnitNameUnmodified = function() return "Aria Dawnsong" end
+    _G.UnitFullName = function() error("locked") end
+    _G.UnitName = function() error("locked") end
+    assertEquals("AriaDawnsong", DB.CharacterKey(), "the raising halves drop out")
+    clearKeyCaches()
+    _G.UnitNameUnmodified = nil
+    _G.UnitFullName = nil
+    _G.UnitName = function() return "Aria Dawnsong" end
+    assertEquals("AriaDawnsong", DB.CharacterKey(),
+        "a lone UnitName carries a two-part name too")
+    restoreNameAPIs(saved)
+end)
+
+test("a failed or secret name read answers nil and caches NOTHING",
+function()
+    local saved = saveNameAPIs()
+    clearKeyCaches()
+    _G.UnitNameUnmodified = function() error("client raise") end
+    _G.UnitFullName = function() error("client raise") end
+    _G.UnitName = function() error("client raise") end
+    assertEquals(nil, DB.CharacterKey(), "a raising read is a nil, not an error")
+    -- The secret string (SecretWhenUnitIdentityRestricted): type() is
+    -- "string", it passes every string test — only PlainOrNil may stop it,
+    -- and the string op on it runs inside the pcall.
+    local SECRET = "FXTEST-SECRET-NAME"
+    _G.issecretvalue = function(v) return v == SECRET end
+    _G.UnitNameUnmodified = function() return SECRET end
+    _G.UnitFullName = function() return SECRET, SECRET end
+    _G.UnitName = function() return SECRET end
+    assertEquals(nil, DB.CharacterKey(), "a secret name names nobody")
+    -- Not cached: the next good read is THE key.
+    _G.issecretvalue = saved.issecretvalue
+    _G.UnitNameUnmodified = function() return "Aria Dawnsong" end
+    _G.UnitFullName = nil
+    _G.UnitName = nil
+    assertEquals("AriaDawnsong", DB.CharacterKey(),
+        "the failed reads left the cache empty")
+    -- The good read IS a session constant: every read dying afterwards
+    -- changes nothing.
+    _G.UnitNameUnmodified = function() error("locked") end
+    _G.UnitFullName = function() error("locked") end
+    _G.UnitName = function() error("locked") end
+    assertEquals("AriaDawnsong", DB.CharacterKey())
+    restoreNameAPIs(saved)
+end)
+
+test("a realm label change between two bootstraps keeps the same profile",
+function()
+    local saved = saveNameAPIs()
+    clearKeyCaches()
+    _G.GetRealmName = function() return "World-A" end
+    local db = v0DB()
+    assertEquals(DB.SCHEMA_VERSION, DB.Migrate(db))
+    local key = DB.CharacterKey()
+    db.profiles.byName[key].settings.Cooldown.Width = 277
+    -- The next login: the connection reports another world label (Blizzard
+    -- moves players between world instances) — the profile rides.
+    _G.GetRealmName = function() return "World-B" end
+    clearKeyCaches()
+    assertEquals(key, DB.CharacterKey(), "the key is realm-free by law")
+    assertEquals(DB.SCHEMA_VERSION, DB.Migrate(db))
+    assertEquals(277, db.profiles.byName[db.profiles.active].settings.Cooldown.Width,
+        "the same profile, settings and all")
+    restoreNameAPIs(saved)
+end)
+
+test("v3 re-keys the current character's legacy Name-Realm rows, settings and all",
+function()
+    local key = DB.CharacterKey()
+    assertNotNil(key)
+    -- The legacy key of the OLD CharacterKey law: packed name, hyphen,
+    -- packed realm label (the SHARED_NAME fallback on an empty label).
+    local realm = (GetRealmName and GetRealmName() or "")
+    realm = (tostring(realm):gsub("%s+", ""))
+    if realm == "" then realm = DB.SHARED_NAME end
+    local legacy = key .. "-" .. realm
+    local db = {
+        version = 2,
+        profiles = {
+            perCharacter = true,
+            shared = DB.SHARED_NAME,
+            active = legacy,
+            characters = { [legacy] = legacy },
+            byName = {
+                [legacy] = { settings = { Cooldown = { Width = 277 } } },
+                [DB.SHARED_NAME] = { settings = {} },
+            },
+        },
+        defaultsPruned = { Cooldown = true, General = true },
+    }
+    assertEquals(3, DB.Migrate(db))
+    assertEquals(key, db.profiles.active, "the active profile rides the new key")
+    assertNotNil(db.profiles.byName[key], "the profile moved")
+    assertEquals(277, db.profiles.byName[key].settings.Cooldown.Width,
+        "the settings moved WITH it: a re-key never drops them")
+    assertEquals(key, db.profiles.characters[key], "the character binding moved")
+    assertEquals(nil, db.profiles.byName[legacy], "the legacy spelling is gone")
+    assertEquals(nil, db.profiles.characters[legacy])
+    assertNotNil(db.profiles.byName[DB.SHARED_NAME], "the shared profile rode through")
+    -- Idempotent: a second pass finds no legacy row.
+    assertEquals(3, DB.Migrate(db))
+    assertEquals(277, db.profiles.byName[key].settings.Cooldown.Width)
+end)
+
+test("v3 re-keys a legacy row of a MOVED realm label and never overwrites the new key",
+function()
+    local key = DB.CharacterKey()
+    local saved = saveNameAPIs()
+    local db = {
+        version = 2,
+        profiles = {
+            perCharacter = true,
+            shared = DB.SHARED_NAME,
+            active = key .. "-World-Old",   -- the label of the login that wrote it
+            characters = { [key .. "-World-Old"] = key .. "-World-Old" },
+            byName = {
+                [key .. "-World-Old"] = { settings = { Cooldown = { Width = 188 } } },
+                [DB.SHARED_NAME] = { settings = {} },
+            },
+        },
+        defaultsPruned = { Cooldown = true, General = true },
+    }
+    _G.GetRealmName = function() return "World-New" end  -- the label moved
+    clearKeyCaches()
+    assertEquals(3, DB.Migrate(db))
+    assertEquals(188, db.profiles.byName[key].settings.Cooldown.Width,
+        "the recognition rides the NAME half, not the label: no orphaning")
+    assertEquals(key, db.profiles.active)
+    assertEquals(nil, db.profiles.byName[key .. "-World-Old"])
+    -- The collision: a new-key profile already exists -> it stands, the
+    -- legacy row is left visible, nothing is written over the new key.
+    db = {
+        version = 2,
+        profiles = {
+            perCharacter = true,
+            shared = DB.SHARED_NAME,
+            active = key,
+            characters = { [key] = key },
+            byName = {
+                [key] = { settings = { Cooldown = { Width = 300 } } },
+                [key .. "-World-Old"] = { settings = { Cooldown = { Width = 111 } } },
+                [DB.SHARED_NAME] = { settings = {} },
+            },
+        },
+        defaultsPruned = { Cooldown = true, General = true },
+    }
+    assertEquals(3, DB.Migrate(db))
+    assertEquals(300, db.profiles.byName[key].settings.Cooldown.Width,
+        "the new-key entry was NOT overwritten")
+    assertNotNil(db.profiles.byName[key .. "-World-Old"],
+        "the legacy row is kept visible: a re-key never drops data")
+    restoreNameAPIs(saved)
+end)
+
+test("v3 moves a BOUND legacy key, a user-named shape twin rides untouched",
+function()
+    local key = DB.CharacterKey()
+    local legacy = key .. "-SimulatedRealm"
+    local raid = key .. "-Raid"          -- a profile someone NAMED, not a key
+    local db = {
+        version = 2,
+        profiles = {
+            perCharacter = true,
+            shared = DB.SHARED_NAME,
+            active = legacy,
+            characters = { [legacy] = legacy },   -- ONLY the legacy key binds
+            byName = {
+                [legacy] = { settings = { Cooldown = { Width = 233 } } },
+                [raid] = { settings = { Cooldown = { Width = 150 } } },
+                [DB.SHARED_NAME] = { settings = {} },
+            },
+        },
+        defaultsPruned = { Cooldown = true, General = true },
+    }
+    assertEquals(3, DB.Migrate(db))
+    assertEquals(233, db.profiles.byName[key].settings.Cooldown.Width,
+        "the bound legacy key moved")
+    assertEquals(nil, db.profiles.byName[legacy])
+    assertNotNil(db.profiles.byName[raid],
+        "a user-named profile of the SHAPE is no character key: it rides")
+    assertEquals(150, db.profiles.byName[raid].settings.Cooldown.Width)
+    assertEquals(key, db.profiles.active)
+end)
+
+test("a ladder with no readable name stamps v3; the first good key re-keys the live DB once",
+function()
+    local saved = saveNameAPIs()
+    local realDB = FX.db
+    local legacy = tostring(DB.CharacterKey()) .. "-LegacyRealm"
+    local db = v3Profiles(legacy, { [legacy] = legacy },
+        { [legacy] = { settings = { Cooldown = { Width = 311 } } },
+          [DB.SHARED_NAME] = { settings = {} } })
+    DB._clearKeyCache()
+    DB._clearRekeyFlag()
+    FX.Identity._clearSelfName()
+    FX.db = db
+    -- The ladder of a session whose name read is the placeholder: the
+    -- stamp lands on 3, the legacy row is still in the file (the stamp is
+    -- not a re-key, and the stamp is not undone by the failed read).
+    _G.UnitName = function() return "Unknown" end
+    _G.UnitNameUnmodified = nil
+    _G.UnitFullName = nil
+    assertEquals(nil, DB.CharacterKey())
+    assertEquals(3, DB.Migrate(db))
+    assertEquals(3, db.version)
+    assertNotNil(db.profiles.byName[legacy],
+        "with no name the re-key ran no move: the row is waiting")
+    -- The first good read of the session: the login path re-keys the live
+    -- DB before the key reaches a reader.
+    restoreNameAPIs(saved)
+    DB._clearKeyCache()
+    FX.Identity._clearSelfName()
+    local key = DB.CharacterKey()
+    assertEquals(DB.CharacterKey(), key)
+    assertEquals(311, db.profiles.byName[key].settings.Cooldown.Width,
+        "the waiting legacy row moved to the plain key")
+    assertEquals(nil, db.profiles.byName[legacy])
+    assertEquals(key, db.profiles.active)
+    -- EXACTLY ONCE: a forced second pass over the same file moves nothing.
+    DB._clearRekeyFlag()
+    DB.RekeyLegacy(db)
+    DB.RekeyLegacy(db)
+    assertEquals(2, (function()
+        local n = 0
+        for _ in pairs(db.profiles.byName) do n = n + 1 end
+        return n
+    end)(), "the file keeps exactly the two profiles: key + shared")
+    FX.db = realDB
+    DB._clearKeyCache()
+    DB._clearRekeyFlag()
+    FX.Identity._clearSelfName()
+end)
+
+test("the first key of a session runs the re-key exactly once, without recursing",
+function()
+    -- RekeyLegacy reads DB.CharacterKey() itself, so the login-path call
+    -- inside CharacterKey must see the key already cached; otherwise every
+    -- level calls back into the other until the C stack overflows and a
+    -- pcall swallows it (manager review, wave I-2a).
+    local realDB = FX.db
+    local realRekey = DB.RekeyLegacy
+    local calls = 0
+    DB.RekeyLegacy = function(db)
+        calls = calls + 1
+        return realRekey(db)
+    end
+    FX.db = v3Profiles(DB.SHARED_NAME, {}, { [DB.SHARED_NAME] = { settings = {} } })
+    DB._clearKeyCache()
+    DB._clearRekeyFlag()
+    FX.Identity._clearSelfName()
+    local key = DB.CharacterKey()
+    DB.RekeyLegacy = realRekey
+    FX.db = realDB
+    DB._clearKeyCache()
+    DB._clearRekeyFlag()
+    FX.Identity._clearSelfName()
+    assertNotNil(key)
+    assertEquals(1, calls, "one cold CharacterKey() runs RekeyLegacy once, not a recursion")
+end)
+
+test("the live FX.db reached the shipped (v3) shape through the bootstrap", function()
     assertNotNil(FX.db, "the bootstrap adopted the SavedVariables global")
     assertEquals(DB.SCHEMA_VERSION, FX.db.version,
         "Core/Init.lua ran the ladder at ADDON_LOADED")

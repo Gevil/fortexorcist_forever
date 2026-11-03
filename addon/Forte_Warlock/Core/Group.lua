@@ -37,11 +37,21 @@
 --     claimed (Forte_Summon.lua:342-399 `SU_SummonCastCancel`/
 --     `SU_SummonCastEnd`, the ActiveSummons sweep spec SU-07).
 --
--- Names on this model are PLAIN player-name strings (the CHAT_MSG_ADDON
--- `sender` field is a plain cstring, ChatInfoDocumentation.lua:800 — no
--- secrecy annotation on it); a name that is not a string is refused at the
--- door. Counts are integers >= 0 (the wire format itself is Comms' decode
--- contract); a negative/typed junk value is refused, never stored.
+-- Names on this model: the KEY of a member row / a summon entry is the
+-- FX.Identity canonical form of the player name (docs/research/upstream-
+-- api-2026-11-03.md §2: the CHAT_MSG_ADDON sender, the roster-scan UnitName
+-- and the wire carry the same player in different spellings — raw string
+-- identity across those three sources is the retired assumption; the
+-- canonical key is what makes `:SetRoster`'s drop-sweep keep a peer's row
+-- when the two spellings differ). The row keeps the raw spelling the game
+-- last handed us (`m.name`, the summon entry's `.by`) and every row the UI
+-- draws carries THAT. The incoming name values are PLAIN strings (the
+-- CHAT_MSG_ADDON `sender` field is a plain cstring,
+-- ChatInfoDocumentation.lua:800 — no secrecy annotation on it) classified
+-- through FX.Compat.PlainOrNil at the door; a name that is not a string,
+-- is secret, or does not classify is refused. Counts are integers >= 0
+-- (the wire format itself is Comms' decode contract); a negative/typed
+-- junk value is refused, never stored.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -75,6 +85,23 @@ local function plainName(v)
     return v
 end
 
+--- The model key of a (plain, already-classified) name: the FX.Identity
+--- canonical form — nil on a name that does not classify (secret, empty
+--- of name parts). See the header's spelling law.
+local function keyOf(plain)
+    if not plain then return nil end
+    return FX.Identity.Canonical(plain)
+end
+
+--- The DISPLAY spelling of a name: the raw notation the game handed for
+--- that identity, first one wins (FX.Identity.Remember/Raw) — a roster
+--- scan's "Aria Dawnsong" is not clobbered by a wire sender's joined
+--- "AriaDawnsong", and every row the UI draws rides one stable spelling.
+local function display(plain, key)
+    FX.Identity.Remember(plain)
+    return FX.Identity.Raw(key) or plain
+end
+
 -- ------------------------------------------------------------------ roster --
 
 --- A member row; `present` = online, `alive` = not dead/ghost, `addon` =
@@ -92,15 +119,20 @@ end
 --- Get an existing member, creating the row on demand: an inbound count
 --- from a name the roster scan has not listed yet is kept (the original's
 --- `fx2temp` queue, Forte_Core.lua:2449 — "remember it until the next scan"
---- by the same right), and the next `:SetRoster` folds it in.
+--- by the same right), and the next `:SetRoster` folds it in. Keyed by the
+--- canonical form; the row's `.name` rides the identity layer's remembered
+--- spelling of the player.
 function Group:Member(name)
-    name = plainName(name)
-    if not name then return nil end
-    local m = self.members[name]
+    local raw = plainName(name)
+    local key = keyOf(raw)
+    if not key then return nil end
+    local m = self.members[key]
     if not m then
-        m = newMember(name)
+        m = newMember(display(raw, key))
         m.present = false          -- not on a scan yet: claimed, not seen
-        self.members[name] = m
+        self.members[key] = m
+    else
+        m.name = display(raw, key) -- the remembered spelling, not this one
     end
     return m
 end
@@ -109,29 +141,36 @@ end
 --- (Core/Comms.lua's ScanRoster). Members absent from the scan are DROPPED
 --- together with their summon entries (the original's DeleteOld sweep,
 --- Forte_Core.lua:985-990, at scan cadence); a known count rides the row when
---- the same name returns. Returns the new member count.
+--- the same name returns — matched by the CANONICAL key, so a scan spelling
+--- ("Aria Dawnsong" from UnitName) and a sender spelling ("AriaDawnsong"
+--- from the wire) fold into the ONE row instead of deleting each other's
+--- state (the header's spelling law). Returns the new member count.
 function Group:SetRoster(rows)
     if type(rows) ~= "table" then return self:ActiveCount() end
     local keep = {}
     for _, row in ipairs(rows) do
-        local name = plainName(row.name)
-        if name then
-            keep[name] = true
-            local m = self.members[name] or newMember(name)
-            m.name = name
+        local raw = plainName(row.name)
+        local key = keyOf(raw)
+        if key then
+            keep[key] = true
+            local m = self.members[key]
+            if not m then
+                m = newMember(display(raw, key))
+                -- Presence defaults PRESENT (the original's AddMember law,
+                -- Forte_Core.lua:1866 -- only a CONFIRMED death/disconnect is
+                -- an absence; an unknown answer is presence).
+            end
+            m.name = display(raw, key)
             if type(row.class) == "string" then m.class = row.class end
-            -- Presence defaults PRESENT (the original's AddMember law,
-            -- Forte_Core.lua:1866 -- only a CONFIRMED death/disconnect is an
-            -- absence; an unknown answer is presence).
             m.present = (row.present ~= false)
             m.alive = (row.alive ~= false)
-            self.members[name] = m
+            self.members[key] = m
         end
     end
-    for name in pairs(self.members) do
-        if not keep[name] then
-            self.members[name] = nil
-            self.summons[name] = nil
+    for key in pairs(self.members) do
+        if not keep[key] then
+            self.members[key] = nil
+            self.summons[key] = nil
         end
     end
     return self:ActiveCount()
@@ -213,12 +252,12 @@ end
 --- filter is the original's `FW:IsWarlock` role gate (Forte_Summon.lua:241
 --- uses it for the queue priority; the Shard Spy module itself is FE-35
 --- removed, so the row set is the roster's own warlock column). Sorted by
---- name, capped at `max`.
+--- name (the spelling the game gave), capped at `max`.
 function Group:ShardRows(max)
     local rows = {}
-    for name, m in pairs(self.members) do
+    for key, m in pairs(self.members) do
         if m.class == "WARLOCK" and m.present then
-            rows[#rows + 1] = { name = name, shards = m.shards }
+            rows[#rows + 1] = { name = m.name or key, shards = m.shards }
         end
     end
     table.sort(rows, function(a, b) return a.name < b.name end)
@@ -252,9 +291,10 @@ end
 --- previous target when a replace happened, the new one otherwise.
 function Group:SummonStart(by, target)
     by, target = plainName(by), plainName(target)
-    if not by or not target then return nil end
-    local prev = self.summons[by]
-    self.summons[by] = { target = target, at = self:Clock() }
+    local key = keyOf(by)
+    if not key or not target then return nil end
+    local prev = self.summons[key]
+    self.summons[key] = { target = target, at = self:Clock(), by = by }
     return prev and prev.target or target
 end
 
@@ -266,13 +306,14 @@ end
 --- entry never touches another's. `target` nil = "whatever it was".
 function Group:SummonEnd(by, target)
     by = plainName(by)
-    if not by then return nil end
-    local entry = self.summons[by]
+    local key = keyOf(by)
+    if not key then return nil end
+    local entry = self.summons[key]
     if not entry then return nil end
     if target ~= nil and plainName(target) ~= entry.target then
         return nil                       -- a late end for an old cast
     end
-    self.summons[by] = nil
+    self.summons[key] = nil
     return entry.target
 end
 
@@ -282,8 +323,8 @@ end
 --- by `max` (the original's `SummonMax`, default 5, Forte_Summon.lua:590).
 function Group:Queue(max)
     local rows = {}
-    for by, entry in pairs(self.summons) do
-        rows[#rows + 1] = { warlock = by, target = entry.target }
+    for key, entry in pairs(self.summons) do
+        rows[#rows + 1] = { warlock = entry.by or key, target = entry.target }
     end
     table.sort(rows, function(a, b) return a.warlock < b.warlock end)
     if type(max) == "number" and max >= 0 and #rows > max then

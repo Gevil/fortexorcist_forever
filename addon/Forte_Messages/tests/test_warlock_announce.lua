@@ -480,6 +480,31 @@ function()
     restoreAll()
 end)
 
+test("the whisper target rides the remembered raw spelling of the name",
+function()
+    enable()
+    installReaders({})
+    local real = withSpellNames({ [20757] = "Create Soulstone" })
+    ST:Set("RaidMsg", "SoulstoneStartWhisper", true)
+    -- The game spelled it "Gvil" once (a scan, an event): that notation is
+    -- the identity's spelling all session (FX.Identity.Remember/Raw, the
+    -- toGame law of docs/research/upstream-api-2026-11-03.md §2).
+    FX.Identity.Remember("Gvil")
+    dispatch("UNIT_SPELLCAST_SENT", "player", "gvil", "C:RS1", 20757)
+    assertEquals(1, #sent, "the whisper leg only (the party box is off)")
+    assertEquals("WHISPER", sent[1].chatType)
+    assertEquals("Gvil", sent[1].target,
+        "a lower-case re-spelling whispers to the client's own notation")
+    -- An identity the game never spelled in its own notation: the given
+    -- spelling rides out unchanged.
+    sent = {}
+    dispatch("UNIT_SPELLCAST_SENT", "player", "Zeph", "C:RS2", 20757)
+    assertEquals("Zeph", sent[1].target, "first spelling wins: it is the game's")
+    ST:Set("RaidMsg", "SoulstoneStartWhisper", false)
+    restoreSpellNames(real)
+    restoreAll()
+end)
+
 test("the pet rows are not the player's rows: the unit token routes them",
 function()
     enable()

@@ -274,9 +274,16 @@ function O:Build()
     strip:SetPoint("BOTTOMRIGHT", titleBar, "BOTTOMRIGHT", 0, 0)
     strip:SetVertexColor(C.TITLE_BG[1], C.TITLE_BG[2], C.TITLE_BG[3],
         C.TITLE_BG[4])
-    local name = (UnitName and UnitName("player")) or "?"
-    -- GetRealmName is the documented global (ConnectionDocumentation.lua:68);
-    -- GetServerName is not in the Forever catalog (uiforever flags it missing).
+    -- The title carries the player's name and, as a DISPLAY LABEL, the
+    -- connection's realm: GetRealmName is the documented global
+    -- (ConnectionDocumentation.lua:68), GetServerName is not in the Forever
+    -- catalog (uiforever flags it missing) — and it is a CONNECTION label
+    -- only: a character is its first+last name, the label moves between
+    -- logins, so it is never part of the profile key (FX.DB.CharacterKey,
+    -- docs/research/upstream-api-2026-11-03.md §2).
+    local selfName = (FX.Identity and FX.Identity.SelfName())
+        or (UnitName and UnitName("player"))
+    local name = FX.Compat.PlainOrNil(selfName) or "?"
     local realm = ""
     if GetRealmName then
         local ok, r = pcall(GetRealmName)

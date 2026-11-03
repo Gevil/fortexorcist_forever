@@ -182,7 +182,11 @@ end
 --- `FW:ToGroup`/`FW:ToChannel` carry, and `FW:Whisper` walks past both), so
 --- this leg is gated by the row's own checkbox, the lockdown gate and a
 --- PLAIN, readable target -- no target name, no send (a whisper with no
---- receiver is not a message, and a secret one names nobody).
+--- receiver is not a message, and a secret one names nobody). The TARGET
+--- the game is sent is the spelling the GAME gave for that identity
+--- (FX.Identity.Remember/Raw, the author's toGame law of
+--- docs/research/upstream-api-2026-11-03.md §2: a name goes back to the
+--- client in the client's own notation, comparisons run canonical).
 function Announce:Whisper(text, gateKey, target)
     local cfg = self.cfg
     if not cfg or not cfg[gateKey] then
@@ -193,6 +197,10 @@ function Announce:Whisper(text, gateKey, target)
     if type(who) ~= "string" or who == "" then
         self.counts.noTarget = (self.counts.noTarget or 0) + 1
         return "noTarget"
+    end
+    local canon = FX.Identity.Remember(who)
+    if canon then
+        who = FX.Identity.Raw(canon) or who
     end
     if self:chatLocked() then
         self.counts.lockedSkipped = self.counts.lockedSkipped + 1

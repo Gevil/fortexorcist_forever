@@ -64,7 +64,13 @@
 -- cstrings), self-messages ignored (CA-24: `FW:SendData` echoes locally,
 -- Forte_Core.lua:1906, so a self-echo must never re-enter the model), a
 -- `SU`/`SE` whose `<by>` is not the sender is a claim about a third player
--- and is ignored, a malformed body is counted and dropped.
+-- and is ignored, a malformed body is counted and dropped. THE SPELLING
+-- LAW (docs/research/upstream-api-2026-11-03.md §2): the sender, the roster
+-- scan and the wire carry the same player in DIFFERENT spellings — every
+-- comparison of names runs through FX.Identity (canonical form), the
+-- model's keys are canonical, outbound names ride FX.Identity.WireName.
+-- Raw string equality across those sources is the assumption that file
+-- retired.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -90,6 +96,13 @@ C.QUERY_ANSWER = { HG = "HS", SG = "SH" }
 local MAX_COUNT = 9999          -- a count that needs four digits is a bug
 local MAX_NAME = 64             -- folded player name, the 12.0 caps are below
 local MAX_TEXT = 200            -- far under the chat line limit
+
+--- The client's own cap on a `C_ChatInfo.SendAddonMessage` payload: 255
+--- bytes, enforced client-side (docs/research/upstream-api-2026-11-03.md
+--- §5, Atraeau RealClient `maxMessage = 255`). Send enforces it before the
+--- client does: an over-long line is DROPPED and COUNTED, never sent,
+--- never an error.
+C.MAX_WIRE_BYTES = 255
 
 local function plainString(v)
     local plain = FX.Compat.PlainOrNil(v)
@@ -160,6 +173,7 @@ C.counts = {
     noGroupSkipped = 0,   -- solo: the law, not the setting, stopped the send
     rateSkipped = 0,      -- the rate law of the header stopped the send
     sendFailed = 0,       -- the call raised or the client refused (result > 0)
+    tooLongSkipped = 0,   -- the line is over the client's 255-byte cap
     received = 0,         -- CHAT_MSG_ADDON lines of OUR prefix
     selfIgnored = 0,      -- the sender is us (CA-24 self-echo law)
     foreignIgnored = 0,   -- sender != <by> on a summon phase
@@ -246,10 +260,18 @@ function C:RateGate(key, gap)
     return true
 end
 
---- The one send. Gate order: switch, lockdown, group, rate (the CALLER
---- stamps the rate key), wire, pcall. Returns the status word.
+--- The one send. Gate order: shape, the client's byte cap, switch, lockdown,
+--- group, rate (the CALLER stamps the rate key), wire, pcall. Returns the
+--- status word.
 function C:Send(text, channel)
     if type(text) ~= "string" or text == "" then return "empty" end
+    if #text > self.MAX_WIRE_BYTES then
+        -- The client enforces 255 on the payload itself (§5 of the
+        -- upstream-api note); enforcing it here turns the client's
+        -- silent bite into one counted drop.
+        self.counts.tooLongSkipped = self.counts.tooLongSkipped + 1
+        return "tooLong"
+    end
     if not self:Enabled() then
         self.counts.offSkipped = self.counts.offSkipped + 1
         return "off"
@@ -298,8 +320,11 @@ function C:SelfName()
         return plainString(r.selfName())
     end
     if type(r.selfName) == "string" then return r.selfName end
-    if type(UnitName) ~= "function" then return nil end
-    local ok, name = pcall(UnitName, "player")
+    -- The identity layer's own read: the fullest plain name of the three
+    -- name APIs (docs/research/upstream-api-2026-11-03.md §2 — UnitName
+    -- alone is the display-conditional half), pcall + PlainOrNil
+    -- throughout, a failed/secret read cached by nothing.
+    local ok, name = pcall(FX.Identity.SelfName, FX.Identity)
     if not ok then return nil end
     return plainString(name)
 end
@@ -336,7 +361,7 @@ end
 --- RETAIL-BASELINE.md:56-57,60-62, the loop shape :204-222; the original's
 --- FW:ForGroupMembers, Forte_Core.lua:957, is the same walk). Every read is
 --- pcall'd and name-guarded (UnitName is SecretWhenUnitNameIdentity-
---- Restricted, UnitDocumentation.lua:2399 — a secret token names nobody and
+--- Restricted, UnitDocumentation.lua:2488 — a secret token names nobody and
 --- simply drops out of the scan; UnitClass/UnitIsConnected/
 --- UnitIsDeadOrGhost are the catalog's). The test seam is readers.rosterScan.
 function C:ScanRoster()
@@ -410,7 +435,7 @@ function C:OnAddonMessage(prefix, text, sender)
         self.counts.malformedIgnored = self.counts.malformedIgnored + 1
         return "malformed"
     end
-    if who == self:SelfName() then
+    if FX.Identity.Same(who, self:SelfName()) then
         self.counts.selfIgnored = self.counts.selfIgnored + 1
         return "self"
     end
@@ -435,8 +460,12 @@ function C:OnAddonMessage(prefix, text, sender)
             self:SendCmd(answer, own)
         end
     else
-        -- A summon phase: the claim must be about its own sender.
-        if a ~= who then
+        -- A summon phase: the claim must be about its own sender. The
+        -- comparison is canonical (FX.Identity): `a` rides the wire in the
+        -- sender's own joined-parts spelling, `who` the event layer's —
+        -- raw string equality across those two sources is exactly the
+        -- identity assumption upstream-api-2026-11-03 §2 retired.
+        if not FX.Identity.Same(a, who) then
             self.counts.foreignIgnored = self.counts.foreignIgnored + 1
             return "foreign"
         end
@@ -538,19 +567,25 @@ end
 --- price — an unread target sends nothing, the name privacy is the
 --- original's own: `if t ~= "" then FW:SummonStartMessage(u,t) end`,
 --- Forte_Summon.lua:496-509), the paired `SE1` on the end. One pair per
---- cast: the channel's own 5 s is the rate limit (header law).
+--- cast: the channel's own 5 s is the rate limit (header law). The names
+--- ride the wire in the identity layer's WIRE form (FX.Identity.WireName:
+--- realm label out, the name parts joined — the grammar is
+--- space-separated and a Forever name is "First Last", so the raw
+--- spelling would be refused by the encoder).
 function C:OnSelfSummon(phase, target)
     target = plainString(target)
     if phase == "start" then
         self._lastTarget = target
         if not target then return "noTarget" end
-        return self:SendCmd("SU", self:SelfName(), target)
+        return self:SendCmd("SU", FX.Identity.WireName(self:SelfName()),
+            FX.Identity.WireName(target))
     end
     if phase == "end" then
         local t = target or self._lastTarget
         self._lastTarget = nil
         if not t then return "noTarget" end
-        return self:SendCmd("SE", self:SelfName(), t)
+        return self:SendCmd("SE", FX.Identity.WireName(self:SelfName()),
+            FX.Identity.WireName(t))
     end
     return "badPhase"
 end
@@ -677,12 +712,12 @@ function C:StatusLine()
     end
     return string.format(
         "Warlock comms: %s prefix=%s | %d members, %d queue | sent %d"
-        .. " | locked %d | off %d | solo %d | rate %d | failed %d"
+        .. " | locked %d | off %d | solo %d | rate %d | failed %d | too-long %d"
         .. " | rx %d self %d foreign %d junk %d",
         self:Enabled() and "on" or "off",
         tostring(self.prefixState),
         members, queue,
         c.sent, c.lockedSkipped, c.offSkipped, c.noGroupSkipped,
-        c.rateSkipped, c.sendFailed,
+        c.rateSkipped, c.sendFailed, c.tooLongSkipped,
         c.received, c.selfIgnored, c.foreignIgnored, c.malformedIgnored)
 end

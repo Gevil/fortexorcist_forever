@@ -37,6 +37,13 @@
 -- stored values equal to their current defaults, lazily per module at
 -- registration for the LoD pages the ladder cannot see (the marker table
 -- `db.defaultsPruned` is the hand-off).
+-- Step 3 is the identity re-key: the original keyed characters
+-- `Name-Realm` (`FW:FullName()`), and the v1 move kept that key — on
+-- Forever the law moved (docs/research/upstream-api-2026-11-03.md §2: a
+-- character is its first+last name, `GetRealmName()` is a CONNECTION label
+-- that moves between logins): the key is now the plain packed player name
+-- and step 3 re-keys this character's legacy `Name-Realm` rows to it. The
+-- prose for the key lives at DB.CharacterKey.
 --
 -- Version numbering is NUMERIC here (0, 1, 2 ...), not the original's
 -- string-compared "v1.975.1" (`FX_Saved.VERSION < "v1.90"`, :1374): a string
@@ -52,7 +59,7 @@ FX.DB = DB
 --- The shape this build writes. A DB stamped ABOVE it is from a newer build:
 --- the ladder skips (Forward compatibility, PLAN §11.1 H3: a downgrade must
 --- not invent keys) and the shape guard still repairs what it can.
-DB.SCHEMA_VERSION = 2
+DB.SCHEMA_VERSION = 3
 
 DB.SHARED_NAME = "ForteXorcist"
 
@@ -133,6 +140,124 @@ end
 
 local function isTable(v) return type(v) == "table" end
 
+--- v2 -> v3: the character key lost its realm half
+--- (docs/research/upstream-api-2026-11-03.md §2, Atraeau b64aab0a: on
+--- Forever a character is its first+last name and `GetRealmName()` is a
+--- CONNECTION label that moves between logins — a key carrying it can
+--- orphan this character's profile on a plain party move). The step
+--- re-keys the CURRENT character's legacy `Name-Realm` rows — profile
+--- `byName`, character `characters` binding, `active` — to the new
+--- realm-free key.
+---   * never lose settings: the move carries the profile table over as it
+---     stands;
+---   * never overwrite an existing new-key entry: with both spellings in
+---     the file the new-key profile stands untouched and the legacy row
+---     stays visible as a named profile (nothing is deleted, the
+---     character keeps riding its new key);
+---   * a legacy row is a key of the SHAPE the old CharacterKey wrote — the
+---     packed name, a hyphen, any realm label — whose name half matches
+---     this character canonically, so a realm label that moved between the
+---     write and now is still picked up. The match is additionally
+---     BOUND-GATED (the key is a key of `characters` — every real
+---     character key binds itself there — or equals `active`), so a
+---     profile the USER named e.g. "Uther-Raid" is left exactly where it
+---     is: the shape alone does not prove a key was written by the old
+---     CharacterKey law;
+---   * IDEMPOTENT by content: after the move no legacy spelling of this
+---     character remains; a second pass finds nothing.
+--- The step body lives in DB.RekeyLegacy: the ladder runs it once, and
+--- because a nil name read here is a NO-OP the ladder still stamps (the
+--- file is v3 with the legacy rows in place), the login path of
+--- DB.CharacterKey runs it again on FX.db the first time a key is
+--- produced — a failed read at the ladder costs the install the move
+--- until the first good read of a later session, never forever.
+DB.MIGRATIONS[3] = function(db)
+    DB.RekeyLegacy(db)
+end
+
+--- The v3 re-key, idempotent, callable from the ladder and the login path.
+--- Moves ONE best legacy row (preferring one with non-empty settings),
+--- plus its `characters` binding and a matching `active`, onto the plain
+--- key. Runs at most once per session (a once-flag): a second call is a
+--- no-op — the ladder that ran it, and the login-path call that follows,
+--- are the two mouths of the SAME law, not two passes over the file.
+local rekeyed
+function DB.RekeyLegacy(db)
+    local key = DB.CharacterKey()
+    if not isTable(db) then return end
+    if not key then return end
+    -- The flag marks a RAN move, not an attempted step: with no readable
+    -- name the ladder stamps v3 over an unre-keyed file and the flag
+    -- stays down — the login path of CharacterKey is the session's second
+    -- mouth of this law, running the move the moment a key exists.
+    rekeyed = true
+    local p = db.profiles
+    if not isTable(p) then return end
+    local keyCanon = FX.Identity.Canonical(key)
+    if not keyCanon then return end
+    local function legacyOf(k)
+        if type(k) ~= "string" or k == key then return false end
+        local head = k:match("^(.-)%-")            -- the name before the label
+        if not head or head == "" then return false end
+        return FX.Identity.Canonical(head) == keyCanon
+    end
+    -- The move moves a LEGACY KEY OF THIS CHARACTER, not any key of the
+    -- shape: a shape match alone would re-key a user-named profile like
+    -- "Uther-Raid" onto the character key. The old law bound EVERY
+    -- character key it wrote into `characters` (and Bind keeps that law),
+    -- and a live install's `active` is one of them — a key of the shape
+    -- that is neither is a profile someone NAMED, not a key to re-key.
+    local characters, active
+    if isTable(p.characters) then characters = p.characters end
+    if type(p.active) == "string" then active = p.active end
+    local function boundToCharacter(k)
+        if characters and characters[k] ~= nil then return true end
+        return active ~= nil and active == k
+    end
+    if isTable(p.byName) then
+        -- Collect first: assigning a NEW key inside pairs() is illegal.
+        local moveKey
+        for k, profile in pairs(p.byName) do
+            if legacyOf(k) and boundToCharacter(k) then
+                local st = type(profile) == "table" and profile.settings
+                if moveKey == nil or (type(st) == "table" and next(st) ~= nil) then
+                    moveKey = k
+                end
+            end
+        end
+        if moveKey and p.byName[key] == nil then
+            p.byName[key] = p.byName[moveKey]
+            p.byName[moveKey] = nil
+        end
+    end
+    if characters then
+        local bind
+        for k, v in pairs(characters) do
+            if legacyOf(k) then bind = k end
+        end
+        if bind and characters[key] == nil then
+            local bound = characters[bind]
+            if bound == bind then
+                -- Self-bound (the character rode a profile named by the
+                -- old key): the byName move RENAMED that profile, the
+                -- binding follows it. A binding to any other profile
+                -- (the shared one, a renamed custom one) is a name the
+                -- step has no claim on — it rides.
+                bound = key
+            end
+            characters[key] = bound
+            characters[bind] = nil
+        end
+    end
+    if legacyOf(active) then p.active = key end
+end
+
+--- The test seam (and only that): let RekeyLegacy run again — the state a
+--- fresh install's first login stands in.
+function DB._clearRekeyFlag()
+    rekeyed = nil
+end
+
 --- Structural repair, run on every login (idempotent, allocation-free).
 --- Repairs the SHAPE of db.profiles (the shape step 1 writes) and drops
 --- non-table profiles. Key-level sanity is the value layer's job
@@ -160,26 +285,53 @@ function DB.Guard(db)
     return p
 end
 
---- The profile this install's character is keyed by: "Name-Realm". Realm via
---- GetRealmName -- a documented global on Forever (the window title uses it
---- for the same reason; GetServerName is NOT in the pinned catalog). The
---- result is cached: the value is a constant for the session and every
---- profile name derives from it, so a mid-session nil can not orphan the
---- profile of this character.
+--- The profile key of this install's character: the FULLEST PLAIN PLAYER
+--- NAME — no realm. The law moved with upstream-api-2026-11-03 §2 (Atraeau
+--- b64aab0a, "a character is its first and last name"): on Forever the
+--- name is first+last and `GetRealmName()` is a CONNECTION label that can
+--- change between logins (Blizzard's own party moves shift players to
+--- another world instance), so a key carrying it would orphan this
+--- character's profile the first time the label moves. The read is
+--- FX.Identity.SelfName — the fullest of `UnitNameUnmodified`/
+--- `UnitFullName`/`UnitName`, every call and every string op inside a
+--- pcall, every value through PlainOrNil, a failed/secret read caching
+--- NOTHING — packed (the spaces out, the way the old key packed them; the
+--- name half's spelling rule is unchanged, so the v3 migration recognises
+--- the legacy rows). The result is cached: a session constant once a good
+--- read happened, so a mid-session nil can not orphan the profile.
 local cachedKey
 function DB.CharacterKey()
     if cachedKey then return cachedKey end
-    local okN, name = pcall(function() return UnitName and UnitName("player") end)
-    if not okN or type(name) ~= "string" or name == "" then return nil end
-    name = name:gsub("%s+", "")
-    local realm = ""
-    if type(GetRealmName) == "function" then
-        local okR, r = pcall(GetRealmName)
-        if okR and type(r) == "string" then realm = r:gsub("%s+", "") end
+    local ok, name = pcall(function()
+        local n = FX.Identity.SelfName()
+        if type(n) ~= "string" then return nil end
+        return (n:gsub("%s+", ""))
+    end)
+    if not ok then return nil end
+    if type(name) ~= "string" or name == "" then return nil end
+    -- Cache FIRST: RekeyLegacy reads DB.CharacterKey() itself, and with the
+    -- key not yet cached the two would call each other until the C stack
+    -- overflowed inside the pcall (198 levels measured; manager review,
+    -- wave I-2a, test "...exactly once, without recursing").
+    cachedKey = name
+    -- The login path of the v3 step (RekeyLegacy's own header): the
+    -- ladder ran its step when this character's name was not readable
+    -- (a nil/placeholder read) — the file is stamped v3 with the legacy
+    -- rows in place — so the first key of a session runs the re-key on
+    -- the live DB, before the key reaches a reader. Once-flagged, pcall'd
+    -- (the never-fatal law of this file: a half move retried next
+    -- login), silent.
+    if not rekeyed and isTable(FX) and isTable(FX.db) then
+        pcall(DB.RekeyLegacy, FX.db)
     end
-    if realm == "" then realm = DB.SHARED_NAME end
-    cachedKey = name .. "-" .. realm
     return cachedKey
+end
+
+--- The test seam (and only that): forget the cached key — the boundary a
+--- fresh bootstrap stands at (the session itself re-logs in with a fresh
+--- global environment, where this cache is already empty).
+function DB._clearKeyCache()
+    cachedKey = nil
 end
 
 --- Deep copy of the plain data a SavedVariables table may hold (numbers,

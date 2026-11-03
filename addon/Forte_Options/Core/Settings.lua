@@ -39,8 +39,10 @@
 -- `Forte_Core/Localization.lua:339-341`):
 --   * a profile is one profile-name -> { settings = { [module] = {...} } }
 --     row of `db.profiles.byName`;
---   * BY DEFAULT a character rides its own profile, keyed `Name-Realm`
---     (FX.DB.CharacterKey, the original's FW:FullName), recorded in
+--   * BY DEFAULT a character rides its own profile, keyed by its FULLEST
+--     PLAIN NAME (FX.DB.CharacterKey — on Forever a character is its
+--     first+last name; the original's `Name-Realm` key of FW:FullName is
+--     retired, the v2→v3 step of Core/Database.lua re-keys it), recorded in
 --     `db.profiles.characters[key] = <profile name>`;
 --   * `db.profiles.perCharacter = false` makes the whole account ride the one
 --     shared profile (`db.profiles.shared`); the character bindings survive
@@ -125,12 +127,20 @@ P.MAX_NAME = 32
 
 local root            -- the live db.profiles table (or the session fallback)
 local bound = false   -- the active profile of THIS session is resolved
-local selfKey         -- cached `Name-Realm` (a session constant)
+local selfKey         -- cached character key (a session constant)
 
 local function selfName()
     if not selfKey then
-        selfKey = (FX.DB and FX.DB.CharacterKey())
-            or ((UnitName and UnitName("player")) or "Player")
+        -- FX.DB.CharacterKey is the key law (the packed full plain name,
+        -- Forte_Core/Core/Database.lua); the fallbacks are the same
+        -- packing of the raw read for a session that has no Core DB.
+        local raw = (FX.DB and FX.DB.CharacterKey())
+            or (UnitName and FX.Compat.PlainOrNil(UnitName("player")))
+        if type(raw) == "string" and raw ~= "" then
+            selfKey = raw:gsub("%s+", "")
+        else
+            selfKey = "Player"
+        end
     end
     return selfKey
 end

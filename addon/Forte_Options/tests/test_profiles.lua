@@ -5,7 +5,9 @@
 -- corrupt key of a registered module is dropped while a legacy key of the
 -- original survives, a profile switch moves a LIVE setting (the Cooldown bar
 -- width, measured on the real frame) and moves back, a reset is per module
--- and is gated behind a confirmation, the profiles are keyed `Name-Realm`,
+-- and is gated behind a confirmation, the profiles are keyed by the
+-- character's plain name (realm-free since schema v3,
+-- docs/research/upstream-api-2026-11-03.md §2),
 -- and THE STORE IS SPARSE: it carries only values that differ from the
 -- registered defaults (a page build and a /reload-equivalent pass leave no
 -- default-valued key; a moved shipped default reaches a profile that never
@@ -113,11 +115,19 @@ test("FX.Profiles is the profile layer of the settings store", function()
     assertEquals("function", type(S.ConfirmReset))
 end)
 
-test("the live store rides the active profile, keyed Name-Realm", function()
+test("the live store rides the active profile, keyed the plain name", function()
     local me = DB.CharacterKey()
     assertNotNil(me, "the client gives a player name")
-    assertTrue(#me > #tostring(UnitName("player")),
-        "the key carries a realm: " .. me)
+    local packed = tostring(UnitName("player")):gsub("%s+", "")
+    assertTrue(#me >= #packed,
+        "the key is the fullest plain name, packed: " .. me)
+    local realm = GetRealmName and GetRealmName()
+    if type(realm) == "string" and realm ~= "" then
+        assertTrue(me:find(realm, 1, true) == nil,
+            "no realm label in the key: " .. me)
+    end
+    assertTrue(me:find("-", 1, true) == nil,
+        "the old Name-Realm shape is gone: " .. me)
     assertEquals(me, P.Active(), "a fresh install starts on its own profile")
     assertEquals(true, FX.db.profiles.perCharacter, "per-character is the default")
     assertEquals(me, FX.db.profiles.characters[me], "the character is bound to it")
@@ -468,7 +478,7 @@ test("the Profiles page is registered and opens with its controls", function()
     assertNotNil(page)
     assertNotNil(widgetByLabel(page, "Per-character profiles"), "the sharing row")
     assertNotNil(widgetByLabel(page, "Active profile"), "what is in use")
-    assertNotNil(widgetByLabel(page, "This character"), "the Name-Realm key")
+    assertNotNil(widgetByLabel(page, "This character"), "the plain-name key")
     assertNotNil(widgetByLabel(page, "Name of the new profile"), "the name field")
     local created = widgetByLabel(page, "Create a copy of " .. tostring(P.Active()))
     assertNotNil(created, "the create row")
