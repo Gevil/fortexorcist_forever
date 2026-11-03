@@ -178,10 +178,22 @@ function D:Init()
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
+    -- CD-30 (CodeReview6 M3: the wave-6 "right-click-to-options on every
+    -- module frame" law -- the window is a module frame with its own page
+    -- (Pages/Splash.lua, id `Splash`) and its mouse is live by the lock
+    -- law, so its right release must reach the seam). The press stamp
+    -- rides OnMouseDown (any button) as the source wires it
+    -- (`<OnMouseDown>FW:StartMoving(self,button)`, Forte_Soulstone.xml
+    -- :189-191): the engine fires OnDragStart only for the registered
+    -- drag button, so a stamp riding only OnDragStart leaves the
+    -- right-press unstamped and every later right-click reads against a
+    -- stale stamp (M2's shape).
+    f:SetScript("OnMouseDown", function() self:_StampPress() end)
     f:SetScript("OnDragStart", function(fr, button)
-        -- The lock law (the source: the lock gates the DRAG -- the row
-        -- label is "Lock (disable dragging)" -- and never the mouse):
-        -- SetMovable(false) is the engine's stop, this check is the belt.
+        -- The stamp FIRST, the lock check second (FW:StartMoving's order,
+        -- Forte_Core/Options.lua:650-651): the lock gates the DRAG -- the
+        -- row label is "Lock (disable dragging)" -- and never the mouse.
+        self:_StampPress()
         if self.cfg and self.cfg.locked then return end
         fr:StartMoving(button)
     end)
@@ -189,6 +201,10 @@ function D:Init()
         fr:StopMovingOrSizing()
         self:SavePosition(fr)
     end)
+    -- The release: (frame, mouseButtonName, upInside) per the catalog's
+    -- OnMouseUp row (m2, CodeReview6).
+    f:SetScript("OnMouseUp",
+        function(_, button, upInside) self:OnMouseUp(button, upInside) end)
 
     -- The drag-handle label (the Timeline's title law: visible only while
     -- unlocked).
@@ -261,6 +277,60 @@ function D:SetLocked(locked)
     -- enabled, idle window shows the placeholder; locking it hides the
     -- face (a live splash keeps the window shown -- Draw keeps drawing).
     self:Update(GetTime())
+end
+
+-- ------------------------------------------------------- right-click seam --
+--- FW:StartMoving's press stamp (Forte_Core/Options.lua:649-656): the cursor
+--- position at the moment of every press (the Cooldown bar's `_StampPress`,
+--- Forte_Cooldown/UI/Timeline.lua, the same seam).
+function D:_StampPress()
+    if type(GetCursorPosition) ~= "function" then return end
+    local x, y = GetCursorPosition()
+    self._downX, self._downY = x, y
+end
+
+--- FW:Moved() (Forte_Core/Options.lua:659-662): did the cursor travel
+--- between press and release? A drag must never open the options window
+--- (CD-30). No cursor read (no press stamp, no cursor on this client) means
+--- no travel, i.e. a click.
+function D:Moved()
+    if type(GetCursorPosition) ~= "function" then return false end
+    local dx, dy = self._downX, self._downY
+    if dx == nil or dy == nil then return false end
+    local x, y = GetCursorPosition()
+    if x == nil or y == nil then return false end
+    return x ~= dx or y ~= dy
+end
+
+--- CD-30 on this window (CodeReview6 M3: the wave-6 "right-click-to-options
+--- on every module frame" law, the Timeline's shape): a right-button
+--- release opens the options window on the Secondary Splash page
+--- (`O:RegisterPage{ id = "Splash" }`, Pages/Splash.lua); a release that
+--- followed a drag is dropped by the Moved guard, and the release consumes
+--- the press stamp on every exit (M2: the stamp is one pair's, never a
+--- later release's).
+function D:OnMouseUp(button, upInside)
+    if button ~= "RightButton" then
+        self._downX, self._downY = nil, nil
+        return
+    end
+    local moved = self:Moved()
+    self._downX, self._downY = nil, nil
+    if moved then return end
+    -- m2 (CodeReview6): a release the client reports OUTSIDE the frame
+    -- (the catalog's 3rd OnMouseUp slot) is not a click on it; nil (a
+    -- hand-driven script) = treated as inside.
+    if upInside == false then return end
+    -- `RightClickOptions` (General page, default true): off = the window
+    -- is silent, the release is consumed, nothing opens.
+    local st = FX.Settings
+    if st and st.IsRegistered and st:IsRegistered("General")
+        and st:Get("General", "RightClickOptions") == false then
+        return
+    end
+    local O = FX.Options
+    if not O or not O.Open then return end
+    pcall(O.Open, O, "Splash")
 end
 
 -- ------------------------------------------------------------------ pool --

@@ -521,7 +521,16 @@ function P.ApplyLive()
         local t = store(module)          -- shape + key-sanity touch
         for key, d in pairs(defaults[module]) do
             local v = t[key]
-            S:Set(module, key, v ~= nil and v or deepCopy(d))
+            -- CodeReview6 M1: the `v ~= nil and v or deepCopy(d)` idiom
+            -- LOSES a stored `false` -- `true and false` is `false`, the
+            -- `or` then hands the DEFAULT, the stored value is never
+            -- reached, and Set of a default-equal value DELETES the stored
+            -- `false` (Bars ship Lock = true, so the stored `false` is the
+            -- single non-default the sparse store is built to carry: a
+            -- profile switch re-locked every unlocked bar AND ate the
+            -- evidence). The nil test must be an explicit branch.
+            if v == nil then v = deepCopy(d) end
+            S:Set(module, key, v)
         end
     end
 end
@@ -560,6 +569,12 @@ function P.Delete(raw)
         if other ~= name then fallback = other break end
     end
     r.byName[name] = nil
+    -- CodeReview6 m4: the key-sanity pass is keyed by (profile, module) in
+    -- the session-local `checked` map; drop the deleted profile's entry so
+    -- a SAME-NAMED recreation (Create copies the sanitized active profile,
+    -- content clean -- but a hand-crafted table must not skip the pass) is
+    -- key-sanity-checked again this session.
+    checked[name] = nil
     for who, target in pairs(r.characters) do
         if target == name then r.characters[who] = fallback end
     end

@@ -156,6 +156,13 @@ end)
 --- module's seam calls the catalog method with the name the store carries,
 --- and that a name outside the eight never reaches the frame.
 local function strataDrives(key, frame, label)
+    -- m5 (CodeReview6): the recorder below REPLACES the catalog method, and
+    -- every production call is presence-guarded (`if self.anchor
+    -- .SetFrameStrata`) -- if the client frame lacked the method the suite
+    -- would be silent on the real leg. Pin its presence BEFORE replacing
+    -- (the IsMouseEnabled-probe convention, test_splash.lua).
+    assertNotNil(frame.SetFrameStrata,
+        label .. ": the client frame carries SetFrameStrata")
     local rec = {}
     local real = frame.SetFrameStrata
     frame.SetFrameStrata = function(_, name) rec[#rec + 1] = name end
@@ -194,11 +201,17 @@ end)
 test("HunterStrata drives the swing bar's SetFrameStrata", function()
     local SW = FX.Hunter and FX.Hunter.Swing
     assertNotNil(SW and SW.SetStrata, "the bar has the seam")
-    if not SW.anchor then
-        -- A non-hunter session: the seam is built, the frame is not.
-        SW:SetStrata("NOT_A_STRATA")
-        return
-    end
+    -- M4 (CodeReview6): the old leg short-circuited on the gate's
+    -- (non-Hunter) profile and never drove the store -- the gate passed at
+    -- 707 with the leg dark. Build the frame on EVERY profile (Init is
+    -- idempotent; test_swing_rightclick.lua's ensureBuilt rides the same
+    -- call) so the live seam is really driven. The drive below is the fail-
+    -- on-the-old-code proof: the swing's _WireSettings wired Hunter /
+    -- Cooldown / General only, so on the old code S:Set("Advanced",
+    -- "HunterStrata", "HIGH") moved the store and fired ZERO listeners on
+    -- the bar -- rec stays empty, the equality raises.
+    SW:Init()
+    assertNotNil(SW.anchor, "the swing bar is built in this suite")
     strataDrives("HunterStrata", SW.anchor, "the swing bar")
 end)
 

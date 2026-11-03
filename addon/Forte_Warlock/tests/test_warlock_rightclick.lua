@@ -152,3 +152,73 @@ function()
     p:ApplyMouse()
     p._downX, p._downY = nil, nil
 end)
+
+-- M2 (CodeReview6): the press stamp must ride OnMouseDown (ANY button) on
+-- EVERY frame that can own the plate's mouse region -- the source stamps
+-- every press (`<OnMouseDown>FW:StartMoving(self,button)`,
+-- Forte_Soulstone.xml:189-191), while the engine fires OnDragStart only for
+-- the drag frame's registered button: on the live client the right-press
+-- stamped nothing and the first drag poisoned every later right-click with
+-- its stale stamp. These legs drive the scripts the CLIENT fires, in the
+-- client's order, and never touch _StampPress -- they fail on the old code
+-- where GetScript("OnMouseDown") is nil.
+test("M2: anchor, tip and drag frame stamp every press through OnMouseDown",
+function()
+    ensureBuilt()
+    for _, e in ipairs(plates()) do
+        local p = e.p
+        for _, fr in ipairs({
+            { "anchor", p.anchor }, { "tip", p.tip }, { "drag", p._dragFrame },
+        }) do
+            if fr[2] then
+                assertNotNil(fr[2]:GetScript("OnMouseDown"),
+                    e.page .. ": the " .. fr[1] .. " stamps every press")
+                assertNotNil(fr[2]:GetScript("OnMouseUp"),
+                    e.page .. ": the " .. fr[1] .. " carries the release")
+            end
+        end
+    end
+end)
+
+test("M2: a plate drag, then a right-click at a NEW spot, opens its own page",
+function()
+    ensureBuilt()
+    for _, e in ipairs(plates()) do
+        local p = e.p
+        local f = mouseFrame(p)
+        local dragF = p._dragFrame
+        local was = p.cfg.locked
+        p:SetLocked(false)
+        p:ApplyMouse()
+        O:Close()
+        local realPos = GetCursorPosition
+        -- 1. LEFT press at (100,100), drag, release at (400,400): inert.
+        _G.GetCursorPosition = function() return 100, 100 end
+        f:GetScript("OnMouseDown")(f, "LeftButton")
+        dragF:GetScript("OnDragStart")(dragF)
+        _G.GetCursorPosition = function() return 400, 400 end
+        dragF:GetScript("OnDragStop")(dragF)
+        f:GetScript("OnMouseUp")(f, "LeftButton")
+        assertEquals(false, O:IsOpen(),
+            e.page .. ": a drag-release opens nothing")
+        -- 2. LATER a right press+release at a DIFFERENT (250,250) spot: the
+        -- fresh press re-stamps (the stale drag stamp was M2's dead seam).
+        _G.GetCursorPosition = function() return 250, 250 end
+        f:GetScript("OnMouseDown")(f, "RightButton")
+        f:GetScript("OnMouseUp")(f, "RightButton")
+        assertEquals(true, O:IsOpen(),
+            e.page .. ": M2: the right-click at the new spot opens")
+        assertEquals(e.page, O.pageId, e.page .. ": opens ITS OWN page")
+        O:Close()
+        -- 3. right press, MOVE, release: the travel reads as a drag.
+        _G.GetCursorPosition = function() return 120, 120 end
+        f:GetScript("OnMouseDown")(f, "RightButton")
+        _G.GetCursorPosition = function() return 500, 500 end
+        f:GetScript("OnMouseUp")(f, "RightButton")
+        assertEquals(false, O:IsOpen(),
+            e.page .. ": a moved right release never opens")
+        _G.GetCursorPosition = realPos
+        p:SetLocked(was and true or false)
+        p:ApplyMouse()
+    end
+end)

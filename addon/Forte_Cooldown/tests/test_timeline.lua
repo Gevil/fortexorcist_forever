@@ -1908,6 +1908,67 @@ function()
     Display:SetLocked(true)
 end)
 
+-- M2 (CodeReview6): the press stamp must ride OnMouseDown (ANY button), not
+-- the LeftButton-only OnDragStart: the engine fires OnDragStart only for the
+-- REGISTERED drag button (RegisterForDrag(buttons: MouseButton), the pinned
+-- catalog api-coverage.json:24838), so on the live client a right-press
+-- stamped nothing and the first left-drag poisoned every later right-click
+-- with its stale stamp (and the old release never cleared it). The source
+-- stamps every press -- `<OnMouseDown>FW:StartMoving(self,button)`,
+-- Forte_Soulstone.xml:189-191. The tests above stamp by hand; THIS one drives
+-- the scripts the CLIENT fires, in the client's order (OnMouseDown ->
+-- OnDragStart -> OnDragStop -> OnMouseUp), and never touches _StampPress:
+-- it fails on the old code because GetScript("OnMouseDown") is nil there.
+
+test("M2: a left-drag, then a right-click at a NEW spot, opens through the scripts",
+function()
+    Display:Init()
+    local O = FX.Options
+    O:Close()
+    local f = Display.anchor
+    local press = f:GetScript("OnMouseDown")
+    local dragStart = f:GetScript("OnDragStart")
+    local dragStop = f:GetScript("OnDragStop")
+    local release = f:GetScript("OnMouseUp")
+    assertNotNil(press, "M2: the bar stamps EVERY press via OnMouseDown")
+    local was = Display.cfg.locked
+    Display:SetLocked(false)
+    -- The native move is not the law under test (its own legs ride the
+    -- lock-law test); stub it so the sequence is deterministic.
+    local realStart, realStop = f.StartMoving, f.StopMovingOrSizing
+    f.StartMoving = function() end
+    f.StopMovingOrSizing = function() end
+    local realPos = GetCursorPosition
+    -- 1. LEFT press at (100,100), drag, release at (400,400): inert.
+    _G.GetCursorPosition = function() return 100, 100 end
+    press(f, "LeftButton")
+    dragStart(f, "LeftButton")
+    _G.GetCursorPosition = function() return 400, 400 end
+    dragStop(f)
+    release(f, "LeftButton")
+    assertEquals(false, O:IsOpen(), "a drag-release opens nothing")
+    -- 2. LATER a right press+release at a DIFFERENT (250,250) spot. On the
+    -- old code the stamp is the drag's stale (100,100) (the right press
+    -- stamped nothing, the left release kept it) -> Moved() true -> the
+    -- release is dropped -> the seam is dead.
+    _G.GetCursorPosition = function() return 250, 250 end
+    press(f, "RightButton")
+    release(f, "RightButton")
+    assertEquals(true, O:IsOpen(),
+        "M2: the fresh press re-stamps -- the right-click opens")
+    assertEquals("Cooldown", O.pageId)
+    O:Close()
+    -- 3. right press, MOVE, release: the travel reads as a drag, stays shut.
+    _G.GetCursorPosition = function() return 120, 120 end
+    press(f, "RightButton")
+    _G.GetCursorPosition = function() return 500, 500 end
+    release(f, "RightButton")
+    assertEquals(false, O:IsOpen(), "a moved right release never opens")
+    _G.GetCursorPosition = realPos
+    f.StartMoving, f.StopMovingOrSizing = realStart, realStop
+    Display:SetLocked(was and true or false)
+end)
+
 -- ==================================================== CD-35 geometry modes ==
 -- CD-35 (spec §1.5): `Vertical` (the icons bottom -> top along the bar) and
 -- `Flip` (right -> left, tags mirrored). The source's draw loop picks the

@@ -138,3 +138,55 @@ test("RightClickOptions gates the bar's right-release", function()
     Swing._downX, Swing._downY = nil, nil
     Swing:SetLocked(was and true or false)
 end)
+
+-- M2 (CodeReview6): the press stamp must ride OnMouseDown (ANY button), not
+-- the LeftButton-only OnDragStart (the engine fires OnDragStart only for the
+-- REGISTERED drag button; the source stamps every press -- Forte_Soulstone.
+-- xml:189-191), so the first left-drag poisoned every later right-click with
+-- its stale stamp. This test drives the scripts the CLIENT fires, in the
+-- client's order, and never touches _StampPress -- it fails on the old code
+-- where GetScript("OnMouseDown") is nil.
+test("M2: a left-drag, then a right-click at a NEW spot, opens through the scripts",
+function()
+    ensureBuilt()
+    local f = Swing.anchor
+    local press = f:GetScript("OnMouseDown")
+    local dragStart = f:GetScript("OnDragStart")
+    local dragStop = f:GetScript("OnDragStop")
+    local release = f:GetScript("OnMouseUp")
+    assertNotNil(press, "M2: the bar stamps EVERY press via OnMouseDown")
+    local was = Swing.cfg.locked
+    Swing:SetLocked(false)
+    O:Close()
+    -- The native move is not the law under test; stub it for determinism.
+    local realStart, realStop = f.StartMoving, f.StopMovingOrSizing
+    f.StartMoving = function() end
+    f.StopMovingOrSizing = function() end
+    local realPos = GetCursorPosition
+    -- 1. LEFT press at (100,100), drag, release at (400,400): inert.
+    _G.GetCursorPosition = function() return 100, 100 end
+    press(f, "LeftButton")
+    dragStart(f, "LeftButton")
+    _G.GetCursorPosition = function() return 400, 400 end
+    dragStop(f)
+    release(f, "LeftButton")
+    assertEquals(false, O:IsOpen(), "a drag-release opens nothing")
+    -- 2. LATER a right press+release at a DIFFERENT (250,250) spot: the
+    -- fresh press re-stamps, the seam is alive (the stale drag stamp was
+    -- M2's dead seam).
+    _G.GetCursorPosition = function() return 250, 250 end
+    press(f, "RightButton")
+    release(f, "RightButton")
+    assertEquals(true, O:IsOpen(), "M2: the right-click at the new spot opens")
+    assertEquals("Hunter", O.pageId)
+    O:Close()
+    -- 3. right press, MOVE, release: the travel reads as a drag, stays shut.
+    _G.GetCursorPosition = function() return 120, 120 end
+    press(f, "RightButton")
+    _G.GetCursorPosition = function() return 500, 500 end
+    release(f, "RightButton")
+    assertEquals(false, O:IsOpen(), "a moved right release never opens")
+    _G.GetCursorPosition = realPos
+    f.StartMoving, f.StopMovingOrSizing = realStart, realStop
+    Swing:SetLocked(was and true or false)
+end)

@@ -345,6 +345,49 @@ function()
     P.Delete(created)
 end)
 
+test("a stored `false` under a `true` default rides the switch (CodeReview6 M1)",
+function()
+    -- M1: ApplyLive's `S:Set(module, key, v ~= nil and v or deepCopy(d))`
+    -- LOSES a stored `false` (`true and false` is false, the `or` then
+    -- hands the DEFAULT, the stored value is never reached), so the first
+    -- profile switch RE-LOCKS a bar the player unlocked -- and because the
+    -- pushed `true` is default-equal, Set DELETES the stored `false`
+    -- (:447-448): the single non-default the sparse store is built to
+    -- carry, eaten out of SavedVariables. The bar page ships Lock = true
+    -- (Pages/Cooldown.lua:71), the stored `false` is the player's one move.
+    local base = P.Active()
+    local d = FX.Cooldown.Display
+    d:Init()
+    assertNotNil(d.anchor, "the Cooldown bar is live in every gate run")
+    assertEquals(true, S:GetDefault("Cooldown", "Lock"), "the bar ships locked")
+    S:Set("Cooldown", "Lock", false)
+    assertEquals(false, S:Get("Cooldown", "Lock"))
+    assertEquals(false, settingsOf(base).Cooldown.Lock, "the false is stored")
+    assertFalse(d.cfg.locked, "the bar is unlocked live")
+    local created = P.Create("LockRide")
+    assertNotNil(created)
+    assertNotNil(P.Select(created))
+    S:Set("Cooldown", "Lock", true)              -- the ride profile is locked
+    assertTrue(d.cfg.locked)
+    assertNil(settingsOf(created).Cooldown and settingsOf(created).Cooldown.Lock,
+        "a default is not stored")
+    assertNotNil(P.Select(base))
+    assertEquals(false, S:Get("Cooldown", "Lock"),
+        "M1: the switch back carries the STORED false, not the default")
+    assertEquals(false, settingsOf(base).Cooldown.Lock,
+        "and the stored key SURVIVES the switch (false under a true default"
+        .. " is not default-equal: it stays in the profile)")
+    assertFalse(d.cfg.locked, "the bar frame follows: unlocked across the switch")
+    assertTrue(d.anchor:IsMovable(), "the live frame is draggable again")
+    assertNotNil(P.Delete(created))
+    -- Hand the shipped state back: the bar locked (the publish moves
+    -- GlobalLock back to its default too), the profile sparse again.
+    S:Reset("Cooldown", "Lock")
+    assertTrue(d.cfg.locked, "back to the shipped lock")
+    assertNil(settingsOf(base).Cooldown and settingsOf(base).Cooldown.Lock,
+        "and the profile carries no frozen Lock")
+end)
+
 test("sharing moves this character to the account-wide profile, and back",
 function()
     local me = DB.CharacterKey()

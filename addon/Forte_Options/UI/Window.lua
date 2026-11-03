@@ -115,6 +115,10 @@ function O:RememberCollapse(pageId, title, collapsed)
     if not advancedFlag("LoadExpandSubcats", true) then return end
     local mem = expandMemory()
     local per = mem[pageId]
+    -- m1 (CodeReview6): the tree's DB law is shape-before-read ("no reader
+    -- can crash on shape", Core/Database.lua Guard): a hand-edited/legacy
+    -- scalar at a page's slot must not raise inside the fold memory.
+    if type(per) ~= "table" then per = nil end
     if not per then per = {} ; mem[pageId] = per end
     per[title] = collapsed and true or false
 end
@@ -123,6 +127,10 @@ end
 function O:StartCollapsed(pageId, title, isFirst)
     if advancedFlag("LoadExpandSubcats", true) then
         local per = expandMemory()[pageId]
+        -- m1 (CodeReview6): shape-before-read -- a scalar at the page's
+        -- slot (a hand-edited/legacy SavedVars file) must not raise on
+        -- indexing inside the page build.
+        if type(per) ~= "table" then per = nil end
         local v = per and per[title]
         if v ~= nil then return v and true or false end
     end
@@ -990,6 +998,11 @@ end
 function O:Close()
     if not self.window then return end
     self:SavePosition()
+    -- m3 (CodeReview6): closing mid-ride must retire the wheel driver --
+    -- the hidden-frame-carries-no-ticker law the splash is tested to
+    -- (test_splash.lua) and the AnimateScroll test asserts at the target;
+    -- SetPage stops it, Close stopped leaving it ticking.
+    self:StopScrollAnim()
     self.window:Hide()
 end
 

@@ -624,6 +624,17 @@ function D:Init()
     -- (the lock law in SetLocked).
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
+    -- CodeReview6 M2: the source stamps EVERY press -- the wiring is
+    -- `<OnMouseDown>FW:StartMoving(self,button)` (Forte_Soulstone.xml
+    -- :189-191), and FW:StartMoving stamps before its lock check. The
+    -- engine only fires OnDragStart for the REGISTERED drag button
+    -- (RegisterForDrag(buttons: MouseButton)), so the right-button press
+    -- stamps nothing while the stamp rides only OnDragStart -- after one
+    -- left-drag every later right-click reads as "moved" against the stale
+    -- stamp and the seam dies. The press stamp therefore rides OnMouseDown
+    -- (any button); the OnDragStart stamp stays (the sim's rigs drive that
+    -- script directly).
+    f:SetScript("OnMouseDown", function() self:_StampPress() end)
     f:SetScript("OnDragStart", function(fr, button)
         -- FW:StartMoving (Forte_Core/Options.lua:649-656) stamps the cursor
         -- at press; FW:Moved() (:659-662) is the release-time compare that
@@ -645,9 +656,13 @@ function D:Init()
     -- = FW:StopMoving + Frame_OnClick(button) -> FW:ScrollTo(COOLDOWN_TIMER),
     -- :901-909). "OnMouseUp" is also the script this engine accepts on a
     -- plain Frame ("OnClick" is a Button-only slot here -- the sim rejects
-    -- it on a Frame), and its payload is (frame, mouseButtonName) exactly as
-    -- in the Blizzard UI's own OnMouseUp handlers.
-    f:SetScript("OnMouseUp", function(_, button) self:OnMouseUp(button) end)
+    -- it on a Frame), and its payload is (frame, mouseButtonName, upInside)
+    -- exactly as in the Blizzard UI's own OnMouseUp handlers (m2,
+    -- CodeReview6: the catalog's SCRIPT-HANDLERS.md OnMouseUp row --
+    -- `upInside` is true when the cursor is still over the widget at the
+    -- release).
+    f:SetScript("OnMouseUp",
+        function(_, button, upInside) self:OnMouseUp(button, upInside) end)
 
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     title:SetText("Forte Cooldowns")
@@ -1344,9 +1359,21 @@ end
 --- `PlaySound("igMainMenuOptionCheckBoxOn")` (:907 -- the panel's only
 --- sound, spec CD-33) is Forte_Options' own UI click and lives with its
 --- widgets, not on the bar.
-function D:OnMouseUp(button)
-    if button ~= "RightButton" then return end
-    if self:Moved() then return end
+function D:OnMouseUp(button, upInside)
+    if button ~= "RightButton" then
+        -- CodeReview6 M2: the stamp describes ONE press/release pair (the
+        -- source's cx,cy ride every press, and a stale stamp is exactly
+        -- M2's dead seam): the release consumes it, on every exit.
+        self._downX, self._downY = nil, nil
+        return
+    end
+    local moved = self:Moved()
+    self._downX, self._downY = nil, nil
+    if moved then return end
+    -- m2 (CodeReview6): a release the client reports OUTSIDE the frame
+    -- (the catalog's 3rd OnMouseUp slot) is not a click on it. nil = the
+    -- slot not delivered (a hand-driven script), treated as inside.
+    if upInside == false then return end
     -- `RightClickOptions` (the source's row of the same name,
     -- Forte_Core/Options.lua:5545, default true at Forte_Core.lua:2495; our
     -- row rides the General page, where the shared frame keys live). Off =

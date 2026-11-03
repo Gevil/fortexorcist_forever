@@ -589,10 +589,24 @@ end
 --- topmost mouse-enabled one; all three run the same law. "OnMouseUp" is the
 --- script this engine accepts on a plain Frame ("OnClick" is Button-only).
 function Frame:_WireRightClick()
-    local function up(_, button) self:OnMouseUp(button) end
-    if self.anchor then self.anchor:SetScript("OnMouseUp", up) end
-    if self.tip then self.tip:SetScript("OnMouseUp", up) end
-    if self._dragFrame then self._dragFrame:SetScript("OnMouseUp", up) end
+    -- CodeReview6 M2: the source stamps EVERY press -- the wiring is
+    -- `<OnMouseDown>FW:StartMoving(self,button)` (Forte_Soulstone.xml
+    -- :189-191). The engine fires OnDragStart only for the drag frame's
+    -- registered button, so a stamp riding only OnDragStart leaves the
+    -- right-press (and the anchor's/tip's press) unstamped: after one
+    -- drag every later right-click compares against the stale stamp and
+    -- reads as "moved" -- the seam dies. Every frame that can own the
+    -- plate's mouse region carries the press stamp; the release consumes
+    -- it (OnMouseUp clears it on every exit).
+    local function up(_, button, upInside) self:OnMouseUp(button, upInside) end
+    local function down() self:_StampPress() end
+    local function wire(fr)
+        fr:SetScript("OnMouseUp", up)
+        fr:SetScript("OnMouseDown", down)
+    end
+    if self.anchor then wire(self.anchor) end
+    if self.tip then wire(self.tip) end
+    if self._dragFrame then wire(self._dragFrame) end
 end
 
 --- FW:StartMoving's press stamp (Forte_Core/Options.lua:649-656): the cursor
@@ -622,9 +636,21 @@ end
 --- Healthstone / Summon -- the ids Pages/Warlock.lua registers); a release
 --- that followed a drag is dropped by the Moved guard. A plate with no page
 --- id (a probe frame) is inert.
-function Frame:OnMouseUp(button)
-    if button ~= "RightButton" then return end
-    if self:Moved() then return end
+function Frame:OnMouseUp(button, upInside)
+    if button ~= "RightButton" then
+        -- CodeReview6 M2: the stamp describes ONE press/release pair; the
+        -- release consumes it, on every exit (a stale stamp is exactly
+        -- M2's dead seam).
+        self._downX, self._downY = nil, nil
+        return
+    end
+    local moved = self:Moved()
+    self._downX, self._downY = nil, nil
+    if moved then return end
+    -- m2 (CodeReview6): a release the client reports OUTSIDE the plate
+    -- (the catalog's 3rd OnMouseUp slot) is not a click on it; nil (a
+    -- hand-driven script) = treated as inside.
+    if upInside == false then return end
     -- `RightClickOptions` (the source's row of the same name,
     -- Forte_Core/Options.lua:5545, default true at Forte_Core.lua:2495; our
     -- row rides the General page). Off = the plate is silent: the release is

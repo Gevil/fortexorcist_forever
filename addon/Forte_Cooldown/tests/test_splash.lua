@@ -574,3 +574,103 @@ function()
     clearPops()
 end)
 
+-- ============================================ CD-30 right-click = options ==
+-- M3 (CodeReview6): the wave-6 law is "right-click-to-options on EVERY
+-- module frame" (commit b88c454) -- the Secondary Splash window is a module
+-- frame with its own page (Pages/Splash.lua, id `Splash`) and the lock law
+-- keeps its mouse live (SetLocked's EnableMouse(true)), so its right
+-- release must reach the seam: the press stamp on OnMouseDown (ANY button,
+-- M2's shape), the release consumed by OnMouseUp, the Moved guard for
+-- drags. These legs drive the scripts the CLIENT fires, in the client's
+-- order (OnMouseDown -> OnDragStart -> OnDragStop -> OnMouseUp); on the old
+-- code the window carried NO OnMouseUp/OnMouseDown at all (GetScript reads
+-- nil -- the first assertNotNil raises), so they fail there.
+
+test("the window carries the CD-30 seam: the shipped-locked release opens the Splash page",
+function()
+    Splash:OnEnable()                    -- the idempotent Init path
+    local O = FX.Options
+    assertNotNil(O.pages["Splash"], "the Secondary Splash page is registered")
+    local f = Splash.anchor
+    assertNotNil(f:GetScript("OnMouseUp"), "the window carries the release")
+    assertNotNil(f:GetScript("OnMouseDown"), "the window stamps every press")
+    O:Close()
+    -- The lock law: the lock gates the DRAG, the mouse stays live, so the
+    -- shipped-LOCKED window carries the seam (nil stamp = no travel = the
+    -- release reads as a click).
+    local was = Splash.cfg.locked
+    Splash:SetLocked(true)
+    Splash._downX, Splash._downY = nil, nil
+    f:GetScript("OnMouseUp")(f, "RightButton")
+    assertEquals(true, O:IsOpen(), "a LOCKED window opens the options window")
+    assertEquals("Splash", O.pageId, "on the Secondary Splash page")
+    O:Close()
+    Splash:SetLocked(was and true or false)
+end)
+
+test("M2+M3: a left-drag, then a right-click at a NEW spot, opens through the scripts",
+function()
+    Splash:OnEnable()
+    local O = FX.Options
+    O:Close()
+    local f = Splash.anchor
+    local press = f:GetScript("OnMouseDown")
+    local dragStart = f:GetScript("OnDragStart")
+    local dragStop = f:GetScript("OnDragStop")
+    local release = f:GetScript("OnMouseUp")
+    assertNotNil(press, "M2: the window stamps EVERY press via OnMouseDown")
+    local was = Splash.cfg.locked
+    Splash:SetLocked(false)
+    -- The native move is not the law under test; stub it for determinism.
+    local realStart, realStop = f.StartMoving, f.StopMovingOrSizing
+    f.StartMoving = function() end
+    f.StopMovingOrSizing = function() end
+    local realPos = GetCursorPosition
+    -- 1. LEFT press at (100,100), drag, release at (400,400): inert.
+    _G.GetCursorPosition = function() return 100, 100 end
+    press(f, "LeftButton")
+    dragStart(f, "LeftButton")
+    _G.GetCursorPosition = function() return 400, 400 end
+    dragStop(f)
+    release(f, "LeftButton")
+    assertEquals(false, O:IsOpen(), "a drag-release opens nothing")
+    -- 2. LATER a right press+release at a DIFFERENT (250,250) spot: the
+    -- fresh press re-stamps, the seam is alive.
+    _G.GetCursorPosition = function() return 250, 250 end
+    press(f, "RightButton")
+    release(f, "RightButton")
+    assertEquals(true, O:IsOpen(), "M2: the right-click at the new spot opens")
+    assertEquals("Splash", O.pageId)
+    O:Close()
+    -- 3. right press, MOVE, release: the travel reads as a drag, stays shut.
+    _G.GetCursorPosition = function() return 120, 120 end
+    press(f, "RightButton")
+    _G.GetCursorPosition = function() return 500, 500 end
+    release(f, "RightButton")
+    assertEquals(false, O:IsOpen(), "a moved right release never opens")
+    _G.GetCursorPosition = realPos
+    f.StartMoving, f.StopMovingOrSizing = realStart, realStop
+    Splash:SetLocked(was and true or false)
+end)
+
+test("RightClickOptions gates the window's right-release", function()
+    Splash:OnEnable()
+    local O = FX.Options
+    local f = Splash.anchor
+    local was = Splash.cfg.locked
+    Splash:SetLocked(true)               -- the shipped state: seam mouse-live
+    O:Close()
+    assertEquals(true, Settings:GetDefault("General", "RightClickOptions"),
+        "Forte_Core.lua:2495 ships it on")
+    Settings:Set("General", "RightClickOptions", false)
+    Splash._downX, Splash._downY = nil, nil
+    f:GetScript("OnMouseUp")(f, "RightButton")
+    assertEquals(false, O:IsOpen(), "off = the window is silent")
+    Settings:Reset("General", "RightClickOptions")
+    Splash._downX, Splash._downY = nil, nil
+    f:GetScript("OnMouseUp")(f, "RightButton")
+    assertEquals(true, O:IsOpen(), "the recycle opens it again")
+    O:Close()
+    Splash:SetLocked(was and true or false)
+end)
+

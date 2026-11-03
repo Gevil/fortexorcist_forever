@@ -12,6 +12,31 @@ headless interface simulator and on uiforever.com — not in a live game.
 
 ---
 
+## Unreleased — 2026-11-03 (Iteration H, review-6 fix slice)
+
+- **Your settings now survive a profile switch.** Switching profiles (or
+  sharing settings) pushed every option back out at its effective value —
+  and an option set to OFF under a default of ON (a bar you unlocked, the
+  right-click switch you ticked off) was read as "unset" and pushed back as
+  the default: every bar you unlocked re-locked, and the stored choice was
+  deleted from the profile. The stored OFF now rides the switch and stays
+  in the file (found by code review 6, M1).
+- **Right-click keeps working after you drag.** The press stamp that tells
+  a click from a drag rode only the left-button drag start, so on the live
+  client the first drag left a stale stamp behind and every later
+  right-click on that frame read as "the cursor moved" and opened nothing.
+  The stamp now lands on every press and is consumed by the release, as in
+  the original's `FW:StartMoving` / `FW:Moved` pair (M2). A release the
+  client reports outside the frame no longer opens the window.
+- **The Secondary Splash window joins the right-click law.** A right-button
+  release on it now opens its own page, drag-safe and lock-safe like every
+  other module frame (M3).
+- **The Advanced page's Hunter strata row is live.** Typing a frame level
+  into it moved the store and told the swing bar nothing; the bar now
+  listens, like every other frame, and applies the row immediately (M4).
+
+---
+
 ## Unreleased — 2026-11-03 (Iteration H, wave 6)
 
 - **Right-click opens the page, on every module frame.** The Cooldown bar

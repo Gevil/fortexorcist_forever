@@ -141,6 +141,15 @@ function D:Init(options, skin, cfg)
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
+    -- CodeReview6 M2: the source stamps EVERY press (`<OnMouseDown>
+    -- FW:StartMoving(self,button)`, Forte_Soulstone.xml:189-191). The
+    -- engine fires OnDragStart only for the REGISTERED drag button, so a
+    -- stamp riding only OnDragStart leaves the right-press unstamped:
+    -- after one left-drag every later right-click compares against the
+    -- stale stamp and reads as "moved" -- the seam dies. The press stamp
+    -- rides OnMouseDown (any button); the OnDragStart stamp stays (the
+    -- sim's rigs drive that script directly).
+    f:SetScript("OnMouseDown", function() self:_StampPress() end)
     f:SetScript("OnDragStart", function(fr, button)
         -- FW:StartMoving (Forte_Core/Options.lua:649-656) stamps the cursor
         -- at press; FW:Moved() (:659-662) is the release-time compare that
@@ -164,8 +173,10 @@ function D:Init(options, skin, cfg)
     -- the panel opens the options window on this module's page, dropped by
     -- the Moved guard after a drag. "OnMouseUp" is the script this engine
     -- accepts on a plain Frame ("OnClick" is Button-only -- the sim rejects
-    -- it on a Frame); its payload is (frame, mouseButtonName).
-    f:SetScript("OnMouseUp", function(_, button) self:OnMouseUp(button) end)
+    -- it on a Frame); its payload is (frame, mouseButtonName, upInside) --
+    -- the catalog's 3rd slot, m2 CodeReview6.
+    f:SetScript("OnMouseUp",
+        function(_, button, upInside) self:OnMouseUp(button, upInside) end)
 
     -- The drag affordance, visible only while unlocked. The title states the
     -- ceiling (design §5.5 / PLAN §7 Phase 4 "state the ceiling in the UI").
@@ -292,9 +303,21 @@ end
 --- FWSSFrame: a right-button release opens the options window on this
 --- module's page; a release that followed a drag is dropped by the Moved
 --- guard.
-function D:OnMouseUp(button)
-    if button ~= "RightButton" then return end
-    if self:Moved() then return end
+function D:OnMouseUp(button, upInside)
+    if button ~= "RightButton" then
+        -- CodeReview6 M2: the stamp describes ONE press/release pair; the
+        -- release consumes it, on every exit (a stale stamp is exactly
+        -- M2's dead seam).
+        self._downX, self._downY = nil, nil
+        return
+    end
+    local moved = self:Moved()
+    self._downX, self._downY = nil, nil
+    if moved then return end
+    -- m2 (CodeReview6): a release the client reports OUTSIDE the frame
+    -- (the catalog's 3rd OnMouseUp slot) is not a click on it; nil (a
+    -- hand-driven script) = treated as inside.
+    if upInside == false then return end
     -- `RightClickOptions` (the source's row of the same name,
     -- Forte_Core/Options.lua:5545, default true at Forte_Core.lua:2495; our
     -- row rides the General page). Off = the panel is silent: the release is
