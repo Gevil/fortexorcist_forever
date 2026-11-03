@@ -22,6 +22,12 @@ textures).
 | <img src="docs/demo/cooldown-bar-and-timer.png" alt="Cooldown bar with time tags above two Spell Timer target groups" width="420"> | <img src="docs/demo/warlock-plates.png" alt="The four purple Warlock plates: shards, soulstone, summon, healthstone" width="420"> |
 
 <p align="center">
+  <img src="docs/demo/hunter-swing.gif" alt="Hunter Auto Shot swing bar: orange reload, red stand-still aim window, white safe-to-move bar after the shot" width="460"><br>
+  <em>Hunter swing bar: orange while reloading, red = stand still (the shot is aiming), white = the shot left, move or
+  cast freely. (<a href="docs/demo/hunter-swing.mp4">MP4</a>)</em>
+</p>
+
+<p align="center">
   <img src="docs/demo/options-window.png" alt="The original-style options window with its 16-cell module index" width="620"><br>
   <em>The options window in the original's style: profile tabs, module index, every setting applies live.</em>
 </p>
