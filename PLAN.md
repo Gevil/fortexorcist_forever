@@ -725,6 +725,13 @@ feeds, review-5 real-frame tests. Gate PASS **667**; live battery 14/15 — the 
 | Review-5 minors | `fx-worker` `Minors5` | the 12 sites ReviewFix5 listed (`Forte_Hunter` Tools/Pages/Range, `Forte_Cooldown` Module/Procs, `Forte_Core` Locale/Probe, `Forte_Timer/Core/Casts.lua`) | each minor fixed per the review's text (m4 `OutOfCombatAlpha` tip now says default visible) | per-minor test where behaviour changes; gate PASS |
 | Advanced page v1 | `fx-worker` `AdvancedPage` | NEW `addon/Forte_Options/Pages/Advanced.lua` (+ toc twins), consumers only via existing setters/seams | fix-list item 8 feasible subset: startup text toggle, AnimateScroll, ExpandSubcats pair, Core update intervals where a consumer exists, per-module frame strata via `SetFrameStrata`, FrameSnap + distances, RightClickOptions (General) — each row with a live consumer or not added; the index cell lights | page registers + cell lights; each key changes its consumer through the real setter path; gate PASS |
 
+**Wave 5 accepted (`7c361f2`, 2026-11-03):** the settings store is sparse (only non-default values; setting a default deletes
+the key) + schema v2 prune — verified live: the uiforever profile's General block went from 8 frozen keys to the single
+non-default `AltTimeFormat=false`; Advanced Options page v1 (startup text, animated scroll, fold memory, right-click options,
+per-frame strata ×8; rows without a consumer dropped and listed); review-5 minors: 9 fixed, **5 refuted with evidence**
+(3 described code that never existed, 2 would have regressed — reviewer output is re-verified before it changes code).
+Gate PASS **691**; live battery 15/15 (+ the DB row now follows `DB.SCHEMA_VERSION`).
+
 **H10 Data refresh (owner request 2026-11-02, runs beside wave 1)**
 
 Facts (manager, 2026-11-02): `mythicsim-forever-engine` fast-forwarded 21 commits to `f794f2b` — its `data/` is still pinned
