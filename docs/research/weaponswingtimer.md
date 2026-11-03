@@ -489,7 +489,7 @@ Functions CAT ✓: `GetTime`, `UnitExists`, `UnitClass`, `UnitGUID`, `UnitCanAtt
 | B6 | Movement | **missing** | `PLAYER_STARTED/STOPPED_MOVING` unregistered; `GetUnitSpeed` unused (Tools.lua:406-421 registers SUCCEEDED/PLAYER_SWING/RANGE_UPDATE/REGEN only) |
 | B7 | Feign Death | **missing** | no 5384/Feign path in Forte_Hunter (spell known: hunter.json pet_and_utility) |
 | B8 | Legacy resets | done-minimal | the Auto Shot cast fallback is the one kept leg (Tools.lua:209-215); rest not needed |
-| B9 | Aimed/Multi cast tracking | **partial, by design** | our own-cast rows are Forte_Timer's product (PLAN.md:540, iteration D `043a3bc`); the Hunter bar has no cast interlock; Multi-has-no-START law (Castbar.lua:200-205) is **not** recorded anywhere in our tree |
+| B9 | Aimed/Multi cast tracking | **partial, by design** | our own-cast rows are Forte_Timer's product (PLAN.md:540, iteration D `6670ce4`); the Hunter bar has no cast interlock; Multi-has-no-START law (Castbar.lua:200-205) is **not** recorded anywhere in our tree |
 | B10 | Clip bar | n/a | WST ships it dead (§B10) |
 | B12 | Latency strip | missing (by choice) | no GetNetStats use in our addon tree (grep 0) |
 | B13 | Base speed/haste | **partial** | speed chain = event-duration→UnitRangedDamage→UnitAttackSpeed[3]→last, all `PlainOrNil`-guarded (Tools.lua:159-181); no base-speed/aim ratio, no UNIT_ATTACK_SPEED hook |

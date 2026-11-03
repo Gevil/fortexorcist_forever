@@ -1,6 +1,6 @@
 # H5s — Performance survey (measured in wow-ui-sim, 2026-11-02)
 
-Agent `PerfScout`, baseline `bccccd1`. Feeds wave-2 `H5 Perf fixes`.
+Agent `PerfScout`, baseline `e0fd467`. Feeds wave-2 `H5 Perf fixes`.
 
 **Method.** wow-ui-sim v0.1.39-forever, headless (`dump-tree`), `--class Hunter` /
 `--class Warlock`, `--no-saved-vars`, probes via `--exec-lua @/tmp/perf/probe[0-6].lua`
