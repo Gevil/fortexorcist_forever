@@ -57,6 +57,9 @@ local Stone = Frame:new({
     -- `SoulstoneStrata`, Forte_Soulstone.lua:645).
     advancedKey = "SoulstoneStrata",
     lockKey = "Lock",
+    -- CD-30: the plate's right-click opens ITS page (Pages/Warlock.lua's
+    -- id, the Soulstone Tracker cell).
+    pageId = "Soulstone",
     keys = { "SoulstoneWidth", "SoulstoneHeight", "SoulstoneColor",
              "SoulstoneStrikethrough", "SoulstoneExpand",
              "SoulstoneShowReady", "SoulstoneReadyColour" },

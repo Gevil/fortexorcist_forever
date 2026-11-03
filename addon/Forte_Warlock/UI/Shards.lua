@@ -70,6 +70,9 @@ local Shards = Frame:new({
     -- source's own per-module rows: Forte_Soulstone.lua:645).
     advancedKey = "ShardStrata",
     lockKey = "Lock",
+    -- CD-30: the plate's right-click opens ITS page (Pages/Warlock.lua's
+    -- id, the Shard Manager cell).
+    pageId = "ShardManager",
     keys = { "ShardSize", "ShardColor", "ShardStrikethrough" },
     keymap = {
         ShardEnable = "SetEnabled",

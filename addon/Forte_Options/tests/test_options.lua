@@ -126,6 +126,7 @@ S:Register("WTest", {
     on = false, num = 10, sld = 5,
     col = { 0.5, 0.5, 0.5, 1 },
     str = "hello",
+    pick = "aa",
     hScale = 1.0, hAlpha = 1.0,
 })
 local parent = CreateFrame("Frame", nil, UIParent)
@@ -237,6 +238,52 @@ test("STR: Enter commits, Escape restores", function()
     assertEquals("typed", S:Get("WTest", "str"))
     w.refresh()
     assertEquals("typed", eb:GetText())
+end)
+
+test("SEL picker: the button names the entry, popup items write the store",
+function()
+    local items = {
+        { value = "aa", label = "A A" },
+        { value = "bb", label = "B B" },
+        { value = "cc", label = "C C" },
+    }
+    local w = W.SEL(parent, { module = "WTest", key = "pick", label = "P",
+        width = 300, items = items })
+    assertEquals("A A", w.caption:GetText(), "the button names the value")
+    -- The popup opens on the row's own click (the original's NewDropdown
+    -- Show law; Forte_Core/Options.lua:1649-1684).
+    w.obj:GetScript("OnClick")(w.obj)
+    assertNotNil(w.popup)
+    assertTrue(w.popup:IsShown())
+    assertEquals(3, #w.popupItems)
+    -- The item click is the ONE write: the store.
+    local second = w.popupItems[2]
+    assertTrue(second:IsShown())
+    second:GetScript("OnClick")(second)
+    assertEquals("bb", S:Get("WTest", "pick"))
+    assertFalse(w.popup:IsShown(), "the pick closes the list")
+    w.refresh()
+    assertEquals("B B", w.caption:GetText())
+    -- Click toggles: open, close.
+    w.obj:GetScript("OnClick")(w.obj)
+    assertTrue(w.popup:IsShown())
+    w.obj:GetScript("OnClick")(w.obj)
+    assertFalse(w.popup:IsShown())
+    -- The original's show-on-hover law (NewDropdownShowButton OnEnter).
+    w.obj:GetScript("OnEnter")(w.obj)
+    assertTrue(w.popup:IsShown())
+    w.obj:GetScript("OnLeave")(w.obj)
+    assertFalse(w.popup:IsShown())
+    -- Recycle -> the registered default.
+    w.resetBtn:GetScript("OnClick")(w.resetBtn)
+    assertEquals("aa", S:Get("WTest", "pick"))
+    w.refresh()
+    assertEquals("A A", w.caption:GetText())
+    -- A value off the list prints its basename (the path rows' fallback).
+    S:Set("WTest", "pick", "Interface\\AddOns\\Forte_Core\\Textures\\Xeon")
+    w.refresh()
+    assertEquals("Xeon", w.caption:GetText())
+    S:Reset("WTest", "pick")
 end)
 
 test("INFO shows the value, keyless rows have no recycle icon", function()
@@ -1141,12 +1188,14 @@ function()
     for _, wd in ipairs(gp.sections[3].widgets) do
         if wd.spec.key == "BarFont"
             or wd.spec.key == "BarTexture" then
+            -- Wave 6: these rows are SEL pickers now; the overprint law
+            -- rides the picker: the button starts right of the label, the
+            -- caption is clipped to one line, the button sits in the row.
             local g2 = wd.obj:GetLeft() - wd.label:GetRight()
             assertTrue(g2 >= 4 - 0.5,
-                "INFO overprint " .. tostring(wd.spec.key))
-            -- clipped to one line, inside the row box
-            local ml = (wd.valueText.GetMaxLines
-                and wd.valueText:GetMaxLines())
+                "picker overprint " .. tostring(wd.spec.key))
+            local ml = (wd.caption.GetMaxLines
+                and wd.caption:GetMaxLines())
             if ml then assertEquals(1, ml) end
             assertTrue(wd.obj:GetRight() <= wd.row:GetRight() + 0.5)
             if wd.spec.key == "BarFont" then
@@ -1597,4 +1646,94 @@ function()
     S:Set("Cooldown", "Procs", false)
     assertFalse(P:IsEnabled(), "the session leaves with the shipped OFF flag")
     assertTrue(ok, "the box drives the tracker: " .. tostring(why))
+end)
+
+-- ==================== Wave 6 'Options cosmetics': the General pickers =======
+-- The Bar Font / Bar Texture INFO placeholders became the original's FNT/TXT
+-- pickers (docs/research/options-fidelity.md fix-list item 9; the original
+-- General rows Forte_Core/Options.lua:5555-5556): the row's REAL widget
+-- opens the REAL popup, and a pick is the single Settings write the
+-- existing consumers already ride -- the Cooldown bar's SetBarFont /
+-- SetBarTexture (Forte_Cooldown/UI/Timeline.lua "live settings"). The font
+-- list is the one loadable vendored file (addon/Forte_Core/Fonts/; the .otf
+-- twin is license source, PLAN §3.5), the texture list the 19 original
+-- FW.TextureList bar textures (Forte_Core.lua:644-668) as vendored.
+local function widgetIn(page, sectionNo, key)
+    for _, wd in ipairs(page.sections[sectionNo].widgets) do
+        if wd.spec.key == key then return wd end
+    end
+end
+
+test("General Bar Font picker: a pick through the popup re-applies the bar text",
+function()
+    local D = FX.Cooldown.Display
+    D:Init()
+    local shipped = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
+    local NOPE = "Interface\\AddOns\\Forte_Core\\Fonts\\NOPE.ttf"
+    O:Open("General")
+    local page = O.pagesBuilt["General"]
+    local sel = widgetIn(page, 3, "BarFont")
+    assertNotNil(sel, "the Appearance section carries the Bar Font picker")
+    assertEquals("URW Gothic Book", sel.caption:GetText(),
+        "the button names the stored file by its vendored label")
+    local tag = D.tagFS[1]
+    assertNotNil(tag, "the bar's tags are live")
+    -- Leave the shipped state through the store (the seam itself is
+    -- test_timeline's BarFont test); the caption falls back to the
+    -- basename of the off-list path.
+    S:Set("General", "BarFont", NOPE)
+    sel.refresh()
+    assertEquals("NOPE.ttf", sel.caption:GetText())
+    assertTrue(tag:GetFont():lower() == NOPE:lower(), "the tag rides NOPE")
+    -- THE PICK, through the real widget: open, click the list's row.
+    sel.obj:GetScript("OnClick")(sel.obj)
+    assertTrue(sel.popup:IsShown())
+    local item = sel.popupItems[1]
+    item:GetScript("OnClick")(item)
+    assertEquals(shipped, S:Get("General", "BarFont"))
+    assertTrue(tag:GetFont():lower() == shipped:lower(),
+        "the pick re-applied the font live")
+    assertFalse(sel.popup:IsShown(), "the pick closed the list")
+    S:Reset("General", "BarFont")
+    O:Close()
+end)
+
+test("General Bar Texture picker: a pick repaints the fill and a fresh segment",
+function()
+    local D = FX.Cooldown.Display
+    D:Init()
+    local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
+    O:Open("General")
+    local page = O.pagesBuilt["General"]
+    local sel = widgetIn(page, 3, "BarTexture")
+    assertNotNil(sel, "the Appearance section carries the Bar Texture picker")
+    assertEquals("Aluminium", sel.caption:GetText())
+    -- The list is the original's own bar textures, vendored (fix-list
+    -- item 9); the shipped default heads it.
+    local items = sel.spec.items
+    assertEquals(19, #items)
+    assertEquals(TEX .. "Aluminium", items[1].value)
+    local xeon
+    for i, it in ipairs(items) do
+        if it.value == TEX .. "Xeon" then xeon = i end
+    end
+    assertNotNil(xeon, "the vendored Xeon rides the list")
+    -- THE PICK, through the real widget.
+    sel.obj:GetScript("OnClick")(sel.obj)
+    assertTrue(sel.popup:IsShown())
+    sel.popupItems[xeon]:GetScript("OnClick")(sel.popupItems[xeon])
+    assertEquals(TEX .. "Xeon", S:Get("General", "BarTexture"))
+    assertEquals(TEX .. "Xeon", D.fill:GetTexture(), "the bar fill rides it")
+    assertFalse(sel.popup:IsShown())
+    -- A segment built on the next pass carries it too (SetBarTexture's
+    -- live-pool + build-time law).
+    local now = 33900
+    D:Update({
+        { name = "PickTex", start = 0, duration = 120, endTime = now + 120 },
+    }, now)
+    assertEquals(TEX .. "Xeon", D._byName["PickTex"].seg:GetTexture())
+    S:Reset("General", "BarTexture")
+    assertEquals(TEX .. "Aluminium", D.fill:GetTexture())
+    D:Update({}, now + 1)
+    O:Close()
 end)

@@ -178,7 +178,13 @@ function D:Init()
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStart", function(fr, button)
+        -- The lock law (the source: the lock gates the DRAG -- the row
+        -- label is "Lock (disable dragging)" -- and never the mouse):
+        -- SetMovable(false) is the engine's stop, this check is the belt.
+        if self.cfg and self.cfg.locked then return end
+        fr:StartMoving(button)
+    end)
     f:SetScript("OnDragStop", function(fr)
         fr:StopMovingOrSizing()
         self:SavePosition(fr)
@@ -235,8 +241,10 @@ function D:Reset()
     self:ApplyPosition()
 end
 
---- Locked = mouse-off (no drag possible) + the title hidden; the publish
---- to Splash.Lock is the m4 law (the swing's shape).
+--- Locked = NO drag (the lock law: the source's lock gates the dragging
+--- only, the label is "Lock (disable dragging)", the frame's mouse stays
+--- enabled so releases keep firing) + the title hidden; the publish to
+--- Splash.Lock is the m4 law (the swing's shape).
 function D:SetLocked(locked)
     locked = not not locked
     if self.cfg then self.cfg.locked = locked end
@@ -247,7 +255,7 @@ function D:SetLocked(locked)
     end
     if not self.anchor then return end
     self.anchor:SetMovable(not locked)
-    self.anchor:EnableMouse(not locked)
+    self.anchor:EnableMouse(true)
     if locked then self.title:Hide() else self.title:Show() end
     -- The idle face rides the lock (:1040 `not s.lock`): unlocking an
     -- enabled, idle window shows the placeholder; locking it hides the

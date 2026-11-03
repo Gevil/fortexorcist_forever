@@ -12,6 +12,46 @@ headless interface simulator and on uiforever.com — not in a live game.
 
 ---
 
+## Unreleased — 2026-11-03 (Iteration H, wave 6)
+
+- **Right-click opens the page, on every module frame.** The Cooldown bar
+  already had it; the original's CD-30 law now rides every module frame: a
+  right-button release on the **Spell Timers panel** opens the options window
+  on its page, on the **Hunter swing bar** on the Hunter page, and on each of
+  the four **Warlock plates** on that plate's own page (Shard Manager,
+  Soulstone Tracker, Healthstone Spy, Summon Assistant). A drag never opens
+  the window (the cursor is stamped at press and compared at release, the
+  original's `FW:Moved()` guard), the left button stays the drag button, and
+  the General page's **Right-click headers for options** switch silences the
+  seam live on all of them. Following the source, a **locked** frame keeps
+  this seam: the lock stops the drag, it never takes the frame's mouse —
+  which matters most on the frames that ship locked (the swing bar, the
+  Warlock plates), where the port's earlier mouse-off-while-locked made the
+  seam unreachable out of the box. (The Cooldown bar and the Secondary Splash
+  window, built earlier, followed the same law the same day: locked now
+  removes the drag start — the engine's `SetMovable(false)` plus a lock check
+  in the drag script — and leaves the frame's mouse on, so the right-click
+  seam works on the bar out of the box, the way the source's own row label,
+  "Lock (disable dragging)", always said.)
+
+- **Bar Font, Bar Texture, Icon size, Bar text: the cosmetics rows.** The
+  General page's **Bar Font** and **Bar Texture** rows are the original's
+  pickers (its FNT/TXT rows): the row opens a list — the font this add-on
+  ships (URW Gothic Book), and the bar textures from the original's own
+  texture list, the ones the port carries (Aluminium, Minimalist, Xus, BantoBar,
+  … 19 of them, each shown as a swatch) — and a pick re-applies live: the
+  Cooldown bar's text, the fill, the segments, the Hunter swing text and the
+  Warlock plate labels all follow. The Cooldown page gained **Icon size** as
+  the source ships it: a size plus an "enable" checkbox, the checkbox off at
+  36 by default — icons ride the bar height — and on, the icons, their glows,
+  the splashes and the ready pulses ride the number while the axis, the time
+  tags and the segments keep riding the height, so the icons grow in place.
+  **Bar text** (the time-tag colour, 2012's white at 20 %) joined the page's
+  colour rows. All four ride the normal settings store: live applies, the
+  section recycle restores the 2012 default.
+
+---
+
 ## Unreleased — 2026-11-03 (Iteration H, wave 5)
 
 - **The Advanced Options page has a cell that lights.** The module index of

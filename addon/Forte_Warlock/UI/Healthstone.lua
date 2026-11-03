@@ -53,6 +53,9 @@ local HS = Frame:new({
     -- `HealthstoneStrata`, Forte_Healthstone.lua:316).
     advancedKey = "HealthstoneStrata",
     lockKey = "Lock",
+    -- CD-30: the plate's right-click opens ITS page (Pages/Warlock.lua's
+    -- id, the Healthstone Spy cell).
+    pageId = "Healthstone",
     keys = { "HealthstoneSize", "HealthstoneColor",
              "HealthstoneStrikethrough", "HealthstoneExpand",
              "HealthstoneAuto", "HealthstoneDetails",

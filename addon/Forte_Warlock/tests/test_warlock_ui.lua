@@ -897,13 +897,26 @@ test("Lock: the frames publish Warlock.Lock; GlobalLock and the Cooldown bar mov
     assertFalse(Stone.cfg.locked)
     assertFalse(Shards.cfg.locked)
     assertFalse(Summon.cfg.locked)
-    -- Locked frames are click-through: the mouse is off.
+    -- The source's lock law: LOCK gates the DRAG, it never takes the mouse
+    -- -- FW_IsLocked is inspected only by FW_StartMoving
+    -- (Forte_Core/Options.lua:651) and the frame keeps receiving its mouse
+    -- scripts (Forte_Soulstone.xml:189-196, SSFrame_OnClick), so the
+    -- right-button options seam lives on a locked plate (CD-30, proven by
+    -- tests/test_warlock_rightclick.lua). The DRAG frame is the locked-out
+    -- one.
     ST:Set("Warlock", "Lock", true)
     if Stone.anchor.GetMouseEnabled then
-        assertEquals(false, Stone.anchor:GetMouseEnabled())
+        assertEquals(true, Stone.anchor:GetMouseEnabled(),
+            "locked keeps the mouse: the right-click seam is live")
     end
     if Stone.anchor.IsMouseEnabled then
-        assertEquals(false, Stone.anchor:IsMouseEnabled())
+        assertTrue(Stone.anchor:IsMouseEnabled(),
+            "locked keeps the mouse: the right-click seam is live")
+    end
+    local drag = Stone._dragFrame
+    if drag and drag.GetMouseEnabled then
+        assertEquals(false, drag:GetMouseEnabled(),
+            "locked kills the drag frame's mouse")
     end
     -- The General page's Global Frame Lock (= /fx lock|unlock) drives ours.
     ST:Set("General", "GlobalLock", false)

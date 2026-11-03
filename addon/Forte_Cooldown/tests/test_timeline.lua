@@ -1147,6 +1147,83 @@ test("Settings BarFont re-validates and re-applies every fontstring live", funct
     assertTrue(tag:GetFont():lower() == shipped:lower())
 end)
 
+-- Wave 6 'Options cosmetics' (docs/research/options-fidelity.md fix-list
+-- item 9): the two Cooldown rows the survey's Sizing/Coloring blocks list as
+-- missing. TextColor is the APPEARANCE block's "Bar text" (:1765, default
+-- {1,1,1,0.20} :1838) -- the source's tag path rides it (SetTimeTags :1270,
+-- :1289), and the icon time text keeps its OWN IconTextColor pair (:1837,
+-- tested above). The IconSize pair is the FRAME SIZING block's third row
+-- (:1760, the NU2 default {[0]=false, 36} :1805): gate OFF ships, so icons
+-- ride the bar height (`ih = IconSize[0] and IconSize[1] or Height`, :1151,
+-- :1364); gate ON, icons/glow/splash/pulse ride the value while the axis,
+-- the tags and the segments keep riding Height (:502, :1236) -- the icons
+-- grow IN PLACE.
+test("Cosmetics: TextColor re-tints the time tags (the \"Bar text\" row)", function()
+    Display:Init()
+    Display:BuildTags()
+    local tag = Display.tagFS[1]
+    assertNotNil(tag, "the scale has tags to tint")
+    local r, g, b, a = tag:GetTextColor()
+    near3(r, 1); near3(g, 1); near3(b, 1)
+    near3(a, FX.Settings:Get("Cooldown", "TextColor")[4])  -- default a 0.20
+    Settings:Set("Cooldown", "TextColor", { 0.25, 0.75, 0.50, 0.90 })
+    r, g, b, a = tag:GetTextColor()
+    near3(r, 0.25); near3(g, 0.75); near3(b, 0.50); near3(a, 0.90)
+    Settings:Reset("Cooldown", "TextColor")
+    r, g, b, a = tag:GetTextColor()
+    near3(r, 1); near3(b, 1); near3(a, 0.20)
+end)
+
+test("Cosmetics: the IconSize pair resizes the slots and pulses, not the axis", function()
+    Display:Init()
+    local now = 34000
+    assertFalse(Settings:Get("Cooldown", "IconSizeOn"),
+        "the gate ships OFF (:1805)")
+    assertEquals(36, Settings:Get("Cooldown", "IconSize"))
+    Display:Update({
+        { name = "SizeA", start = 0, duration = 120, endTime = now + 120 },
+    }, now)
+    local slot = slotOf("SizeA")
+    assertNotNil(slot)
+    -- Gate off: the slot rides the bar height (the law :1151, :1364).
+    assertEquals(24, slot.frame:GetWidth())
+    assertEquals(24, slot.tex:GetWidth())
+    -- Open the gate: the registered 36 shows on every pool part...
+    Settings:Set("Cooldown", "IconSizeOn", true)
+    assertEquals(36, slot.frame:GetWidth())
+    assertEquals(36, slot.tex:GetHeight())
+    near3(slot.spark:GetWidth(), 36 * S.SparkScale)
+    near3(slot.alert:GetWidth(), 36 * S.AttentionScale)
+    -- ...and the value moves with it.
+    Settings:Set("Cooldown", "IconSize", 48)
+    assertEquals(48, slot.frame:GetWidth())
+    near3(slot.spark:GetWidth(), 48 * S.SparkScale)
+    -- A slot BORN under the pair is born at its size, and the axis stays
+    -- put: the curve rides the bar height (:502, :1236).
+    local axis = slot._cx
+    Display:Update({
+        { name = "SizeA", start = 0, duration = 120, endTime = now + 120 },
+        { name = "SizeB", start = 0, duration = 120, endTime = now + 200 },
+    }, now)
+    assertEquals(48, slotOf("SizeB").frame:GetWidth())
+    assertEquals(axis, slotOf("SizeA")._cx)
+    -- The ready pulse rides the size too (the source's spawn geometry).
+    Display:OnReady("SizeB", now + 0.1)
+    Display:Update({
+        { name = "SizeA", start = 0, duration = 120, endTime = now + 120 },
+    }, now + 0.05)
+    local pulse = Display.pulsePool[1]
+    assertNotNil(pulse, "the release spawned the pulse")
+    assertEquals(48, pulse.tex:GetWidth())
+    near3(pulse.spark:GetWidth(), 48 * S.SparkScale)
+    -- Closing the gate rides every pool back onto the Height law.
+    Settings:Reset("Cooldown", "IconSizeOn")
+    assertEquals(24, slotOf("SizeA").frame:GetWidth())
+    assertEquals(24, slot.tex:GetWidth())
+    Settings:Reset("Cooldown", "IconSize")
+    Display:Update({}, now + 5)
+end)
+
 test("ApplySettings pushes a whole table through the same seam", function()
     Display:ApplySettings({ Width = 260, MaxTime = 200, Spark = false })
     assertEquals(260, Display.anchor:GetWidth())
@@ -1773,6 +1850,62 @@ test("CD-30: a right-button release on the bar opens the Cooldown page; a drag d
     assertEquals(false, O:IsOpen())
     _G.GetCursorPosition = realPos
     Display._downX, Display._downY = nil, nil
+end)
+
+-- The lock law (the source: the lock gates the DRAG START -- the one lock
+-- check in the move path is FW:StartMoving's, Forte_Core/Options.lua:651,
+-- and the row label is literally "Lock (disable dragging)",
+-- Forte_Cooldown.lua:2114; a locked frame's release keeps firing, e.g. the
+-- source's Forte_Soulstone.xml OnMouseUp). The bar SHIPS locked, so the
+-- CD-30 seam is only real if the lock leaves the mouse alone.
+
+test("The lock law: a locked bar's release opens the page, its drag starts no move",
+function()
+    Display:Init()
+    local O = FX.Options
+    O:Close()
+    local f = Display.anchor
+    local release = f:GetScript("OnMouseUp")
+    local dragStart = f:GetScript("OnDragStart")
+    local dragStop = f:GetScript("OnDragStop")
+    Display:SetLocked(true)
+    assertTrue(Display.cfg.locked, "the bar ships locked")
+    assertFalse(f:IsMovable(), "the lock removes the drag")
+    if f.IsMouseEnabled then
+        -- (method-presence probe, the test_swing.lua:262 pattern) The lock
+        -- law: it gates the dragging, it NEVER takes the frame's mouse --
+        -- the row label is "Lock (disable dragging)".
+        assertTrue(f:IsMouseEnabled(), "locked keeps the mouse: the seam is live")
+    end
+    local realPos = GetCursorPosition
+    _G.GetCursorPosition = function() return 120, 120 end
+    Display:_StampPress()
+    release(f, "RightButton")
+    assertTrue(O:IsOpen(), "a LOCKED bar opens the options window")
+    assertEquals("Cooldown", O.pageId)
+    O:Close()
+    -- The belt: driving the drag script by hand while locked stamps the
+    -- press (the stamp is unconditional, :649-656) and starts NO move;
+    -- unlocked, the same driving starts it -- the zero above is the lock,
+    -- not the rig.
+    Display._downX, Display._downY = nil, nil
+    local x0, y0 = f:GetLeft(), f:GetTop()
+    dragStart(f, "LeftButton")
+    assertNotNil(Display._downX, "the press stamps, lock or not")
+    assertEquals(x0, f:GetLeft())
+    assertEquals(y0, f:GetTop())
+    if f.IsMoving then
+        -- (method-presence probe, the test_swing.lua:262 pattern)
+        assertFalse(f:IsMoving(), "locked: the script starts no move")
+        Display:SetLocked(false)
+        dragStart(f, "LeftButton")
+        assertTrue(f:IsMoving(), "unlocked, the same driving starts the move")
+        dragStop(f)
+        assertFalse(f:IsMoving())
+    end
+    _G.GetCursorPosition = realPos
+    Display._downX, Display._downY = nil, nil
+    Display:SetLocked(true)
 end)
 
 -- ==================================================== CD-35 geometry modes ==

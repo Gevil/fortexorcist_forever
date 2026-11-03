@@ -665,8 +665,11 @@ local function newBuilder(o, page)
             -- STR and INFO rows span the full row width (polish pass
             -- defect 3): their value region needs the whole width
             -- between the 38% label column and the recycle zone, which a
-            -- 2-column cell cannot give (span > 1 = full-row law).
-            if (kind == "STR" or kind == "INFO") and not spec.span then
+            -- 2-column cell cannot give (span > 1 = full-row law). The
+            -- SEL picker rides the same law: its value is a path and its
+            -- popup anchors under the value button.
+            if (kind == "STR" or kind == "INFO" or kind == "SEL")
+                and not spec.span then
                 spec.span = 2
             end
             local x, y, w
@@ -684,7 +687,7 @@ local function newBuilder(o, page)
 
         local s = {}
         for _, kind in ipairs({ "CHK", "NUM", "SLD", "COL", "STR", "INFO",
-            "BTN" }) do
+            "BTN", "SEL" }) do
             s[kind] = function(spec) return addWidget(kind, spec) end
         end
         --- Full-width help line (Tips law): plain left text inside the

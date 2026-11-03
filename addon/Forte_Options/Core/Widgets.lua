@@ -6,8 +6,10 @@
 --   W.CHK  checkbox            W.NUM  number box (min/max/step, Enter
 --   W.SLD  slider                   confirms, Escape restores)
 --   W.COL  colour swatch (ColorPickerFrame)    W.STR  edit box
---   W.INFO static grey value   W.HEADER  per-page module header bar
---   W.SECTION  collapsible section bar        W.TIP  one help line
+--   W.INFO static grey value   W.SEL  picker (value button + popup list,
+--                                     the original's FNT/TXT dropdowns)
+--   W.HEADER  per-page module header bar
+--   W.SECTION  collapsible section bar         W.TIP  one help line
 --
 -- Every bound widget row = [label ....... control][recycle]. The recycle
 -- icon resets ONLY that key (Settings:GetDefault -> Settings:Set), matching
@@ -44,6 +46,9 @@ W.C = {
     LABEL_INSET = 8, LABEL_COL_RATIO = 0.38, TIPS_INSET = 12,
     SECTION_H = 22, SECTION_PAD = 6,
     HEAD_H = 24,
+    -- SEL (picker) popup: the original's dropdown is a plain-frame list
+    -- (NewDropdown, Options.lua:1649-1684), one row per registered entry.
+    POPUP_ITEM_H = 18, POPUP_PAD = 4, POPUP_MIN_W = 170,
     -- 2026-11-01 defect pass: the header control boxes are measured from
     -- the bar's right edge (the old nil-global anchor made them render
     -- left of the window).
@@ -576,6 +581,210 @@ function W.INFO(parent, spec)
         val:SetText(tostring(v == nil and "" or v))
     end
     attachResetIcon(w, spec)
+    w.refresh()
+    return w
+end
+
+-- ------------------------------------------------------------------- SEL --
+--- Picker row: the original's FNT/TXT option types
+--- (`Forte_Core/Options.lua:5555-5556`, NewFontOption :3811 /
+--- NewTextureOption :3940). A value button carrying the current entry
+--- (a texture rides a swatch of it; a font's name rides drawn in it --
+--- the original draws every font row in its own face, :3832) that pops a
+--- small plain-frame list over the window: `NewDropdown` is exactly that
+--- (CreateFrame + Show/Hide + a TOOLTIP strata, :1649-1684), so no
+--- UIDropDownMenuTemplate is involved. Bound to (module, key) through
+--- FX.Settings like every row: an item click WRITES the store, the
+--- module's own OnChange wiring is what makes it live. spec.items =
+--- { { value = <stored string>, label = <display name>,
+---     font = <file drawn on the row> }, ... } (static; the vendored
+--- asset list of the page). spec.preview == "texture" draws the swatches;
+--- spec.fontPreview = true draws the caption in the stored file.
+local openPickerPopup   -- one picker popup is open at a time
+local function closePickerPopup(p)
+    if not p then return end
+    p:Hide()
+    if openPickerPopup == p then openPickerPopup = nil end
+end
+
+--- Draw the string in `path`'s file, restoring its creation template
+--- when the client refuses it (the applyFont/validateFontFile round trip
+--- of Forte_Cooldown/UI/Timeline.lua, on the widget's own strings).
+local function tryPreviewFont(fs, path, size)
+    local ok = false
+    if type(path) == "string" and path ~= "" then
+        ok = pcall(fs.SetFont, fs, path, size)
+        if ok then
+            local got = fs:GetFont()
+            ok = type(got) == "string" and got:lower() == path:lower()
+        end
+    end
+    if not ok and fs._fxTemplate then
+        pcall(fs.SetFontTemplate, fs, fs._fxTemplate)
+    end
+end
+
+function W.SEL(parent, spec)
+    -- Same label-column/value-region law as the STR/INFO rows (paths are
+    -- long; the popup list needs the row's real width).
+    spec.labelCol = spec.labelCol or C.LABEL_COL_RATIO
+    local w = newWidget(parent, spec, spec.width)
+    local btn = CreateFrame("Button", nil, w.row, spec.name)
+    anchorControl(w, btn, controlWidth(w, spec.pickWidth or 180))
+    local art = btn:CreateTexture(nil, "BACKGROUND")
+    art:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+    art:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
+    art:SetTexture(TEX .. "Aluminium")
+    art:SetVertexColor(0.13, 0.14, 0.20, 0.95)
+
+    local preview
+    if spec.preview == "texture" then
+        preview = btn:CreateTexture(nil, "ARTWORK")
+        preview:SetSize(C.SWATCH_SZ, C.SWATCH_SZ)
+        preview:SetPoint("LEFT", btn, "LEFT", 4, 0)
+    end
+    local caption = W.fontString(btn, "GameFontHighlightSmall", "", C.GREY)
+    caption:SetJustifyH("LEFT")
+    caption:SetPoint("LEFT", btn, "LEFT", preview and 28 or 6, 0)
+    caption:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
+    clipOneLine(caption)
+    w.caption = caption
+
+    -- ---- the popup (built on first open, parented to the window) -------
+    local popup, popupItems
+    local function popupRoot()
+        local cur = w.row
+        local p = cur.GetParent and cur:GetParent()
+        while p and p ~= UIParent and p.GetParent do
+            cur = p
+            p = cur:GetParent()
+        end
+        return cur
+    end
+    local function highlight()
+        local cur = FX.Settings:Get(spec.module, spec.key)
+        for i = 1, #popupItems do
+            local row = popupItems[i]
+            local on = row.value == cur
+            local c = on and C.GOLD or C.WHITE
+            row.label:SetTextColor(c[1], c[2], c[3], c[4])
+            row.art:SetVertexColor(0.15, 0.16, 0.24, on and 1.0 or 0.75)
+        end
+    end
+    local function buildPopup()
+        if popup then return end
+        popup = CreateFrame("Frame", nil, popupRoot())
+        -- The original's NewDropdown rides the TOOLTIP strata (:1655).
+        pcall(popup.SetFrameStrata, popup, "TOOLTIP")
+        local pa = popup:CreateTexture(nil, "BACKGROUND")
+        pa:SetPoint("TOPLEFT", popup, "TOPLEFT", 0, 0)
+        pa:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", 0, 0)
+        pa:SetTexture(TEX .. "Aluminium")
+        pa:SetVertexColor(0.10, 0.11, 0.16, 0.97)
+        -- The original's over-law (:1672-1682): the dropdown stays open
+        -- while the pointer is inside it, leaving it closes.
+        popup:SetScript("OnEnter", function(self) self._over = true end)
+        popup:SetScript("OnLeave", function(self)
+            self._over = false
+            closePickerPopup(popup)
+        end)
+        popup:Hide()
+        popupItems = {}
+        w.popup = popup
+        w.popupItems = popupItems
+    end
+    local function showPopup()
+        buildPopup()
+        closePickerPopup(openPickerPopup)
+        openPickerPopup = popup
+        local items = spec.items or {}
+        local pw = math.max(C.POPUP_MIN_W, (btn:GetWidth() or 0) + 40)
+        popup:SetSize(pw, 2 * C.POPUP_PAD + #items * C.POPUP_ITEM_H)
+        for i, it in ipairs(items) do
+            local row = popupItems[i]
+            if not row then
+                row = CreateFrame("Button", nil, popup)
+                row.art = row:CreateTexture(nil, "BACKGROUND")
+                row.art:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+                row.art:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+                row.art:SetTexture(TEX .. "Aluminium")
+                local labelX = 6
+                if spec.preview == "texture" then
+                    row.sw = row:CreateTexture(nil, "ARTWORK")
+                    row.sw:SetSize(C.SWATCH_SZ, C.SWATCH_SZ)
+                    row.sw:SetPoint("LEFT", row, "LEFT", 5, 0)
+                    labelX = 5 + C.SWATCH_SZ + 6
+                end
+                row.label = W.fontString(row, "GameFontHighlightSmall",
+                    "", C.WHITE)
+                row.label:SetJustifyH("LEFT")
+                row.label:SetPoint("LEFT", row, "LEFT", labelX, 0)
+                row.label:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+                clipOneLine(row.label)
+                row:SetScript("OnClick", function()
+                    -- The ONE write: the store. Every live consumer
+                    -- (bar font/texture, the swing text, the Warlock
+                    -- plates) rides its own OnChange wiring from here.
+                    FX.Settings:Set(spec.module, spec.key, it.value)
+                    w.refresh()
+                    closePickerPopup(popup)
+                end)
+                popupItems[i] = row
+            end
+            row.value = it.value
+            row:SetSize(pw - 2 * C.POPUP_PAD, C.POPUP_ITEM_H)
+            row:SetPoint("TOPLEFT", popup, "TOPLEFT",
+                C.POPUP_PAD, -(C.POPUP_PAD + (i - 1) * C.POPUP_ITEM_H))
+            row.label:SetText(it.label or it.value)
+            if it.font then
+                tryPreviewFont(row.label, it.font, C.CTRL_FS - 1)
+            end
+            if row.sw then row.sw:SetTexture(it.value) end
+            row:Show()
+        end
+        for i = #items + 1, #popupItems do popupItems[i]:Hide() end
+        highlight()
+        popup:ClearAllPoints()
+        popup:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, 0)
+        popup:Show()
+    end
+
+    btn:SetScript("OnClick", function()
+        if popup and popup:IsShown() then
+            closePickerPopup(popup)
+        else
+            showPopup()
+        end
+    end)
+    -- The original's show-on-hover law (NewDropdownShowButton
+    -- :1210-1223); the click toggle keeps the popup reachable by the
+    -- sim tests and by a click-only player.
+    btn:SetScript("OnEnter", function()
+        if not (popup and popup:IsShown()) then showPopup() end
+    end)
+    btn:SetScript("OnLeave", function()
+        if popup and popup:IsShown() and not popup._over then
+            closePickerPopup(popup)
+        end
+    end)
+    W.attachTip(btn, spec.tip, spec.label)
+    attachResetIcon(w, spec)
+
+    local function labelFor(v)
+        for _, it in ipairs(spec.items or {}) do
+            if it.value == v then return it.label or it.value end
+        end
+        return tostring(v):match("([^\\]+)$") or tostring(v)
+    end
+    w.refresh = function()
+        local v = FX.Settings:Get(spec.module, spec.key)
+        caption:SetText(labelFor(v))
+        if preview then preview:SetTexture(tostring(v)) end
+        if spec.fontPreview then
+            tryPreviewFont(caption, v, C.CTRL_FS)
+        end
+        if popup and popup:IsShown() then highlight() end
+    end
     w.refresh()
     return w
 end

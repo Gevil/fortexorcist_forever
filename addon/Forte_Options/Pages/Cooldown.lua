@@ -44,6 +44,18 @@
 -- SetIconTime, SetIconTextColor(On), SetSplashOn/SetSplashFactor, the eight
 -- Set<Filter>/Set<Filter>On pair, the filter law of CD_TimeFilterDuration /
 -- CD_TimeFilterRemaining :488-495 in D:Update).
+--
+-- Cosmetics (2026-11-03, wave 6 fix-list item 9): the FRAME SIZING block's
+-- IconSize pair (:1760, the shipped default gate-OFF 36 :1805) and the
+-- APPEARANCE "Bar text" colour (:1765, default {1,1,1,0.20} :1838) joined
+-- the page, at the source's own spots (Sizing rows follow Height, the
+-- colour rows ride Frame Appearance). Consumers: Forte_Cooldown/UI/
+-- Timeline.lua's SetIconSize/SetIconSizeOn (`_ResizeIconPools` runs the
+-- source's `ih = IconSize[0] and IconSize[1] or Height` law :1151/:1364
+-- over the slots, the splashes and the pulses; the axis curve, the tags
+-- and the segments keep riding Height, :502/:1236 -- the icons grow in
+-- place, they do not move) and SetTextColor (the time-tag strings, the
+-- source's SetTimeTags :1270/:1289).
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -66,6 +78,14 @@ FX.Settings:Register(M, {
     Warn = true,
     Width = 250,
     Height = 24,
+    -- The FRAME SIZING block's third row (:1760, the source's NU2 type =
+    -- a value plus its `[0]` gate). The shipped gate is OFF
+    -- (`IconSize = {[0]=false,36}` :1805): icons ride the bar height
+    -- (`ih = s.IconSize[0] and s.IconSize[1] or s.Height` :1151, :1364).
+    -- On, icons, glows, splashes and pulses ride IconSize; the axis, the
+    -- tags and the segments keep riding Height (:502, :1236).
+    IconSizeOn = false,
+    IconSize = 36,
     -- The bar alpha RANGE (the SPECIFICS rows :1716 "Minimum bar alpha" and
     -- :1717 "Maximum bar alpha" = the source's `Alpha` :1818 / `AlphaMax`
     -- :1819). Our keys carry the Bar prefix: this module's `Alpha` key is
@@ -118,6 +138,10 @@ FX.Settings:Register(M, {
     -- Frame Appearance (BarColor / BgColor / Spark, :1820 + §3.5)
     BarColor = { 1, 1, 1, 0.20 },
     BgColor = { 0, 0, 0, 0.50 },
+    -- The APPEARANCE row "Bar text" (:1765, FWL.BAR_TEXT,
+    -- Localization.lua:1019), default {1,1,1,0.20} (:1838): the TIME-TAG
+    -- text colour (the source's only consumer: SetTimeTags :1270, :1289).
+    TextColor = { 1, 1, 1, 0.20 },
     Spark = true,
     -- Header-bar frame fields (OP-06: scale 0.2..5.0, alpha 0.1..1.0)
     Scale = 1.0,
@@ -224,6 +248,18 @@ O:RegisterPage({
             s.NUM({ module = M, key = "Height", label = "Height",
                 min = 12, max = 128, step = 1,
                 tip = "Bar height in px (default 24). Icon size rides it; resizes live." })
+            -- The FRAME SIZING block's third row (:1760), the NU2 type =
+            -- one value editbox plus its `[0]` gate (the gate rides its
+            -- own labelled box, the TIME RANGE pair convention). Labels
+            -- verbatim: FWL.ICON_SIZE "Icon size", FWL.ICON_SIZE_TT
+            -- "Set the icon sizes independently from the bar height"
+            -- (Forte_Cooldown/Localization.lua:173-174).
+            s.CHK({ module = M, key = "IconSizeOn",
+                label = "Enable custom icon size",
+                tip = "The checkbox of the source's \"Icon size\" row (the NU2 at Forte_Cooldown.lua:1760: a value plus its [0] gate, gate default OFF :1805). Off, the icons ride the bar height -- the shipped law (:1151, :1364). Live." })
+            s.NUM({ module = M, key = "IconSize", label = "Icon size",
+                min = 1, max = 256, step = 1,
+                tip = "Set the icon sizes independently from the bar height (Forte_Cooldown.lua:1760, default 36 :1805, behind its Enable box). Resizes the icons, their glows, the splashes and the ready pulses; the axis curve, the time tags and the segments keep riding the bar height (:502, :1236), so the icons grow in place. Live." })
             -- The SPECIFICS icon block of the source, in its row order
             -- (:1716-1719), its labels verbatim (Forte_Cooldown/
             -- Localization.lua :118, :161, :140, :185). `Alpha`/`AlphaMax`
@@ -304,7 +340,8 @@ O:RegisterPage({
                 tip = "EXPERIMENTAL, off by default. Puts an item or weapon proc's internal cooldown on the bar: when one of the proc's auras is SEEN on you, a window runs the data's ICD (docs/design-combat-procs.md P-A/P-B). The proc data add-on loads with this box, which is why it is off. Out of combat the read net sees the aura directly; IN-COMBAT proc detection is a LAUNCH-DAY PROBE - the client seals aura reads in combat, so the two seen-routes (the out-of-combat sweep, the UNIT_AURA events) are only proven on the live client (PLAN §11.1 Q3 ruling, docs/launch-day.md). Live: the change is applied the moment you tick it." })
         end, {
             module = M,
-            keys = { "Warn", "Width", "Height", "BarAlpha", "BarAlphaMax",
+            keys = { "Warn", "Width", "Height", "IconSizeOn", "IconSize",
+                "BarAlpha", "BarAlphaMax",
                 "IconTime", "IconTextColorOn", "IconTextColor",
                 "Splash", "SplashFactor", "MaxTime", "PowerScale",
                 "MinRangeOn", "MinRange", "MaxRangeOn", "MaxRange",
@@ -339,10 +376,15 @@ O:RegisterPage({
                 tip = "Aluminium bar fill (default white a 0.20). Applied live." })
             s.COL({ module = M, key = "BgColor", label = "Background colour",
                 tip = "Bar backdrop (default black a 0.50). Applied live." })
+            -- The APPEARANCE block's third row (:1765), label verbatim
+            -- FWL.BAR_TEXT "Bar text" (Forte_Core/Localization.lua:1019).
+            s.COL({ module = M, key = "TextColor", label = "Bar text",
+                tip = "The time-tag text colour (\"Bar text\", Forte_Cooldown.lua:1765, default 1,1,1 a 0.20 :1838; the source's tag path SetTimeTags :1270). Re-tints the scale's tags live." })
             s.CHK({ module = M, key = "Spark", label = "Show icon Glow",
                 tip = "Show a glow around the icons that matches the bar color (Forte_Cooldown.lua:1713, the NU2 row: the [0] gate drives the glow and Spark[1] = 1 is its alpha, :1820). The gate also picks the splash's centre crop versus the full texture (:1385). Shown/hidden live on the icons, the splashes and the ready pulses." })
         end, {
-            module = M, keys = { "BarColor", "BgColor", "Spark" },
+            module = M, keys = { "BarColor", "BgColor", "TextColor",
+                "Spark" },
             tip = "Bar fill, backdrop and spark.",
         })
     end,

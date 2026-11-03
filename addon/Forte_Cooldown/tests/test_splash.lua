@@ -352,6 +352,14 @@ function()
     d:Init()                       -- idempotent
     Splash:SetLocked(true)
     assertTrue(Splash.cfg.locked)
+    assertFalse(Splash.anchor:IsMovable(), "the lock removes the drag")
+    if Splash.anchor.IsMouseEnabled then
+        -- (method-presence probe, the test_swing.lua:262 pattern) The lock
+        -- law: the lock gates the DRAG START and never takes the frame's
+        -- mouse (the source's label is "Lock (disable dragging)").
+        assertTrue(Splash.anchor:IsMouseEnabled(),
+            "locked keeps the mouse: the window's releases stay live")
+    end
     assertEquals(true, Settings:Get("Splash", "Lock"), "the m4 publish")
     -- /fx unlock runs Display:SetLocked(false), which publishes
     -- Cooldown.Lock + General.GlobalLock -- the splash window follows.

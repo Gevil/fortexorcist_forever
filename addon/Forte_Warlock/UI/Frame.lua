@@ -481,7 +481,13 @@ function Frame:_Build()
     -- (the FWSSBackground/FWSSBar split, Forte_Soulstone.xml:202-208 +
     -- Forte_Soulstone.lua:124), so the header must not clip them.
     a:SetClipsChildren(false)
-    a:EnableMouse(not self.cfg.locked and self.state.enableMouse)
+    -- The mouse law (the source's): the user's `EnableMouse` switch owns
+    -- the anchor's mouse; the LOCK never disables it -- in the source the
+    -- lock gates only FW_StartMoving's drag start (Forte_Core/Options.lua
+    -- :651), the frame itself keeps receiving its mouse scripts
+    -- (Forte_Soulstone.xml:189-196), which is what keeps the right-button
+    -- options release (CD-30, OnMouseUp below) alive on a locked plate.
+    a:EnableMouse(self.state.enableMouse)
     a:Hide()
     self.anchor = a
 
@@ -499,6 +505,10 @@ function Frame:_Build()
     self:_NewRow()
     self.row:Hide()
     self:_AttachTip()
+    -- The plate's right-click seam (CD-30): every frame that can own the
+    -- plate's mouse region carries the release. The drag frame arrives with
+    -- EnableMove and wires itself there.
+    self:_WireRightClick()
 end
 
 --- The mouse tip, while the frame has a tip and the mouse is live.
@@ -531,7 +541,12 @@ function Frame:_AttachTip()
     end)
 end
 
---- The mouse law: a LOCKED frame is click-through.
+--- The mouse law (the source's): the LOCK gates the DRAG (the registration
+--- below), it never disables a frame's mouse -- FW_StartMoving
+--- (Forte_Core/Options.lua:649-656) stamps the cursor and inspects
+--- FW:IsLocked (:651), the frame keeps receiving its mouse scripts
+--- (Forte_Soulstone.xml:189-196 + SSFrame_OnClick), which is what keeps the
+--- right-button options release (CD-30) alive on a locked plate.
 function Frame:EnableMove(on)
     self._move = not not on
     self.moving = nil
@@ -543,15 +558,86 @@ function Frame:EnableMove(on)
         drag:SetAllPoints(self.anchor)
         drag:EnableMouse(true)
         drag:RegisterForDrag(true)
-        drag:SetScript("OnDragStart", function() self.moving = true end)
+        drag:SetScript("OnDragStart", function()
+            -- FW:StartMoving's press stamp (Forte_Core/Options.lua:649-656,
+            -- the Timeline's _StampPress seam): the release-time Moved()
+            -- compare makes CD-30's right-click skip a drag.
+            self:_StampPress()
+            self.moving = true
+        end)
         drag:SetScript("OnDragStop", function()
             self.moving = nil
             self:SavePosition()
         end)
         self._dragFrame = drag
+        -- The plate's right-click seam rides every frame that can own the
+        -- plate's mouse region (the anchor, the tip, the drag frame): the
+        -- engine hands the release to the topmost mouse-enabled one.
+        self:_WireRightClick()
     end
     drag:RegisterForDrag(not self.cfg.locked and not not on)
     drag:EnableMouse(not self.cfg.locked and not not on)
+end
+
+--- The plate's CD-30 seam (the Cooldown bar's law,
+--- Forte_Cooldown/UI/Timeline.lua's OnMouseUp, and the source's frame
+--- release, Forte_Soulstone.xml:189-196 + SSFrame_OnClick's
+--- right-branch FW:ScrollTo): the release script rides every frame that can
+--- own the plate's mouse region -- the anchor (the user's EnableMouse
+--- switch), the tip (always mouse-on, the tooltip's frame) and the drag
+--- frame (unlocked drags) -- because the engine hands the release to the
+--- topmost mouse-enabled one; all three run the same law. "OnMouseUp" is the
+--- script this engine accepts on a plain Frame ("OnClick" is Button-only).
+function Frame:_WireRightClick()
+    local function up(_, button) self:OnMouseUp(button) end
+    if self.anchor then self.anchor:SetScript("OnMouseUp", up) end
+    if self.tip then self.tip:SetScript("OnMouseUp", up) end
+    if self._dragFrame then self._dragFrame:SetScript("OnMouseUp", up) end
+end
+
+--- FW:StartMoving's press stamp (Forte_Core/Options.lua:649-656): the cursor
+--- position at the moment the plate started moving (the Cooldown bar's
+--- `_StampPress`, Forte_Cooldown/UI/Timeline.lua, the same seam).
+function Frame:_StampPress()
+    if type(GetCursorPosition) ~= "function" then return end
+    local x, y = GetCursorPosition()
+    self._downX, self._downY = x, y
+end
+
+--- FW:Moved() (Forte_Core/Options.lua:659-662): did the cursor travel
+--- between press and release? A drag must never open the options window
+--- (CD-30). No cursor read (no press stamp, no cursor on this client) means
+--- no travel, i.e. a click.
+function Frame:Moved()
+    if type(GetCursorPosition) ~= "function" then return false end
+    local dx, dy = self._downX, self._downY
+    if dx == nil or dy == nil then return false end
+    local x, y = GetCursorPosition()
+    if x == nil or y == nil then return false end
+    return x ~= dx or y ~= dy
+end
+
+--- CD-30 on this plate: a right-button release opens the options window on
+--- THIS plate's own page (`opts.pageId`: ShardManager / Soulstone /
+--- Healthstone / Summon -- the ids Pages/Warlock.lua registers); a release
+--- that followed a drag is dropped by the Moved guard. A plate with no page
+--- id (a probe frame) is inert.
+function Frame:OnMouseUp(button)
+    if button ~= "RightButton" then return end
+    if self:Moved() then return end
+    -- `RightClickOptions` (the source's row of the same name,
+    -- Forte_Core/Options.lua:5545, default true at Forte_Core.lua:2495; our
+    -- row rides the General page). Off = the plate is silent: the release is
+    -- consumed, nothing opens.
+    local st = FX.Settings
+    if st and st.IsRegistered and st:IsRegistered("General")
+        and st:Get("General", "RightClickOptions") == false then
+        return
+    end
+    local page = self.opts and self.opts.pageId
+    local O = FX.Options
+    if not page or not O or not O.Open then return end
+    pcall(O.Open, O, page)
 end
 
 function Frame:ApplyPosition()
@@ -1099,7 +1185,10 @@ end
 
 function Frame:ApplyMouse()
     if self.anchor then
-        self.anchor:EnableMouse(not self.cfg.locked and self.state.enableMouse)
+        -- The user's switch owns the anchor's mouse; the lock gates the
+        -- drag registration, not the mouse (see EnableMove's note -- the
+        -- source's law, FW_StartMoving Forte_Core/Options.lua:651).
+        self.anchor:EnableMouse(self.state.enableMouse)
     end
     if self._dragFrame then
         self._dragFrame:EnableMouse(not self.cfg.locked and self._move

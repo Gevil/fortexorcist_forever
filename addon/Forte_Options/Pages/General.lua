@@ -5,9 +5,14 @@
 -- (the bar publishes it; the first page build mirrors it into the store,
 -- m4), Global Frame Alpha/Scale multiply into the module frames' own
 -- alpha/scale, AltTimeFormat switches the bar's time text to m:ss
--- everywhere, and Bar Font / Bar Texture drive the bar's fontstring file
--- and its fill texture -- all live through FX.Cooldown.Display's public
--- setters (see Forte_Cooldown/UI/Timeline.lua, "live settings").
+-- everywhere, and Bar Font / Bar Texture are the original's FNT/TXT
+-- PICKERS (Options.lua:5555-5556; the wave-6 fix-list item 9 -- the old
+-- INFO rows were labelled placeholders): the SEL widget pops the list of
+-- the assets this addon vendors, an item click writes the store, and the
+-- key rides the existing live consumers -- the Cooldown bar's
+-- Display:SetBarFont / SetBarTexture, the Hunter swing bar's SetFont, the
+-- Warlock plates' SetFont (see Forte_Cooldown/UI/Timeline.lua "live
+-- settings", Forte_Hunter/UI/Swing.lua, Forte_Warlock/UI/Frame.lua).
 -- FrameSnap (snap grid) and ShowTooltips (module-frame tooltips) have no
 -- consumer YET -- they stay stored-only and their tips say 'not used yet'.
 --
@@ -27,6 +32,39 @@ local M = "General"
 local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
 local FONT = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
 
+-- The picker contents (the original registers the lists at load:
+-- FW:RegisterFont calls Forte_Core.lua:567-570, FW.TextureList :644-668).
+-- Vendored assets are the law (PLAN §3.5): the font list is the loadable
+-- file under addon/Forte_Core/Fonts/ -- URWGothic-Book.otf is vendored
+-- there too, as license source, and the shipped law pins the .ttf
+-- (Forte_Cooldown/UI/Timeline.lua header) -- and the texture list is the
+-- original's own 19 vendored bar textures, in its order (the original
+-- list's two Blizzard status-bar paths are not vendored, so not offered).
+local BAR_FONTS = {
+    { value = FONT, label = "URW Gothic Book", font = FONT },
+}
+local BAR_TEXTURES = {
+    { value = TEX .. "Aluminium",  label = "Aluminium" },
+    { value = TEX .. "Minimalist", label = "Minimalist" },
+    { value = TEX .. "Xus",        label = "Xus" },
+    { value = TEX .. "Otravi",     label = "Otravi" },
+    { value = TEX .. "LiteStep",   label = "LiteStep" },
+    { value = TEX .. "Bantobar",   label = "BantoBar" },
+    { value = TEX .. "Charcoal",   label = "Charcoal" },
+    { value = TEX .. "Perl",       label = "Perl" },
+    { value = TEX .. "Smooth",     label = "Smooth" },
+    { value = TEX .. "Smudge",     label = "Smudge" },
+    { value = TEX .. "Striped",    label = "Striped" },
+    { value = TEX .. "Glaze",      label = "Glaze" },
+    { value = TEX .. "Frost",      label = "Frost" },
+    { value = TEX .. "Healbot",    label = "HealBot" },
+    { value = TEX .. "Rocks",      label = "Rocks" },
+    { value = TEX .. "Runes",      label = "Runes" },
+    { value = TEX .. "Xeon",       label = "Xeon" },
+    { value = TEX .. "SWSDefault", label = "SWSDefault" },
+    { value = TEX .. "Flat",       label = "Flat" },
+}
+
 FX.Settings:Register(M, {
     GlobalLock = true,                 -- mirrors the bar's live lock (m4)
     FrameAlpha = 1.0,
@@ -41,10 +79,14 @@ FX.Settings:Register(M, {
     ShowTooltips = true,
     -- `RightClickOptions` (Forte_Core/Options.lua:5545, default true at
     -- Forte_Core.lua:2495): right-clicking a module frame's header opens
-    -- that module's options page. The consumer is the Cooldown bar's own
-    -- release handler (Forte_Cooldown/UI/Timeline.lua `OnMouseUp`, the
-    -- source's `Frame_OnClick` :901-909); the other module frames have no
-    -- right-click seam at all (reported, not invented here).
+    -- that module's options page. The consumer is every module frame's
+    -- release handler, the Cooldown bar's law (Timeline.lua `OnMouseUp`,
+    -- the source's `Frame_OnClick` :901-909) ported by the Wave-6
+    -- right-click slice to the Spell Timer panel (Forte_Timer/UI/Rows.lua),
+    -- the Hunter swing bar (Forte_Hunter/UI/Swing.lua) and the four
+    -- Warlock plates (Forte_Warlock/UI/Frame.lua) -- each gated on this key,
+    -- each dropping a release that followed a drag (the Moved guard),
+    -- locked frames included.
     RightClickOptions = true,
     BarFont = FONT,
     BarTexture = TEX .. "Aluminium",
@@ -115,9 +157,12 @@ O:RegisterPage({
                 module = M, key = "RightClickOptions",
                 label = "Right-click headers for options",
                 tip = "Right-click a module frame header to open its options."
-                    .. " Applied live on the Forte Cooldowns bar"
-                    .. " (the frames with the seam; a frame with no"
-                    .. " right-click handler is never made one).",
+                    .. " Applied live on the Forte Cooldowns bar, the Spell"
+                    .. " Timer panel, the Hunter swing bar and the four"
+                    .. " Warlock plates: every frame with the release seam"
+                    .. " gates its right-button release on this box (a"
+                    .. " release that followed a drag is dropped; a locked"
+                    .. " frame opens its page like any other).",
             })
             s.NUM({
                 module = M, key = "FrameAlpha",
@@ -147,17 +192,19 @@ O:RegisterPage({
                 label = "Show module frame Tooltips",
                 tip = "Show game tooltips when the mouse rests on module frames. Not used yet (module frames have no tooltips to gate).",
             })
-            s.INFO({
+            s.SEL({
                 module = M, key = "BarFont",
                 label = "Bar Font",
-                value = function() return FX.Settings:Get(M, "BarFont") end,
-                tip = "Font used by module bars (URW Gothic Book 11, PLAN §3.5). Re-validates and applies live.",
+                fontPreview = true,
+                items = BAR_FONTS,
+                tip = "Font used by module bars (URW Gothic Book 11, PLAN §3.5). The list is the fonts this add-on vendors. Writes the value, re-validates it with the client and re-applies it live: the Cooldown bar, the Hunter swing text and the Warlock plates follow.",
             })
-            s.INFO({
+            s.SEL({
                 module = M, key = "BarTexture",
                 label = "Bar Texture",
-                value = function() return FX.Settings:Get(M, "BarTexture") end,
-                tip = "Fill texture used by module bars (vendored Aluminium). Applied live.",
+                preview = "texture",
+                items = BAR_TEXTURES,
+                tip = "Fill texture used by module bars (vendored Aluminium, the shipped default). The list is the original's own bar textures (Forte_Core.lua:644-668), the vendored ones. Writes the value; the bar fill, its segments and a fresh build apply live.",
             })
         end, {
             module = M,

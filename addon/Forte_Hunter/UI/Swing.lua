@@ -18,7 +18,10 @@
 --   * the lock convention (m4): SetLocked publishes the state into
 --     FX.Settings (module "Hunter", key "Lock", guarded by
 --     store-inequality so a listener calling back stops there) and locking
---     flips only SetMovable/EnableMouse. `/fx lock|unlock` runs
+--     flips SetMovable only -- the mouse stays live, the source's law (the
+--     lock gates the drag start, FW_StartMoving Forte_Core/Options.lua:651,
+--     never the mouse) so the right-click options release (CD-30) works on a
+--     locked bar. `/fx lock|unlock` runs
 --     FX.Cooldown.Display:SetLocked, which publishes Cooldown.Lock and
 --     General.GlobalLock -- that publish IS the lock-change hook, so the
 --     Hunter bar follows it by mirroring those two keys through
@@ -224,11 +227,31 @@ function D:Init()
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStart", function(fr, button)
+        -- FW:StartMoving (Forte_Core/Options.lua:649-656) stamps the cursor
+        -- at press; FW:Moved() (:659-662) is the release-time compare that
+        -- makes the right-click's CD-30 law skip a drag. The stamp is taken
+        -- BEFORE the lock is read (the source's order at :650-651), and the
+        -- lock gates the DRAG START only (:651
+        -- `if not FW:IsLocked(frame) and button=="LeftButton" ...`): a
+        -- locked bar keeps the mouse, so its right-button release still
+        -- reaches the seam below (the Forte_Soulstone law, SSFrame_OnClick
+        -- + Forte_Soulstone.xml:189-196).
+        self:_StampPress()
+        if self.cfg and self.cfg.locked then return end
+        fr.StartMoving(fr, button)
+    end)
     f:SetScript("OnDragStop", function(fr)
         fr:StopMovingOrSizing()
         self:SavePosition(fr)
     end)
+    -- CD-30 (the source's frame release, the Cooldown bar's law ported at
+    -- Forte_Cooldown/UI/Timeline.lua's OnMouseUp): a right-button release on
+    -- the bar opens the options window on this module's page, dropped by the
+    -- Moved guard after a drag. "OnMouseUp" is the script this engine accepts
+    -- on a plain Frame ("OnClick" is Button-only -- the sim rejects it on a
+    -- Frame); its payload is (frame, mouseButtonName).
+    f:SetScript("OnMouseUp", function(_, button) self:OnMouseUp(button) end)
 
     -- The Aluminium progress fill: TOPLEFT-anchored with an explicit size,
     -- so `fill:GetWidth()` IS the rendered fraction (the acceptance's
@@ -340,9 +363,15 @@ function D:Reset()
     self:ApplyPosition()
 end
 
---- Locked = mouse-off (no drag possible) + the title hidden; the publish to
---- the store is what makes the options checkbox and the header lock icon
---- read the same truth (the Timeline's m4 convention).
+--- Locked = NOT draggable + the title hidden; the publish to the store is
+--- what makes the options checkbox and the header lock icon read the same
+--- truth (the Timeline's m4 convention). The mouse stays live: the source's
+--- lock (FW:IsLocked, Forte_Core/Options.lua:517-523) gates only
+--- FW_StartMoving's drag start (:651), it never disables the frame's mouse --
+--- that is what keeps the right-button options release alive on a locked bar
+--- (the Forte_Soulstone.xml:189-196 + SSFrame_OnClick law; the port's
+--- mouse-off-while-locked was silencing it, and this bar ships LOCKED by
+--- default, so the mouse-off made the seam unreachable by default).
 function D:SetLocked(locked)
     locked = not not locked
     if self.cfg then self.cfg.locked = locked end
@@ -353,8 +382,51 @@ function D:SetLocked(locked)
     end
     if not self.anchor then return end
     self.anchor:SetMovable(not locked)
-    self.anchor:EnableMouse(not locked)
+    self.anchor:EnableMouse(true)
     if locked then self.title:Hide() else self.title:Show() end
+end
+
+--- FW:StartMoving's press stamp (Forte_Core/Options.lua:649-656): the cursor
+--- position at the moment the bar started moving (the Cooldown bar's
+--- `_StampPress`, Forte_Cooldown/UI/Timeline.lua, the same seam).
+function D:_StampPress()
+    if type(GetCursorPosition) ~= "function" then return end
+    local x, y = GetCursorPosition()
+    self._downX, self._downY = x, y
+end
+
+--- FW:Moved() (Forte_Core/Options.lua:659-662): did the cursor travel
+--- between press and release? A drag must never open the options window
+--- (CD-30). No cursor read (no press stamp, no cursor on this client) means
+--- no travel, i.e. a click.
+function D:Moved()
+    if type(GetCursorPosition) ~= "function" then return false end
+    local dx, dy = self._downX, self._downY
+    if dx == nil or dy == nil then return false end
+    local x, y = GetCursorPosition()
+    if x == nil or y == nil then return false end
+    return x ~= dx or y ~= dy
+end
+
+--- CD-30 on this bar (the source's frame release, the Cooldown bar's law at
+--- Forte_Cooldown/UI/Timeline.lua's OnMouseUp): a right-button release opens
+--- the options window on this module's page; a release that followed a drag
+--- is dropped by the Moved guard.
+function D:OnMouseUp(button)
+    if button ~= "RightButton" then return end
+    if self:Moved() then return end
+    -- `RightClickOptions` (the source's row of the same name,
+    -- Forte_Core/Options.lua:5545, default true at Forte_Core.lua:2495; our
+    -- row rides the General page). Off = the bar is silent: the release is
+    -- consumed, nothing opens.
+    local st = FX.Settings
+    if st and st.IsRegistered and st:IsRegistered("General")
+        and st:Get("General", "RightClickOptions") == false then
+        return
+    end
+    local O = FX.Options
+    if not O or not O.Open then return end
+    pcall(O.Open, O, "Hunter")
 end
 
 -- --------------------------------------------------------------- geometry --

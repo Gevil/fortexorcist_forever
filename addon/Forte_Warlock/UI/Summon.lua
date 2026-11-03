@@ -70,6 +70,9 @@ local Summon = Frame:new({
     -- `SummonStrata`, Forte_Summon.lua:573).
     advancedKey = "SummonStrata",
     lockKey = "Lock",
+    -- CD-30: the plate's right-click opens ITS page (Pages/Warlock.lua's
+    -- id, the Summon Assistant cell).
+    pageId = "Summon",
     keys = { "SummonWidth", "SummonHeight", "SummonColor",
              "SummonStrikethrough", "SummonDetails", "SummonExpand" },
     keymap = {

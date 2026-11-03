@@ -89,6 +89,14 @@ local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
 
 FX.Cooldown.TimelineSkin = {
     Width = 250, Height = 24,                 -- FW Width/Height
+    -- The FRAME SIZING block's third row (`IconSize`, the NU2 row
+    -- Forte_Cooldown.lua:1760 = a value plus its `[0]` gate; the value
+    -- default 36, the gate OFF: `IconSize = {[0]=false,36}` :1805). A
+    -- gate-off icon rides the bar height -- the source's
+    -- `ih = s.IconSize[0] and s.IconSize[1] or s.Height` (:1151, :1364).
+    -- Our NU2 gates ride their own `<Key>On` key (the Forte_Timer
+    -- `Max`/`MaxOn` convention).
+    IconSizeOn = false, IconSize = 36,
     Max = 300, Loga = 0.33,                   -- the power axis (:1816, :1836)
     CustomTags = "0 1 10 30 60 120 300 600",  -- CustomTags[1] (:1840)
     BackdropBG = TEX .. "Background",         -- Backdrop[1]
@@ -100,7 +108,11 @@ FX.Cooldown.TimelineSkin = {
     BgColor = { 0, 0, 0, 0.50 },              -- BgColor: black a 0.50
     BarTexture = TEX .. "Aluminium",          -- FW.Default.Texture
     BarColor = { 1, 1, 1, 0.20 },             -- BarColor: white a 0.20
-    TextColor = { 1, 1, 1, 0.20 },            -- TextColor (tag labels)
+    -- TextColor (tag labels): the APPEARANCE row "Bar text"
+    -- (Forte_Cooldown.lua:1765, FWL.BAR_TEXT, Localization.lua:1019),
+    -- default {1,1,1,0.20} (:1838). The source's only consumer is the
+    -- time-tag path (SetTimeTags :1270, :1289) -- D:SetTextColor.
+    TextColor = { 1, 1, 1, 0.20 },
     TimeFormatAlt = true,                     -- General AltTimeFormat:
                                               -- m:ss for EVERY time. The
                                               -- original's default is ON
@@ -249,6 +261,20 @@ D.frameState = {
                                             -- auto-hidden while cd is empty
 }
 local FS = D.frameState
+
+--- The DRAWN size of one icon (and of the art that rides an icon: its
+--- running/attention glows, the splash, the ready pulse). The source's law
+--- `ih = s.IconSize[0] and s.IconSize[1] or s.Height` (:1151, :1364): with
+--- the gate off (the shipped default :1805) the icon rides the bar height.
+--- The curve positions, the tags and the segments ride the bar HEIGHT in
+--- every mode (the position passes compute `ih = s.Height`, :502, :1236):
+--- this size moves the icon art, never its place on the axis.
+local function iconSize()
+    if S.IconSizeOn and type(S.IconSize) == "number" and S.IconSize > 0 then
+        return S.IconSize
+    end
+    return S.Height
+end
 
 --- The validated, lower-compare round-trip of validateFont for ANY file
 --- path (the General BarFont option feeds arbitrary strings).
@@ -594,14 +620,19 @@ function D:Init()
     bar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -S.Inset, S.Inset)
 
     -- Drag plumbing registered exactly once, here (see the old Display's
-    -- note): locking only flips SetMovable/EnableMouse.
+    -- note): locking flips SetMovable -- the DRAG -- and never the mouse
+    -- (the lock law in SetLocked).
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", function(fr, button)
         -- FW:StartMoving (Forte_Core/Options.lua:649-656) stamps the cursor
         -- at press; FW:Moved() (:659-662) is the release-time compare that
-        -- makes CD-30's right-click skip a drag.
+        -- makes CD-30's right-click skip a drag. The stamp lands FIRST --
+        -- the source's FW:StartMoving stamps, then its lock check is the
+        -- one that refuses the move -- and the lock check after it is the
+        -- belt to SetMovable(false): a locked bar starts no move.
         self:_StampPress()
+        if self.cfg.locked then return end
         fr.StartMoving(fr, button)
     end)
     f:SetScript("OnDragStop", function(fr)
@@ -707,8 +738,17 @@ function D:SetLocked(locked)
         end
     end
     if not self.anchor then return end
+    -- The lock law (the source: the lock gates the DRAG and nothing else
+    -- -- the row label is literally "Lock (disable dragging)", FWL.LOCK
+    -- Forte_Cooldown.lua:2114, and the one lock check in the whole move
+    -- path sits in FW:StartMoving, Forte_Core/Options.lua:649-656; a
+    -- locked frame's mouse release still fires, e.g. the source's
+    -- Forte_Soulstone.xml OnMouseUp). SetMovable(false) removes the drag
+    -- scripts; EnableMouse stays TRUE so the CD-30 right-click seam works
+    -- on a locked bar -- the bar SHIPS locked, the seam must be usable
+    -- out of the box.
     self.anchor:SetMovable(not locked)
-    self.anchor:EnableMouse(not locked)
+    self.anchor:EnableMouse(true)
     if not locked then
         self.title:Show()
     else
@@ -767,32 +807,45 @@ function D:SetSize(w, h)
     if type(h) == "number" and h > 0 then S.Height = h end
     if not self.anchor then return end
     self:ApplyBarSize()
-    for i = 1, #self.slots do
-        local slot = self.slots[i]
-        slot.frame:SetSize(S.Height, S.Height)
-        slot.tex:SetSize(S.Height, S.Height)
-        slot.spark:SetSize(S.Height * S.SparkScale, S.Height * S.SparkScale)
-        -- The attention spark rides 2.2 x the icon at REST (:1409); an
-        -- armed one is resized by the next attention pass.
-        slot.alert:SetSize(S.Height * S.AttentionScale, S.Height * S.AttentionScale)
-        slot._alertSize = nil
-    end
-    for i = 1, #self.splashPool do
-        local sp = self.splashPool[i]
-        -- The animated sizes are re-set by _SplashCurve every pass; these
-        -- are the geometry caps (peak splash = SplashFactor x the icon).
-        sp.tex:SetSize(S.Height * S.SplashFactor, S.Height * S.SplashFactor)
-        sp.spark:SetSize(S.Height * S.SplashFactor * S.SparkScale,
-            S.Height * S.SplashFactor * S.SparkScale)
-    end
-    for i = 1, #self.pulsePool do
-        local p = self.pulsePool[i]
-        p.tex:SetSize(S.Height, S.Height)
-        p.spark:SetSize(S.Height * S.SparkScale, S.Height * S.SparkScale)
-    end
+    self:_ResizeIconPools()
     self:InvalidateLayout()
     self:ReflowEffects()
     self:BuildTags()
+end
+
+--- The pool geometry at the current `iconSize()`: the slot frame, its
+--- icon, the running/attention glows, the splash pool's caps and the
+--- ready pulses (the size loop SetSize used to run inline; the
+--- `IconSize` rows drive the very same pass, as the source recomputes
+--- `ih` once per draw for all of them, :1364). A running splash's live
+--- size is recomputed by `_SplashCurve` on every pass; an armed
+--- attention spark re-sizes through the busted `_alertSize` cache.
+function D:_ResizeIconPools()
+    if not self.anchor then return end
+    local ih = iconSize()
+    for i = 1, #(self.slots or {}) do
+        local slot = self.slots[i]
+        slot.frame:SetSize(ih, ih)
+        slot.tex:SetSize(ih, ih)
+        slot.spark:SetSize(ih * S.SparkScale, ih * S.SparkScale)
+        -- The attention spark rides 2.2 x the icon at REST (:1409); an
+        -- armed one is resized by the next attention pass.
+        slot.alert:SetSize(ih * S.AttentionScale, ih * S.AttentionScale)
+        slot._alertSize = nil
+    end
+    for i = 1, #(self.splashPool or {}) do
+        local sp = self.splashPool[i]
+        -- The animated sizes are re-set by _SplashCurve every pass; these
+        -- are the geometry caps (peak splash = SplashFactor x the icon).
+        sp.tex:SetSize(ih * S.SplashFactor, ih * S.SplashFactor)
+        sp.spark:SetSize(ih * S.SplashFactor * S.SparkScale,
+            ih * S.SplashFactor * S.SparkScale)
+    end
+    for i = 1, #(self.pulsePool or {}) do
+        local p = self.pulsePool[i]
+        p.tex:SetSize(ih, ih)
+        p.spark:SetSize(ih * S.SparkScale, ih * S.SparkScale)
+    end
 end
 
 --- Re-anchor the live splash / ready-pulse frames on the axis: a Width
@@ -891,6 +944,41 @@ function D:SetBgColor(col)
         f:SetBackdropColor(c[1], c[2], c[3], c[4])
         f:SetBackdropBorderColor(c[1], c[2], c[3], c[4])
     end
+end
+
+--- `TextColor` (the APPEARANCE row "Bar text", Forte_Cooldown.lua:1765,
+--- FWL.BAR_TEXT, default {1,1,1,0.20} :1838): the colour of the TIME-TAG
+--- text -- the source's only consumer is the tag path
+--- (`tag:SetTextColor(unpack(s.TextColor))`, SetTimeTags :1270, :1289).
+--- Re-tints every live tag string (hidden pool strings ride along, so a
+--- tag built later reads the same skin colour).
+function D:SetTextColor(col)
+    if type(col) ~= "table" then return end
+    S.TextColor = { col[1] or 1, col[2] or 1, col[3] or 1, col[4] or 0.2 }
+    local c = S.TextColor
+    for i = 1, #(self.tagFS or {}) do
+        self.tagFS[i]:SetTextColor(c[1], c[2], c[3], c[4])
+    end
+end
+
+--- `IconSize` (the FRAME SIZING row :1760, the NU2 type: a value plus its
+--- `[0]` gate, default `{[0]=false,36}` :1805 -- the gate rides the
+--- `IconSizeOn` key): the icon's DRAWN size independent from the bar
+--- height ("Set the icon sizes independently from the bar height",
+--- Localization.lua:174). `ih = s.IconSize[0] and s.IconSize[1] or
+--- s.Height` (:1151, :1364) sizes the bar icon, its running/attention
+--- glows, the splash and the pulse; the axis curve, the tags and the
+--- segments stay on the bar HEIGHT (:502, :1236) -- the icons grow in
+--- place, they do not move.
+function D:SetIconSize(v)
+    if type(v) ~= "number" or v <= 0 then return end
+    S.IconSize = v
+    self:_ResizeIconPools()
+end
+
+function D:SetIconSizeOn(on)
+    S.IconSizeOn = not not on
+    self:_ResizeIconPools()
 end
 
 function D:SetSparkOn(on)
@@ -1335,6 +1423,11 @@ local KEYMAP = {
     BarColor = "SetBarColor",
     BgColor = "SetBgColor",
     Spark = "SetSparkOn",
+    -- The FRAME SIZING block's IconSize pair (:1760, def {[0]=false,36}
+    -- :1805) and the APPEARANCE "Bar text" colour (:1765, def :1838).
+    IconSize = "SetIconSize",
+    IconSizeOn = "SetIconSizeOn",
+    TextColor = "SetTextColor",
     -- The SPECIFICS icon block (:1716-1719) and the SPLASH block
     -- (:1723-1724), plus the TIME RANGE filters (:1729-1732) and their
     -- `[0]` gates.
@@ -1391,6 +1484,7 @@ local STORED = {
         "Spark", "Scale", "Alpha",
         "BarAlpha", "BarAlphaMax", "IconTime", "IconTextColor",
         "IconTextColorOn", "Splash", "SplashFactor",
+        "IconSize", "IconSizeOn", "TextColor",
         "MinRange", "MinRangeOn", "MaxRange", "MaxRangeOn",
         "MinRemaining", "MinRemainingOn", "MaxRemaining",
         "MaxRemainingOn",
@@ -1463,11 +1557,12 @@ function D:AcquireSlot()
     seg:SetTexture(S.BarTexture)
 
     local frame = CreateFrame("Frame", nil, self.bar)
-    frame:SetSize(S.Height, S.Height)
+    local ih = iconSize()
+    frame:SetSize(ih, ih)
 
     local tex = frame:CreateTexture(nil, "ARTWORK")
     tex:SetPoint("CENTER", frame, "CENTER", 0, 0)
-    tex:SetSize(S.Height, S.Height)
+    tex:SetSize(ih, ih)
 
     -- Permanent running spark: NewBar.Update :1156-1160 shows it at
     -- 2.2 x icon size, alpha Spark[1] = 1, whenever Spark[0] -- and Spark
@@ -1477,7 +1572,7 @@ function D:AcquireSlot()
     spark:SetTexture(S.Spark)
     spark:SetBlendMode("ADD")
     spark:SetPoint("CENTER", frame, "CENTER", 0, 0)
-    spark:SetSize(S.Height * S.SparkScale, S.Height * S.SparkScale)
+    spark:SetSize(ih * S.SparkScale, ih * S.SparkScale)
     spark:SetAlpha(S.SparkAlpha)
     -- The Spark OPTION (S.SparkOn): the running glow is a flag, off hides
     -- it on the whole pool (SetSparkOn) and on freshly built slots.
@@ -1493,7 +1588,7 @@ function D:AcquireSlot()
     alert:SetTexture(S.Spark)
     alert:SetBlendMode("ADD")
     alert:SetPoint("CENTER", frame, "CENTER", 0, 0)
-    alert:SetSize(S.Height * S.AttentionScale, S.Height * S.AttentionScale)
+    alert:SetSize(ih * S.AttentionScale, ih * S.AttentionScale)
     alert:Hide()
 
     -- IconTime text: IconFont = font, size-1, OUTLINE (:1810), anchored
@@ -1599,11 +1694,11 @@ end
 --- The source's t15==-1 expiry curve (:1380-1403), shared by spawn and the
 --- per-pass update. `t14` is the source's bar visibility (1 at spawn,
 --- decaying -1/s to 0 over SplashSeconds, :629-632): icon size =
---- SplashFactor*ih*(1-t14) (:1381; ih = Height -- IconSize[0] off, :1364,
---- :1803), the spark rides 2.2x the splash (:1386-87), and the FRAME alpha
---- is t14 itself (:1403; SplashAlpha = 1.0).
+--- SplashFactor*ih*(1-t14) (:1381; ih = the iconSize() law -- the gate
+--- ships off, so = Height, :1364, :1803), the spark rides 2.2x the splash
+--- (:1386-87), and the FRAME alpha is t14 itself (:1403; SplashAlpha = 1.0).
 function D:_SplashCurve(s, t14)
-    local size = S.SplashFactor * S.Height * (1 - t14)
+    local size = S.SplashFactor * iconSize() * (1 - t14)
     -- The original's splashicon is a texture ON the sized bar frame
     -- (:1088); our pool frames centre the icon, so the frame rides the same
     -- size (a 0x0 frame clips its children in some renderers).
@@ -1701,13 +1796,14 @@ function D:SpawnPulse(name, texPath, col, endAt)
     end
     if not s then
         local f = CreateFrame("Frame", nil, UIParent)
+        local ih = iconSize()
         local tex = f:CreateTexture(nil, "ARTWORK")
-        tex:SetSize(S.Height, S.Height)
+        tex:SetSize(ih, ih)
         tex:SetPoint("CENTER", f, "CENTER", 0, 0)
         local spark = f:CreateTexture(nil, "OVERLAY")
         spark:SetTexture(S.Spark)
         spark:SetBlendMode("ADD")
-        spark:SetSize(S.Height * S.SparkScale, S.Height * S.SparkScale)
+        spark:SetSize(ih * S.SparkScale, ih * S.SparkScale)
         spark:SetPoint("CENTER", f, "CENTER", 0, 0)
         if not S.SparkOn then spark:Hide() end
         s = { frame = f, tex = tex, spark = spark }
@@ -2191,7 +2287,7 @@ function D:_UpdateAttention(slot, now)
         -- source's own (:528, :1408).
         local t20 = 1 + (endAt - now)
         if t20 > 1 then
-            local size = S.AttentionScale * S.Height * t20   -- :1409
+            local size = S.AttentionScale * iconSize() * t20   -- :1409
             if slot._alertSize ~= size then
                 slot._alertSize = size
                 slot.alert:SetSize(size, size)

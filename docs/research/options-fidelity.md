@@ -79,10 +79,10 @@ GlobalAlpha · **General Module Appearance** `:5551-5556`: Tips, GlobalSpark, Fo
 | Alternate time format | `Options.lua:5547` "Alternate time format" (`Localization.lua:316`), def **true** (`Forte_Core.lua:2493`) | `General.lua:97-101`, def **false** (`:32`) | **default drift — add the flip** (original defaults to m:ss) |
 | Enable frame snapping | ADVANCED `Options.lua:5581-5583` (with FrameSnapDistance=5, FrameDistance=0, `Forte_Core.lua:2481-2483`), def **true** | on General `General.lua:92-96`, def false (`:31`), stored-only | keep placement (ours is one-settings-page); **add the 2 distance rows** with the snap grid; record default drift |
 | Show module frame Tooltips | `Options.lua:5552` (`Localization.lua:423`), def true (`:2514`) | `General.lua:112-116`, def true | keep ours (label + default match; tip honest "not used yet") |
-| Right-click headers for options | `Options.lua:5545`, def true (`:2495`) | missing | **add** (feasible: bar OnMouseUp → `Open(pageId)`) |
+| Right-click headers for options | `Options.lua:5545`, def true (`:2495`) | `General.lua` `RightClickOptions` def true | shipped (wave 6 right-click slice) — every module frame's `OnMouseUp` gates on the key (census under "Advanced cell") |
 | Right-click icons to customize | `Options.lua:5546`, def true | missing | parked (needs the per-spell filter editor) |
 | Show Sparks (global) | `Options.lua:5554`, def {on,0.7} (`:2511`) | per-page spark keys (`Cooldown.Spark`, `SpellTimer.EnableSpark`) | keep ours (no second global multiplier) |
-| Bar Font / Bar Texture | `Options.lua:5555-5556` FNT/TXT pickers, def GOTHIC.TTF 11 (`:2506` — ours URW by PLAN §3.5) | `General.lua:117-128` INFO (read-only) | **add the picker** later (INFO is a labelled placeholder; the vendored-font law stands) |
+| Bar Font / Bar Texture | `Options.lua:5555-5556` FNT/TXT pickers, def GOTHIC.TTF 11 (`:2506` — ours URW by PLAN §3.5) | `General.lua:188-201` **SEL pickers** (wave 6): popup lists the vendored font (the loadable `URWGothic-Book.ttf`; the `.otf` twin is license source) / the 19 vendored `FW.TextureList` bar textures (`Forte_Core.lua:644-668`) | shipped (wave 6 cosmetics) — the pick is one Settings write; the bar's `SetBarFont`/`SetBarTexture` re-validate and apply live |
 | Order | Tips, Module Options, Module Appearance | same order | parity |
 
 ## Cooldown page (`Pages/Cooldown.lua` vs `Forte_Cooldown.lua:1696-1794`)
@@ -116,8 +116,8 @@ BarColor, BgColor, TextColor, Font, Texture, Backdrop.
 | Ignore shorter than | ADVANCED `:1791`, def 2.99 (`:1796`) | Specifics `:197-200`, 2.99 | keep ours (relocated, same default) |
 | Category rows CO2 (Spell, Pet, Item, Powerup, Internal/Hidden, Potion, Healthstone, **Soulstone**, **ResTimer**) | `:1740-1748`, defs `:1842-1855` (Soulstone {.64,.21,.93}, ResTimer {1,0,0}, Healthstone {0,1,.5}) | `:202-215` colour rows for Spell/Powerup/Item/Potion/Pet/Internal/Buff/Debuff (no enable gates) | **add** the Soulstone/ResTimer/Healthstone/Enchant colour rows if those categories draw on our bar; enable-gates parked behind the filter editor (FIL `:1737`) |
 | Buff/BuffOther/Debuff/DebuffOther/Enchant | `:1751-1755`; the *Other rows ship gate-off (`:1852,1854`) | Buff/Debuff colour present; *Other/Enchant missing | keep (no catch-all filter in v1); Enchant = add with item procs |
-| Icon size (independent of bar height) | `:1760` NU2, def gate-off 36 `:1805` | missing (icon rides Height) | **add** (low) |
-| Bar text colour | `:1765` def {1,1,1,0.20} `:1841` | missing (Timeline text fixed) | **add** |
+| Icon size (independent of bar height) | `:1760` NU2, def gate-off 36 `:1805` | `Cooldown.lua` `IconSizeOn`/`IconSize` (the NU2 pair), Timeline `_ResizeIconPools` | shipped (wave 6 cosmetics) — gate off ships, icons ride Height (`:1151`, `:1364`); on, icons/glow/splash/pulse ride the value, the axis/tags/segments keep Height |
+| Bar text colour | `:1765` def {1,1,1,0.20} `:1841` | `Cooldown.lua` `TextColor`, Timeline `SetTextColor` (the tag path, `SetTimeTags` `:1270`) | shipped (wave 6 cosmetics) — verbatim label "Bar text", verbatim default |
 | Font / Texture / Backdrop | `:1766-1768` | none (pinned URW + Aluminium, PLAN §3.5) | keep ours (the 2012 texture-picker law is superseded by the vendored-asset law) |
 | Section order | Basics, Specifics, Splash, Time Range, Coloring/Filtering, My Cooldowns, Buffs/Debuffs, Frame Sizing, Frame Appearance | Basics, Specifics (geometry+range+advanced merged), Coloring, Frame Appearance | keep ours (documented); note for a future layout pass |
 
@@ -292,7 +292,12 @@ ships TRUE, the recorded panel-look drift, the fold law is live); eight
 `Soulstone`, `Healthstone`, `Summon`) landing on each frame's `SetStrata` →
 `SetFrameStrata` (the catalog's eight names validated at the consumer).
 `RightClickOptions` is a row of the **General** page (`Options.lua:5550` sits
-in that category; consumer: the Cooldown bar's `OnMouseUp` gate).
+in that category; the Cooldown bar's `OnMouseUp` gate is the law — and since
+the wave-6 right-click slice every module frame carries it: the Cooldown bar,
+the Spell Timer panel (`Forte_Timer/UI/Rows.lua` `OnMouseUp`), the Hunter
+swing bar (`Forte_Hunter/UI/Swing.lua`) and the four Warlock plates
+(`Forte_Warlock/UI/Frame.lua`), each gated on the key, each dropping a
+release that followed a drag, locked frames included).
 
 DROPPED, no consumer: `FrameSnap`/`FrameSnapDistance`/`FrameDistance` (every
 frame drags via the engine's native `StartMoving`; no snap grid exists — the
@@ -365,6 +370,11 @@ E2 ruling — keep).
 8. **Advanced page v1** (feasible subset: startup text, AnimateScroll, ExpandSubcats pair,
    Core intervals, per-module strata via `SetFrameStrata`, FrameSnap + distances,
    RightClickOptions onto General).
-9. Cosmetic backlog: Bar Font/Texture pickers, Cooldown IconSize/TextColor,
-   Timer TimeRight/HighlightColor, Global RightClickIconOptions (needs the filter
+9. Cosmetic backlog: **shipped (wave 6 'Options cosmetics', 2026-11-03)** — Bar
+   Font/Bar Texture SEL pickers on the General page (popup over the vendored
+   font/texture lists, picks live through the bar's `SetBarFont`/`SetBarTexture`)
+   and the Cooldown page's IconSize pair + Bar-text `TextColor` (the source's
+   NU2 pair `:1760`/`:1765` with verbatim defaults, consumers
+   `_ResizeIconPools`/`SetTextColor`). REMAINING: Timer TimeRight/HighlightColor,
+   Global RightClickIconOptions (needs the filter
    editor), Blood Pact row after the launch probes.
