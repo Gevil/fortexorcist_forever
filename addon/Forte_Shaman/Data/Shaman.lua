@@ -3,7 +3,7 @@
 -- Overlay: wowsims/forever 6e69a7f4f239c591e9dec4124a93fca6329c240f build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
 -- Dev notes: tools/overrides_devnotes_2026-11-03.json (Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update); https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9) -- post-9 values the captured data does not carry, applied AFTER the 70707 layer; delete a row the day a store capture carries the value (hotfix-watch)
--- Regenerated: 2026-11-03T19:44:28+00:00
+-- Regenerated: 2026-11-03T21:01:49+00:00
 -- 70707 overlay changes in this file (12):
 --   Flame Shock: { id = 29228, name = "Flame Shock", tickEvery = 3, durationMs = 12000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 6" } -> { id = 10448, name = "Flame Shock", tickEvery = 3, durationMs = 12000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 5" }
 --   Riptide: { id = 1239243, name = "Riptide", tickEvery = 3, durationMs = 15000, cooldownMs = 6000, cooldownCategory = 1228, gcdMs = 1500, rank = "Rank 3" } -> { id = 1239243, name = "Riptide", tickEvery = 3, durationMs = 15000, cooldownMs = 12000, cooldownCategory = 1228, gcdMs = 1500, rank = "Rank 3" }
@@ -20,7 +20,7 @@
 -- Post-9 dev-notes values applied (2):
 --   Riptide: cooldownMs 6000 -> 12000 -- post 9: 'Shaman: Riptide cd 12 s (was 6), no initial heal'
 --   Stormstrike: cooldownMs 8000 -> 6000 -- post 9: 'Shaman: Stormstrike cd 6 s (was 8), 150 % WH'
--- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects`/`MaxStack` answer first, a 70707-picked row inherits the same-id base row's shape, and the 70707 overlay's own feed captures (per-id `periodMs`/`targetCode`/`maxStack` of tools/overrides_70707.json) fill what neither can speak to. This file: 3 tickEvery, 0 maxStack, 21 noTarget.
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects`/`MaxStack` answer first, a 70707-picked row inherits the same-id base row's shape, and the 70707 overlay's own feed captures (per-id `periodMs`/`targetCode`/`maxStack` of tools/overrides_70707.json) fill what neither can speak to. This file: 3 tickEvery, 1 maxStack, 22 noTarget.
 --   feeds [10448] Flame Shock: tickEvery = 3
 --   feeds [1239243] Riptide: tickEvery = 3
 --   feeds [408345] Fire Nova: noTarget
@@ -42,6 +42,7 @@
 --   feeds [408680] Way of Earth: noTarget
 --   feeds [16361] Windfury Weapon: noTarget
 --   feeds [16313] Rockbiter Weapon (Passive): noTarget
+--   feeds [408505] Maelstrom Weapon: maxStack = 5, noTarget
 --   feeds [1238640] Ghost Wolf: noTarget
 --   feeds [16038] Call of Flame: noTarget
 --   feeds [16120] Call of Thunder: noTarget
@@ -90,6 +91,7 @@ ForteXorcist.Data.Shaman = {
   [16342] = { id = 16342, name = "Flametongue Weapon", gcdMs = 1500, rank = "Rank 6" },
   [16313] = { id = 16313, name = "Rockbiter Weapon (Passive)", noTarget = true, rank = "Rank 7" },
   [16353] = { id = 16353, name = "Frostbrand Attack", durationMs = 8000, rank = "Rank 5" },
+  [408505] = { id = 408505, name = "Maelstrom Weapon", maxStack = 5, noTarget = true, durationMs = 30000 },
   -- totems
   [10408] = { id = 10408, name = "Stoneskin Totem", durationMs = 300000, gcdMs = 1000, rank = "Rank 6" },
   [10442] = { id = 10442, name = "Strength of Earth Totem", durationMs = 300000, gcdMs = 1000, rank = "Rank 4" },
@@ -160,6 +162,7 @@ ForteXorcist.Data.ShamanByName = {
   ["Flametongue Weapon"] = 16342,
   ["Rockbiter Weapon (Passive)"] = 16313,
   ["Frostbrand Attack"] = 16353,
+  ["Maelstrom Weapon"] = 408505,
   ["Stoneskin Totem"] = 10408,
   ["Strength of Earth Totem"] = 10442,
   ["Grace of Air Totem"] = 10627,

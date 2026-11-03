@@ -181,16 +181,21 @@ local T1_UNTRACKED = {
 -- The proc/passive names the owner ruling kept OUT (the `_deferred_H7` note
 -- of each spell-list file): they arrive with H7 (docs/design-combat-procs.md)
 -- behind the ICD/procs design, so their absence from the generated data is
--- the plan, not an omission.
+-- the plan, not an omission. Wave I-3e H7 (2026-11-03, docs/class-port.md 6.3):
+-- the resolvable names MOVED OUT of the note into the lists (Clearcasting,
+-- Fingers of Frost, Ignite, the four paladin procs, Maelstrom Weapon, Enrage,
+-- Deep Wounds, Shank, Death Mark -- the census below); what remains here is
+-- the unresolvable residual: no names.json key, no client Names row, or a
+-- family-law gap. The mirror now carries the full note set (Poised and
+-- Reckless Swings join the mirror in the same pass).
 local T1_DEFERRED = {
-    DRUID = { "Clearcasting", "Living Seed", "Nature's Grace", "Savage Defense" },
-    MAGE = { "Brain Freeze", "Chilled", "Fingers of Frost", "Ignite", "Mana Surge" },
-    PALADIN = { "Ancient Power", "Forbearance", "Grand Crusader", "Infusion of Light",
-                "The Art of War", "Vengeance", "Vindication" },
+    DRUID = { "Living Seed", "Nature's Grace", "Savage Defense" },
+    MAGE = { "Brain Freeze", "Chilled", "Mana Surge" },
+    PALADIN = { "Ancient Power", "Grand Crusader", "The Art of War" },
     PRIEST = { "Serendipity", "Surge of Light" },
-    ROGUE = {},
-    SHAMAN = { "Maelstrom Weapon" },
-    WARRIOR = { "Deep Wounds", "Enrage", "Vigilance" },
+    ROGUE = { "Poised" },
+    SHAMAN = {},
+    WARRIOR = { "Vigilance", "Reckless Swings" },
 }
 
 local function dataKey(classToken)
@@ -290,8 +295,100 @@ test("the H7 proc/passive deferrals are out of the generated data", function()
             .. " entered the Warrior data: it is an H7 deferral")
         seen = seen + 1
     end
-    -- 4 + 5 + 7 + 2 + 0 + 1 + 3 = 22 deferred names.
-    assertEquals(22, seen)
+    -- Wave I-3e: 3 + 3 + 3 + 2 + 1 + 0 + 2 = 14 deferred names.
+    assertEquals(14, seen)
+end)
+
+-- Wave I-3e H7 census (PLAN 11.2 I3e, docs/class-port.md 6.3, upstream-data
+-- 3.1/5.1). The proc names the H7 gate kept OUT of the T1 cut landed
+-- 2026-11-03: every id is wowsims names.json-keyed (MIT) and store/base
+-- verified -- nothing hand-typed. The windows ride the cast spine and the
+-- out-of-combat aura sweep: Forte_Timer/Core/Reconcile.lua Gates() runs ZERO
+-- aura reads in combat, so a sealed read can not fabricate a row -- no row,
+-- not a wrong row, the law this census pins for the proc rows.
+local H7_LANDED = {
+    DRUID = { "Clearcasting" },
+    MAGE = { "Fingers of Frost", "Ignite" },
+    PALADIN = { "Forbearance", "Infusion of Light", "Vengeance", "Vindication" },
+    ROGUE = { "Shank", "Death Mark" },
+    SHAMAN = { "Maelstrom Weapon" },
+    WARRIOR = { "Enrage", "Deep Wounds" },
+}
+local H7_UNTRACKED = {
+    ROGUE = {
+        ["Shank"] = "the store's Shank rows (15248/15617) are value-less Classic name shells: the post-9 10 s cd is post-9 text only, the launch-day probe row",
+        ["Death Mark"] = "the store's Death Mark rows (1316709/1325756-8) are value-less name shells: the post-9 10 s cd / 6 s mark are post-9 text only, the launch-day probe row",
+    },
+    WARRIOR = {
+        ["Deep Wounds"] = "12834 is the Classic-era passive row: the store's value row carries DurationMs 0 (the bleed window rides the Mortal Strike line, the S15 extra-spell feed, docs/class-port.md S15)",
+    },
+}
+
+test("every Wave I-3e H7 proc add is tracked, or is a pinned no-window row",
+function()
+    local Engine = FX.Cooldown.Engine
+    assertNotNil(Engine, "Forte_Cooldown's Engine is not in the session")
+    local allKnown = function() return true end
+    local report, pinned, total = {}, 0, 0
+    for _, cls in ipairs({ "DRUID", "MAGE", "PALADIN", "ROGUE", "SHAMAN", "WARRIOR" }) do
+        local key = dataKey(cls)
+        local data = FX.Data and FX.Data[key]
+        assertNotNil(data, key .. "'s generated data did not load")
+        local byName = FX.Data[key .. "ByName"]
+        assertNotNil(byName, key .. "ByName did not load")
+        local reg = tracked(cls)
+        assertNotNil(reg, "no generated " .. key .. " data to build a registry on")
+        assertNotNil(Engine:Build(cls, allKnown), "Engine:Build has no " .. key .. " data")
+        local n = 0
+        for _, name in ipairs(H7_LANDED[cls] or {}) do
+            total = total + 1
+            local id = byName[name]
+            assertNotNil(id, "I-3e " .. key .. ": " .. name .. " is not in the generated data")
+            local row = data[id]
+            assertNotNil(row, "I-3e " .. key .. ": " .. name .. " has no row at " .. tostring(id))
+            local entry = reg[name]
+            local engineRow = Engine.tracked and Engine.tracked[name]
+            local reason = (H7_UNTRACKED[cls] or {})[name]
+            if entry or engineRow then
+                assertNil(reason, name .. " (" .. key
+                    .. ") is tracked now -- its H7_UNTRACKED entry is stale: "
+                    .. tostring(reason))
+                n = n + 1
+                if not entry then
+                    assertTrue(type(row.cooldownMs) == "number"
+                        and row.cooldownMs / 1000 >= Engine.MIN_COOLDOWN,
+                        name .. " rides no cooldown the Engine's floor accepts")
+                else
+                    assertTrue(entry.duration > 0, name .. " (" .. key
+                        .. ") rides no positive aura window the Registry's Build accepts")
+                end
+            else
+                pinned = pinned + 1
+                assertNotNil(reason, name .. " (" .. key
+                    .. ") is in no engine and carries no pinned reason -- it is untracked by accident")
+                local win = (tonumber(row.durationMs) or 0) > 0
+                local engineFloor = type(row.cooldownMs) == "number"
+                    and row.cooldownMs / 1000 >= Engine.MIN_COOLDOWN
+                assertFalse(win, name .. " (" .. key
+                    .. ") gained a Registry window -- re-read the row before editing H7_UNTRACKED")
+                assertFalse(engineFloor, name .. " (" .. key
+                    .. ") gained a CooldownEngine floor -- re-read the row before editing H7_UNTRACKED")
+            end
+            report[#report + 1] = string.format("%s %-22s id=%-9s %s%s", key, name,
+                tostring(id),
+                entry and string.format("dur=%dms", entry.duration)
+                    or (engineRow and string.format("cd=%dms Engine-only (sub-second aura)",
+                        row.cooldownMs))
+                    or "NO WINDOW (pinned)",
+                (not entry and not engineRow and reason) and (" -- " .. reason) or "")
+        end
+        print(string.format(
+            "\n  [%s Wave I-3e H7 census: %d landed, %d engine-tracked, %d pinned]\n",
+            key, #(H7_LANDED[cls] or {}), n, #(H7_LANDED[cls] or {}) - n))
+    end
+    for _, line in ipairs(report) do print("  " .. line) end
+    assertEquals(12, total)
+    assertEquals(3, pinned)
 end)
 
 -- Hand the registry back to the session's own class (the Forte_Timer

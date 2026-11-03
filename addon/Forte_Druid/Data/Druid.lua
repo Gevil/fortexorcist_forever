@@ -3,7 +3,7 @@
 -- Overlay: wowsims/forever 6e69a7f4f239c591e9dec4124a93fca6329c240f build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
 -- Dev notes: tools/overrides_devnotes_2026-11-03.json (Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update); https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9) -- post-9 values the captured data does not carry, applied AFTER the 70707 layer; delete a row the day a store capture carries the value (hotfix-watch)
--- Regenerated: 2026-11-03T19:44:27+00:00
+-- Regenerated: 2026-11-03T21:01:47+00:00
 -- 70707 overlay changes in this file (10):
 --   Cower: { id = 9892, name = "Cower", cooldownMs = 10000, cooldownCategory = 84, gcdMs = 1000, rank = "Rank 3" } -> { id = 16697, name = "Cower", cooldownMs = 5000, cooldownCategory = 82, gcdMs = 1500, rank = "Rank 6" }
 --   Hurricane: { id = 1278759, name = "Hurricane", durationMs = 10000, gcdMs = 1500, rank = "Rank 3" } -> { id = 1278759, name = "Hurricane", durationMs = 10000, cooldownCategory = 571, gcdMs = 1500, rank = "Rank 3" }
@@ -17,7 +17,7 @@
 --   Ferocious Bite: { id = 31018, name = "Ferocious Bite", gcdMs = 1000, rank = "Rank 5" } -> { id = 22829, name = "Ferocious Bite", gcdMs = 1000, rank = "Rank 5" }
 -- 70707-sourced rows: no row in the 1.60.1.70425 pull, the row is the 70707 store's capture of the name (1; Warlock pet kit, docs/research/forever-data-gaps.md G6):
 --   Bloom (1328621)
--- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects`/`MaxStack` answer first, a 70707-picked row inherits the same-id base row's shape, and the 70707 overlay's own feed captures (per-id `periodMs`/`targetCode`/`maxStack` of tools/overrides_70707.json) fill what neither can speak to. This file: 19 tickEvery, 3 maxStack, 22 noTarget.
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects`/`MaxStack` answer first, a 70707-picked row inherits the same-id base row's shape, and the 70707 overlay's own feed captures (per-id `periodMs`/`targetCode`/`maxStack` of tools/overrides_70707.json) fill what neither can speak to. This file: 19 tickEvery, 3 maxStack, 23 noTarget.
 --   feeds [467088] Astral Power: maxStack = 3, noTarget
 --   feeds [22812] Barkskin: noTarget
 --   feeds [5229] Enrage: tickEvery = 1, noTarget
@@ -46,6 +46,7 @@
 --   feeds [408124] Lifebloom: tickEvery = 1, maxStack = 3
 --   feeds [9826] Pounce Bleed: tickEvery = 3
 --   feeds [21919] Thrash: noTarget
+--   feeds [16870] Clearcasting: noTarget
 --   feeds [5487] Bear Form: noTarget
 --   feeds [768] Cat Form: tickEvery = 5, noTarget
 --   feeds [9634] Dire Bear Form: noTarget
@@ -110,6 +111,7 @@ ForteXorcist.Data.Druid = {
   [21919] = { id = 21919, name = "Thrash", noTarget = true },
   [22829] = { id = 22829, name = "Ferocious Bite", gcdMs = 1000, rank = "Rank 5" },
   [1328621] = { id = 1328621, name = "Bloom" },
+  [16870] = { id = 16870, name = "Clearcasting", noTarget = true, durationMs = 15000 },
   -- forms
   [5487] = { id = 5487, name = "Bear Form", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
   [768] = { id = 768, name = "Cat Form", tickEvery = 5, noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
@@ -176,6 +178,7 @@ ForteXorcist.Data.DruidByName = {
   ["Thrash"] = 21919,
   ["Ferocious Bite"] = 22829,
   ["Bloom"] = 1328621,
+  ["Clearcasting"] = 16870,
   ["Bear Form"] = 5487,
   ["Cat Form"] = 768,
   ["Dire Bear Form"] = 9634,

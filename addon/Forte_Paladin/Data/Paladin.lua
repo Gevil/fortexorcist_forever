@@ -3,7 +3,7 @@
 -- Overlay: wowsims/forever 6e69a7f4f239c591e9dec4124a93fca6329c240f build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
 -- Dev notes: tools/overrides_devnotes_2026-11-03.json (Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update); https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9) -- post-9 values the captured data does not carry, applied AFTER the 70707 layer; delete a row the day a store capture carries the value (hotfix-watch)
--- Regenerated: 2026-11-03T19:44:27+00:00
+-- Regenerated: 2026-11-03T21:01:47+00:00
 -- 70707 overlay changes in this file (10):
 --   Swift Judgement: { id = 1310994, name = "Swift Judgement", noTarget = true, durationMs = -1, cooldownMs = 60000 } -> { id = 1310994, name = "Swift Judgement", noTarget = true, cooldownMs = 60000 }
 --   Holy Shock: { id = 1311606, name = "Holy Shock", cooldownMs = 10000, cooldownCategory = 892, gcdMs = 1500, rank = "Rank 1" } -> { id = 20930, name = "Holy Shock", cooldownMs = 10000, cooldownCategory = 892, gcdMs = 1500, rank = "Rank 4" }
@@ -23,7 +23,7 @@
 --   Echo of Fury (1311701)
 --   Echo of Command (1311703)
 --   Unsealed Wrath (1310735)
--- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects`/`MaxStack` answer first, a 70707-picked row inherits the same-id base row's shape, and the 70707 overlay's own feed captures (per-id `periodMs`/`targetCode`/`maxStack` of tools/overrides_70707.json) fill what neither can speak to. This file: 5 tickEvery, 3 maxStack, 29 noTarget.
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects`/`MaxStack` answer first, a 70707-picked row inherits the same-id base row's shape, and the 70707 overlay's own feed captures (per-id `periodMs`/`targetCode`/`maxStack` of tools/overrides_70707.json) fill what neither can speak to. This file: 5 tickEvery, 4 maxStack, 31 noTarget.
 --   feeds [1311015] Templar's Bulwark: noTarget
 --   feeds [407788] Avenging Wrath: noTarget
 --   feeds [1310897] Voice of Truth: noTarget
@@ -39,6 +39,8 @@
 --   feeds [1326084] Reckoning: maxStack = 4, noTarget
 --   feeds [409932] Aura Mastery: noTarget
 --   feeds [1328548] Oath of Light: tickEvery = 1.5, noTarget
+--   feeds [437063] Infusion of Light: noTarget
+--   feeds [20050] Vengeance: maxStack = 3, noTarget
 --   feeds [20293] Seal of Righteousness: noTarget
 --   feeds [20920] Seal of Command: noTarget
 --   feeds [20357] Seal of Wisdom: noTarget
@@ -97,6 +99,10 @@ ForteXorcist.Data.Paladin = {
   [409932] = { id = 409932, name = "Aura Mastery", noTarget = true },
   [1328548] = { id = 1328548, name = "Oath of Light", tickEvery = 1.5, noTarget = true, durationMs = 300000, gcdMs = 1500 },
   [1328551] = { id = 1328551, name = "Shieldsworn", durationMs = 6000 },
+  [25771] = { id = 25771, name = "Forbearance", durationMs = 60000 },
+  [437063] = { id = 437063, name = "Infusion of Light", noTarget = true, durationMs = 15000 },
+  [20050] = { id = 20050, name = "Vengeance", maxStack = 3, noTarget = true, durationMs = 30000 },
+  [440667] = { id = 440667, name = "Vindication", durationMs = 30000 },
   -- auras
   [20423] = { id = 20423, name = "Seal of Fury", durationMs = 30000, gcdMs = 1500, rank = "Rank 7" },
   [20293] = { id = 20293, name = "Seal of Righteousness", noTarget = true, durationMs = 30000, gcdMs = 1500, rank = "Rank 8" },
@@ -163,6 +169,10 @@ ForteXorcist.Data.PaladinByName = {
   ["Aura Mastery"] = 409932,
   ["Oath of Light"] = 1328548,
   ["Shieldsworn"] = 1328551,
+  ["Forbearance"] = 25771,
+  ["Infusion of Light"] = 437063,
+  ["Vengeance"] = 20050,
+  ["Vindication"] = 440667,
   ["Seal of Fury"] = 20423,
   ["Seal of Righteousness"] = 20293,
   ["Seal of Command"] = 20920,

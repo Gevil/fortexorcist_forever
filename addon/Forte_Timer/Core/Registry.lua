@@ -192,6 +192,9 @@ local KIND_RULES = {
         -- cadence (cooldownMs 8000, no aura, no target window) -- the Fire
         -- Blast family this band's T1 block above carries.
         "^Ice Lance",
+        -- Wave I-3e H7 (docs/class-port.md 6.3): Shank, the post-9 rogue
+        -- active (10 s cadence) -- the same cast-cadence family.
+        "^Shank",
         -- T1 (docs/class-port.md 6.1): Beacon of Light -- the original's
         -- `AddSpell(53563, 1, "Buff", F.BUFF)` (Paladin.lua:22).
         "^Beacon of Light",
@@ -259,6 +262,12 @@ local KIND_RULES = {
         -- / Rake family); Shieldsworn is the paladin Judgement echo's window
         -- ON THE TARGET (the "Judgement" term above is its parent line).
         "^Ferocious Bite", "^Shieldsworn",
+        -- Wave I-3e H7 (docs/class-port.md 6.3): the mage's Ignite DoT proc
+        -- (412538, the Pyroblast family this block's "^Pyroblast" rides) and
+        -- the paladin's Forbearance heal-reduce debuff (25771) -- both
+        -- target-side windows. (Deep Wounds rides the shipped "Wound" term,
+        -- Death Mark the shipped "Mark$".)
+        "^Ignite", "^Forbearance",
     } },
     { key = "SelfBuff", terms = {
         "Ward$", "^Aspect", "Aspect of", "^Armor", "^Ice Barrier",
@@ -346,6 +355,12 @@ local KIND_RULES = {
         -- this band's "generated proc windows" family.
         "^Dark Inspiration", "^Setup", "^Oath of Light",
         "^Echo of Fury", "^Echo of Command",
+        -- Wave I-3e H7 (docs/class-port.md 6.3, upstream-data §3.1): the
+        -- self proc windows landed out of _deferred_H7 -- Fingers of Frost
+        -- (400669, 15 s), Infusion of Light (437063, 15 s) and the Maelstrom
+        -- Weapon stamp (408505, 30 s -- this band's Windfury/Flametongue
+        -- weapon-window family).
+        "^Fingers of Frost", "^Infusion of Light", "^Maelstrom Weapon",
     } },
 }
 

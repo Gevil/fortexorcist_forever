@@ -3,7 +3,7 @@
 -- Overlay: wowsims/forever 6e69a7f4f239c591e9dec4124a93fca6329c240f build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
 -- Dev notes: tools/overrides_devnotes_2026-11-03.json (Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update); https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9) -- post-9 values the captured data does not carry, applied AFTER the 70707 layer; delete a row the day a store capture carries the value (hotfix-watch)
--- Regenerated: 2026-11-03T19:44:27+00:00
+-- Regenerated: 2026-11-03T21:01:49+00:00
 -- 70707 overlay changes in this file (4):
 --   Intimidation: { id = 19577, name = "Intimidation", durationMs = 15000, cooldownMs = 60000, gcdMs = 1500 } -> { id = 19577, name = "Intimidation", durationMs = 15000, cooldownMs = 60000, cooldownCategory = 1132, gcdMs = 1500 }
 --   Aspect of the Hawk: { id = 25296, name = "Aspect of the Hawk", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Rank 7" } -> { id = 14322, name = "Aspect of the Hawk", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Rank 6" }

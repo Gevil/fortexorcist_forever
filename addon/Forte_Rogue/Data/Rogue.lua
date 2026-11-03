@@ -3,11 +3,14 @@
 -- Overlay: wowsims/forever 6e69a7f4f239c591e9dec4124a93fca6329c240f build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
 -- Dev notes: tools/overrides_devnotes_2026-11-03.json (Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update); https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9) -- post-9 values the captured data does not carry, applied AFTER the 70707 layer; delete a row the day a store capture carries the value (hotfix-watch)
--- Regenerated: 2026-11-03T19:44:28+00:00
+-- Regenerated: 2026-11-03T21:01:48+00:00
 -- 70707 overlay changes in this file (3):
 --   Feint: { id = 25302, name = "Feint", cooldownMs = 10000, cooldownCategory = 82, gcdMs = 1000, rank = "Rank 5" } -> { id = 11303, name = "Feint", cooldownMs = 10000, cooldownCategory = 82, gcdMs = 1000, rank = "Rank 4" }
 --   Dismantle: { id = 442206, name = "Dismantle", noTarget = true } -> { id = 442206, name = "Dismantle", noTarget = true, icdMs = 12000 }
 --   Setup: { id = 15250, name = "Setup" } -> { id = 13983, name = "Setup", noTarget = true, icdMs = 1000 }
+-- 70707-sourced rows: no row in the 1.60.1.70425 pull, the row is the 70707 store's capture of the name (2; Warlock pet kit, docs/research/forever-data-gaps.md G6):
+--   Shank (15617)
+--   Death Mark (1325758)
 -- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects`/`MaxStack` answer first, a 70707-picked row inherits the same-id base row's shape, and the 70707 overlay's own feed captures (per-id `periodMs`/`targetCode`/`maxStack` of tools/overrides_70707.json) fill what neither can speak to. This file: 7 tickEvery, 6 maxStack, 18 noTarget.
 --   feeds [13750] Adrenaline Rush: noTarget
 --   feeds [13877] Blade Flurry: noTarget
@@ -65,6 +68,8 @@ ForteXorcist.Data.Rogue = {
   [21975] = { id = 21975, name = "Vigor", noTarget = true, durationMs = -1 },
   [442206] = { id = 442206, name = "Dismantle", noTarget = true, icdMs = 12000 },
   [13983] = { id = 13983, name = "Setup", noTarget = true, icdMs = 1000 },
+  [15617] = { id = 15617, name = "Shank" },
+  [1325758] = { id = 1325758, name = "Death Mark" },
   -- buffs
   [457351] = { id = 457351, name = "Blade Dance", noTarget = true, durationMs = 30000 },
   [400024] = { id = 400024, name = "Cheating Death", noTarget = true, durationMs = 3000 },
@@ -126,6 +131,8 @@ ForteXorcist.Data.RogueByName = {
   ["Vigor"] = 21975,
   ["Dismantle"] = 442206,
   ["Setup"] = 13983,
+  ["Shank"] = 15617,
+  ["Death Mark"] = 1325758,
   ["Blade Dance"] = 457351,
   ["Cheating Death"] = 400024,
   ["Deadly Poison V"] = 25349,

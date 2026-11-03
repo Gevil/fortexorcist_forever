@@ -920,6 +920,70 @@ Four laws now bind the generator chain (`tools/extract_70707.py` →
    module's `Draw` — exactly ONE row with a 300 s window in the Air element
    group. No other tracked totem moved (all already rode window rows).
 
+### 6.3 Wave I-3 H7: the proc names land (2026-11-03, `fx-worker I3e Procs`)
+
+The `H7` proc pass (`docs/design-combat-procs.md`) shipped its data half. A
+deferred proc name moves out of a spell list's `_deferred_H7` note into the
+group its intent matches when — and only when — the client data resolves it:
+an id the wowsims MIT capture (`/tmp/wowsims-forever` @ `6e69a7f4`, the
+`names.json` keys + `spell_store_inputs.json` rows) and the mythicsim base
+spells both carry, resolved by the §6.1 family-scoped rank law. Nothing
+hand-typed; the 2026-11-03 dev-notes removals (Thousand Cuts, Cutthroat,
+Murder, Improved Distract) are excluded by law — none of these names is one.
+The generator chain ran all nine classes; every name below resolves with 0
+gaps. The 12 moves:
+
+| class | name → id | window | carrier note |
+|---|---|---|---|
+| Druid | Clearcasting → 16870 | 15 000 ms | family 7, the §3.1 store row |
+| Mage | Fingers of Frost → 400669 | 15 000 ms | carrier over the bare 401741/400647 twins |
+| Mage | Ignite → 412538 | 4 000 ms | carrier over the bare 11119 |
+| Paladin | Forbearance → 25771 | 60 000 ms | the heal-reduce debuff, target-side |
+| Paladin | Infusion of Light → 437063 | 15 000 ms | carrier over the bare 426065/426179 |
+| Paladin | Vengeance → 20050 | 30 000 ms | `maxStack = 3` (the store row); uncoded-family fallback |
+| Paladin | Vindication → 440667 | 30 000 ms | carrier over the bare 440668 |
+| Shaman | Maelstrom Weapon → 408505 | 30 000 ms | the only carrier of the family-11 trio (§3.1 caveat: the window rides the picked sibling); `maxStack = 5` |
+| Warrior | Enrage → 440483 | 12 000 ms | category 21; the store-coverage rank law (§6.2 law 1) lifts 440483 over the 12880/427066 rank pair — same 12 s window, the §3.1 row-10 value |
+| Warrior | Deep Wounds → 12834 | **none** | the store's value row carries `DurationMs 0`: a name + id row, pinned "tracked by neither" — the bleed window rides the Mortal Strike line, arriving with the S15 extra-spell feed |
+| Rogue | Shank → 15617 | **none** | 70707-sourced `{id, name}` shell (the index-shell law, the `Mesmerize` 24594 shape): the store's 15248/15617 rows are value-less Classic names; post-9's 10 s cd is text-only — the launch-day probe row |
+| Rogue | Death Mark → 1325758 | **none** | as Shank: the 1316709/1325756-8 rows are value-less name shells; post-9's 10 s cd / 6 s mark text-only |
+
+The 14 kept deferred, with the reason class (§3.1/§5.1): **no names.json key**
+— Living Seed, Nature's Grace, Savage Defense, Brain Freeze, Chilled, Ancient
+Power, The Art of War, Serendipity, Surge of Light, Vigilance; **family-law
+gap** (the only id is foreign-family, §6.1 never takes a foreign row) — Mana
+Surge (shaman 11's 23572), Grand Crusader (druid 7's 1231126); **no client
+Names row at all** (the post-9 net-news, ids at opening are the launch probe)
+— Poised, Reckless Swings.
+
+**The eight T1 no-window pins, re-read against the `6e69a7f4` store:** none
+gained a positive window — Thrash 21919 (0), Beacon of Light 409906 (0), Aura
+Mastery 409932 (0), Reckoning 1326084 (−1, +1500 icd), Envenom 399968 (0),
+Dismantle 442206 (0, +12 000 icd), Heroism 23689 (−1), Ancestral Guidance (the
+family-11 rows value-less; the 60 s is family-10 409324). All pins stand
+unchanged.
+
+**The in-combat safety law (the gate this wave required, read off the shipped
+code):** a proc row can never render a *wrong* row from a sealed read —
+`Forte_Timer/Core/Reconcile.lua:80-91` `Gates()` returns true for
+`SecretState.aurasSecret` and for in-combat, so every aura sweep runs ZERO
+reads; a sealed read that does happen returns `nil, "secret"`
+(`Reconcile.lua:158-161`); `SweepBulk` inserts a row only for a plain
+`expire ~= nil` on a tracked name (`:308-311`); `Registry:Build` registers
+only `dur > 0` rows (`Registry.lua:451`); the Cooldown engine ignores
+nil/secret reads outright (`Forte_Cooldown/Core/Engine.lua:210-213`). A sealed
+read yields **no row, not a wrong row** — the proc adds are safe on this
+build.
+
+Colour bands: six new `Registry.lua` `KIND_RULES` terms in `I-3e H7` comment
+blocks (Fingers of Frost / Infusion of Light / Maelstrom Weapon → SelfBuff;
+Ignite / Forbearance → TargetDebuff; Shank → Cooldown); Clearcasting,
+Vengeance, Vindication, Enrage, Deep Wounds (`Wound`), Death Mark (`Mark$`)
+ride shipped terms. `test_kinds.lua` keeps `Default = 0` over every landed
+name. The census mirror: `Forte_Cooldown/tests/test_tracked_set.lua` keeps
+the T1 side (41 / pinned 8) intact, shrinks `T1_DEFERRED` 22 → 14 and adds the
+I-3e landed census (12 landed, 3 pinned no-window).
+
 ## 7. Suggested worker split (3 tickets)
 
 | ticket | owner | scope | touches |

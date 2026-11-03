@@ -3,17 +3,18 @@
 -- Overlay: wowsims/forever 6e69a7f4f239c591e9dec4124a93fca6329c240f build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
 -- Dev notes: tools/overrides_devnotes_2026-11-03.json (Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update); https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9) -- post-9 values the captured data does not carry, applied AFTER the 70707 layer; delete a row the day a store capture carries the value (hotfix-watch)
--- Regenerated: 2026-11-03T19:44:28+00:00
--- 70707 overlay changes in this file (6):
+-- Regenerated: 2026-11-03T21:01:49+00:00
+-- 70707 overlay changes in this file (7):
 --   Charge: { id = 1240289, name = "Charge", cooldownMs = 15000, cooldownCategory = 44, rank = "Rank 3" } -> { id = 27685, name = "Charge", durationMs = 4000, cooldownMs = 25000, cooldownCategory = 44, gcdMs = 1500, rank = "Rank 6" }
 --   Revenge: { id = 25288, name = "Revenge", cooldownMs = 5000, cooldownCategory = 65, gcdMs = 1500, rank = "Rank 6" } -> { id = 11601, name = "Revenge", cooldownMs = 5000, cooldownCategory = 65, gcdMs = 1500, rank = "Rank 5" }
 --   Slam: { id = 1310200, name = "Slam", cooldownMs = 18000, cooldownCategory = 2412, gcdMs = 1500, castMs = 1500, rank = "Rank 5" } -> { id = 1310200, name = "Slam", cooldownMs = 15000, cooldownCategory = 2412, gcdMs = 1500, castMs = 1500, rank = "Rank 5" }
 --   Cripple: { id = 18381, name = "Cripple", durationMs = 30000 } -> { id = 89, name = "Cripple", durationMs = 20000, cooldownMs = 30000, gcdMs = 1500, rank = "Rank 1" }
 --   Taste for Blood: { id = 426969, name = "Taste for Blood", noTarget = true, durationMs = 9000 } -> { id = 426969, name = "Taste for Blood", noTarget = true, durationMs = 9000, icdMs = 5800 }
+--   Enrage: { id = 427066, name = "Enrage", noTarget = true, durationMs = 12000 } -> { id = 440483, name = "Enrage", noTarget = true, durationMs = 12000, cooldownCategory = 21 }
 --   Battle Shout: { id = 25289, name = "Battle Shout", durationMs = 180000, gcdMs = 1500, rank = "Rank 7" } -> { id = 11551, name = "Battle Shout", durationMs = 180000, gcdMs = 1500, rank = "Rank 6" }
 -- Post-9 dev-notes values applied (1):
 --   Slam: cooldownMs 18000 -> 15000 -- post 9: 'Warrior: Slam cooldown 15 s (was 18)'
--- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects`/`MaxStack` answer first, a 70707-picked row inherits the same-id base row's shape, and the 70707 overlay's own feed captures (per-id `periodMs`/`targetCode`/`maxStack` of tools/overrides_70707.json) fill what neither can speak to. This file: 3 tickEvery, 3 maxStack, 29 noTarget.
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects`/`MaxStack` answer first, a 70707-picked row inherits the same-id base row's shape, and the 70707 overlay's own feed captures (per-id `periodMs`/`targetCode`/`maxStack` of tools/overrides_70707.json) fill what neither can speak to. This file: 3 tickEvery, 3 maxStack, 31 noTarget.
 --   feeds [18499] Berserker Rage: noTarget
 --   feeds [2687] Bloodrage: noTarget
 --   feeds [12328] Death Wish: noTarget
@@ -40,6 +41,8 @@
 --   feeds [426979] Sword and Board: noTarget
 --   feeds [426969] Taste for Blood: noTarget
 --   feeds [402975] Victorious: noTarget
+--   feeds [440483] Enrage: noTarget
+--   feeds [12834] Deep Wounds: noTarget
 --   feeds [2457] Battle Stance: noTarget
 --   feeds [2458] Berserker Stance: noTarget
 --   feeds [71] Defensive Stance: noTarget
@@ -107,6 +110,8 @@ ForteXorcist.Data.Warrior = {
   [426979] = { id = 426979, name = "Sword and Board", noTarget = true, durationMs = 5000 },
   [426969] = { id = 426969, name = "Taste for Blood", noTarget = true, durationMs = 9000, icdMs = 5800 },
   [402975] = { id = 402975, name = "Victorious", noTarget = true, durationMs = 20000 },
+  [440483] = { id = 440483, name = "Enrage", noTarget = true, durationMs = 12000, cooldownCategory = 21 },
+  [12834] = { id = 12834, name = "Deep Wounds", noTarget = true },
   -- stances
   [2457] = { id = 2457, name = "Battle Stance", noTarget = true, durationMs = -1, cooldownMs = 1000, cooldownCategory = 47 },
   [2458] = { id = 2458, name = "Berserker Stance", noTarget = true, durationMs = -1, cooldownMs = 1000, cooldownCategory = 47 },
@@ -176,6 +181,8 @@ ForteXorcist.Data.WarriorByName = {
   ["Sword and Board"] = 426979,
   ["Taste for Blood"] = 426969,
   ["Victorious"] = 402975,
+  ["Enrage"] = 440483,
+  ["Deep Wounds"] = 12834,
   ["Battle Stance"] = 2457,
   ["Berserker Stance"] = 2458,
   ["Defensive Stance"] = 71,

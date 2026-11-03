@@ -1031,6 +1031,12 @@
    28412,
    1324459
   ],
+  "Death Mark": [
+   1316709,
+   1325756,
+   1325757,
+   1325758
+  ],
   "Death Wish": [
    12328
   ],
@@ -1055,6 +1061,12 @@
   "Deep Wound": [
    412609,
    412613
+  ],
+  "Deep Wounds": [
+   12162,
+   12834,
+   23255,
+   23256
   ],
   "Defensive Forecast": [
    457814
@@ -1712,6 +1724,12 @@
    1289142,
    1328618
   ],
+  "Fingers of Frost": [
+   400647,
+   400669,
+   400670,
+   401741
+  ],
   "Fire Blast": [
    2136,
    2137,
@@ -1955,6 +1973,9 @@
    16256,
    16257,
    17687
+  ],
+  "Forbearance": [
+   25771
   ],
   "Force of Nature": [
    6913,
@@ -2456,6 +2477,13 @@
    425169,
    429125
   ],
+  "Ignite": [
+   3261,
+   11119,
+   412538,
+   412545,
+   1234540
+  ],
   "Immolate": [
    348,
    707,
@@ -2543,6 +2571,13 @@
    461110,
    461111,
    1220927
+  ],
+  "Infusion of Light": [
+   53672,
+   426065,
+   426179,
+   437063,
+   437877
   ],
   "Inner Fire": [
    588,
@@ -2766,6 +2801,11 @@
    401558,
    401559,
    401744
+  ],
+  "Maelstrom Weapon": [
+   408498,
+   408505,
+   409946
   ],
   "Mage Armor": [
    6117,
@@ -4164,6 +4204,10 @@
    406754,
    1231386
   ],
+  "Shank": [
+   15248,
+   15617
+  ],
   "Shield Bash": [
    72,
    1671,
@@ -4951,6 +4995,12 @@
    14983,
    21975,
    1310708
+  ],
+  "Vindication": [
+   67,
+   9452,
+   440667,
+   440668
   ],
   "Viper Sting": [
    3034,
@@ -7318,6 +7368,17 @@
    "subtext": "Rank 1",
    "v": 1
   },
+  "11119": {
+   "baseLevel": 1,
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "name": "Ignite",
+   "procFlag": 65536,
+   "spellLevel": 1,
+   "v": 1
+  },
   "11129": {
    "baseLevel": 40,
    "castMs": 0,
@@ -9122,6 +9183,15 @@
   "12160": {
    "name": "Rejuvenation"
   },
+  "12162": {
+   "baseLevel": 1,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "name": "Deep Wounds",
+   "spellLevel": 1,
+   "v": 1
+  },
   "1216500": {
    "name": "Drain Mana"
   },
@@ -9699,6 +9769,9 @@
    "name": "Punch Harder",
    "targetCode": 0,
    "v": 1
+  },
+  "1234540": {
+   "name": "Ignite"
   },
   "1234545": {
    "name": "Immolation Aura"
@@ -12125,6 +12198,17 @@
    "spellLevel": 1,
    "v": 1
   },
+  "12834": {
+   "baseLevel": 1,
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 4,
+   "icdMs": 0,
+   "name": "Deep Wounds",
+   "procFlag": 69972,
+   "spellLevel": 1,
+   "v": 1
+  },
   "1284382": {
    "name": "Drain Soul"
   },
@@ -13253,6 +13337,9 @@
    "subtext": "Rank 1",
    "v": 1
   },
+  "1316709": {
+   "name": "Death Mark"
+  },
   "1316865": {
    "name": "Immolate"
   },
@@ -13603,26 +13690,20 @@
    "subtext": "Rank 4",
    "v": 1
   },
+  "1325756": {
+   "name": "Death Mark"
+  },
+  "1325757": {
+   "name": "Death Mark"
+  },
+  "1325758": {
+   "name": "Death Mark"
+  },
   "1325975": {
    "name": "Meathook"
   },
   "1326042": {
    "name": "Drain Soul"
-  },
-  "1326047": {
-   "baseLevel": 60,
-   "castMs": 2500,
-   "category": 1224,
-   "categoryCooldownMs": 10000,
-   "cooldownMs": 0,
-   "durationMs": 0,
-   "family": 11,
-   "gcdMs": 1500,
-   "maxLevel": 68,
-   "name": "Lava Burst",
-   "spellLevel": 60,
-   "subtext": "Rank 4",
-   "v": 1
   },
   "1326057": {
    "name": "Healthstone"
@@ -15673,6 +15754,9 @@
   "15244": {
    "name": "Cone of Cold"
   },
+  "15248": {
+   "name": "Shank"
+  },
   "15250": {
    "castMs": 0,
    "durationMs": 0,
@@ -16019,6 +16103,9 @@
   },
   "15616": {
    "name": "Flame Shock"
+  },
+  "15617": {
+   "name": "Shank"
   },
   "15629": {
    "baseLevel": 30,
@@ -22632,6 +22719,12 @@
   "23207": {
    "name": "Silence"
   },
+  "23255": {
+   "name": "Deep Wounds"
+  },
+  "23256": {
+   "name": "Deep Wounds"
+  },
   "23268": {
    "name": "Shadow Word: Pain"
   },
@@ -23939,6 +24032,14 @@
   "25756": {
    "name": "Purge"
   },
+  "25771": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 60000,
+   "family": 10,
+   "name": "Forbearance",
+   "v": 1
+  },
   "25777": {
    "name": "Thorns"
   },
@@ -24586,9 +24687,6 @@
   },
   "26639": {
    "name": "Drain Mana"
-  },
-  "26650": {
-   "name": "Blessing of Light"
   },
   "26654": {
    "name": "Sweeping Strikes"
@@ -25959,6 +26057,9 @@
    "subtext": "Rank 2",
    "v": 1
   },
+  "3261": {
+   "name": "Ignite"
+  },
   "3355": {
    "baseLevel": 20,
    "castMs": 0,
@@ -26671,6 +26772,28 @@
    "subtext": "Rank 2",
    "v": 1
   },
+  "400647": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "name": "Fingers of Frost",
+   "procFlag": 65536,
+   "spellLevel": 1,
+   "v": 1
+  },
+  "400669": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 15000,
+   "family": 3,
+   "name": "Fingers of Frost",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "400670": {
+   "name": "Fingers of Frost"
+  },
   "401417": {
    "castMs": 0,
    "category": 0,
@@ -26782,6 +26905,14 @@
    "durationMs": 0,
    "family": 3,
    "name": "Frostfire Bolt",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "401741": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "name": "Fingers of Frost",
    "spellLevel": 1,
    "v": 1
   },
@@ -27864,6 +27995,30 @@
    "subtext": "Rank 4",
    "v": 1
   },
+  "408498": {
+   "baseLevel": 1,
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 11,
+   "icdMs": 0,
+   "name": "Maelstrom Weapon",
+   "procFlag": 65556,
+   "spellLevel": 1,
+   "v": 1
+  },
+  "408505": {
+   "baseLevel": 1,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 30000,
+   "family": 11,
+   "icdMs": 0,
+   "maxStack": 5,
+   "name": "Maelstrom Weapon",
+   "procFlag": 81920,
+   "spellLevel": 1,
+   "v": 1
+  },
   "408507": {
    "castMs": 0,
    "category": 0,
@@ -28388,6 +28543,14 @@
    "spellLevel": 1,
    "v": 1
   },
+  "409946": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 11,
+   "name": "Maelstrom Weapon",
+   "spellLevel": 1,
+   "v": 1
+  },
   "409947": {
    "castMs": 0,
    "durationMs": 0,
@@ -28759,6 +28922,21 @@
   },
   "412527": {
    "name": "Shadowform"
+  },
+  "412538": {
+   "baseLevel": 1,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 4000,
+   "family": 3,
+   "icdMs": 0,
+   "name": "Ignite",
+   "periodMs": 2000,
+   "spellLevel": 1,
+   "v": 1
+  },
+  "412545": {
+   "name": "Ignite"
   },
   "412569": {
    "name": "Shadowform"
@@ -29419,17 +29597,6 @@
   "417068": {
    "name": "Rejuvenation"
   },
-  "417141": {
-   "castMs": 0,
-   "categoryCooldownMs": 0,
-   "cooldownMs": 180000,
-   "durationMs": 15000,
-   "family": 7,
-   "gcdMs": 0,
-   "name": "Berserk",
-   "spellLevel": 1,
-   "v": 1
-  },
   "420536": {
    "name": "Stealth"
   },
@@ -30007,6 +30174,23 @@
    "durationMs": 0,
    "family": 11,
    "name": "Decoy Totem",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "426065": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 10,
+   "icdMs": 0,
+   "name": "Infusion of Light",
+   "procFlag": 81920,
+   "v": 1
+  },
+  "426179": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 10,
+   "name": "Infusion of Light",
    "spellLevel": 1,
    "v": 1
   },
@@ -30789,6 +30973,15 @@
    "name": "Soul Harvest",
    "v": 1
   },
+  "437063": {
+   "castMs": 0,
+   "durationMs": 15000,
+   "family": 10,
+   "icdMs": 0,
+   "name": "Infusion of Light",
+   "procFlag": 16384,
+   "v": 1
+  },
   "437169": {
    "baseLevel": 60,
    "castMs": 0,
@@ -30823,6 +31016,9 @@
   },
   "437837": {
    "name": "Holy Nova"
+  },
+  "437877": {
+   "name": "Infusion of Light"
   },
   "437884": {
    "name": "Consecration"
@@ -31171,6 +31367,18 @@
    "name": "Shield of Righteousness",
    "spellLevel": 1,
    "v": 1
+  },
+  "440667": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 30000,
+   "maxLevel": 60,
+   "name": "Vindication",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "440668": {
+   "name": "Vindication"
   },
   "440672": {
    "castMs": 0,
@@ -32684,6 +32892,9 @@
   "534": {
    "name": "Molten Blast"
   },
+  "53672": {
+   "name": "Infusion of Light"
+  },
   "5384": {
    "baseLevel": 30,
    "castMs": 0,
@@ -34009,6 +34220,9 @@
    "spellLevel": 40,
    "targetCode": 0,
    "v": 1
+  },
+  "67": {
+   "name": "Vindication"
   },
   "6713": {
    "name": "Disarm"
@@ -37336,6 +37550,14 @@
    "procFlag": 139944,
    "spellLevel": 32,
    "subtext": "Rank 4",
+   "v": 1
+  },
+  "9452": {
+   "castMs": 0,
+   "durationMs": 0,
+   "icdMs": 0,
+   "name": "Vindication",
+   "procFlag": 20,
    "v": 1
   },
   "9454": {
