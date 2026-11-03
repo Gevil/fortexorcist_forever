@@ -81,7 +81,7 @@ function()
     assertEquals(3000, wild.castMs)
 end)
 
-test("rows the live build removed are gone, Blessing of Light re-lands bare",
+test("rows the live build removed are gone, bare and value-less alike",
 function()
     -- data-diff §2.2: Salvation 1038, Mass Salvation 25895, Greater Blessing
     -- of Light 25890 and Revoke 1325499 have no Names row on 70707. Pre-
@@ -91,13 +91,14 @@ function()
                             "Revoke" }) do
         assertNil(paladinByName[name], name .. " survived into the 70707 data")
     end
-    -- Blessing of Light: the ranked trio 19977/19978/19979 is gone; 26650
-    -- exists in Names with no value row, so the row is name-only (a live
-    -- probe is the launch task; docs/research/forever-data-gaps.md G5).
-    local bol = paladin[paladinByName["Blessing of Light"]]
-    assertNotNil(bol)
-    assertEquals(26650, bol.id)
-    assertNil(bol.durationMs)
+    -- Blessing of Light: wave I-2b pruned it from the spell lists -- the
+    -- post-9 dev notes REMOVE the blessing (docs/research/
+    -- forever-dev-notes-2026-11-03.md §1 Paladin row; docs/class-port.md
+    -- 6.2 item 5). Its 70707 carrier 26650 was a name-only shell (data-gaps
+    -- G5), so nothing of value leaves the data; the name must not return.
+    assertNil(paladinByName["Blessing of Light"],
+        "Blessing of Light was removed on the post-9 notes -- it is out of "
+        .. "the spell lists")
     -- Swift Judgement: the store's Misc row carries DurationMs 0; the
     -- mythicsim row's -1 (a sentinel the generators never emit) is gone.
     local swift = paladin[paladinByName["Swift Judgement"]]

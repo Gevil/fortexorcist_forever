@@ -47,6 +47,37 @@ Locale.englishByItemID = Locale.englishByItemID or {}
 -- the lookup).
 Locale.englishKeys = Locale.englishKeys or {}
 
+-- Static RENAME aliases (wave I-2b, 2026-11-03): a build rename the captured
+-- client data does not carry yet. `name` is the DATA key (the captured
+-- client's spelling, the key the generated data rows ride); `alias` is the
+-- other live spelling of the SAME spell; `id` is the data row's id and
+-- `aliasIDs` every id the alias spelling rides. `CanonicalName` folds the
+-- alias onto the data key, so both spellings keep working on both builds
+-- (pre-rename clients report `name`, the post-9 client reports `alias`);
+-- the data-side twin is the spell lists' `_renames`, which puts the alias
+-- into each class `ByName` table. Sources: Blizzard dev notes post 9
+-- ("Totemic Projection -> Totemic Call, cd 30 s"; "Elemental Mastery ->
+-- Lightning Mastery") vs the 70707 capture (437009 still named Totemic
+-- Projection; 16166 Elemental Mastery with value-less 16579-16582 Lightning
+-- Mastery rows) -- docs/research/upstream-data-2026-11-03.md §5 rows 5-6,
+-- §7 item 4. When a data pull carries the new spelling, the pair FLIPS: the
+-- alias becomes the data key and the old spelling becomes the alias.
+Locale.RenameAliases = {
+    { id = 437009, name = "Totemic Projection", alias = "Totemic Call",
+      aliasIDs = { 437009 } },
+    { id = 16166, name = "Elemental Mastery", alias = "Lightning Mastery",
+      aliasIDs = { 16579, 16580, 16581, 16582 } },
+}
+Locale.renamedToCanonical = {}
+Locale.canonicalByAliasID = {}
+for i = 1, #Locale.RenameAliases do
+    local pair = Locale.RenameAliases[i]
+    Locale.renamedToCanonical[pair.alias] = pair.name
+    for j = 1, #(pair.aliasIDs or {}) do
+        Locale.canonicalByAliasID[pair.aliasIDs[j]] = pair.name
+    end
+end
+
 Locale.state = Locale.state or {
     locale = nil, english = nil, spellsBuilt = false, itemsBuilt = false,
     aliases = 0, lateNames = 0, requests = 0, frame = nil,
@@ -123,10 +154,15 @@ function Locale.LocalizedName(name)
 end
 
 --- client name -> english data key. Unknown names pass through UNCHANGED
---- (never nil): every caller's English behaviour is untouched.
+--- (never nil): every caller's English behaviour is untouched. The static
+--- rename table (Locale.RenameAliases) is consulted after the locale maps:
+--- a build rename is locale-independent (the same English client spells it
+--- the new way), so it folds on enUS too.
 function Locale.CanonicalName(name)
     if type(name) ~= "string" then return name end
-    return Locale.localizedToEnglish[name] or name
+    local canonical = Locale.localizedToEnglish[name]
+    if canonical then return canonical end
+    return Locale.renamedToCanonical[name] or name
 end
 
 --- The data row ids of an English data name (all ranks), for the id-first

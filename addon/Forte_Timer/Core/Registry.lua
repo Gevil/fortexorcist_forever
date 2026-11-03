@@ -159,7 +159,11 @@ local KIND_RULES = {
         -- T1 (docs/class-port.md 6.1): the new HoT casts (Druid.lua:62,
         -- Priest.lua:35). Beacon of Light is the original's `F.BUFF` row and
         -- rides Buff; Holy Shock is its AddCooldown row and rides Cooldown.
-        "^Lifebloom", "^Renew",} },
+        "^Lifebloom", "^Renew",
+        -- Wave I-2b (docs/class-port.md 6.2): Bloom (1328621) is the 2026
+        -- druid talent on the Wild Growth line this band already carries --
+        -- a heal-over-time, the Lifebloom family.
+        "^Bloom",} },
     { key = "Channel", terms = {
         "Channel", "^Volley", "^Rain of Fire", "^Blizzard", "^Trance",
         "Trance", "^Evocation", "^Drain Soul", "^Drain Life", "^Drain Mana",
@@ -183,6 +187,11 @@ local KIND_RULES = {
         -- Fire Blast (Mage.lua:80), Mind Blast (Priest.lua:54), Lava Burst
         -- (Shaman.lua:39), Holy Shock (Paladin.lua:98, leaving the Heal band).
         "^Fire Blast", "^Mind Blast", "^Lava Burst", "^Holy Shock",
+        -- Wave I-2b (docs/class-port.md 6.2): Ice Lance is a 2026 spell the
+        -- 2012 original never registered; its data row is a pure 8 s cast
+        -- cadence (cooldownMs 8000, no aura, no target window) -- the Fire
+        -- Blast family this band's T1 block above carries.
+        "^Ice Lance",
         -- T1 (docs/class-port.md 6.1): Beacon of Light -- the original's
         -- `AddSpell(53563, 1, "Buff", F.BUFF)` (Paladin.lua:22).
         "^Beacon of Light",
@@ -245,6 +254,11 @@ local KIND_RULES = {
         "^Widow Sting", "^Disease Cloud", "^Frost Fever", "^Infected Bites",
         "^Immolation Trap", "^Explosive Trap", "^Black Arrow Trap",
         "Shot$", "Judgement", "^Exorcism", "^Redemption", "on Hands",
+        -- Wave I-2b (docs/class-port.md 6.2): the druid's feral finisher line
+        -- this band's bleeds ride (Ferocious Bite is the 2026 bite of the Rip
+        -- / Rake family); Shieldsworn is the paladin Judgement echo's window
+        -- ON THE TARGET (the "Judgement" term above is its parent line).
+        "^Ferocious Bite", "^Shieldsworn",
     } },
     { key = "SelfBuff", terms = {
         "Ward$", "^Aspect", "Aspect of", "^Armor", "^Ice Barrier",
@@ -324,6 +338,14 @@ local KIND_RULES = {
         -- druid Dash/Berserk pair and the paladin Aura Mastery ride the
         -- shipped terms above (Dash/Berserk land Buff there).
         "^Starfall", "^Holy Shield", "^Envenom", "^Heroism", "^Stormstrike",
+        -- Wave I-2b (docs/class-port.md 6.2): the 2026 casts that are a window
+        -- of their own -- Dark Inspiration (1326168, the priest's 10 s haste
+        -- proc aura), Setup (13983, the rogue's self parry stance), Oath of
+        -- Light (1328548, the paladin's 5 min self oath aura), and the Echo of
+        -- Fury / Echo of Command proc stacks (1311701/1311703, maxStack 3) --
+        -- this band's "generated proc windows" family.
+        "^Dark Inspiration", "^Setup", "^Oath of Light",
+        "^Echo of Fury", "^Echo of Command",
     } },
 }
 

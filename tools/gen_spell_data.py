@@ -29,6 +29,36 @@ in-family bare row > uncoded bare row > gap. Every name resolved by an uncoded
 row is reported as an info line "<name> -> <id> (uncoded fallback)" so the
 resolution is auditable, never silent.
 
+**Rank law: store coverage beats a value-less top** (wave I-2b,
+2026-11-03, upstream-data §7.7): when the 70707 store covers a tracked name
+(its `Names` table has rows for it), the pick key carries a
+`store-coverage` leg ABOVE the id tiebreak: a candidate the store covers
+with a value row or a Levels capture outranks a candidate the store names
+value-less. The hazard this kills: Primal Bite shipped Rank 4 (`1238073`,
+value-less in the live store -- the 2026-11-03 notes reduce the ladder to 3
+ranks) while the store's ranked top is Rank 3 (`1238070`, L60, the 6 s
+category 971) -- the same shape as the `Polymorph` -> "Odd Melon" hazard of
+data-diff-70707.md §2.4, now closed for the value-less-top family.
+
+**Post-9 dev-notes overrides** (wave I-2b): `tools/overrides_devnotes_2026-11-
+03.json` (hand-kept, every row cites the 2026-11-03 Blizzard development
+notes, post 9) carries the few values NO data source has captured yet (Slam
+cooldown 15 s, Stormstrike 6 s, Riptide 12 s, Orc Blood Fury 120 s). The
+generator applies it AFTER the 70707 layer (a post-9 note is fresher than
+the store capture); the file's name and every applied row are listed in the
+generated header. It is a pin, not a hand edit: the generated file stays a
+pure function of (spell lists + base data + the two overlay files), so
+`scripts/gate.py`'s determinism law stands. Delete a row the day a store
+capture carries the value (hotfix-watch, upstream-data §7 item 6).
+
+**Rename aliases** (wave I-2b): a spell-list file may carry `_renames` =
+{data name: the build's other spelling} (Totemic Projection <-> Totemic
+Call, Elemental Mastery <-> Lightning Mastery, dev notes post 9). The
+generator resolves the DATA name only and adds the alias spelling as an
+extra `ByName` key (both spellings find the same row); the runtime twin of
+the pair list is `Forte_Core/Core/Locale.lua`'s `Locale.RenameAliases`,
+which folds the alias through `CanonicalName` for name-keyed consumers.
+
 **Companion-row shadows** (2026-11-01, agent `DataWave`): a *companion row* is a
 trigger row whose only effect applies the real spell's aura (single Effect
 Type=6, Aura=332, BasePoints = the real spell's ID) and which carries **no**
@@ -112,14 +142,19 @@ reads three today -- `Registry:Build`):
   any non-caster effect -- and a row with no captured effect at all -- is
   never marked (absence is not evidence).
 
-**These three are BASE-DATA-ONLY.** They ride the mythicsim `spells.jsonl`
-rows (`Effects[]`, `MaxStack`); the checked-in 70707 overlay carries NONE of
-them -- `tools/overrides_70707.json` captures per id only
-name/castMs/durationMs/spellLevel/family/category/categoryCooldownMs/
-cooldownMs/gcdMs/subtext/baseLevel/icdMs/maxLevel/procFlag -- so the overlay
-can not add, remove or move a feed: a 70707-sourced row (the Warlock pet kit,
-the Blessing of Light shell) and a store-rank row (Charge Rank 6 27685) carry
-no feeds by construction. The generated header states this per file.
+**These feeds ride the BASE rows and the 70707 feed captures** (wave I-2b,
+2026-11-03, upstream-data note §7.5; was "base-data-only" through wave 4): the
+70707 overlay now captures per id `periodMs` (smallest positive
+`Effects[].PeriodMs`), `targetCode` (the `Targets` scalar, the client
+SpellEffectTargetingCategory code, 1 = the caster) and `maxStack`
+(`AuraOptions.MaxStack` above 1). A row that HAS captured base `Effects`
+answers for itself (the base data stays authoritative for its own shape);
+the store captures fill the fields the picked row cannot speak to, and a
+70707-picked row (a store-rank pick like Primal Bite 1238070, a store-sourced
+row like Oath of Light 1328548) also inherits the same-id base row's feed
+shape -- that is what stops a 70707 pick from dropping a feed (the five drops
+measured in upstream-data §2.2: Dash, Pounce Bleed, Reckoning, Dismantle,
+Heroism). The generated header states the law per file.
 
 `icdMs` (D2 G2, the strict join per Main's D3 review 2026-11-02): the
 internal cooldown a proc/proc-like spell rides, from mythicsim `ICDMs`
@@ -168,6 +203,10 @@ DEFAULT_MANIFEST = REPO_ROOT.parent / "mythicsim-forever-engine" / "data" / "man
 # The checked-in 70707 overlay (tools/extract_70707.py output; wowsims/forever,
 # MIT). Absent file = pure 70425 run, with the header saying so.
 DEFAULT_OVERRIDES = HERE / "overrides_70707.json"
+# The post-9 dev-notes layer (hand-kept, wave I-2b): the values NO captured
+# data source carries yet, applied after the 70707 layer. Absent file = the
+# layer is out, with the header saying so.
+DEFAULT_DEVNOTES = HERE / "overrides_devnotes_2026-11-03.json"
 
 # Rank texts that are ranks, not skins: `Rank N` plus the known unnumbered
 # labels the store uses. Anything else ("Odd Melon", "Racial") is a
@@ -220,6 +259,52 @@ def load_overrides(path: pathlib.Path) -> dict | None:
         "spells": {int(k): v for k, v in raw["spells"].items()},
         "names": raw["nameIndex"],
     }
+
+
+def load_devnotes(path: pathlib.Path) -> dict | None:
+    """tools/overrides_devnotes_2026-11-03.json with numeric ids, or None."""
+    if not path.exists():
+        return None
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        "meta": raw["_meta"],
+        "file": path.name,
+        "spells": {int(k): v for k, v in raw["spells"].items()},
+    }
+
+
+# The dev-notes fields the layer may set, mapped to the row field they win.
+_DEVNOTES_FIELDS = {
+    "cooldownMs": "CooldownMs", "categoryCooldownMs": "CategoryCooldownMs",
+    "gcdMs": "GCDMs", "castMs": "CastTimeMs", "durationMs": "DurationMs",
+    "category": "Category",
+}
+
+
+def devnotes_apply(row: dict, dn: dict | None) -> tuple[dict, list[str]]:
+    """Apply the post-9 dev-notes values AFTER the 70707 layer (the notes
+    are a 2026-11-03 delta the store capture has not absorbed; upstream-data
+    §5). A cooldown field folds like the overlay's reading rule: the pair's
+    max is the cooldown. Returns (row, applied-descriptions)."""
+    if dn is None:
+        return row, []
+    drow = dn["spells"].get(row.get("ID"))
+    if not drow:
+        return row, []
+    out = dict(row)
+    applied: list[str] = []
+    cd, catcd = drow.get("cooldownMs"), drow.get("categoryCooldownMs")
+    if cd is not None or catcd is not None:
+        old = out.get("CooldownMs") or out.get("CategoryCooldownMs")
+        out["CooldownMs"] = max(cd or 0, catcd or 0)
+        out["CategoryCooldownMs"] = None
+        applied.append(f"cooldownMs {old} -> {out['CooldownMs']}")
+    for key_in, key_out in ((k, v) for k, v in _DEVNOTES_FIELDS.items()
+                            if k not in ("cooldownMs", "categoryCooldownMs")):
+        if key_in in drow:
+            applied.append(f"{key_in} {out.get(key_out)} -> {drow[key_in]}")
+            out[key_out] = drow[key_in]
+    return out, applied
 
 
 def is_variant_rank(subtext: str | None) -> bool:
@@ -279,6 +364,12 @@ def overlay_rows(ov: dict, name: str, family: int | None,
             "ICDMs": row.get("icdMs"),
             "SpellLevel": row.get("spellLevel"),
             "MaxLevel": row.get("maxLevel"),
+            # The store's own feed captures (I-2b, §7.5): a store row carries
+            # the shape the store saw, and row_feeds reads them when the row
+            # has no base Effects to answer from.
+            "_periodMs": row.get("periodMs"),
+            "_maxStack": row.get("maxStack"),
+            "_targetCode": row.get("targetCode"),
             "_fam": fam,
             "_store": True,
         })
@@ -378,6 +469,13 @@ def overlay_apply(row: dict, ov: dict | None) -> dict:
                             ("castMs", "CastTimeMs"), ("category", "Category")):
         if key_in in srow:
             out[key_out] = srow[key_in]
+    # Feed captures ride the merged row (I-2b, §7.5): they are the store's
+    # word on the periodic/target/stack SHAPE, read only by row_feeds and
+    # only where the row's own base Effects can not answer.
+    for feed_in, feed_out in (("periodMs", "_periodMs"), ("maxStack", "_maxStack"),
+                              ("targetCode", "_targetCode")):
+        if feed_in in srow:
+            out[feed_out] = srow[feed_in]
     if srow.get("subtext"):
         out["Rank"] = srow["subtext"]
     out["_cat_any"] = True
@@ -415,21 +513,30 @@ def row_carries(row: dict) -> bool:
                 or row.get("DurationMs"))
 
 
-def pick_current_rank(rows: list[dict], cast_aware: bool = False) -> dict:
+def pick_current_rank(rows: list[dict], cast_aware: bool = False,
+                      store_covered: set[int] | None = None) -> dict:
     """Rank by (carries a window, carries a cooldown, MaxLevel/SpellLevel,
-    [casts on a cast time], ID).
+    [casts on a cast time], [store coverage], ID).
 
     Rows carrying CooldownMs/CategoryCooldownMs/DurationMs beat bare companion
     rows; among carriers the CD-carrier rule wins, then level, then -- with
     cast_aware (the overlay run) -- rows that CAPTURE a cast time: a summon
     line's real cast row (Summon Felhunter 691: fam 5, 10 s cast, permanent)
     outranks an equal-level family-less no-cast shell (8176: 10-minute
-    duration, no family -- the D3 review pick), then ID."""
+    duration, no family -- the D3 review pick), then -- with store_covered
+    (the wave I-2b rank law, upstream-data §7.7) -- rows the store covers
+    with a value row or a Levels capture beat a value-less name shell (the
+    Primal Bite Rank 4 1238073 over the store's ranked top 1238070), then ID.
+    store_covered is passed only when the store covers the name, so a name
+    the store does not cover is bit-identical to the pre-I-2b pick."""
     def key(r: dict):
         has_cd = bool(r.get("CooldownMs") or r.get("CategoryCooldownMs"))
         level = r.get("MaxLevel") or r.get("SpellLevel") or 0
         has_cast = bool(r.get("CastTimeMs")) if cast_aware else False
-        return (row_carries(r), has_cd, level, has_cast, r.get("ID", 0))
+        cover = 1
+        if store_covered is not None:
+            cover = 1 if r.get("ID", 0) in store_covered else 0
+        return (row_carries(r), has_cd, level, has_cast, cover, r.get("ID", 0))
     return max(rows, key=key)
 
 
@@ -465,16 +572,26 @@ def _seconds(ms: float) -> str:
     return ("%.4f" % sec).rstrip("0").rstrip(".")
 
 
-def row_feeds(row: dict) -> tuple[int, int, bool]:
-    """The row's (tickMs, maxStack, casterOnly) feed triple, read out of the
-    BASE row only -- see the module docstring's feed-column section.
+def row_feeds(row: dict, base_row: dict | None = None) -> tuple[int, int, bool]:
+    """The row's (tickMs, maxStack, casterOnly) feed triple.
 
-    tickMs: the smallest positive `Effects[].PeriodMs` (0 = the row has no
-    periodic effect, so no tick schedule). maxStack: `MaxStack` when it is
-    above 1, else 0. casterOnly: every captured effect lands on
-    `CASTER_TARGET_CODE` -- a row with NO captured effect answers False
-    (absence is not evidence, and a 70707-sourced row has none)."""
+    Sources, in order (the I-2b law, upstream-data §7.5): the row's OWN
+    captured base `Effects`/`MaxStack`; for a row picked out of the store
+    (no base `Effects` of its own) the SAME-ID base data row (`base_row`);
+    then the 70707 feed captures the row carries (`_periodMs`, `_maxStack`,
+    `_targetCode` from the overlay). A capture fills a field the earlier
+    source can not speak to -- it never overwrites a base answer.
+
+    tickMs: the smallest positive `PeriodMs` (0 = no periodic effect, so no
+    tick schedule). maxStack: `MaxStack` when it is above 1, else 0.
+    casterOnly: every captured effect lands on `CASTER_TARGET_CODE`; with no
+    captured effect at all the store's `targetCode` capture answers (1 = the
+    caster); no answer is False (absence is not evidence)."""
     effects = row_effects(row)
+    max_stack_owner = row
+    if not effects and base_row is not None:
+        effects = row_effects(base_row)
+        max_stack_owner = base_row
     tick_ms = 0
     caster_only = bool(effects)
     for eff in effects:
@@ -485,7 +602,16 @@ def row_feeds(row: dict) -> tuple[int, int, bool]:
         if not (isinstance(target, list) and target
                 and target[0] == CASTER_TARGET_CODE):
             caster_only = False
-    stacks = _num(row.get("MaxStack"))
+    if tick_ms == 0:
+        cap = _num(row.get("_periodMs"))
+        if cap is not None and cap > 0:
+            tick_ms = int(cap)
+    stacks = _num(max_stack_owner.get("MaxStack"))
+    if stacks is None:
+        stacks = _num(row.get("_maxStack"))
+    if not caster_only and not effects:
+        code = _num(row.get("_targetCode"))
+        caster_only = code is not None and int(code) == CASTER_TARGET_CODE
     return tick_ms, (int(stacks) if stacks is not None and stacks > 1 else 0), caster_only
 
 
@@ -493,9 +619,10 @@ def lua_escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def emit_entry(row: dict, icd: int = 0) -> str:
+def emit_entry(row: dict, icd: int = 0,
+               feeds: tuple[int, int, bool] | None = None) -> str:
     fields = [f'id = {row["ID"]}', f'name = "{lua_escape(row.get("Name",""))}"']
-    tick_ms, max_stack, caster_only = row_feeds(row)
+    tick_ms, max_stack, caster_only = feeds if feeds is not None else row_feeds(row)
     if tick_ms:
         fields.append(f'tickEvery = {_seconds(tick_ms)}')
     if max_stack:
@@ -533,6 +660,9 @@ def main() -> int:
     ap.add_argument("--manifest", type=pathlib.Path, default=DEFAULT_MANIFEST)
     ap.add_argument("--overrides", type=pathlib.Path, default=DEFAULT_OVERRIDES,
                     help="the checked-in 70707 overlay (tools/extract_70707.py)")
+    ap.add_argument("--devnotes", type=pathlib.Path, default=DEFAULT_DEVNOTES,
+                    help="the post-9 dev-notes layer (Blizzard dev notes post 9, "
+                         "2026-11-03; applied after the 70707 layer)")
     ap.add_argument("--no-overlays", action="store_true",
                     help="pure 70425 run: ignore the 70707 overlay (debug)")
     ap.add_argument("--dry", action="store_true",
@@ -565,21 +695,49 @@ def main() -> int:
         build = json.loads(args.manifest.read_text()).get("client_build", "unknown")
 
     ov = None if args.no_overlays else load_overrides(args.overrides)
+    dn = None if args.no_overlays else load_devnotes(args.devnotes)
+    # Rename aliases (wave I-2b): {data name: the build's other spelling}.
+    renames = dict(spec.get("_renames") or {})
 
-    groups: dict[str, list[tuple[str, dict, int]]] = {}
+    groups: dict[str, list[tuple[str, dict, int, tuple[int, int, bool]]]] = {}
     gaps: list[str] = []
     fallbacks: list[str] = []  # names resolved onto uncoded (Family 0/absent) rows
     shadows: list[str] = []    # names whose pick moved from a bare companion to a data row
     changes: list[str] = []    # per-name emitted-row diffs vs the pure-70425 baseline
     removed_report: list[str] = []  # rows dropped because 70707 removed the id
     sourced: list[str] = []    # rows with no 70425 base (70707-sourced, pet kit)
+    devnotes_applied: list[str] = []  # rows a post-9 dev-notes value moved
+    resolved_ids: dict[str, int] = {}  # name -> picked id (the rename alias join)
 
-    def rank_pick(rows_in: list[dict], store_aware: bool):
+    def _row_duration(r: dict) -> int:
+        d = r.get("DurationMs")
+        return d if type(d) == int else 0
+
+    def rank_pick(rows_in: list[dict], store_aware: bool,
+                  store_covered: set[int] | None = None,
+                  totem_window: bool = False):
         """The tier ladder: in-family carrier > uncoded carrier (fallback) >
         in-family bare > uncoded bare. With store_aware, 70707 rows carry the
         family law on the store's own code: a family-less store row rides the
         in-family pool (it is the build's capture of THIS name, not a foreign
-        twin -- the Charge Rank 6 row 27685 has no ClassOptions row)."""
+        twin -- the Charge Rank 6 row 27685 has no ClassOptions row). With
+        store_covered (the I-2b rank law) the pick also requires the store's
+        Levels/value coverage where the store covers the name. With
+        totem_window (the I-2b totem-window law, a `... Totem` CAST name):
+        carriers whose DurationMs is below the largest captured window drop
+        out of the pick -- the short rows sharing a totem's name are its
+        proc/trigger auras (Windfury Totem's 1000 ms Rank-3 twin 10610, the
+        PF-captured family), and the row that stands is the summon window
+        the element slot draws (the store's 10613/10614 300 000, upstream-data
+        §4.2; Forte_Shaman/Core/Totems.lua:SlotSpellNames reads the slots
+        under the same name shape)."""
+        if totem_window:
+            carriers = [r for r in rows_in if row_carries(r)]
+            if carriers:
+                top = max(_row_duration(r) for r in carriers)
+                rows_in = [r for r in rows_in
+                           if not row_carries(r)
+                           or _row_duration(r) >= top]
         def own_pred(r: dict) -> bool:
             fam = row_family(r)
             if store_aware and r.get("_store") and not fam:
@@ -594,13 +752,13 @@ def main() -> int:
         own_carriers = [r for r in own if row_carries(r)]
         uncoded_carriers = [r for r in uncoded if row_carries(r)]
         if own_carriers:
-            return pick_current_rank(own_carriers, store_aware), False
+            return pick_current_rank(own_carriers, store_aware, store_covered), False
         if uncoded_carriers:
-            return pick_current_rank(uncoded_carriers, store_aware), True
+            return pick_current_rank(uncoded_carriers, store_aware, store_covered), True
         if own:  # all in-family rows are bare: the family row still wins
-            return pick_current_rank(own, store_aware), False
+            return pick_current_rank(own, store_aware, store_covered), False
         if uncoded:
-            return pick_current_rank(uncoded, store_aware), True
+            return pick_current_rank(uncoded, store_aware, store_covered), True
         return None, False
 
     def collect(group: str, names: list[str]):
@@ -613,13 +771,34 @@ def main() -> int:
                     if r.get("ID") not in book and r.get("ID") not in removed_ids]
             ov_rows = (overlay_rows(ov, n, family, pool_empty=not pool)
                        if ov is not None else [])
+            # The I-2b rank law's coverage set: ids the store covers with a
+            # value row or a Levels capture (upstream-data §7.7). The law is
+            # armed only when the store covers the name AND at least one of
+            # its rows is covered -- every name the store names value-less
+            # (a pure shell family, e.g. Blessing of Light 26650) keeps the
+            # pre-I-2b ladder bit-identical.
+            store_covered: set[int] | None = None
+            if ov is not None and n in ov["names"]:
+                covered = set()
+                for sid in ov["names"][n]:
+                    srow = ov["spells"].get(sid) or {}
+                    if (srow.get("v") or srow.get("spellLevel")
+                            or srow.get("baseLevel") or srow.get("maxLevel")):
+                        covered.add(sid)
+                if covered:
+                    store_covered = covered
             # Baseline: the row the pre-70707 pipeline emitted (pure mythicsim,
             # no book/removed filter, no overlay) -- the header change list is
             # the diff of the final row against this.
-            base, _ = rank_pick(rows, store_aware=False)
+            # The totem-window law rides the name shape Totems.lua uses
+            # (`Totem%d*$`): a `... Totem` cast name picks its summon window.
+            totem_cast = n.endswith("Totem")
+            base, _ = rank_pick(rows, store_aware=False, totem_window=totem_cast)
             base_text = emit_entry(base) if base is not None else None
 
-            picked, is_fallback = rank_pick(pool + ov_rows, store_aware=True)
+            picked, is_fallback = rank_pick(pool + ov_rows, store_aware=True,
+                                            store_covered=store_covered,
+                                            totem_window=totem_cast)
             if picked is None:
                 if removed_here:
                     # The name is gone from the 70707 build: reported once as
@@ -660,14 +839,23 @@ def main() -> int:
                         shadows.append(f"{n} -> {picked['ID']} (companion-row shadow: bare "
                                        f"{prev.get('ID')} ranked above it on level/ID)")
             out_row = overlay_apply(picked, ov)
+            out_row, applied = devnotes_apply(out_row, dn)
+            if applied:
+                cite = (dn["spells"].get(out_row.get("ID")) or {}).get("cite", "")
+                devnotes_applied.append(
+                    f"{n}: " + ", ".join(applied)
+                    + (f" -- post 9: {cite!r}" if cite else ""))
             icd = spell_icd(picked, out_row, ov, rows + ov_rows)
+            base_by_id = {r.get("ID"): r for r in rows}
+            feeds = row_feeds(out_row, base_by_id.get(out_row.get("ID")))
             if base_text is None:
                 sourced.append(f"{n} ({picked['ID']})")
             else:
-                entry = emit_entry(out_row, icd)
+                entry = emit_entry(out_row, icd, feeds)
                 if entry != base_text:
                     changes.append(f"{n}: {base_text} -> {entry}")
-            groups.setdefault(group, []).append((n, out_row, icd))
+            resolved_ids[n] = out_row["ID"]
+            groups.setdefault(group, []).append((n, out_row, icd, feeds))
 
     for group, val in spec.items():
         if group.startswith("_"):
@@ -696,9 +884,11 @@ def main() -> int:
         for s in sourced:
             print(f"  70707-sourced: {s}")
         for entries in groups.values():
-            for name, row, icd in entries:
+            for name, row, icd, feeds in entries:
                 if name in CD_SAMPLE_NAMES:
-                    print(f"  sample [{row['ID']}] {name}: {emit_entry(row, icd)}")
+                    print(f"  sample [{row['ID']}] {name}: {emit_entry(row, icd, feeds)}")
+        for d in devnotes_applied:
+            print(f"  devnotes: {d}")
         return 0
 
     class_title = klass.capitalize()
@@ -718,11 +908,23 @@ def main() -> int:
     else:
         lines.append("-- Overlay: NONE (tools/overrides_70707.json missing) -- values are pure "
                       f"{build}")
+    if dn is not None:
+        dm = dn["meta"]
+        lines.append(f"-- Dev notes: tools/{dn['file']} ({dm['source']}; "
+                      f"{dm['source_url']}) -- post-9 values the captured data does not "
+                      f"carry, applied AFTER the 70707 layer; delete a row the day a "
+                      f"store capture carries the value (hotfix-watch)")
+    else:
+        lines.append(f"-- Dev notes: NONE (tools/{DEFAULT_DEVNOTES.name} missing)")
     lines.append(f"-- Regenerated: {datetime.now(timezone.utc).isoformat(timespec='seconds')}")
     if changes:
         lines.append(f"-- 70707 overlay changes in this file ({len(changes)}):")
         for c in changes:
             lines.append(f"--   {c}")
+    if devnotes_applied:
+        lines.append(f"-- Post-9 dev-notes values applied ({len(devnotes_applied)}):")
+        for d in devnotes_applied:
+            lines.append(f"--   {d}")
     if removed_report:
         lines.append(f"-- Rows dropped on 70707 ({len(removed_report)}):")
         for r in removed_report:
@@ -733,23 +935,25 @@ def main() -> int:
                       f"docs/research/forever-data-gaps.md G6):")
         for s in sourced:
             lines.append(f"--   {s}")
-    all_rows = [(name, row) for entries in groups.values() for name, row, _i in entries]
-    ticked = [(n, r) for n, r in all_rows if row_feeds(r)[0]]
-    stacked = [(n, r) for n, r in all_rows if row_feeds(r)[1]]
-    self_only = [(n, r) for n, r in all_rows if row_feeds(r)[2]]
+    all_rows = [(name, row, feeds) for entries in groups.values()
+                for name, row, _i, feeds in entries]
+    ticked = [(n, r) for n, r, f in all_rows if f[0]]
+    stacked = [(n, r) for n, r, f in all_rows if f[1]]
+    self_only = [(n, r) for n, r, f in all_rows if f[2]]
     lines.append("-- Feed columns (docs/design-spell-timer.md §3.4; read by "
                   "Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic "
-                  "effect's period in SECONDS (base row `Effects[].PeriodMs`), `maxStack` "
-                  "= the row's own `MaxStack` when above 1, `noTarget` = every captured "
-                  "effect targets the CASTER (effect `Target[0]` == 1). BASE DATA ONLY: "
-                  "the 70707 overlay captures no Effects/MaxStack/Target (see "
-                  "tools/overrides_70707.json's per-id keys), so it can not add, remove or "
-                  f"move a feed -- a 70707-sourced or store-rank row carries none. "
+                  "effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the "
+                  "aura's `MaxStack` when above 1, `noTarget` = every captured effect "
+                  "targets the CASTER (effect `Target[0]` == 1). Feed sources (wave "
+                  "I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own "
+                  "base `Effects`/`MaxStack` answer first, a 70707-picked row inherits "
+                  "the same-id base row's shape, and the 70707 overlay's own feed "
+                  "captures (per-id `periodMs`/`targetCode`/`maxStack` of "
+                  "tools/overrides_70707.json) fill what neither can speak to. "
                   f"This file: {len(ticked)} tickEvery, {len(stacked)} maxStack, "
                   f"{len(self_only)} noTarget.")
     for group, entries in groups.items():
-        for name, row, _icd in entries:
-            t_ms, m_stack, caster = row_feeds(row)
+        for name, row, _icd, (t_ms, m_stack, caster) in entries:
             tags = []
             if t_ms:
                 tags.append(f"tickEvery = {_seconds(t_ms)}")
@@ -770,8 +974,8 @@ def main() -> int:
     lines.append(f"ForteXorcist.Data.{class_title} = {{")
     for group, entries in groups.items():
         lines.append(f"  -- {group}")
-        for name, row, icd in entries:
-            lines.append(f"  [{row['ID']}] = {emit_entry(row, icd)},")
+        for name, row, icd, feeds in entries:
+            lines.append(f"  [{row['ID']}] = {emit_entry(row, icd, feeds)},")
     lines.append("}")
     lines.append("")
     # name -> id lookup, needed by the cast-predict pattern (a cast's spellID and the
@@ -779,9 +983,18 @@ def main() -> int:
     # solve this by matching on name instead of ID).
     lines.append(f"ForteXorcist.Data.{class_title}ByName = {{")
     for group, entries in groups.items():
-        for name, row, _icd in entries:
+        for name, row, _icd, _f in entries:
             lines.append(f'  ["{lua_escape(name)}"] = {row["ID"]},')
+    alias_notes = []
+    for canon, alias in renames.items():  # spell-list order, deterministic
+        if canon in resolved_ids:
+            lines.append(f'  ["{lua_escape(alias)}"] = {resolved_ids[canon]},')
+            alias_notes.append(f"{alias} -> {canon} ({resolved_ids[canon]})")
     lines.append("}")
+    if alias_notes:
+        lines.insert(len(lines) - 1, "  -- rename aliases (spell-list `_renames`; the runtime "
+                                     "twin is Forte_Core/Core/Locale.lua RenameAliases): "
+                                     + ", ".join(alias_notes))
     lines.append("")
 
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

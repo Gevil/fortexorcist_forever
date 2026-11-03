@@ -1,5 +1,5 @@
 {
-  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Paladin tracks (class is spelled Paladin in this project; the data's item rows say 'Paladin'). gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped. Forever renames vs Cata: Divine Protection(defensive)->Templar's Bulwark, Divine Wrath->Avenging Wrath, Hammer of Justice->Voice of Truth, Redemption->Redemption, Avenging Shield proc present. No Steed spells and no Crusader Aura exist in this build's data (the classic Paladin has Righteous Fury as its tank stance). Ancestral Guidance (also Shaman), Rebuke (also Rogue) and Divine Protection (also Priest) resolve to Paladin rows via the generator's family-scoped rank resolution; the Templar's Bulwark cooldown is the paladin defensive CD side, the Divine Protection buff-window is tracked here. T1 (2026-11-02, docs/class-port.md 6.1 + PLAN 11.1 Q1 ruling): the reference's CAST spells are added -- cooldowns += Holy Shield, Holy Shock; buffs += Beacon of Light, Reckoning, Aura Mastery (of the three, Holy Shield 20928 + Holy Shock 1311606 ride a 10 s window and are tracked; Beacon of Light 409906, Reckoning 1326084 (durationMs -1) and Aura Mastery 409932 carry no window on this build -- the pinned list in Forte_Cooldown/tests/test_tracked_set.lua). The reference's proc/passive names (see _deferred_H7) ride with H7 (docs/design-combat-procs.md); Grand Crusader is on that list because its only row (1231126) is filed Family 7 (Druid), so the family law leaves it a gap here.",
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Paladin tracks (class is spelled Paladin in this project; the data's item rows say 'Paladin'). gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped. Forever renames vs Cata: Divine Protection(defensive)->Templar's Bulwark, Divine Wrath->Avenging Wrath, Hammer of Justice->Voice of Truth, Redemption->Redemption, Avenging Shield proc present. No Steed spells and no Crusader Aura exist in this build's data (the classic Paladin has Righteous Fury as its tank stance). Ancestral Guidance (also Shaman), Rebuke (also Rogue) and Divine Protection (also Priest) resolve to Paladin rows via the generator's family-scoped rank resolution; the Templar's Bulwark cooldown is the paladin defensive CD side, the Divine Protection buff-window is tracked here. T1 (2026-11-02, docs/class-port.md 6.1 + PLAN 11.1 Q1 ruling): the reference's CAST spells are added -- cooldowns += Holy Shield, Holy Shock; buffs += Beacon of Light, Reckoning, Aura Mastery (of the three, Holy Shield 20928 + Holy Shock 1311606 ride a 10 s window and are tracked; Beacon of Light 409906, Reckoning 1326084 (durationMs -1) and Aura Mastery 409932 carry no window on this build -- the pinned list in Forte_Cooldown/tests/test_tracked_set.lua). The reference's proc/passive names (see _deferred_H7) ride with H7 (docs/design-combat-procs.md); Grand Crusader is on that list because its only row (1231126) is filed Family 7 (Druid), so the family law leaves it a gap here. Wave I-2b (2026-11-03, upstream-data §5.1/§7.9 + Blizzard dev notes post 9): the four post-9-removed names are PRUNED from this list (Blessing of Light, Salvation, Mass Salvation, Revoke -- the Salvasions and Revoke were already dropped by the 70707 removed census, Blessing of Light re-landed value-less 26650 and post 9 removes the blessing); the data-carried family is ADDED (Oath of Light 1328548 5-min oath, Shieldsworn 1328551, Echo of Fury 1311701 / Echo of Command 1311703 15 s 3-stack seal procs, Unsealed Wrath 1310735 proc row). Lightning Mastery is NOT a list name: it is the post-9 rename alias of Elemental Mastery, carried by _renames + Forte_Core/Core/Locale.lua RenameAliases (both spellings find the 16166 row).",
   "_deferred_H7": [
     "Ancient Power", "Forbearance", "Grand Crusader", "Infusion of Light",
     "The Art of War", "Vengeance", "Vindication"
@@ -12,22 +12,25 @@
     "Holy Shield", "Holy Shock"
   ],
   "buffs": [
-    "Divine Shield", "Divine Protection", "Blessing of Kings", "Blessing of Light",
+    "Divine Shield", "Divine Protection", "Blessing of Kings",
     "Blessing of Might", "Blessing of Wisdom", "Greater Blessing of Kings",
     "Greater Blessing of Light", "Greater Blessing of Might",
     "Greater Blessing of Wisdom", "Blessing of Sacrifice",
-    "Blessing of Protection", "Salvation", "Mass Salvation", "Turn Undead",
-    "Beacon of Light", "Reckoning", "Aura Mastery"
+    "Blessing of Protection",
+    "Turn Undead",
+    "Beacon of Light", "Reckoning", "Aura Mastery",
+    "Oath of Light", "Shieldsworn"
   ],
   "auras": [
     "Seal of Fury", "Seal of Righteousness", "Seal of Command",
     "Seal of Wisdom", "Seal of Light", "Seal of Justice",
     "Seal of the Crusader", "Devotion Aura", "Retribution Aura",
     "Concentration Aura", "Shadow Resistance Aura", "Frost Resistance Aura",
-    "Fire Resistance Aura"
+    "Fire Resistance Aura",
+    "Echo of Fury", "Echo of Command", "Unsealed Wrath"
   ],
   "utility": [
-    "Righteous Fury", "Cleanse", "Purify", "Revoke", "Redemption",
+    "Righteous Fury", "Cleanse", "Purify", "Redemption",
     "Lay on Hands", "Exorcism", "Rebuke", "Consecration", "Crusader Strike",
     "Hammer of Justice", "Hammer of Wrath", "Hammer of the Righteous",
     "Righteous Judgement"

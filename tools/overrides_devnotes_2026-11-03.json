@@ -1,0 +1,72 @@
+{
+  "_meta": {
+    "generated_by": "hand-kept (wave I-2b, agent I2bData, 2026-11-03) -- NOT generated; edit by hand, one row per value, every row cites the note",
+    "source": "Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update)",
+    "source_url": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9",
+    "law": "The post-9 layer rides AFTER the 70707 store capture in tools/gen_spell_data.py: these are values the notes promise for the 2026-11-04 opening that the captured client build (1.60.1.70707, hotfix push 113562) does NOT carry yet (docs/research/upstream-data-2026-11-03.md §5, §7 item 6). A cooldownMs/categoryCooldownMs pair folds to its max like the overlay's reading rule. The generator lists every applied row in the generated header. HOTFIX-WATCH: delete a row the day a store capture carries the value -- the layer must not outlive the capture gap it exists for.",
+    "field_semantics": "times in ms; a row applies only to a picked row of the same id, so a row for a name no spell list tracks is inert here by design (recorded for the launch probes); cite = the post-9 line, quoted",
+    "cross_check": "docs/research/forever-dev-notes-2026-11-03.md §1 and upstream-data-2026-11-03.md §5 rows 1, 7, 8, 31; mythicsim keys its own copies of the Slam/Stormstrike rows to hotfix push 113554 (hotfix_113554.rs), the Riptide value is carried by nobody"
+  },
+  "spells": {
+    "1464": {
+      "name": "Slam (Rank 1)",
+      "cooldownMs": 15000,
+      "cite": "Warrior: Slam cooldown 15 s (was 18)",
+      "store_says": "CategoryCooldownMs 18000, Category 2412 (ranks 1464/8820/11604/11605/1310200)",
+      "upstream": "mythicsim hotfix_113554.rs:279-280, :378-381 (18000 -> 15000, SLAM_RANKS)"
+    },
+    "8820": {
+      "name": "Slam (Rank 2)",
+      "cooldownMs": 15000,
+      "cite": "Warrior: Slam cooldown 15 s (was 18)"
+    },
+    "11604": {
+      "name": "Slam (Rank 3)",
+      "cooldownMs": 15000,
+      "cite": "Warrior: Slam cooldown 15 s (was 18)"
+    },
+    "11605": {
+      "name": "Slam (Rank 4)",
+      "cooldownMs": 15000,
+      "cite": "Warrior: Slam cooldown 15 s (was 18)"
+    },
+    "1310200": {
+      "name": "Slam (Rank 5, the picked row)",
+      "cooldownMs": 15000,
+      "cite": "Warrior: Slam cooldown 15 s (was 18)",
+      "store_says": "CategoryCooldownMs 18000, Category 2412",
+      "upstream": "mythicsim hotfix_113554.rs:378-381"
+    },
+    "17364": {
+      "name": "Stormstrike",
+      "cooldownMs": 6000,
+      "cite": "Shaman: Stormstrike cd 6 s (was 8), 150 % WH",
+      "store_says": "CooldownMs 8000, DurationMs 12000",
+      "upstream": "mythicsim hotfix_113554.rs:391-392 (patch(17364, cooldown_ms = 6000))"
+    },
+    "1239243": {
+      "name": "Riptide",
+      "categoryCooldownMs": 12000,
+      "cite": "Shaman: Riptide cd 12 s (was 6), no initial heal",
+      "store_says": "CategoryCooldownMs 6000, Category 1228, DurationMs 15000",
+      "upstream": "carried by NO data source (mythicsim README.md:406-408: not modelled)"
+    },
+    "1239242": {
+      "name": "Riptide (sibling rank)",
+      "categoryCooldownMs": 12000,
+      "cite": "Shaman: Riptide cd 12 s (was 6), no initial heal"
+    },
+    "408521": {
+      "name": "Riptide (sibling rank)",
+      "categoryCooldownMs": 12000,
+      "cite": "Shaman: Riptide cd 12 s (was 6), no initial heal"
+    },
+    "20572": {
+      "name": "Blood Fury (Orc racial)",
+      "cooldownMs": 120000,
+      "cite": "Racials: Orc Blood Fury cd 2 min (was 3)",
+      "store_says": "no Cooldowns row at all (the store cannot answer); 24571 likewise",
+      "status": "inert by design: no spell list tracks Blood Fury (upstream-data §5 row 31 'racials are in no list'); the row is the pin the launch-day racial probe reads, and the value the day a list adds the name"
+    }
+  }
+}

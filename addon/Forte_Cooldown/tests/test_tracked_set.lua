@@ -136,8 +136,12 @@ end)
 -- tools/spell_lists/<class>.json files (group placement is the file's own
 -- intent; the generated row is what is audited here).
 local T1_ADDED = {
+    -- Wave I-2b: Berserk left (the post-9 notes REMOVE the talent, Primal
+    -- Bite replaces it -- docs/research/forever-dev-notes-2026-11-03.md §1
+    -- Druid row) and Lava Burst left with it (same §1 Shaman row: gone from
+    -- the live client). docs/class-port.md 6.2 item 5.
     DRUID = { "Lifebloom", "Skull Bash", "Pounce", "Pounce Bleed", "Starfall",
-              "Berserk", "Dash", "Thrash" },
+              "Dash", "Thrash" },
     MAGE = { "Blizzard", "Living Bomb", "Pyroblast", "Flamestrike", "Combustion",
              "Cone of Cold", "Frost Nova", "Deep Freeze", "Frostfire Bolt",
              "Arcane Blast", "Blast Wave", "Fire Blast", "Freeze" },
@@ -147,7 +151,7 @@ local T1_ADDED = {
                "Prayer of Mending", "Mind Blast", "Mind Flay", "Mind Sear" },
     ROGUE = { "Dismantle", "Crimson Tempest", "Mind-numbing Poison",
               "Deadly Poison", "Envenom" },
-    SHAMAN = { "Stormstrike", "Lava Burst", "Ancestral Guidance", "Heroism" },
+    SHAMAN = { "Stormstrike", "Ancestral Guidance", "Heroism" },
 }
 local T1_CLASS_ORDER = { "DRUID", "MAGE", "PALADIN", "PRIEST", "ROGUE", "SHAMAN" }
 
@@ -257,9 +261,11 @@ function()
         local f = io.open("/tmp/t1_tracked_report.txt", "w")
         if f then f:write(line .. "\n"); f:close() end
     end
-    -- 8 + 13 + 5 + 8 + 5 + 4 = 43 added names, 8 of them no-window rows; the
+    -- 7 + 13 + 5 + 8 + 5 + 3 = 41 added names, 8 of them no-window rows; the
     -- Warrior adds none (all three of its §6.1 names are H7 deferrals).
-    assertEquals(43, total)
+    -- Wave I-2b cut the count 43 -> 41 (Berserk, Lava Burst: post-9 removals,
+    -- docs/class-port.md 6.2 item 5).
+    assertEquals(41, total)
     assertEquals(8, pinned)
 end)
 

@@ -839,6 +839,87 @@ the six auras/`Blessing of Freedom`/`Blessing of Protection`/`Blessing of Sacrif
 `[totems]`/`Feral Spirit`/`Elemental Mastery`/`Nature's Swiftness`/`Rage of the Farseer`/
 `Far Sight`/`Reincarnation` (shaman).
 
+### 6.2 Wave I-2 data laws (2026-11-03, `fx-worker I2b Data`)
+
+Four laws now bind the generator chain (`tools/extract_70707.py` →
+`tools/overrides_70707.json` → `tools/overrides_devnotes_2026-11-03.json` →
+`tools/gen_spell_data.py`); sources: `docs/research/upstream-data-2026-11-03.md`,
+`docs/research/forever-dev-notes-2026-11-03.md`.
+
+1. **Rank law (store coverage).** When the 70707 store covers a tracked name — one of
+   its ids carries a real value field (Names/Misc/Cooldowns/Categories/AuraOptions row) —
+   the picked row is the store row carrying that name's `Rank N` subtext / SpellLevel /
+   MaxLevel; a bare book twin (no subtext, `spellLevel >= 70`) is excluded from the pick.
+   Implemented as the `store_covered` leg of `pick_current_rank` (between the cast leg
+   and the id tiebreak, so it never outranks carry/has-cd/level/has-cast). Landing:
+   `Primal Bite` 1238073 → **1238070 (Rank 3)**; `Holy Shock` 1311606 Rank 1 → **20930
+   Rank 4** (the store's highest-ranked Holy Shock row, MaxLevel 62, subtext Rank 4).
+   Store-uncovered names keep the book ranks (Ferocious Bite's 31018 pair is NOT store-
+   covered — the store only ranks 22829 — so the coverage leg, not the book cut, is the
+   tool; the book cut stays the documented fallback).
+2. **Dev-notes layer.** `tools/overrides_devnotes_2026-11-03.json` carries cited post-9
+   lines as `{id: {fields, cite, …}}`; the generator applies them AFTER the 70707 layer
+   and BEFORE row assembly, keyed by the PICKED row's id — a row for a name no spell
+   list tracks is inert by design (the file's `_meta` pins the store build the values
+   were probed against) — and echoes every applied row into the
+   generated file header (`-- Post-9 dev-notes values applied (N):` sections). It is the
+   ONLY authority for values the store does not carry — the values never enter the
+   extractor, so re-running the extractor cannot wash them out. Applied: Slam
+   1310200 cd 18000→15000 (the row fires via the picked row's captured
+   Category 2412 pair; all five ranks carry the line), Stormstrike 17364
+   cd 8000→6000, Riptide 1239243 categoryCd 6000→12000. Blood Fury 20572
+   cd 120000 is a cited row that is INERT by design (no spell list tracks the
+   racials; the row is the launch-day racial probe's pin). Berserk: the post-9
+   notes REMOVED the talent (Primal Bite replaces it) — the name is pruned from
+   the druid list, the store's 417141 value rows ride on unused; the 300/360
+   `spellLevel` lines need no row (no captured level exists for them).
+3. **§3.5 feed capture.** The extractor captures `Effects[].PeriodMs` → `periodMs`,
+   `Targets.Target` → `targetCode` (scalar category rows only; the per-effect list form
+   is left to the base rows), `AuraOptions.MaxStack` → `maxStack`. The generator feeds
+   them ONLY where the row's own `Effects` and base twin stay silent — same shape as the
+   `procFlag`/`icdMs` laws — with the base row of the same id as the effects source when
+   the pick rides a store-synthesised row; `maxStack` feeds only at >= 2 (a 0/1 row says
+   "no stacking"; 2012 `maxStack=1` is a real cap, 0 is "not stacking"). Landings:
+   Reckoning/Lifebloom/Echo of Fury/Echo of Command keep their stacks; Oath of Light
+   `tickEvery 1.5` + `noTarget` (Target 1 + a 1500 period); Black Arrow `tickEvery 2`;
+   Wild Growth `tickEvery 1`; Vigor/Rebuke/Shield Mastery/Soul Harvest `noTarget`;
+   Blizzard/Flamestrike ride the captured category.
+4. **Rename alias law.** A build rename (dev notes "X -> Y") lands as a static alias
+   PAIR, never a name edit: `addon/Forte_Core/Core/Locale.lua` `Locale.RenameAliases`
+   makes `Locale.CanonicalName` fold the new client spelling onto the captured data key
+   (locale-independent, folds on enUS; id-keyed lookups are untouched), and the spell
+   list's `_renames` block puts the alias into the generated `ByName` table. Both
+   spellings then resolve on every client. When a future data pull carries the NEW
+   spelling, the pair FLIPS (the alias becomes the data key). Live pair: Totemic
+   Projection ↔ Totemic Call (437009), Elemental Mastery ↔ Lightning Mastery (16166;
+   the captured client spells the data side "Elemental Mastery" —
+   upstream-data §5 rows 5-6).
+5. **Post-9 pruning (2026-11-03).** Removed from the lists (the spells are gone from the
+   live client — dev notes post-9): druid `Berserk` (the store still carries it as
+   417141; removal is list-level), shaman `Lava Burst`, paladin `Blessing of Light`,
+   `Salvation`, `Mass Salvation`, `Revoke`. `Call of Thunder 16120` STAYS (a totem,
+   scry §2.1.2). §5.1 adds landed: druid `Ferocious Bite` + `Bloom` (1328621 is a bare
+   store shell — the row is the name + id, the layer's first day-1 probe row), mage
+   `Ice Lance` (1240047, cd 8000 — the 8 s the notes cite), paladin `Oath of Light`
+   (1328548) + `Shieldsworn` (1328551) + `Echo of Fury`/`Echo of Command` (1311701/3,
+   scry §2.1.10 — distinct from the paladin's own Echo of the Chosen), priest `Dark
+   Inspiration` (1326168), rogue `Setup` (13983 — the store-covering row wins the pick;
+   15250 stays untracked), shaman `Windfury Totem` — item 6.
+6. **Totem-window law (wave I-2b follow-up).** For a `... Totem` CAST name (the
+   name shape `Forte_Shaman/Core/Totems.lua:SlotSpellNames` uses), the rank pick
+   drops carriers whose `DurationMs` sits below the largest captured window:
+   the short rows sharing a totem's name are its proc/trigger auras (Windfury
+   Totem's 1000 ms Rank-3 twin 10610, `procFlag 4`), and the row that stands is
+   the summon window the element slot draws. `Windfury Totem` rides **10614
+   (Rank 3, 300 000)** — the shape of its sibling `Windwall Totem` 15112 — so the
+   cast spine's prediction (in sealed combat the ONLY signal until the slot
+   event lands) is the five minutes, not a one-second blip; the F-B dedupe
+   (`Forte_Shaman/tests/test_totem_dedupe.lua`) keeps it one row. Pinned in the
+   real paths by `Forte_Timer/tests/test_timer_display_rows.lua`: the cast
+   spine's `OnSent`/`OnSucceeded`/`Pump`, the slot's `OnTotemUpdate`, the
+   module's `Draw` — exactly ONE row with a 300 s window in the Air element
+   group. No other tracked totem moved (all already rode window rows).
+
 ## 7. Suggested worker split (3 tickets)
 
 | ticket | owner | scope | touches |

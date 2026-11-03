@@ -27,6 +27,18 @@ What goes in, per the H10/D3 contract:
     `ClassOptions` (Family) and `AuraOptions` (ICDMs) -- a field is written
     only where the store HAS a row for the id (an absent row is "not in this
     export", never "0", per forever-data-gaps.md G5).
+  * the feed columns (wave I-2b, 2026-11-03, upstream-data note §7.5): the
+    store's `Effects[].PeriodMs` (captured as `periodMs` = the SMALLEST
+    positive period of the id, the gen_spell_data tick law), the scalar
+    target category `Targets` (captured as `targetCode`; the client's
+    SpellEffectTargetingCategory code of the unit the spell lands on, 1 =
+    the caster -- gen_spell_data's `noTarget` law) and
+    `AuraOptions.MaxStack` (captured as `maxStack`, only when above 1 --
+    the emit law "a cap of 1 says no stacking, the absence already says
+    it"). Before this, a 70707-picked row (a store-rank pick like Primal
+    Bite, a store-sourced row like Oath of Light) structurally dropped the
+    Timer's feed columns; the captures + the generator's same-id base-feed
+    law (gen_spell_data "feed sources") stop the drop.
   * charges: the 70707 store carries NO charges column (MaxStack is aura
     stacking, ProcCharges proc uses -- data-diff-70707.md §1); the addon's
     charge model is runtime (`DetectCharges`), so `charges` is never emitted.
@@ -72,6 +84,29 @@ VALUE_FIELDS = {
     "Categories": {"Category": "category"},
     "AuraOptions": {"ICDMs": "icdMs"},
 }
+
+# The feed captures (wave I-2b): the store's `Targets` scalar is the client's
+# SpellEffectTargetingCategory code of the unit the spell lands on -- the
+# gen_spell_data feed law reads it as `targetCode` (1 = the caster, the
+# CASTER_TARGET_CODE of the base-data `Target[0]` pair law). `periodMs` rides
+# the smallest positive Effects[].PeriodMs (the fastest cadence the player
+# sees, the generator's tick law); `maxStack` is captured only above 1 (a cap
+# of 1 says "no stacking", which the absence already says).
+EFFECT_PERIOD_COL = "PeriodMs"
+TARGET_CATEGORY_COL = "Target"
+MAXSTACK_COL = "MaxStack"
+MAXSTACK_EMIT_FLOOR = 1
+
+
+def effect_period_ms(eff_rows) -> int | None:
+    """The smallest positive Effects[].PeriodMs of the id, ms; None = the
+    store carries no periodic effect row (absence, never a zero reading)."""
+    periods = [row[EFFECT_PERIOD_COL] for row in (eff_rows or [])
+               if isinstance(row, dict) and isinstance(row.get(EFFECT_PERIOD_COL), (int, float))
+               and not isinstance(row.get(EFFECT_PERIOD_COL), bool)
+               and row[EFFECT_PERIOD_COL] > 0]
+    return int(min(periods)) if periods else None
+
 
 # The proc flag (AuraOptions.ProcFlags[0]) is captured only when non-zero:
 # a captured flag = the row is a proc-carrying aura (the 70707 store's own
@@ -226,6 +261,21 @@ def main() -> int:
             low = pf[0] if isinstance(pf, (list, tuple)) and pf else pf
             if low:
                 row["procFlag"] = int(low)
+        # Feed captures (wave I-2b, §7.5): they ride the same presence law
+        # as the value tables and do not set `v` -- `v` marks the WINDOW
+        # tables (the overlay's value merge gate); a feed never folds a
+        # cooldown.
+        period = effect_period_ms(store["Effects"].get(s))
+        if period is not None:
+            row["periodMs"] = period
+        tc = store["Targets"].get(s)
+        if isinstance(tc, int) and not isinstance(tc, bool):
+            row["targetCode"] = int(tc)
+        if ao is not None:
+            ms = ao.get(MAXSTACK_COL)
+            if (isinstance(ms, (int, float)) and not isinstance(ms, bool)
+                    and ms > MAXSTACK_EMIT_FLOOR):
+                row["maxStack"] = int(ms)
         if has_values:
             row["v"] = 1
         spells[s] = row
@@ -251,7 +301,11 @@ def main() -> int:
             "field_semantics": "times in ms; an absent field = the store carries no row "
                               "for it (absence, never a reading; data-diff-70707.md §1); "
                               "v=1 marks ids with at least one value row; charges: the "
-                              "70707 store has no charges column (data-diff-70707.md §1)",
+                              "70707 store has no charges column (data-diff-70707.md §1); "
+                              "feeds (wave I-2b): periodMs = the smallest positive "
+                              "Effects[].PeriodMs, targetCode = the Targets scalar "
+                              "(client SpellEffectTargetingCategory code, 1 = the caster), "
+                              "maxStack = AuraOptions.MaxStack above 1",
         },
         "bookRanks": parse_book_ranks(book_go),
         "nameIndex": {n: ids for n, ids in sorted(name_index.items()) if ids},

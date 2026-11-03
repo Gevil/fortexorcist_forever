@@ -1,15 +1,19 @@
 {
-  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Shaman tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped -- re-check them after a mythicsim-forever-engine pull. Forever notes: the shaman kit gained new core spells (Riptide and Lava Lash join the shock/cooldown families, Molten Blast, Healing Rain, Decoy Totem, Stoneclaw Totem, Earthbind Totem, Feral Spirit, Rage of the Farseer, Totemic Projection); the Far Sight scry line is split into Call of the Elements/Spirits/Ancestors (L20/30/40) and Call of Flame/Thunder (L60); melee 'stamps' are Windfury/Flametongue/Rockbiter Weapon + Frostbrand. Shocks and totems often carry the cooldown as a shared category cooldown (e.g. shock category, Mana Tide category 591) -- the generator emits CategoryCooldownMs as cooldownMs. T1 (2026-11-02, docs/class-port.md 6.1 + PLAN 11.1 Q1/Q6 rulings): the reference's CAST spells are added to [cooldowns] -- Stormstrike (17364, 8 s + 12 s window), Lava Burst (1326047, 10 s shock-family category), Ancestral Guidance (the shaman pair of the paladin row; the family-11 rows 409333/409337/409944 carry no window on this build, pinned in Forte_Cooldown/tests/test_tracked_set.lua) and the family-less Q6 Heroism row (23689, durationMs -1). Maelstrom Weapon is a proc/passive: see _deferred_H7 / H7 (docs/design-combat-procs.md).",
+  "_comment": "Spell NAMES (as they appear in mythicsim-forever-engine/data/spells.jsonl) that Forte_Shaman tracks. gen_spell_data.py resolves each to its highest-rank spell ID + current duration/cooldown data. Names with no match in a given build are reported by the generator, not silently dropped -- re-check them after a mythicsim-forever-engine pull. Forever notes: the shaman kit gained new core spells (Riptide and Lava Lash join the shock/cooldown families, Molten Blast, Healing Rain, Decoy Totem, Stoneclaw Totem, Earthbind Totem, Feral Spirit, Rage of the Farseer, Totemic Projection); the Far Sight scry line is split into Call of the Elements/Spirits/Ancestors (L20/30/40) and Call of Flame/Thunder (L60); melee 'stamps' are Windfury/Flametongue/Rockbiter Weapon + Frostbrand. Shocks and totems often carry the cooldown as a shared category cooldown (e.g. shock category, Mana Tide category 591) -- the generator emits CategoryCooldownMs as cooldownMs. T1 (2026-11-02, docs/class-port.md 6.1 + PLAN 11.1 Q1/Q6 rulings): the reference's CAST spells are added to [cooldowns] -- Stormstrike (17364, 8 s + 12 s window), Lava Burst (1326047, 10 s shock-family category), Ancestral Guidance (the shaman pair of the paladin row; the family-11 rows 409333/409337/409944 carry no window on this build, pinned in Forte_Cooldown/tests/test_tracked_set.lua) and the family-less Q6 Heroism row (23689, durationMs -1). Maelstrom Weapon is a proc/passive: see _deferred_H7 / H7 (docs/design-combat-procs.md). Wave I-2b (2026-11-03, upstream-data §5.1/§7.9 + Blizzard dev notes post 9): Lava Burst PRUNED from [cooldowns] (post 9: 'Lava Burst removed (passive Call of Thunder replaces)' -- the client capture of 2026-11-03 still ships the 11-rank ladder, this is the hotfix-watch row: the day the store drops the name, the pruned list is what keeps the data clean; upstream-data §5 row 4); [totems] += Windfury Totem (the air-slot totem cast row -- post 9 adds the swing animation for both, upstream-data §4.4: a Windfury bar that appears with no totem cast is the legitimate Windfury Weapon stamp, the new totem row is the cast's own row); Call of Thunder 16120 stays in [utility] as the Far Sight scry spell ONLY -- the post-9 shaman talent of that name is NOT mapped onto it (upstream-data §5.1 'remove the Call of Thunder mapping', 16120 is value-less scry data); _renames carries the two post-9 renames (Totemic Projection <-> Totemic Call 437009, Elemental Mastery <-> Lightning Mastery 16166/16579-82): the data keys stay the client-captured spellings, the aliases reach the same rows (Forte_Core/Core/Locale.lua RenameAliases is the runtime twin).",
   "_deferred_H7": [
     "Maelstrom Weapon"
   ],
+  "_renames": {
+    "Totemic Projection": "Totemic Call",
+    "Elemental Mastery": "Lightning Mastery"
+  },
   "cooldowns": [
     "Earth Shock", "Flame Shock", "Frost Shock", "Riptide", "Chain Lightning",
     "Molten Blast", "Lava Lash", "Fire Nova", "Healing Rain", "Decoy Totem",
     "Grounding Totem", "Stoneclaw Totem", "Earthbind Totem", "Mana Tide Totem",
     "Feral Spirit", "Elemental Mastery", "Nature's Swiftness", "Rage of the Farseer",
     "Totemic Projection", "Reincarnation",
-    "Stormstrike", "Lava Burst", "Ancestral Guidance", "Heroism"
+    "Stormstrike", "Ancestral Guidance", "Heroism"
   ],
   "buffs": [
     "Lightning Shield", "Earth Shield", "Water Shield", "Flurry", "Clearcasting",
@@ -24,7 +28,7 @@
     "Healing Stream Totem", "Mana Spring Totem", "Fire Resistance Totem",
     "Frost Resistance Totem", "Nature Resistance Totem", "Poison Cleansing Totem",
     "Disease Cleansing Totem", "Flametongue Totem", "Magma Totem", "Searing Totem",
-    "Tremor Totem", "Windwall Totem"
+    "Tremor Totem", "Windwall Totem", "Windfury Totem"
   ],
   "utility": [
     "Ghost Wolf", "Ancestral Spirit", "Far Sight", "Call of Flame", "Call of Thunder",

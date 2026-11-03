@@ -642,3 +642,107 @@ function()
     end)
     cleanUp()
 end)
+
+-- ==================== wave I-2b: the Windfury Totem totem-window law ========
+
+test("a Windfury Totem cast draws exactly one row with the five-minute window",
+function()
+    -- docs/class-port.md 6.2 (totem-window law, 2026-11-03): the 70707 store
+    -- gives "Windfury Totem" a 1000 ms Rank-3 proc twin (10610, PF[4,0]) next
+    -- to the 300 000 summon windows (10613/10614). The picked DATA row is the
+    -- window row (10614), so the cast spine's prediction is the five minutes
+    -- the element slot shows -- not a one-second blip. Driven the way the
+    -- game drives it: the cast spine's public path (test_rows.lua:115-124),
+    -- the totem slot's OnTotemUpdate (test_totems.lua), and the module's own
+    -- Draw on the frames.
+    local o = ensureEnabled()
+    local Registry = FX.Timer.Registry
+    local savedClass, savedResolve = FX._playerClass, Casts.resolveName
+    local base = epoch()
+    withFixedClock(base, function()
+        installClock(base)
+        Rows:Clear()
+
+        -- 1. The data row: the window, not the proc twin.
+        local id = FX.Data.ShamanByName["Windfury Totem"]
+        assertNotNil(id, "the Shaman data carries Windfury Totem")
+        assertEquals(300000, FX.Data.Shaman[id].durationMs,
+            "the totem-window law rides the picked data row")
+
+        -- 2. The registry: five minutes.
+        Registry:AttachStorage(
+            FX.db and FX.db.timer and FX.db.timer.learned or {})
+        Registry:Build("SHAMAN")
+        local entry = Registry.entries["Windfury Totem"]
+        assertNotNil(entry, "the registry builds the totem")
+        assertEquals(300, entry.duration, "five minutes on the registry too")
+        assertEquals("Cooldown", entry.kind,
+            "a `... Totem` rides the Cooldown band (the shipped \"Totem\" term)")
+
+        -- 3. The cast spine: the shaman casts the totem spell.
+        Casts:Init(Rows, o)
+        Casts.resolveName = function(sid)
+            local row = FX.Data.Shaman[sid]
+            return type(row) == "table" and row.name or nil
+        end
+        local sham = FX.modules.Shaman
+        assertNotNil(sham, "the Shaman module is loaded")
+        sham:DeclareRows()
+        Casts:OnSent("Uther", id, base)
+        Casts:OnSucceeded(id, base)
+        Casts:Pump(base + Laws.SETTLE + 0.01)
+
+        local function windfuryRows()
+            local n = 0
+            for i = 1, Rows.rows_n do
+                local r = Rows.rows[i]
+                if r and r.name == "Windfury Totem"
+                    and r.state <= Laws.REMOVE then n = n + 1 end
+            end
+            return n
+        end
+        assertEquals(1, windfuryRows(),
+            "the cast prediction is the one row")
+        local pred = Rows:Find("Windfury Totem", "Uther")
+        assertNotNil(pred, "the prediction stands on the panel")
+        assertEquals(300, pred.total,
+            "the prediction carries the five-minute window, not the proc "
+            .. "twin's second")
+
+        -- 4. PLAYER_TOTEM_UPDATE: the Air slot takes the row over (the F-B
+        -- dedupe retires the spine's prediction; one totem, one row).
+        local tracker = FX.Shaman.NewTotemTracker({
+            rows = Rows,
+            readSlot = function()
+                return { present = true, name = "Windfury Totem",
+                         expireAt = base + 300, total = 300 }
+            end,
+        })
+        local savedTracker = sham.tracker
+        sham.tracker = tracker
+        assertEquals("inserted", tracker:OnTotemUpdate(4))
+        assertEquals(1, windfuryRows(),
+            "the hand-over leaves EXACTLY one row for the totem")
+        local air = Rows:Find("Windfury Totem", "Air")
+        assertNotNil(air, "the slot's row rides the Air element group")
+        assertEquals(300, air.total, "with the five-minute window")
+
+        -- 5. The panel: one bar.
+        M:Draw()
+        local drawn = 0
+        for s = 1, #D.rows do
+            local slot = D.rows[s]
+            if slot._row and slot._row.name == "Windfury Totem"
+                and slot.bar:IsShown() then drawn = drawn + 1 end
+        end
+        assertEquals(1, drawn, "the panel draws the totem exactly once")
+
+        sham.tracker = savedTracker
+        sham:UndeclareRows()
+        Casts.resolveName = savedResolve
+        Rows:Clear()
+    end)
+    cleanUp()
+    Registry:AttachStorage(FX.db and FX.db.timer and FX.db.timer.learned or {})
+    Registry:Build(savedClass)
+end)

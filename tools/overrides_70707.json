@@ -1,8 +1,8 @@
 {
  "_meta": {
   "build": "1.60.1.70707",
-  "commit": "164d1cf632c127534f1d536c1aaf08b023a5dc68",
-  "field_semantics": "times in ms; an absent field = the store carries no row for it (absence, never a reading; data-diff-70707.md \u00a71); v=1 marks ids with at least one value row; charges: the 70707 store has no charges column (data-diff-70707.md \u00a71)",
+  "commit": "6e69a7f4f239c591e9dec4124a93fca6329c240f",
+  "field_semantics": "times in ms; an absent field = the store carries no row for it (absence, never a reading; data-diff-70707.md \u00a71); v=1 marks ids with at least one value row; charges: the 70707 store has no charges column (data-diff-70707.md \u00a71); feeds (wave I-2b): periodMs = the smallest positive Effects[].PeriodMs, targetCode = the Targets scalar (client SpellEffectTargetingCategory code, 1 = the caster), maxStack = AuraOptions.MaxStack above 1",
   "generated_by": "tools/extract_70707.py",
   "hotfix_push": 113562,
   "source": "wowsims/forever (github.com/wowsims/forever)",
@@ -101,6 +101,28 @@
    400610,
    401719
   ],
+  "Arcane Blast": [
+   10833,
+   16067,
+   18091,
+   20883,
+   22893,
+   22920,
+   22940,
+   24857,
+   42896,
+   400573,
+   400574,
+   400586,
+   401729,
+   1214029,
+   1239696,
+   1239697,
+   1239699,
+   1239700,
+   1300176,
+   1300177
+  ],
   "Arcane Brilliance": [
    23028
   ],
@@ -192,6 +214,11 @@
    439473,
    439503
   ],
+  "Aura Mastery": [
+   409932,
+   415756,
+   416863
+  ],
   "Avenging Wrath": [
    407788,
    407957,
@@ -273,6 +300,9 @@
    2457,
    7165
   ],
+  "Beacon of Light": [
+   409906
+  ],
   "Bear Form": [
    5487,
    5488,
@@ -344,15 +374,34 @@
    1226883,
    1230700
   ],
+  "Blast Wave": [
+   11113,
+   13018,
+   13019,
+   13020,
+   13021,
+   15091,
+   15744,
+   16046,
+   17145,
+   17277,
+   20229,
+   22424,
+   23039,
+   23113,
+   23331,
+   25049,
+   30092,
+   469161,
+   1231538,
+   1235318
+  ],
   "Blessing of Freedom": [
    1044
   ],
   "Blessing of Kings": [
    20217,
    1213408
-  ],
-  "Blessing of Light": [
-   26650
   ],
   "Blessing of Might": [
    19740,
@@ -412,6 +461,34 @@
    1324301,
    1326189
   ],
+  "Blizzard": [
+   10,
+   3068,
+   6141,
+   8364,
+   8427,
+   8428,
+   10185,
+   10186,
+   10187,
+   15783,
+   19099,
+   20680,
+   21096,
+   21367,
+   25019,
+   26607,
+   27618,
+   30093,
+   1213279,
+   1220862,
+   1279949,
+   1279976,
+   1279977,
+   1279978,
+   1279979,
+   1279980
+  ],
   "Blood Corruption": [
    449927
   ],
@@ -431,6 +508,12 @@
    23894,
    437765,
    438358
+  ],
+  "Bloom": [
+   1288559,
+   1290041,
+   1328621,
+   1328622
   ],
   "Call Pet": [
    883,
@@ -619,6 +702,10 @@
   "Cold Snap": [
    12472
   ],
+  "Combustion": [
+   11129,
+   28682
+  ],
   "Commanding Shout": [
    22440,
    403215,
@@ -638,6 +725,19 @@
    22914,
    27634,
    1236191
+  ],
+  "Cone of Cold": [
+   120,
+   8492,
+   10159,
+   10160,
+   10161,
+   12557,
+   12611,
+   15244,
+   20828,
+   22746,
+   30095
   ],
   "Conflagrate": [
    17962,
@@ -781,6 +881,10 @@
    17727,
    17728
   ],
+  "Crimson Tempest": [
+   412096,
+   436611
+  ],
   "Cripple": [
    89,
    11443,
@@ -888,6 +992,32 @@
    412800,
    415751
   ],
+  "Dark Inspiration": [
+   1326159,
+   1326168
+  ],
+  "Dash": [
+   1850,
+   9821,
+   23099,
+   23100,
+   23109,
+   23110,
+   23111,
+   23112
+  ],
+  "Deadly Poison": [
+   2818,
+   2823,
+   2835,
+   3583,
+   10022,
+   13582,
+   21787,
+   21788,
+   25974,
+   434312
+  ],
   "Deadly Poison V": [
    25347,
    25349,
@@ -915,6 +1045,12 @@
    425881,
    436390,
    436391
+  ],
+  "Deep Freeze": [
+   428739,
+   428917,
+   428920,
+   429303
   ],
   "Deep Wound": [
    412609,
@@ -1018,6 +1154,16 @@
    462868,
    1302511
   ],
+  "Devouring Plague": [
+   2944,
+   19276,
+   19277,
+   19278,
+   19279,
+   19280,
+   459713,
+   1219275
+  ],
   "Dire Bear Form": [
    9634,
    1289137
@@ -1050,6 +1196,11 @@
    14272,
    14273,
    14344
+  ],
+  "Dismantle": [
+   435467,
+   439164,
+   442206
   ],
   "Dismember": [
    96,
@@ -1288,6 +1439,12 @@
    15786,
    1213480
   ],
+  "Echo of Command": [
+   1311703
+  ],
+  "Echo of Fury": [
+   1311701
+  ],
   "Echoes of Defensive Stance": [
    457699
   ],
@@ -1387,6 +1544,9 @@
    1303308,
    1316480,
    1320095
+  ],
+  "Envenom": [
+   399968
   ],
   "Evasion": [
    4086,
@@ -1542,6 +1702,53 @@
    1245338,
    1245340
   ],
+  "Ferocious Bite": [
+   22568,
+   22827,
+   22828,
+   22829,
+   27557,
+   31018,
+   1289142,
+   1328618
+  ],
+  "Fire Blast": [
+   2136,
+   2137,
+   2138,
+   8412,
+   8413,
+   10197,
+   10199,
+   13339,
+   13340,
+   13341,
+   13342,
+   13374,
+   14145,
+   15573,
+   15574,
+   16144,
+   20623,
+   20679,
+   20795,
+   20832,
+   25028,
+   29633,
+   29644,
+   400616,
+   400618,
+   400619,
+   400620,
+   400621,
+   400622,
+   400623,
+   461896,
+   1213317,
+   1314069,
+   1316039,
+   1318432
+  ],
   "Fire Nova": [
    8349,
    8350,
@@ -1668,6 +1875,37 @@
    1245956,
    1248000
   ],
+  "Flamestrike": [
+   2120,
+   2121,
+   2125,
+   8422,
+   8423,
+   10215,
+   10216,
+   11829,
+   12468,
+   16102,
+   16419,
+   18399,
+   18816,
+   18818,
+   20296,
+   20794,
+   20813,
+   20827,
+   22275,
+   24612,
+   30091,
+   447547,
+   1279983,
+   1279985,
+   1279987,
+   1279988,
+   1279989,
+   1279990,
+   1314281
+  ],
   "Flametongue Totem": [
    8227,
    8230,
@@ -1731,6 +1969,17 @@
    1281782,
    1319550
   ],
+  "Freeze": [
+   2132,
+   5276,
+   9454,
+   16350,
+   18763,
+   18798,
+   18799,
+   27867,
+   27868
+  ],
   "Freezing Trap": [
    1499,
    3355,
@@ -1767,6 +2016,26 @@
    12556,
    15784,
    18100
+  ],
+  "Frost Nova": [
+   122,
+   865,
+   6131,
+   9915,
+   10230,
+   11831,
+   12674,
+   12748,
+   14907,
+   15063,
+   15531,
+   15532,
+   22645,
+   29849,
+   30094,
+   463448,
+   1220855,
+   1289447
   ],
   "Frost Resistance Aura": [
    19888,
@@ -1816,6 +2085,12 @@
    10458,
    16352,
    16353
+  ],
+  "Frostfire Bolt": [
+   401502,
+   401735,
+   1237312,
+   1237313
   ],
   "Frozen Orb": [
    440802,
@@ -2029,6 +2304,12 @@
   "Hemorrhage": [
    16511
   ],
+  "Heroism": [
+   23682,
+   23689,
+   1213419,
+   1213420
+  ],
   "Hex of Weakness": [
    9035,
    19281,
@@ -2044,6 +2325,26 @@
    2637,
    18657,
    18658
+  ],
+  "Holy Fire": [
+   14914,
+   15261,
+   15262,
+   15263,
+   15264,
+   15265,
+   15266,
+   15267,
+   17140,
+   17141,
+   17142,
+   18165,
+   18167,
+   23860,
+   437809,
+   459622,
+   1236162,
+   1236287
   ],
   "Holy Nova": [
    15237,
@@ -2064,6 +2365,29 @@
    437821,
    437823,
    437837
+  ],
+  "Holy Shield": [
+   9800,
+   20925,
+   20927,
+   20928,
+   456544,
+   1239570
+  ],
+  "Holy Shock": [
+   20473,
+   20929,
+   20930,
+   25902,
+   25903,
+   25911,
+   25912,
+   25913,
+   25914,
+   444894,
+   1311604,
+   1311605,
+   1311606
   ],
   "Homunculi": [
    402799,
@@ -2117,6 +2441,15 @@
   "Ice Block": [
    11958,
    27619
+  ],
+  "Ice Lance": [
+   400640,
+   401732,
+   1240044,
+   1240045,
+   1240046,
+   1240047,
+   1312002
   ],
   "Icy Veins": [
    425121,
@@ -2366,6 +2699,12 @@
    461329,
    1270422
   ],
+  "Lifebloom": [
+   408124,
+   408245,
+   408246,
+   409824
+  ],
   "Lightning Shield": [
    324,
    325,
@@ -2411,6 +2750,16 @@
    470753,
    1213479,
    1270462
+  ],
+  "Living Bomb": [
+   20475,
+   400613,
+   400614,
+   401731,
+   461090,
+   461105,
+   462402,
+   465725
   ],
   "Living Flame": [
    401556,
@@ -2564,6 +2913,58 @@
    403816,
    403873
   ],
+  "Mind Blast": [
+   8092,
+   8102,
+   8103,
+   8104,
+   8105,
+   8106,
+   10945,
+   10946,
+   10947,
+   13860,
+   15587,
+   17194,
+   17287,
+   20830,
+   26048,
+   425233,
+   426493,
+   474402,
+   1213336,
+   1222574,
+   1232743,
+   1326990
+  ],
+  "Mind Flay": [
+   15407,
+   16568,
+   17165,
+   17311,
+   17312,
+   17313,
+   17314,
+   18807,
+   22919,
+   23953,
+   26044,
+   26143,
+   28310,
+   29407,
+   368292,
+   368315,
+   368320,
+   412526,
+   474204,
+   474268,
+   1215740
+  ],
+  "Mind Sear": [
+   413259,
+   413260,
+   415738
+  ],
   "Mind Soothe": [
    453,
    8192,
@@ -2575,6 +2976,12 @@
    450108,
    1221421,
    1221422
+  ],
+  "Mind-numbing Poison": [
+   5760,
+   5761,
+   5763,
+   25810
   ],
   "Mind-numbing Poison III": [
    11398,
@@ -2713,6 +3120,9 @@
    439472,
    439505
   ],
+  "Oath of Light": [
+   1328548
+  ],
   "Occult Poison II": [
    1214168,
    1214169,
@@ -2807,6 +3217,19 @@
   "Portal: Undercity": [
    11418
   ],
+  "Pounce": [
+   9005,
+   9823,
+   9827,
+   1229228,
+   1258520,
+   1264548
+  ],
+  "Pounce Bleed": [
+   9007,
+   9824,
+   9826
+  ],
   "Power Infusion": [
    10060
   ],
@@ -2862,6 +3285,23 @@
    21562,
    21564,
    450086
+  ],
+  "Prayer of Mending": [
+   41637,
+   401859,
+   401863,
+   401877,
+   401880,
+   401882,
+   402832,
+   1240826,
+   1240827,
+   1240848,
+   1240849,
+   1240918,
+   1240919,
+   1313379,
+   1313381
   ],
   "Prayer of Shadow Protection": [
    27683
@@ -2938,6 +3378,25 @@
   "Purify": [
    1152,
    1247252
+  ],
+  "Pyroblast": [
+   11366,
+   12505,
+   12522,
+   12523,
+   12524,
+   12525,
+   12526,
+   17273,
+   17274,
+   18809,
+   20228,
+   24995,
+   434443,
+   460858,
+   460860,
+   1236173,
+   1236291
   ],
   "Rabid Frenzy": [
    1218358
@@ -3051,6 +3510,12 @@
   "Recklessness": [
    1719,
    13847
+  ],
+  "Reckoning": [
+   20177,
+   20178,
+   1233507,
+   1326084
   ],
   "Redemption": [
    574,
@@ -3175,6 +3640,41 @@
   "Remove Lesser Curse": [
    475,
    1176
+  ],
+  "Renew": [
+   139,
+   890,
+   6074,
+   6075,
+   6076,
+   6077,
+   6078,
+   8362,
+   10927,
+   10928,
+   10929,
+   11640,
+   22168,
+   23895,
+   25058,
+   25315,
+   27606,
+   28807,
+   425268,
+   425269,
+   425270,
+   425271,
+   425272,
+   425273,
+   425274,
+   425275,
+   425276,
+   425277,
+   438341,
+   450658,
+   1232734,
+   1236151,
+   1289450
   ],
   "Repentance": [
    20066,
@@ -3515,6 +4015,10 @@
    1264747,
    1287976
   ],
+  "Setup": [
+   13983,
+   15250
+  ],
   "Shackle Undead": [
    1425,
    9484,
@@ -3704,6 +4208,10 @@
    440789,
    461291
   ],
+  "Shieldsworn": [
+   1328544,
+   1328551
+  ],
   "Shifting Power": [
    1322605
   ],
@@ -3744,6 +4252,11 @@
    18880,
    18881,
    1242957
+  ],
+  "Skull Bash": [
+   410176,
+   414621,
+   415759
   ],
   "Slam": [
    1464,
@@ -3870,6 +4383,31 @@
    28757,
    28758
   ],
+  "Starfall": [
+   20687,
+   26540,
+   429820,
+   439748,
+   439753,
+   439755,
+   439756,
+   439768,
+   449431,
+   457844,
+   457845,
+   457846,
+   457847,
+   458684,
+   1213250,
+   1271759,
+   1271898,
+   1286114,
+   1288390,
+   1294721,
+   1294725,
+   1294728,
+   1300361
+  ],
   "Stealth": [
    1784,
    1785,
@@ -3908,6 +4446,10 @@
    10406,
    10407,
    10408
+  ],
+  "Stormstrike": [
+   17364,
+   410156
   ],
   "Strength of Earth Totem": [
    8075,
@@ -4196,6 +4738,14 @@
    1291338,
    1312955
   ],
+  "Thrash": [
+   3391,
+   3417,
+   8876,
+   12787,
+   21919,
+   369079
+  ],
   "Thunder Clap": [
    6343,
    8198,
@@ -4322,6 +4872,9 @@
    1324545,
    1324546
   ],
+  "Unsealed Wrath": [
+   1310735
+  ],
   "Unstable Affliction": [
    427717,
    427719,
@@ -4342,6 +4895,11 @@
    15290,
    461966,
    1237618
+  ],
+  "Vampiric Touch": [
+   402668,
+   402779,
+   402841
   ],
   "Vanish": [
    1856,
@@ -4491,6 +5049,19 @@
   "Wild Rejuvenation": [
    1226046
   ],
+  "Windfury Totem": [
+   8512,
+   8515,
+   8516,
+   10608,
+   10609,
+   10610,
+   10612,
+   10613,
+   10614,
+   27621,
+   78159
+  ],
   "Windfury Weapon": [
    8232,
    8233,
@@ -4543,15 +5114,27 @@
   ]
  },
  "removed": {
-  "1038": "Salvation",
-  "1325499": "Revoke",
-  "19977": "Blessing of Light",
-  "19978": "Blessing of Light",
-  "19979": "Blessing of Light",
-  "25890": "Greater Blessing of Light",
-  "25895": "Mass Salvation"
+  "25890": "Greater Blessing of Light"
  },
  "spells": {
+  "10": {
+   "baseLevel": 20,
+   "castMs": 0,
+   "category": 2518,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 25,
+   "name": "Blizzard",
+   "periodMs": 1000,
+   "spellLevel": 20,
+   "subtext": "Rank 1",
+   "targetCode": 0,
+   "v": 1
+  },
   "100": {
    "baseLevel": 4,
    "castMs": 0,
@@ -4577,7 +5160,11 @@
    "gcdMs": 1500,
    "name": "Eyes of the Beast",
    "spellLevel": 14,
+   "targetCode": 0,
    "v": 1
+  },
+  "10022": {
+   "name": "Deadly Poison"
   },
   "10059": {
    "baseLevel": 40,
@@ -4645,7 +5232,9 @@
    "family": 5,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 15,
    "name": "Curse of Idiocy",
+   "periodMs": 3000,
    "spellLevel": 38,
    "subtext": "Rank 1",
    "v": 1
@@ -4663,6 +5252,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Bane of Agony",
+   "periodMs": 2000,
    "spellLevel": 18,
    "subtext": "Rank 2",
    "v": 1
@@ -4695,6 +5285,54 @@
    "name": "Arcane Intellect",
    "spellLevel": 56,
    "subtext": "Rank 5",
+   "v": 1
+  },
+  "10159": {
+   "baseLevel": 42,
+   "castMs": 0,
+   "category": 50,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 6000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 47,
+   "name": "Cone of Cold",
+   "spellLevel": 42,
+   "subtext": "Rank 3",
+   "targetCode": 0,
+   "v": 1
+  },
+  "10160": {
+   "baseLevel": 50,
+   "castMs": 0,
+   "category": 50,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 6000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 55,
+   "name": "Cone of Cold",
+   "spellLevel": 50,
+   "subtext": "Rank 4",
+   "targetCode": 0,
+   "v": 1
+  },
+  "10161": {
+   "baseLevel": 58,
+   "castMs": 0,
+   "category": 50,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 6000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 63,
+   "name": "Cone of Cold",
+   "spellLevel": 58,
+   "subtext": "Rank 5",
+   "targetCode": 0,
    "v": 1
   },
   "10169": {
@@ -4767,6 +5405,57 @@
    "subtext": "Rank 4",
    "v": 1
   },
+  "10185": {
+   "baseLevel": 44,
+   "castMs": 0,
+   "category": 2518,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 49,
+   "name": "Blizzard",
+   "periodMs": 1000,
+   "spellLevel": 44,
+   "subtext": "Rank 4",
+   "targetCode": 0,
+   "v": 1
+  },
+  "10186": {
+   "baseLevel": 52,
+   "castMs": 0,
+   "category": 2518,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 57,
+   "name": "Blizzard",
+   "periodMs": 1000,
+   "spellLevel": 52,
+   "subtext": "Rank 5",
+   "targetCode": 0,
+   "v": 1
+  },
+  "10187": {
+   "baseLevel": 60,
+   "castMs": 0,
+   "category": 2518,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 65,
+   "name": "Blizzard",
+   "periodMs": 1000,
+   "spellLevel": 60,
+   "subtext": "Rank 6",
+   "targetCode": 0,
+   "v": 1
+  },
   "10191": {
    "baseLevel": 44,
    "castMs": 0,
@@ -4809,6 +5498,36 @@
    "subtext": "Rank 6",
    "v": 1
   },
+  "10197": {
+   "baseLevel": 46,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 51,
+   "name": "Fire Blast",
+   "spellLevel": 46,
+   "subtext": "Rank 6",
+   "v": 1
+  },
+  "10199": {
+   "baseLevel": 54,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 59,
+   "name": "Fire Blast",
+   "spellLevel": 54,
+   "subtext": "Rank 7",
+   "v": 1
+  },
   "1020": {
    "baseLevel": 50,
    "castMs": 0,
@@ -4822,6 +5541,40 @@
    "name": "Divine Shield",
    "spellLevel": 50,
    "subtext": "Rank 2",
+   "v": 1
+  },
+  "10215": {
+   "baseLevel": 48,
+   "castMs": 3000,
+   "category": 2506,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 53,
+   "name": "Flamestrike",
+   "periodMs": 2000,
+   "spellLevel": 48,
+   "subtext": "Rank 5",
+   "targetCode": 0,
+   "v": 1
+  },
+  "10216": {
+   "baseLevel": 56,
+   "castMs": 3000,
+   "category": 2506,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 61,
+   "name": "Flamestrike",
+   "periodMs": 2000,
+   "spellLevel": 56,
+   "subtext": "Rank 6",
+   "targetCode": 0,
    "v": 1
   },
   "10219": {
@@ -4896,6 +5649,23 @@
    "name": "Fire Ward",
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "v": 1
+  },
+  "10230": {
+   "baseLevel": 54,
+   "castMs": 0,
+   "category": 35,
+   "categoryCooldownMs": 25000,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 59,
+   "name": "Frost Nova",
+   "procFlag": 2148147880,
+   "spellLevel": 54,
+   "subtext": "Rank 4",
    "v": 1
   },
   "10278": {
@@ -5074,6 +5844,7 @@
    "name": "Exorcism",
    "spellLevel": 44,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "10313": {
@@ -5089,6 +5860,7 @@
    "name": "Exorcism",
    "spellLevel": 52,
    "subtext": "Rank 5",
+   "targetCode": 0,
    "v": 1
   },
   "10314": {
@@ -5104,6 +5876,7 @@
    "name": "Exorcism",
    "spellLevel": 60,
    "subtext": "Rank 6",
+   "targetCode": 0,
    "v": 1
   },
   "1032": {
@@ -5135,6 +5908,7 @@
    "name": "Redemption",
    "spellLevel": 24,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "10324": {
@@ -5148,6 +5922,7 @@
    "name": "Redemption",
    "spellLevel": 36,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "10326": {
@@ -5163,6 +5938,7 @@
    "procFlag": 2148147880,
    "spellLevel": 52,
    "subtext": "Rank 3",
+   "targetCode": 1,
    "v": 1
   },
   "10336": {
@@ -5406,6 +6182,7 @@
    "gcdMs": 1500,
    "maxLevel": 45,
    "name": "Flame Shock",
+   "periodMs": 3000,
    "spellLevel": 40,
    "subtext": "Rank 4",
    "v": 1
@@ -5421,6 +6198,7 @@
    "gcdMs": 1500,
    "maxLevel": 57,
    "name": "Flame Shock",
+   "periodMs": 3000,
    "spellLevel": 52,
    "subtext": "Rank 5",
    "v": 1
@@ -5548,6 +6326,7 @@
    "name": "Windfury Weapon",
    "spellLevel": 50,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "10495": {
@@ -5677,6 +6456,7 @@
    "icdMs": 0,
    "maxLevel": 15,
    "name": "Rejuvenation",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 10,
    "subtext": "Rank 2",
@@ -5803,6 +6583,86 @@
    "subtext": "Rank 4",
    "v": 1
   },
+  "10608": {
+   "baseLevel": 42,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 1000,
+   "family": 11,
+   "icdMs": 0,
+   "maxLevel": 50,
+   "name": "Windfury Totem",
+   "procFlag": 4,
+   "spellLevel": 42,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "10609": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "icdMs": 100,
+   "maxLevel": 50,
+   "name": "Windfury Totem",
+   "procFlag": 20,
+   "spellLevel": 42,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "10610": {
+   "baseLevel": 52,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 1000,
+   "family": 11,
+   "icdMs": 0,
+   "maxLevel": 60,
+   "name": "Windfury Totem",
+   "procFlag": 4,
+   "spellLevel": 52,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "10612": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "icdMs": 100,
+   "maxLevel": 60,
+   "name": "Windfury Totem",
+   "procFlag": 20,
+   "spellLevel": 52,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "10613": {
+   "baseLevel": 42,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 300000,
+   "family": 11,
+   "gcdMs": 1000,
+   "name": "Windfury Totem",
+   "spellLevel": 42,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "10614": {
+   "baseLevel": 52,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 300000,
+   "family": 11,
+   "gcdMs": 1000,
+   "name": "Windfury Totem",
+   "spellLevel": 52,
+   "subtext": "Rank 3",
+   "v": 1
+  },
   "1062": {
    "baseLevel": 18,
    "castMs": 1500,
@@ -5814,6 +6674,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Entangling Roots",
+   "periodMs": 3000,
    "procFlag": 2148147880,
    "spellLevel": 18,
    "subtext": "Rank 2",
@@ -5878,9 +6739,13 @@
    "family": 7,
    "gcdMs": 1000,
    "name": "Rip",
+   "periodMs": 2000,
    "spellLevel": 20,
    "subtext": "Rank 1",
    "v": 1
+  },
+  "10833": {
+   "name": "Arcane Blast"
   },
   "1086": {
    "baseLevel": 30,
@@ -5953,6 +6818,7 @@
    "name": "Resurrection",
    "spellLevel": 34,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "10881": {
@@ -5967,6 +6833,7 @@
    "name": "Resurrection",
    "spellLevel": 46,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "10888": {
@@ -5983,6 +6850,7 @@
    "procFlag": 2148147880,
    "spellLevel": 42,
    "subtext": "Rank 3",
+   "targetCode": 4,
    "v": 1
   },
   "10890": {
@@ -5999,6 +6867,7 @@
    "procFlag": 2148147880,
    "spellLevel": 56,
    "subtext": "Rank 4",
+   "targetCode": 5,
    "v": 1
   },
   "10892": {
@@ -6012,6 +6881,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Shadow Word: Pain",
+   "periodMs": 3000,
    "spellLevel": 42,
    "subtext": "Rank 6",
    "v": 1
@@ -6027,6 +6897,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Shadow Word: Pain",
+   "periodMs": 3000,
    "spellLevel": 50,
    "subtext": "Rank 7",
    "v": 1
@@ -6042,6 +6913,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Shadow Word: Pain",
+   "periodMs": 3000,
    "spellLevel": 58,
    "subtext": "Rank 8",
    "v": 1
@@ -6121,6 +6993,54 @@
    "subtext": "Rank 2",
    "v": 1
   },
+  "10927": {
+   "baseLevel": 44,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 49,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 44,
+   "subtext": "Rank 7",
+   "v": 1
+  },
+  "10928": {
+   "baseLevel": 50,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 55,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 50,
+   "subtext": "Rank 8",
+   "v": 1
+  },
+  "10929": {
+   "baseLevel": 56,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 61,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 56,
+   "subtext": "Rank 9",
+   "v": 1
+  },
   "10937": {
    "baseLevel": 48,
    "castMs": 0,
@@ -6165,6 +7085,7 @@
    "gcdMs": 1500,
    "maxLevel": 25,
    "name": "Immolate",
+   "periodMs": 3000,
    "spellLevel": 20,
    "subtext": "Rank 3",
    "v": 1
@@ -6201,6 +7122,51 @@
    "name": "Fade",
    "spellLevel": 60,
    "subtext": "Rank 6",
+   "v": 1
+  },
+  "10945": {
+   "baseLevel": 46,
+   "castMs": 1500,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 51,
+   "name": "Mind Blast",
+   "spellLevel": 46,
+   "subtext": "Rank 7",
+   "v": 1
+  },
+  "10946": {
+   "baseLevel": 52,
+   "castMs": 1500,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 57,
+   "name": "Mind Blast",
+   "spellLevel": 52,
+   "subtext": "Rank 8",
+   "v": 1
+  },
+  "10947": {
+   "baseLevel": 58,
+   "castMs": 1500,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 63,
+   "name": "Mind Blast",
+   "spellLevel": 58,
+   "subtext": "Rank 9",
    "v": 1
   },
   "10951": {
@@ -6247,6 +7213,7 @@
    "name": "Mind Soothe",
    "spellLevel": 52,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "10955": {
@@ -6262,6 +7229,7 @@
    "name": "Shackle Undead",
    "spellLevel": 60,
    "subtext": "Rank 3",
+   "targetCode": 1,
    "v": 1
   },
   "10957": {
@@ -6309,6 +7277,7 @@
    "name": "Subjugate Demon",
    "spellLevel": 30,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "1105": {
@@ -6333,6 +7302,36 @@
   },
   "1109": {
    "name": "Curse of Weakness"
+  },
+  "11113": {
+   "baseLevel": 30,
+   "castMs": 0,
+   "category": 250,
+   "categoryCooldownMs": 45000,
+   "cooldownMs": 0,
+   "durationMs": 6000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 36,
+   "name": "Blast Wave",
+   "spellLevel": 30,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "11129": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "category": 1151,
+   "categoryCooldownMs": 180000,
+   "cooldownMs": 0,
+   "durationMs": -1,
+   "family": 3,
+   "gcdMs": 0,
+   "icdMs": 0,
+   "name": "Combustion",
+   "procFlag": 65536,
+   "spellLevel": 40,
+   "v": 1
   },
   "1117": {
    "name": "Mend Pet"
@@ -6378,6 +7377,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Drain Soul",
+   "periodMs": 3000,
    "procFlag": 2,
    "spellLevel": 10,
    "subtext": "Rank 1",
@@ -6403,6 +7403,7 @@
    "name": "Crippling Poison",
    "spellLevel": 50,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "1122": {
@@ -6418,6 +7419,7 @@
    "name": "Inferno",
    "spellLevel": 50,
    "subtext": "Summon",
+   "targetCode": 0,
    "v": 1
   },
   "1126": {
@@ -6446,6 +7448,7 @@
    "family": 8,
    "gcdMs": 1000,
    "name": "Rupture",
+   "periodMs": 2000,
    "spellLevel": 44,
    "subtext": "Rank 4",
    "v": 1
@@ -6460,6 +7463,7 @@
    "family": 8,
    "gcdMs": 1000,
    "name": "Rupture",
+   "periodMs": 2000,
    "spellLevel": 52,
    "subtext": "Rank 5",
    "v": 1
@@ -6474,6 +7478,7 @@
    "family": 8,
    "gcdMs": 1000,
    "name": "Rupture",
+   "periodMs": 2000,
    "spellLevel": 60,
    "subtext": "Rank 6",
    "v": 1
@@ -6518,6 +7523,7 @@
    "family": 8,
    "gcdMs": 1000,
    "name": "Garrote",
+   "periodMs": 3000,
    "spellLevel": 46,
    "subtext": "Rank 5",
    "v": 1
@@ -6532,6 +7538,7 @@
    "family": 8,
    "gcdMs": 1000,
    "name": "Garrote",
+   "periodMs": 3000,
    "spellLevel": 54,
    "subtext": "Rank 6",
    "v": 1
@@ -6549,6 +7556,7 @@
    "name": "Sap",
    "spellLevel": 48,
    "subtext": "Rank 3",
+   "targetCode": 1,
    "v": 1
   },
   "1130": {
@@ -6650,6 +7658,7 @@
    "icdMs": 0,
    "maxLevel": 41,
    "name": "Fire Shield",
+   "periodMs": 3000,
    "v": 1
   },
   "11351": {
@@ -6660,6 +7669,23 @@
    "icdMs": 0,
    "maxLevel": 41,
    "name": "Fire Shield",
+   "v": 1
+  },
+  "11366": {
+   "baseLevel": 20,
+   "castMs": 6000,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 12000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 24,
+   "name": "Pyroblast",
+   "periodMs": 3000,
+   "spellLevel": 20,
+   "subtext": "Rank 1",
    "v": 1
   },
   "11398": {
@@ -6683,6 +7709,7 @@
    "name": "Mind-numbing Poison III",
    "spellLevel": 52,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "11400": {
@@ -6909,6 +7936,7 @@
    "name": "Thunder Clap",
    "spellLevel": 48,
    "subtext": "Rank 5",
+   "targetCode": 4,
    "v": 1
   },
   "11581": {
@@ -6923,6 +7951,7 @@
    "name": "Thunder Clap",
    "spellLevel": 58,
    "subtext": "Rank 6",
+   "targetCode": 4,
    "v": 1
   },
   "11582": {
@@ -6966,6 +7995,7 @@
    "family": 4,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Sunder Armor",
    "spellLevel": 46,
    "subtext": "Rank 4",
@@ -6981,6 +8011,7 @@
    "family": 4,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Sunder Armor",
    "spellLevel": 58,
    "subtext": "Rank 5",
@@ -7075,6 +8106,9 @@
   "11639": {
    "name": "Shadow Word: Pain"
   },
+  "11640": {
+   "name": "Renew"
+  },
   "11647": {
    "name": "Power Word: Shield"
   },
@@ -7089,6 +8123,7 @@
    "gcdMs": 1500,
    "maxLevel": 45,
    "name": "Immolate",
+   "periodMs": 3000,
    "spellLevel": 40,
    "subtext": "Rank 5",
    "v": 1
@@ -7104,6 +8139,7 @@
    "gcdMs": 1500,
    "maxLevel": 55,
    "name": "Immolate",
+   "periodMs": 3000,
    "spellLevel": 50,
    "subtext": "Rank 6",
    "v": 1
@@ -7119,6 +8155,7 @@
    "gcdMs": 1500,
    "maxLevel": 65,
    "name": "Immolate",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 7",
    "v": 1
@@ -7134,6 +8171,7 @@
    "gcdMs": 1500,
    "maxLevel": 49,
    "name": "Corruption",
+   "periodMs": 3000,
    "spellLevel": 44,
    "subtext": "Rank 5",
    "v": 1
@@ -7149,6 +8187,7 @@
    "gcdMs": 1500,
    "maxLevel": 59,
    "name": "Corruption",
+   "periodMs": 3000,
    "spellLevel": 54,
    "subtext": "Rank 6",
    "v": 1
@@ -7167,6 +8206,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Drain Soul",
+   "periodMs": 3000,
    "procFlag": 2,
    "spellLevel": 52,
    "subtext": "Rank 4",
@@ -7183,8 +8223,10 @@
    "gcdMs": 1500,
    "maxLevel": 51,
    "name": "Rain of Fire",
+   "periodMs": 2000,
    "spellLevel": 46,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "11678": {
@@ -7198,8 +8240,10 @@
    "gcdMs": 1500,
    "maxLevel": 63,
    "name": "Rain of Fire",
+   "periodMs": 2000,
    "spellLevel": 58,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "11683": {
@@ -7213,6 +8257,7 @@
    "gcdMs": 1500,
    "maxLevel": 52,
    "name": "Hellfire",
+   "periodMs": 1000,
    "spellLevel": 42,
    "subtext": "Rank 2",
    "v": 1
@@ -7228,6 +8273,7 @@
    "gcdMs": 1500,
    "maxLevel": 64,
    "name": "Hellfire",
+   "periodMs": 1000,
    "spellLevel": 54,
    "subtext": "Rank 3",
    "v": 1
@@ -7242,6 +8288,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Health Funnel",
+   "periodMs": 1000,
    "spellLevel": 44,
    "subtext": "Rank 5",
    "v": 1
@@ -7256,6 +8303,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Health Funnel",
+   "periodMs": 1000,
    "spellLevel": 52,
    "subtext": "Rank 6",
    "v": 1
@@ -7270,6 +8318,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Health Funnel",
+   "periodMs": 1000,
    "spellLevel": 60,
    "subtext": "Rank 7",
    "v": 1
@@ -7288,6 +8337,7 @@
    "gcdMs": 1500,
    "maxLevel": 51,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 46,
    "subtext": "Rank 5",
    "v": 1
@@ -7303,6 +8353,7 @@
    "gcdMs": 1500,
    "maxLevel": 59,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 54,
    "subtext": "Rank 6",
    "v": 1
@@ -7318,6 +8369,7 @@
    "gcdMs": 1500,
    "maxLevel": 49,
    "name": "Drain Mana",
+   "periodMs": 1000,
    "spellLevel": 44,
    "subtext": "Rank 3",
    "v": 1
@@ -7333,6 +8385,7 @@
    "gcdMs": 1500,
    "maxLevel": 59,
    "name": "Drain Mana",
+   "periodMs": 1000,
    "spellLevel": 54,
    "subtext": "Rank 4",
    "v": 1
@@ -7375,6 +8428,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Bane of Agony",
+   "periodMs": 2000,
    "spellLevel": 38,
    "subtext": "Rank 4",
    "v": 1
@@ -7389,6 +8443,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Bane of Agony",
+   "periodMs": 2000,
    "spellLevel": 48,
    "subtext": "Rank 5",
    "v": 1
@@ -7403,6 +8458,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Bane of Agony",
+   "periodMs": 2000,
    "spellLevel": 58,
    "subtext": "Rank 6",
    "v": 1
@@ -7457,6 +8513,7 @@
    "name": "Subjugate Demon",
    "spellLevel": 44,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "11726": {
@@ -7473,6 +8530,7 @@
    "name": "Subjugate Demon",
    "spellLevel": 58,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "11727": {
@@ -7733,6 +8791,7 @@
    "name": "Polymorph",
    "spellLevel": 8,
    "subtext": "Rank 1",
+   "targetCode": 1,
    "v": 1
   },
   "1181": {
@@ -7741,8 +8800,14 @@
   "1182": {
    "name": "Regeneration"
   },
+  "11829": {
+   "name": "Flamestrike"
+  },
   "1183": {
    "name": "Regeneration"
+  },
+  "11831": {
+   "name": "Frost Nova"
   },
   "11835": {
    "name": "Power Word: Shield"
@@ -7808,6 +8873,22 @@
   "11990": {
    "name": "Rain of Fire"
   },
+  "120": {
+   "baseLevel": 26,
+   "castMs": 0,
+   "category": 50,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 6000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 31,
+   "name": "Cone of Cold",
+   "spellLevel": 26,
+   "subtext": "Rank 1",
+   "targetCode": 0,
+   "v": 1
+  },
   "1200": {
    "name": "Frost Armor"
   },
@@ -7838,6 +8919,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Evocation",
+   "periodMs": 1000,
    "spellLevel": 20,
    "v": 1
   },
@@ -7846,6 +8928,9 @@
   },
   "12096": {
    "name": "Fear"
+  },
+  "1213250": {
+   "name": "Starfall"
   },
   "1213253": {
    "name": "Entangling Roots"
@@ -7859,6 +8944,9 @@
   "1213278": {
    "name": "Ice Barrier"
   },
+  "1213279": {
+   "name": "Blizzard"
+  },
   "1213300": {
    "name": "Divine Protection"
   },
@@ -7868,11 +8956,25 @@
   "1213304": {
    "name": "Whirlwind"
   },
+  "1213317": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 10000,
+   "family": 3,
+   "icdMs": 0,
+   "name": "Fire Blast",
+   "procFlag": 65536,
+   "spellLevel": 40,
+   "v": 1
+  },
   "1213331": {
    "name": "Mana Burn"
   },
   "1213334": {
    "name": "Shadowform"
+  },
+  "1213336": {
+   "name": "Mind Blast"
   },
   "1213408": {
    "castMs": 0,
@@ -7881,6 +8983,12 @@
    "name": "Blessing of Kings",
    "spellLevel": 1,
    "v": 1
+  },
+  "1213419": {
+   "name": "Heroism"
+  },
+  "1213420": {
+   "name": "Heroism"
   },
   "1213442": {
    "name": "Garrote"
@@ -7940,11 +9048,15 @@
   "1213874": {
    "name": "Drain Life"
   },
+  "1214029": {
+   "name": "Arcane Blast"
+  },
   "1214088": {
    "castMs": 0,
    "durationMs": 20000,
    "family": 5,
    "icdMs": 0,
+   "maxStack": 2,
    "name": "Infernalist",
    "spellLevel": 1,
    "v": 1
@@ -7971,7 +9083,9 @@
    "durationMs": 12000,
    "family": 8,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Occult Poison II",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 2",
    "v": 1
@@ -7984,6 +9098,7 @@
    "name": "Occult Poison II",
    "spellLevel": 54,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "1214205": {
@@ -7994,6 +9109,9 @@
   },
   "1214273": {
    "name": "Silence"
+  },
+  "1215740": {
+   "name": "Mind Flay"
   },
   "1215779": {
    "name": "Drain Mana"
@@ -8053,11 +9171,15 @@
    "durationMs": 45000,
    "family": 3,
    "icdMs": 0,
+   "maxStack": 12,
    "name": "Evoker",
    "v": 1
   },
   "1219099": {
    "name": "Shadow Cleave"
+  },
+  "1219275": {
+   "name": "Devouring Plague"
   },
   "1219355": {
    "name": "Tease"
@@ -8110,6 +9232,23 @@
    "spellLevel": 60,
    "v": 1
   },
+  "122": {
+   "baseLevel": 10,
+   "castMs": 0,
+   "category": 35,
+   "categoryCooldownMs": 25000,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 15,
+   "name": "Frost Nova",
+   "procFlag": 2148147880,
+   "spellLevel": 10,
+   "subtext": "Rank 1",
+   "v": 1
+  },
   "1220711": {
    "name": "Drain Life"
   },
@@ -8134,6 +9273,12 @@
   "1220751": {
    "name": "Earth Shock"
   },
+  "1220855": {
+   "name": "Frost Nova"
+  },
+  "1220862": {
+   "name": "Blizzard"
+  },
   "1220927": {
    "name": "Inferno"
   },
@@ -8147,6 +9292,7 @@
    "gcdMs": 1500,
    "name": "Enchanted Flare",
    "spellLevel": 32,
+   "targetCode": 0,
    "v": 1
   },
   "1221416": {
@@ -8167,6 +9313,9 @@
   "1222563": {
    "name": "Fear"
   },
+  "1222574": {
+   "name": "Mind Blast"
+  },
   "1222743": {
    "name": "Resurrection"
   },
@@ -8183,6 +9332,7 @@
    "family": 5,
    "maxLevel": 65,
    "name": "Corruption",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 7",
    "v": 1
@@ -8209,6 +9359,7 @@
    "family": 5,
    "name": "Bane of Havoc",
    "spellLevel": 1,
+   "targetCode": 1,
    "v": 1
   },
   "1225295": {
@@ -8255,6 +9406,7 @@
    "durationMs": 0,
    "family": 5,
    "name": "Grimoire of Synergy",
+   "targetCode": 0,
    "v": 1
   },
   "1227155": {
@@ -8265,6 +9417,7 @@
    "durationMs": 15000,
    "family": 5,
    "name": "Wickedness",
+   "targetCode": 0,
    "v": 1
   },
   "1227772": {
@@ -8304,6 +9457,9 @@
    "procFlag": 20,
    "spellLevel": 30,
    "v": 1
+  },
+  "1229228": {
+   "name": "Pounce"
   },
   "12294": {
    "baseLevel": 40,
@@ -8400,6 +9556,9 @@
   "1231389": {
    "name": "Vanish"
   },
+  "1231538": {
+   "name": "Blast Wave"
+  },
   "1231689": {
    "name": "Sacrifice"
   },
@@ -8447,6 +9606,12 @@
   "1232703": {
    "name": "Retribution Aura"
   },
+  "1232734": {
+   "name": "Renew"
+  },
+  "1232743": {
+   "name": "Mind Blast"
+  },
   "1232755": {
    "name": "Consecration"
   },
@@ -8486,15 +9651,21 @@
    "durationMs": 12000,
    "family": 9,
    "icdMs": 0,
+   "maxStack": 4,
    "name": "Trick Shots",
    "procFlag": 320,
+   "targetCode": 0,
    "v": 1
+  },
+  "1233507": {
+   "name": "Reckoning"
   },
   "1233988": {
    "castMs": 0,
    "durationMs": 20000,
    "family": 5,
    "name": "Infernalist Armor",
+   "targetCode": 0,
    "v": 1
   },
   "1234005": {
@@ -8502,8 +9673,10 @@
    "durationMs": 15000,
    "family": 4,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Slammin'",
    "procFlag": 16,
+   "targetCode": 0,
    "v": 1
   },
   "1234067": {
@@ -8511,8 +9684,10 @@
    "durationMs": 15000,
    "family": 4,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Gladiator's Cunning",
    "procFlag": 16,
+   "targetCode": 0,
    "v": 1
   },
   "1234069": {
@@ -8520,7 +9695,9 @@
    "durationMs": 30000,
    "family": 8,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Punch Harder",
+   "targetCode": 0,
    "v": 1
   },
   "1234545": {
@@ -8538,6 +9715,9 @@
   "1235317": {
    "name": "Immolate"
   },
+  "1235318": {
+   "name": "Blast Wave"
+  },
   "1235538": {
    "name": "Charge"
   },
@@ -8551,7 +9731,9 @@
    "family": 7,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Lacerate",
+   "periodMs": 3000,
    "spellLevel": 50,
    "subtext": "Rank 4",
    "v": 1
@@ -8566,16 +9748,27 @@
    "family": 7,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Lacerate",
+   "periodMs": 3000,
    "spellLevel": 58,
    "subtext": "Rank 5",
    "v": 1
+  },
+  "1236151": {
+   "name": "Renew"
   },
   "1236154": {
    "name": "Power Word: Shield"
   },
   "1236156": {
    "name": "Dispel Magic"
+  },
+  "1236162": {
+   "name": "Holy Fire"
+  },
+  "1236173": {
+   "name": "Pyroblast"
   },
   "1236174": {
    "name": "Polymorph"
@@ -8604,8 +9797,14 @@
   "1236191": {
    "name": "Concussive Shot"
   },
+  "1236287": {
+   "name": "Holy Fire"
+  },
   "1236290": {
    "name": "Polymorph"
+  },
+  "1236291": {
+   "name": "Pyroblast"
   },
   "1236307": {
    "name": "Rejuvenation"
@@ -8619,6 +9818,7 @@
    "name": "Spellstone",
    "spellLevel": 28,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "1237156": {
@@ -8627,6 +9827,7 @@
    "name": "Spellstone",
    "spellLevel": 28,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "1237159": {
@@ -8634,6 +9835,41 @@
    "durationMs": 0,
    "name": "Spellstone",
    "spellLevel": 28,
+   "subtext": "Rank 3",
+   "targetCode": 0,
+   "v": 1
+  },
+  "1237312": {
+   "baseLevel": 50,
+   "castMs": 3000,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 9000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 58,
+   "name": "Frostfire Bolt",
+   "periodMs": 3000,
+   "spellLevel": 50,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "1237313": {
+   "baseLevel": 60,
+   "castMs": 3000,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 9000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 68,
+   "name": "Frostfire Bolt",
+   "periodMs": 3000,
+   "spellLevel": 60,
    "subtext": "Rank 3",
    "v": 1
   },
@@ -8698,6 +9934,7 @@
    "gcdMs": 1500,
    "maxLevel": 58,
    "name": "Wild Growth",
+   "periodMs": 1000,
    "spellLevel": 50,
    "subtext": "Rank 2",
    "v": 1
@@ -8713,6 +9950,7 @@
    "gcdMs": 1500,
    "maxLevel": 68,
    "name": "Wild Growth",
+   "periodMs": 1000,
    "spellLevel": 60,
    "subtext": "Rank 3",
    "v": 1
@@ -8756,6 +9994,7 @@
    "gcdMs": 1500,
    "maxLevel": 58,
    "name": "Riptide",
+   "periodMs": 3000,
    "spellLevel": 50,
    "subtext": "Rank 2",
    "v": 1
@@ -8771,8 +10010,136 @@
    "gcdMs": 1500,
    "maxLevel": 68,
    "name": "Riptide",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 3",
+   "v": 1
+  },
+  "1239570": {
+   "name": "Holy Shield"
+  },
+  "1239696": {
+   "baseLevel": 30,
+   "castMs": 1500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 38,
+   "name": "Arcane Blast",
+   "spellLevel": 30,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "1239697": {
+   "baseLevel": 40,
+   "castMs": 1500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 48,
+   "name": "Arcane Blast",
+   "spellLevel": 40,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "1239699": {
+   "baseLevel": 50,
+   "castMs": 1500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 58,
+   "name": "Arcane Blast",
+   "spellLevel": 50,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "1239700": {
+   "baseLevel": 60,
+   "castMs": 1500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 68,
+   "name": "Arcane Blast",
+   "spellLevel": 60,
+   "subtext": "Rank 5",
+   "v": 1
+  },
+  "1240044": {
+   "baseLevel": 34,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 40,
+   "name": "Ice Lance",
+   "spellLevel": 34,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "1240045": {
+   "baseLevel": 42,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 48,
+   "name": "Ice Lance",
+   "spellLevel": 42,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "1240046": {
+   "baseLevel": 48,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 56,
+   "name": "Ice Lance",
+   "spellLevel": 48,
+   "subtext": "Rank 5",
+   "v": 1
+  },
+  "1240047": {
+   "baseLevel": 56,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 64,
+   "name": "Ice Lance",
+   "spellLevel": 56,
+   "subtext": "Rank 6",
    "v": 1
   },
   "1240193": {
@@ -8830,6 +10197,46 @@
    "spellLevel": 46,
    "subtext": "Rank 3",
    "v": 1
+  },
+  "1240826": {
+   "baseLevel": 50,
+   "castMs": 0,
+   "category": 1181,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "gcdMs": 1500,
+   "name": "Prayer of Mending",
+   "spellLevel": 50,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "1240827": {
+   "baseLevel": 60,
+   "castMs": 0,
+   "category": 1181,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "gcdMs": 1500,
+   "name": "Prayer of Mending",
+   "spellLevel": 60,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "1240848": {
+   "name": "Prayer of Mending"
+  },
+  "1240849": {
+   "name": "Prayer of Mending"
+  },
+  "1240918": {
+   "name": "Prayer of Mending"
+  },
+  "1240919": {
+   "name": "Prayer of Mending"
   },
   "1242512": {
    "baseLevel": 1,
@@ -8954,6 +10361,9 @@
   "1245956": {
    "name": "Flame Shock"
   },
+  "12468": {
+   "name": "Flamestrike"
+  },
   "12470": {
    "name": "Fire Nova"
   },
@@ -8990,6 +10400,108 @@
   },
   "1250426": {
    "name": "Cripple"
+  },
+  "12505": {
+   "baseLevel": 24,
+   "castMs": 6000,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 12000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 30,
+   "name": "Pyroblast",
+   "periodMs": 3000,
+   "spellLevel": 24,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "12522": {
+   "baseLevel": 30,
+   "castMs": 6000,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 12000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 36,
+   "name": "Pyroblast",
+   "periodMs": 3000,
+   "spellLevel": 30,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "12523": {
+   "baseLevel": 36,
+   "castMs": 6000,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 12000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 42,
+   "name": "Pyroblast",
+   "periodMs": 3000,
+   "spellLevel": 36,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "12524": {
+   "baseLevel": 42,
+   "castMs": 6000,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 12000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 48,
+   "name": "Pyroblast",
+   "periodMs": 3000,
+   "spellLevel": 42,
+   "subtext": "Rank 5",
+   "v": 1
+  },
+  "12525": {
+   "baseLevel": 48,
+   "castMs": 6000,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 12000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 54,
+   "name": "Pyroblast",
+   "periodMs": 3000,
+   "spellLevel": 48,
+   "subtext": "Rank 6",
+   "v": 1
+  },
+  "12526": {
+   "baseLevel": 54,
+   "castMs": 6000,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 12000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 60,
+   "name": "Pyroblast",
+   "periodMs": 3000,
+   "spellLevel": 54,
+   "subtext": "Rank 7",
+   "v": 1
   },
   "12528": {
    "name": "Silence"
@@ -9039,17 +10551,26 @@
   "12556": {
    "name": "Frost Armor"
   },
+  "12557": {
+   "name": "Cone of Cold"
+  },
   "1256867": {
    "name": "Stealth"
   },
   "1257106": {
    "name": "Chain Lightning"
   },
+  "1258520": {
+   "name": "Pounce"
+  },
   "1260": {
    "name": "Shadow Word: Pain"
   },
   "1260650": {
    "name": "Bash"
+  },
+  "12611": {
+   "name": "Cone of Cold"
   },
   "1263640": {
    "name": "Entangling Roots"
@@ -9066,6 +10587,7 @@
    "name": "Thunderstomp",
    "spellLevel": 60,
    "subtext": "Rank 4",
+   "targetCode": 4,
    "v": 1
   },
   "1264456": {
@@ -9092,6 +10614,7 @@
    "name": "Swipe",
    "spellLevel": 12,
    "subtext": "Rank 1",
+   "targetCode": 4,
    "v": 1
   },
   "1264497": {
@@ -9107,6 +10630,7 @@
    "name": "Swipe",
    "spellLevel": 24,
    "subtext": "Rank 2",
+   "targetCode": 4,
    "v": 1
   },
   "1264498": {
@@ -9122,6 +10646,7 @@
    "name": "Swipe",
    "spellLevel": 36,
    "subtext": "Rank 3",
+   "targetCode": 4,
    "v": 1
   },
   "1264501": {
@@ -9137,6 +10662,7 @@
    "name": "Swipe",
    "spellLevel": 48,
    "subtext": "Rank 4",
+   "targetCode": 4,
    "v": 1
   },
   "1264502": {
@@ -9152,7 +10678,11 @@
    "name": "Swipe",
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "targetCode": 4,
    "v": 1
+  },
+  "1264548": {
+   "name": "Pounce"
   },
   "1264727": {
    "castMs": 0,
@@ -9207,6 +10737,7 @@
    "name": "Pinch",
    "spellLevel": 12,
    "subtext": "Rank 1",
+   "targetCode": 4,
    "v": 1
   },
   "1264736": {
@@ -9222,6 +10753,7 @@
    "name": "Pinch",
    "spellLevel": 24,
    "subtext": "Rank 2",
+   "targetCode": 4,
    "v": 1
   },
   "1264739": {
@@ -9237,6 +10769,7 @@
    "name": "Pinch",
    "spellLevel": 36,
    "subtext": "Rank 3",
+   "targetCode": 4,
    "v": 1
   },
   "1264741": {
@@ -9252,6 +10785,7 @@
    "name": "Pinch",
    "spellLevel": 48,
    "subtext": "Rank 4",
+   "targetCode": 4,
    "v": 1
   },
   "1264742": {
@@ -9267,6 +10801,7 @@
    "name": "Pinch",
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "targetCode": 4,
    "v": 1
   },
   "1264745": {
@@ -9325,6 +10860,7 @@
    "name": "Dismember",
    "spellLevel": 12,
    "subtext": "Rank 1",
+   "targetCode": 4,
    "v": 1
   },
   "1264927": {
@@ -9340,6 +10876,7 @@
    "name": "Dismember",
    "spellLevel": 24,
    "subtext": "Rank 2",
+   "targetCode": 4,
    "v": 1
   },
   "1264929": {
@@ -9355,6 +10892,7 @@
    "name": "Dismember",
    "spellLevel": 36,
    "subtext": "Rank 3",
+   "targetCode": 4,
    "v": 1
   },
   "1264930": {
@@ -9370,6 +10908,7 @@
    "name": "Dismember",
    "spellLevel": 48,
    "subtext": "Rank 4",
+   "targetCode": 4,
    "v": 1
   },
   "1264933": {
@@ -9385,6 +10924,7 @@
    "name": "Dismember",
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "targetCode": 4,
    "v": 1
   },
   "1264937": {
@@ -9438,8 +10978,10 @@
    "gcdMs": 1500,
    "maxLevel": 24,
    "name": "Tendon Rip",
+   "periodMs": 3000,
    "spellLevel": 12,
    "subtext": "Rank 1",
+   "targetCode": 4,
    "v": 1
   },
   "1265039": {
@@ -9453,8 +10995,10 @@
    "gcdMs": 1500,
    "maxLevel": 36,
    "name": "Tendon Rip",
+   "periodMs": 3000,
    "spellLevel": 24,
    "subtext": "Rank 2",
+   "targetCode": 4,
    "v": 1
   },
   "1265040": {
@@ -9468,8 +11012,10 @@
    "gcdMs": 1500,
    "maxLevel": 48,
    "name": "Tendon Rip",
+   "periodMs": 3000,
    "spellLevel": 36,
    "subtext": "Rank 3",
+   "targetCode": 4,
    "v": 1
   },
   "1265041": {
@@ -9483,8 +11029,10 @@
    "gcdMs": 1500,
    "maxLevel": 60,
    "name": "Tendon Rip",
+   "periodMs": 3000,
    "spellLevel": 48,
    "subtext": "Rank 4",
+   "targetCode": 4,
    "v": 1
   },
   "1265042": {
@@ -9498,8 +11046,10 @@
    "gcdMs": 1500,
    "maxLevel": 60,
    "name": "Tendon Rip",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "targetCode": 4,
    "v": 1
   },
   "1265043": {
@@ -9555,6 +11105,7 @@
    "name": "Mine!",
    "spellLevel": 10,
    "subtext": "Rank 1",
+   "targetCode": 4,
    "v": 1
   },
   "1265055": {
@@ -9570,6 +11121,7 @@
    "name": "Mine!",
    "spellLevel": 20,
    "subtext": "Rank 2",
+   "targetCode": 4,
    "v": 1
   },
   "1265056": {
@@ -9585,6 +11137,7 @@
    "name": "Mine!",
    "spellLevel": 30,
    "subtext": "Rank 3",
+   "targetCode": 4,
    "v": 1
   },
   "1265057": {
@@ -9600,6 +11153,7 @@
    "name": "Mine!",
    "spellLevel": 40,
    "subtext": "Rank 4",
+   "targetCode": 4,
    "v": 1
   },
   "1265058": {
@@ -9615,6 +11169,7 @@
    "name": "Mine!",
    "spellLevel": 50,
    "subtext": "Rank 5",
+   "targetCode": 4,
    "v": 1
   },
   "1265059": {
@@ -9668,8 +11223,10 @@
    "gcdMs": 1500,
    "maxLevel": 24,
    "name": "Web",
+   "periodMs": 1000,
    "spellLevel": 12,
    "subtext": "Rank 1",
+   "targetCode": 1,
    "v": 1
   },
   "1265878": {
@@ -9683,8 +11240,10 @@
    "gcdMs": 1500,
    "maxLevel": 36,
    "name": "Web",
+   "periodMs": 1000,
    "spellLevel": 24,
    "subtext": "Rank 2",
+   "targetCode": 1,
    "v": 1
   },
   "1265880": {
@@ -9698,8 +11257,10 @@
    "gcdMs": 1500,
    "maxLevel": 48,
    "name": "Web",
+   "periodMs": 1000,
    "spellLevel": 36,
    "subtext": "Rank 3",
+   "targetCode": 1,
    "v": 1
   },
   "1265881": {
@@ -9713,8 +11274,10 @@
    "gcdMs": 1500,
    "maxLevel": 60,
    "name": "Web",
+   "periodMs": 1000,
    "spellLevel": 48,
    "subtext": "Rank 4",
+   "targetCode": 1,
    "v": 1
   },
   "1265883": {
@@ -9728,8 +11291,10 @@
    "gcdMs": 1500,
    "maxLevel": 60,
    "name": "Web",
+   "periodMs": 1000,
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "targetCode": 1,
    "v": 1
   },
   "1265887": {
@@ -9786,6 +11351,7 @@
    "name": "Dust Cloud",
    "spellLevel": 12,
    "subtext": "Rank 1",
+   "targetCode": 1,
    "v": 1
   },
   "1265901": {
@@ -9802,6 +11368,7 @@
    "name": "Dust Cloud",
    "spellLevel": 24,
    "subtext": "Rank 2",
+   "targetCode": 1,
    "v": 1
   },
   "1265902": {
@@ -9818,6 +11385,7 @@
    "name": "Dust Cloud",
    "spellLevel": 36,
    "subtext": "Rank 3",
+   "targetCode": 1,
    "v": 1
   },
   "1265903": {
@@ -9834,6 +11402,7 @@
    "name": "Dust Cloud",
    "spellLevel": 48,
    "subtext": "Rank 4",
+   "targetCode": 1,
    "v": 1
   },
   "1265904": {
@@ -9850,6 +11419,7 @@
    "name": "Dust Cloud",
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "targetCode": 1,
    "v": 1
   },
   "1265907": {
@@ -9891,6 +11461,9 @@
    "spellLevel": 1,
    "subtext": "Rank 4",
    "v": 1
+  },
+  "12674": {
+   "name": "Frost Nova"
   },
   "12685": {
    "name": "Fade"
@@ -9937,6 +11510,12 @@
   "1271593": {
    "name": "Fear"
   },
+  "1271759": {
+   "name": "Starfall"
+  },
+  "1271898": {
+   "name": "Starfall"
+  },
   "12723": {
    "name": "Sweeping Strikes"
   },
@@ -9958,6 +11537,9 @@
   "12747": {
    "name": "Entangling Roots"
   },
+  "12748": {
+   "name": "Frost Nova"
+  },
   "1277331": {
    "baseLevel": 20,
    "castMs": 0,
@@ -9972,6 +11554,7 @@
    "name": "Chastise",
    "spellLevel": 20,
    "subtext": "Rank 1",
+   "targetCode": 1,
    "v": 1
   },
   "1277332": {
@@ -9988,6 +11571,7 @@
    "name": "Chastise",
    "spellLevel": 30,
    "subtext": "Rank 2",
+   "targetCode": 1,
    "v": 1
   },
   "1277333": {
@@ -10004,6 +11588,7 @@
    "name": "Chastise",
    "spellLevel": 40,
    "subtext": "Rank 3",
+   "targetCode": 1,
    "v": 1
   },
   "1277334": {
@@ -10020,6 +11605,7 @@
    "name": "Chastise",
    "spellLevel": 50,
    "subtext": "Rank 4",
+   "targetCode": 1,
    "v": 1
   },
   "1277335": {
@@ -10036,6 +11622,7 @@
    "name": "Chastise",
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "targetCode": 1,
    "v": 1
   },
   "1277424": {
@@ -10053,6 +11640,7 @@
    "icdMs": 0,
    "name": "Confounding Flash",
    "spellLevel": 10,
+   "targetCode": 5,
    "v": 1
   },
   "1277662": {
@@ -10066,6 +11654,9 @@
   },
   "1278029": {
    "name": "Tame Beast"
+  },
+  "12787": {
+   "name": "Thrash"
   },
   "1278759": {
    "baseLevel": 60,
@@ -10081,6 +11672,7 @@
    "name": "Hurricane",
    "spellLevel": 60,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "1278965": {
@@ -10097,6 +11689,7 @@
    "name": "Hurricane",
    "spellLevel": 40,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "1278968": {
@@ -10113,6 +11706,7 @@
    "name": "Hurricane",
    "spellLevel": 50,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "1279": {
@@ -10123,6 +11717,174 @@
   },
   "1279692": {
    "name": "Flare"
+  },
+  "1279949": {
+   "baseLevel": 60,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "maxLevel": 65,
+   "name": "Blizzard",
+   "spellLevel": 60,
+   "subtext": "Rank 6",
+   "targetCode": 0,
+   "v": 1
+  },
+  "1279976": {
+   "baseLevel": 20,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "maxLevel": 25,
+   "name": "Blizzard",
+   "spellLevel": 20,
+   "subtext": "Rank 1",
+   "targetCode": 0,
+   "v": 1
+  },
+  "1279977": {
+   "baseLevel": 28,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "maxLevel": 33,
+   "name": "Blizzard",
+   "spellLevel": 28,
+   "subtext": "Rank 2",
+   "targetCode": 0,
+   "v": 1
+  },
+  "1279978": {
+   "baseLevel": 36,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "maxLevel": 41,
+   "name": "Blizzard",
+   "spellLevel": 36,
+   "subtext": "Rank 3",
+   "targetCode": 0,
+   "v": 1
+  },
+  "1279979": {
+   "baseLevel": 44,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "maxLevel": 49,
+   "name": "Blizzard",
+   "spellLevel": 44,
+   "subtext": "Rank 4",
+   "targetCode": 0,
+   "v": 1
+  },
+  "1279980": {
+   "baseLevel": 52,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "maxLevel": 57,
+   "name": "Blizzard",
+   "spellLevel": 52,
+   "subtext": "Rank 5",
+   "targetCode": 0,
+   "v": 1
+  },
+  "1279983": {
+   "baseLevel": 16,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "maxLevel": 21,
+   "name": "Flamestrike",
+   "spellLevel": 16,
+   "subtext": "Rank 1",
+   "targetCode": 0,
+   "v": 1
+  },
+  "1279985": {
+   "baseLevel": 24,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "maxLevel": 29,
+   "name": "Flamestrike",
+   "spellLevel": 24,
+   "subtext": "Rank 2",
+   "targetCode": 0,
+   "v": 1
+  },
+  "1279987": {
+   "baseLevel": 32,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "maxLevel": 37,
+   "name": "Flamestrike",
+   "spellLevel": 32,
+   "subtext": "Rank 3",
+   "targetCode": 0,
+   "v": 1
+  },
+  "1279988": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "maxLevel": 45,
+   "name": "Flamestrike",
+   "spellLevel": 40,
+   "subtext": "Rank 4",
+   "targetCode": 0,
+   "v": 1
+  },
+  "1279989": {
+   "baseLevel": 48,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "maxLevel": 53,
+   "name": "Flamestrike",
+   "spellLevel": 48,
+   "subtext": "Rank 5",
+   "targetCode": 0,
+   "v": 1
+  },
+  "1279990": {
+   "baseLevel": 56,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "maxLevel": 61,
+   "name": "Flamestrike",
+   "spellLevel": 56,
+   "subtext": "Rank 6",
+   "targetCode": 0,
+   "v": 1
   },
   "128": {
    "name": "Spellstone"
@@ -10137,6 +11899,7 @@
    "name": "Consecration",
    "spellLevel": 20,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "1280346": {
@@ -10149,6 +11912,7 @@
    "name": "Consecration",
    "spellLevel": 30,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "1280347": {
@@ -10161,6 +11925,7 @@
    "name": "Consecration",
    "spellLevel": 40,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "1280348": {
@@ -10173,6 +11938,7 @@
    "name": "Consecration",
    "spellLevel": 50,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "1280349": {
@@ -10185,6 +11951,7 @@
    "name": "Consecration",
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "targetCode": 0,
    "v": 1
   },
   "1280353": {
@@ -10196,6 +11963,7 @@
    "name": "Consecration",
    "procFlag": 8,
    "spellLevel": 1,
+   "targetCode": 0,
    "v": 1
   },
   "1280468": {
@@ -10250,6 +12018,7 @@
    "name": "Rain of Fire",
    "spellLevel": 20,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "1282381": {
@@ -10266,6 +12035,7 @@
    "name": "Rain of Fire",
    "spellLevel": 34,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "1282384": {
@@ -10279,6 +12049,7 @@
    "name": "Rain of Fire",
    "spellLevel": 46,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "1282385": {
@@ -10292,6 +12063,7 @@
    "name": "Rain of Fire",
    "spellLevel": 58,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "12824": {
@@ -10307,6 +12079,7 @@
    "name": "Polymorph",
    "spellLevel": 20,
    "subtext": "Rank 2",
+   "targetCode": 1,
    "v": 1
   },
   "12825": {
@@ -10322,6 +12095,7 @@
    "name": "Polymorph",
    "spellLevel": 40,
    "subtext": "Rank 3",
+   "targetCode": 1,
    "v": 1
   },
   "1282590": {
@@ -10340,6 +12114,7 @@
    "name": "Polymorph",
    "spellLevel": 60,
    "subtext": "Rank 4",
+   "targetCode": 1,
    "v": 1
   },
   "1282733": {
@@ -10368,6 +12143,9 @@
   "1286041": {
    "name": "Faerie Fire"
   },
+  "1286114": {
+   "name": "Starfall"
+  },
   "1286183": {
    "name": "Multi-Shot"
   },
@@ -10389,6 +12167,12 @@
    "name": "Enrage",
    "spellLevel": 1,
    "v": 1
+  },
+  "1288390": {
+   "name": "Starfall"
+  },
+  "1288559": {
+   "name": "Bloom"
   },
   "1288561": {
    "name": "Faerie Fire"
@@ -10435,6 +12219,15 @@
   "1289141": {
    "name": "Rip"
   },
+  "1289142": {
+   "name": "Ferocious Bite"
+  },
+  "1289447": {
+   "name": "Frost Nova"
+  },
+  "1289450": {
+   "name": "Renew"
+  },
   "1289452": {
    "name": "Faerie Fire"
   },
@@ -10446,6 +12239,9 @@
   },
   "1289849": {
    "name": "Main Gauche"
+  },
+  "1290041": {
+   "name": "Bloom"
   },
   "1290708": {
    "name": "Stealth"
@@ -10570,6 +12366,15 @@
   "1294444": {
    "name": "Freezing Trap"
   },
+  "1294721": {
+   "name": "Starfall"
+  },
+  "1294725": {
+   "name": "Starfall"
+  },
+  "1294728": {
+   "name": "Starfall"
+  },
   "12956": {
    "name": "Demon Armor"
   },
@@ -10636,6 +12441,7 @@
    "gcdMs": 1500,
    "maxLevel": 68,
    "name": "Lacerate",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 4",
    "v": 1
@@ -10726,8 +12532,17 @@
    "spellLevel": 12,
    "v": 1
   },
+  "1300176": {
+   "name": "Arcane Blast"
+  },
+  "1300177": {
+   "name": "Arcane Blast"
+  },
   "1300180": {
    "name": "Stealth"
+  },
+  "1300361": {
+   "name": "Starfall"
   },
   "13005": {
    "name": "Hammer of Justice"
@@ -10740,6 +12555,66 @@
   },
   "13008": {
    "name": "Retribution Aura"
+  },
+  "13018": {
+   "baseLevel": 36,
+   "castMs": 0,
+   "category": 250,
+   "categoryCooldownMs": 45000,
+   "cooldownMs": 0,
+   "durationMs": 6000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 42,
+   "name": "Blast Wave",
+   "spellLevel": 36,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "13019": {
+   "baseLevel": 44,
+   "castMs": 0,
+   "category": 250,
+   "categoryCooldownMs": 45000,
+   "cooldownMs": 0,
+   "durationMs": 6000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 50,
+   "name": "Blast Wave",
+   "spellLevel": 44,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "13020": {
+   "baseLevel": 52,
+   "castMs": 0,
+   "category": 250,
+   "categoryCooldownMs": 45000,
+   "cooldownMs": 0,
+   "durationMs": 6000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 58,
+   "name": "Blast Wave",
+   "spellLevel": 52,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "13021": {
+   "baseLevel": 60,
+   "castMs": 0,
+   "category": 250,
+   "categoryCooldownMs": 45000,
+   "cooldownMs": 0,
+   "durationMs": 6000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 66,
+   "name": "Blast Wave",
+   "spellLevel": 60,
+   "subtext": "Rank 5",
+   "v": 1
   },
   "1302511": {
    "name": "Devour Magic"
@@ -11018,6 +12893,15 @@
   "1310708": {
    "name": "Vigor"
   },
+  "1310735": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 10,
+   "icdMs": 0,
+   "name": "Unsealed Wrath",
+   "procFlag": 4,
+   "v": 1
+  },
   "1310785": {
    "baseLevel": 48,
    "castMs": 4000,
@@ -11087,6 +12971,43 @@
    "family": 10,
    "gcdMs": 0,
    "name": "Templar's Bulwark",
+   "v": 1
+  },
+  "1311604": {
+   "baseLevel": 30,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 10,
+   "name": "Holy Shock",
+   "spellLevel": 30,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "1311605": {
+   "baseLevel": 30,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 10,
+   "maxLevel": 37,
+   "name": "Holy Shock",
+   "spellLevel": 30,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "1311606": {
+   "baseLevel": 30,
+   "castMs": 0,
+   "category": 892,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 10,
+   "gcdMs": 1500,
+   "name": "Holy Shock",
+   "spellLevel": 30,
+   "subtext": "Rank 1",
    "v": 1
   },
   "1311647": {
@@ -11187,12 +13108,60 @@
    "subtext": "Rank 4",
    "v": 1
   },
+  "1311701": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "durationMs": 15000,
+   "icdMs": 0,
+   "maxStack": 3,
+   "name": "Echo of Fury",
+   "spellLevel": 40,
+   "v": 1
+  },
+  "1311703": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "durationMs": 15000,
+   "icdMs": 0,
+   "maxStack": 3,
+   "name": "Echo of Command",
+   "spellLevel": 40,
+   "v": 1
+  },
+  "1312002": {
+   "baseLevel": 20,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 26,
+   "name": "Ice Lance",
+   "spellLevel": 20,
+   "subtext": "Rank 1",
+   "v": 1
+  },
   "1312955": {
    "castMs": 0,
    "durationMs": 0,
    "name": "Thorns",
    "spellLevel": 55,
    "v": 1
+  },
+  "1313379": {
+   "name": "Prayer of Mending"
+  },
+  "1313381": {
+   "name": "Prayer of Mending"
+  },
+  "1314069": {
+   "name": "Fire Blast"
+  },
+  "1314281": {
+   "name": "Flamestrike"
   },
   "13159": {
    "baseLevel": 40,
@@ -11208,6 +13177,9 @@
    "procFlag": 139944,
    "spellLevel": 40,
    "v": 1
+  },
+  "1316039": {
+   "name": "Fire Blast"
   },
   "13161": {
    "castMs": 0,
@@ -11276,6 +13248,7 @@
    "gcdMs": 1500,
    "maxLevel": 60,
    "name": "Wrack",
+   "periodMs": 1000,
    "spellLevel": 40,
    "subtext": "Rank 1",
    "v": 1
@@ -11305,6 +13278,9 @@
   "1318151": {
    "name": "Stealth"
   },
+  "1318432": {
+   "name": "Fire Blast"
+  },
   "1319259": {
    "name": "Crusader Strike"
   },
@@ -11333,6 +13309,7 @@
    "durationMs": 15000,
    "family": 8,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Wound Poison",
    "spellLevel": 32,
    "subtext": "Rank 1",
@@ -11347,6 +13324,7 @@
    "name": "Wound Poison",
    "spellLevel": 32,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "13220": {
@@ -11365,6 +13343,7 @@
    "durationMs": 15000,
    "family": 8,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Wound Poison",
    "spellLevel": 40,
    "subtext": "Rank 2",
@@ -11377,6 +13356,7 @@
    "durationMs": 15000,
    "family": 8,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Wound Poison",
    "spellLevel": 48,
    "subtext": "Rank 3",
@@ -11389,6 +13369,7 @@
    "durationMs": 15000,
    "family": 8,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Wound Poison",
    "spellLevel": 56,
    "subtext": "Rank 4",
@@ -11403,6 +13384,7 @@
    "name": "Wound Poison",
    "spellLevel": 40,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "13226": {
@@ -11414,6 +13396,7 @@
    "name": "Wound Poison",
    "spellLevel": 48,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "1322605": {
@@ -11438,6 +13421,7 @@
    "name": "Wound Poison",
    "spellLevel": 56,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "1323289": {
@@ -11625,6 +13609,21 @@
   "1326042": {
    "name": "Drain Soul"
   },
+  "1326047": {
+   "baseLevel": 60,
+   "castMs": 2500,
+   "category": 1224,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 11,
+   "gcdMs": 1500,
+   "maxLevel": 68,
+   "name": "Lava Burst",
+   "spellLevel": 60,
+   "subtext": "Rank 4",
+   "v": 1
+  },
   "1326057": {
    "name": "Healthstone"
   },
@@ -11688,8 +13687,32 @@
    "subtext": "Rank 4",
    "v": 1
   },
+  "1326084": {
+   "castMs": 0,
+   "durationMs": -1,
+   "icdMs": 0,
+   "maxStack": 4,
+   "name": "Reckoning",
+   "procFlag": 4,
+   "v": 1
+  },
   "1326140": {
    "name": "Ritual of Summoning"
+  },
+  "1326159": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "name": "Dark Inspiration",
+   "v": 1
+  },
+  "1326168": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 10000,
+   "family": 6,
+   "name": "Dark Inspiration",
+   "v": 1
   },
   "1326175": {
    "name": "Stealth"
@@ -11710,8 +13733,42 @@
    "spellLevel": 40,
    "v": 1
   },
+  "1326990": {
+   "name": "Mind Blast"
+  },
   "13281": {
    "name": "Earth Shock"
+  },
+  "1328544": {
+   "baseLevel": 1,
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 10,
+   "name": "Shieldsworn",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "1328548": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 300000,
+   "family": 10,
+   "gcdMs": 1500,
+   "name": "Oath of Light",
+   "periodMs": 1500,
+   "targetCode": 1,
+   "v": 1
+  },
+  "1328551": {
+   "baseLevel": 1,
+   "castMs": 0,
+   "durationMs": 6000,
+   "family": 10,
+   "name": "Shieldsworn",
+   "spellLevel": 1,
+   "v": 1
   },
   "1328616": {
    "baseLevel": 34,
@@ -11723,7 +13780,9 @@
    "family": 7,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Lacerate",
+   "periodMs": 3000,
    "spellLevel": 34,
    "subtext": "Rank 2",
    "v": 1
@@ -11738,10 +13797,38 @@
    "family": 7,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Lacerate",
+   "periodMs": 3000,
    "spellLevel": 25,
    "subtext": "Rank 1",
    "v": 1
+  },
+  "1328618": {
+   "baseLevel": 24,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 7,
+   "gcdMs": 1000,
+   "name": "Ferocious Bite",
+   "spellLevel": 24,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "1328621": {
+   "baseLevel": 1,
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 7,
+   "name": "Bloom",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "1328622": {
+   "name": "Bloom"
   },
   "1328891": {
    "name": "Enrage"
@@ -11766,6 +13853,21 @@
   },
   "13338": {
    "name": "Curse of Tongues"
+  },
+  "13339": {
+   "name": "Fire Blast"
+  },
+  "13340": {
+   "name": "Fire Blast"
+  },
+  "13341": {
+   "name": "Fire Blast"
+  },
+  "13342": {
+   "name": "Fire Blast"
+  },
+  "13374": {
+   "name": "Fire Blast"
   },
   "13376": {
    "name": "Fire Shield"
@@ -11799,6 +13901,7 @@
    "durationMs": 0,
    "name": "Tame Beast",
    "spellLevel": 10,
+   "targetCode": 0,
    "v": 1
   },
   "13490": {
@@ -11839,6 +13942,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Mend Pet",
+   "periodMs": 1000,
    "spellLevel": 44,
    "subtext": "Rank 5",
    "v": 1
@@ -11853,6 +13957,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Mend Pet",
+   "periodMs": 1000,
    "spellLevel": 52,
    "subtext": "Rank 6",
    "v": 1
@@ -11867,6 +13972,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Mend Pet",
+   "periodMs": 1000,
    "spellLevel": 60,
    "subtext": "Rank 7",
    "v": 1
@@ -11881,6 +13987,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 10,
    "subtext": "Rank 2",
    "v": 1
@@ -11895,6 +14002,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 18,
    "subtext": "Rank 3",
    "v": 1
@@ -11909,6 +14017,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 26,
    "subtext": "Rank 4",
    "v": 1
@@ -11923,6 +14032,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 34,
    "subtext": "Rank 5",
    "v": 1
@@ -11937,6 +14047,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 42,
    "subtext": "Rank 6",
    "v": 1
@@ -11951,6 +14062,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 50,
    "subtext": "Rank 7",
    "v": 1
@@ -11965,12 +14077,16 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 58,
    "subtext": "Rank 8",
    "v": 1
   },
   "13579": {
    "name": "Gouge"
+  },
+  "13582": {
+   "name": "Deadly Poison"
   },
   "13585": {
    "name": "Lightning Shield"
@@ -11985,6 +14101,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Mend Pet",
+   "periodMs": 1000,
    "spellLevel": 12,
    "subtext": "Rank 1",
    "v": 1
@@ -12057,6 +14174,7 @@
    "family": 9,
    "maxLevel": 22,
    "name": "Immolation Trap",
+   "periodMs": 3000,
    "spellLevel": 16,
    "subtext": "Rank 1",
    "v": 1
@@ -12081,7 +14199,9 @@
    "durationMs": 30000,
    "family": 9,
    "name": "Frost Trap",
+   "periodMs": 2000,
    "spellLevel": 28,
+   "targetCode": 0,
    "v": 1
   },
   "13812": {
@@ -12092,8 +14212,10 @@
    "family": 9,
    "maxLevel": 40,
    "name": "Explosive Trap",
+   "periodMs": 2000,
    "spellLevel": 34,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "13813": {
@@ -12117,6 +14239,9 @@
   "1385": {
    "name": "Summon Voidwalker"
   },
+  "13860": {
+   "name": "Mind Blast"
+  },
   "13864": {
    "name": "Power Word: Fortitude"
   },
@@ -12136,6 +14261,30 @@
    "name": "Blade Flurry",
    "procFlag": 20,
    "spellLevel": 1,
+   "v": 1
+  },
+  "139": {
+   "baseLevel": 8,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 13,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 8,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "13983": {
+   "castMs": 0,
+   "durationMs": 0,
+   "icdMs": 1000,
+   "name": "Setup",
+   "procFlag": 131112,
    "v": 1
   },
   "1403": {
@@ -12158,6 +14307,9 @@
    "name": "Remorseless",
    "procFlag": 87376,
    "v": 1
+  },
+  "14145": {
+   "name": "Fire Blast"
   },
   "14177": {
    "castMs": 0,
@@ -12446,6 +14598,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Viper Sting",
+   "periodMs": 2000,
    "spellLevel": 46,
    "subtext": "Rank 2",
    "v": 1
@@ -12460,6 +14613,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Viper Sting",
+   "periodMs": 2000,
    "spellLevel": 56,
    "subtext": "Rank 3",
    "v": 1
@@ -12570,6 +14724,7 @@
    "durationMs": 30000,
    "gcdMs": 1500,
    "name": "Black Arrow",
+   "periodMs": 2000,
    "spellLevel": 60,
    "subtext": "Rank 2",
    "v": 1
@@ -12582,6 +14737,7 @@
    "family": 9,
    "maxLevel": 32,
    "name": "Immolation Trap",
+   "periodMs": 3000,
    "spellLevel": 26,
    "subtext": "Rank 2",
    "v": 1
@@ -12594,6 +14750,7 @@
    "family": 9,
    "maxLevel": 42,
    "name": "Immolation Trap",
+   "periodMs": 3000,
    "spellLevel": 36,
    "subtext": "Rank 3",
    "v": 1
@@ -12610,6 +14767,7 @@
    "icdMs": 0,
    "maxLevel": 21,
    "name": "Rejuvenation",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 16,
    "subtext": "Rank 3",
@@ -12623,6 +14781,7 @@
    "family": 9,
    "maxLevel": 52,
    "name": "Immolation Trap",
+   "periodMs": 3000,
    "spellLevel": 46,
    "subtext": "Rank 4",
    "v": 1
@@ -12635,6 +14794,7 @@
    "family": 9,
    "maxLevel": 62,
    "name": "Immolation Trap",
+   "periodMs": 3000,
    "spellLevel": 56,
    "subtext": "Rank 5",
    "v": 1
@@ -12759,8 +14919,10 @@
    "family": 9,
    "maxLevel": 50,
    "name": "Explosive Trap",
+   "periodMs": 2000,
    "spellLevel": 44,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "14315": {
@@ -12771,8 +14933,10 @@
    "family": 9,
    "maxLevel": 60,
    "name": "Explosive Trap",
+   "periodMs": 2000,
    "spellLevel": 54,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "14316": {
@@ -12945,6 +15109,7 @@
    "procFlag": 2148147880,
    "spellLevel": 30,
    "subtext": "Rank 2",
+   "targetCode": 1,
    "v": 1
   },
   "14327": {
@@ -12959,6 +15124,7 @@
    "procFlag": 2148147880,
    "spellLevel": 46,
    "subtext": "Rank 3",
+   "targetCode": 1,
    "v": 1
   },
   "1433": {
@@ -13107,7 +15273,9 @@
    "durationMs": 12000,
    "family": 8,
    "icdMs": 0,
+   "maxStack": 3,
    "name": "Venomhide Poison",
+   "periodMs": 3000,
    "spellLevel": 30,
    "v": 1
   },
@@ -13152,6 +15320,26 @@
   },
   "14903": {
    "name": "Rupture"
+  },
+  "14907": {
+   "name": "Frost Nova"
+  },
+  "14914": {
+   "baseLevel": 20,
+   "castMs": 3500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 10000,
+   "family": 6,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 24,
+   "name": "Holy Fire",
+   "periodMs": 2000,
+   "spellLevel": 20,
+   "subtext": "Rank 1",
+   "v": 1
   },
   "14916": {
    "baseLevel": 10,
@@ -13364,6 +15552,9 @@
   "15062": {
    "name": "Shield Wall"
   },
+  "15063": {
+   "name": "Frost Nova"
+  },
   "15087": {
    "name": "Evasion"
   },
@@ -13375,6 +15566,9 @@
   },
   "15090": {
    "name": "Dispel Magic"
+  },
+  "15091": {
+   "name": "Blast Wave"
   },
   "15095": {
    "name": "Molten Blast"
@@ -13445,6 +15639,7 @@
    "procFlag": 2148147880,
    "spellLevel": 14,
    "subtext": "Rank 1",
+   "targetCode": 1,
    "v": 1
   },
   "1515": {
@@ -13455,7 +15650,9 @@
    "durationMs": 20000,
    "gcdMs": 1500,
    "name": "Tame Beast",
+   "periodMs": 20000,
    "spellLevel": 10,
+   "targetCode": 0,
    "v": 1
   },
   "15237": {
@@ -13471,6 +15668,134 @@
    "name": "Holy Nova",
    "spellLevel": 20,
    "subtext": "Rank 1",
+   "v": 1
+  },
+  "15244": {
+   "name": "Cone of Cold"
+  },
+  "15250": {
+   "castMs": 0,
+   "durationMs": 0,
+   "name": "Setup",
+   "v": 1
+  },
+  "15261": {
+   "baseLevel": 60,
+   "castMs": 3500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 10000,
+   "family": 6,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 66,
+   "name": "Holy Fire",
+   "periodMs": 2000,
+   "spellLevel": 60,
+   "subtext": "Rank 8",
+   "v": 1
+  },
+  "15262": {
+   "baseLevel": 24,
+   "castMs": 3500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 10000,
+   "family": 6,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 30,
+   "name": "Holy Fire",
+   "periodMs": 2000,
+   "spellLevel": 24,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "15263": {
+   "baseLevel": 30,
+   "castMs": 3500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 10000,
+   "family": 6,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 36,
+   "name": "Holy Fire",
+   "periodMs": 2000,
+   "spellLevel": 30,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "15264": {
+   "baseLevel": 36,
+   "castMs": 3500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 10000,
+   "family": 6,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 42,
+   "name": "Holy Fire",
+   "periodMs": 2000,
+   "spellLevel": 36,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "15265": {
+   "baseLevel": 42,
+   "castMs": 3500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 10000,
+   "family": 6,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 48,
+   "name": "Holy Fire",
+   "periodMs": 2000,
+   "spellLevel": 42,
+   "subtext": "Rank 5",
+   "v": 1
+  },
+  "15266": {
+   "baseLevel": 48,
+   "castMs": 3500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 10000,
+   "family": 6,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 54,
+   "name": "Holy Fire",
+   "periodMs": 2000,
+   "spellLevel": 48,
+   "subtext": "Rank 6",
+   "v": 1
+  },
+  "15267": {
+   "baseLevel": 54,
+   "castMs": 3500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 10000,
+   "family": 6,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 60,
+   "name": "Holy Fire",
+   "periodMs": 2000,
+   "spellLevel": 54,
+   "subtext": "Rank 7",
    "v": 1
   },
   "15286": {
@@ -13497,6 +15822,22 @@
   "15398": {
    "name": "Psychic Scream"
   },
+  "15407": {
+   "baseLevel": 20,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 3000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 28,
+   "name": "Mind Flay",
+   "periodMs": 1000,
+   "spellLevel": 20,
+   "subtext": "Rank 1",
+   "v": 1
+  },
   "1543": {
    "baseLevel": 32,
    "castMs": 0,
@@ -13508,6 +15849,7 @@
    "gcdMs": 1500,
    "name": "Flare",
    "spellLevel": 32,
+   "targetCode": 0,
    "v": 1
   },
   "15430": {
@@ -13588,6 +15930,12 @@
   "15507": {
    "name": "Lightning Shield"
   },
+  "15531": {
+   "name": "Frost Nova"
+  },
+  "15532": {
+   "name": "Frost Nova"
+  },
   "15534": {
    "name": "Polymorph"
   },
@@ -13636,6 +15984,12 @@
   "15572": {
    "name": "Sunder Armor"
   },
+  "15573": {
+   "name": "Fire Blast"
+  },
+  "15574": {
+   "name": "Fire Blast"
+  },
   "15576": {
    "name": "Whirlwind"
   },
@@ -13647,6 +16001,9 @@
   },
   "15583": {
    "name": "Rupture"
+  },
+  "15587": {
+   "name": "Mind Blast"
   },
   "15589": {
    "name": "Whirlwind"
@@ -13753,6 +16110,9 @@
   "15733": {
    "name": "Immolate"
   },
+  "15744": {
+   "name": "Blast Wave"
+  },
   "15752": {
    "castMs": 0,
    "category": 109,
@@ -13761,6 +16121,9 @@
    "name": "Disarm",
    "spellLevel": 8,
    "v": 1
+  },
+  "15783": {
+   "name": "Blizzard"
   },
   "15784": {
    "name": "Frost Armor"
@@ -13817,8 +16180,17 @@
    "name": "Call of Flame",
    "v": 1
   },
+  "16046": {
+   "name": "Blast Wave"
+  },
+  "16067": {
+   "name": "Arcane Blast"
+  },
   "16079": {
    "name": "Fire Nova"
+  },
+  "16102": {
+   "name": "Flamestrike"
   },
   "1612": {
    "name": "Defensive Stance"
@@ -13829,6 +16201,9 @@
    "family": 11,
    "name": "Call of Thunder",
    "v": 1
+  },
+  "16144": {
+   "name": "Fire Blast"
   },
   "16145": {
    "name": "Sunder Armor"
@@ -13964,6 +16339,7 @@
    "name": "Flametongue Weapon",
    "spellLevel": 36,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "16341": {
@@ -13976,6 +16352,7 @@
    "name": "Flametongue Weapon",
    "spellLevel": 46,
    "subtext": "Rank 5",
+   "targetCode": 0,
    "v": 1
   },
   "16342": {
@@ -13988,7 +16365,11 @@
    "name": "Flametongue Weapon",
    "spellLevel": 56,
    "subtext": "Rank 6",
+   "targetCode": 0,
    "v": 1
+  },
+  "16350": {
+   "name": "Freeze"
   },
   "16352": {
    "baseLevel": 48,
@@ -14039,6 +16420,7 @@
    "name": "Windfury Weapon",
    "spellLevel": 60,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "16363": {
@@ -14076,6 +16458,9 @@
   "16414": {
    "name": "Drain Life"
   },
+  "16419": {
+   "name": "Flamestrike"
+  },
   "16454": {
    "name": "Searing Blast"
   },
@@ -14100,6 +16485,9 @@
   "16561": {
    "name": "Regrowth"
   },
+  "16568": {
+   "name": "Mind Flay"
+  },
   "16569": {
    "name": "Health Funnel"
   },
@@ -14114,6 +16502,7 @@
    "durationMs": 4000,
    "gcdMs": 1500,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 60,
    "v": 1
   },
@@ -14213,6 +16602,7 @@
    "gcdMs": 1500,
    "name": "Whirlwind",
    "spellLevel": 36,
+   "targetCode": 4,
    "v": 1
   },
   "16804": {
@@ -14339,8 +16729,10 @@
    "icdMs": 0,
    "maxLevel": 46,
    "name": "Hurricane",
+   "periodMs": 1000,
    "spellLevel": 40,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "16921": {
@@ -14428,6 +16820,18 @@
    "subtext": "Rank 1",
    "v": 1
   },
+  "17140": {
+   "name": "Holy Fire"
+  },
+  "17141": {
+   "name": "Holy Fire"
+  },
+  "17142": {
+   "name": "Holy Fire"
+  },
+  "17145": {
+   "name": "Blast Wave"
+  },
   "17146": {
    "name": "Shadow Word: Pain"
   },
@@ -14451,6 +16855,9 @@
    "subtext": "Rank 1",
    "v": 1
   },
+  "17165": {
+   "name": "Mind Flay"
+  },
   "17173": {
    "name": "Drain Life"
   },
@@ -14471,6 +16878,9 @@
    "spellLevel": 50,
    "v": 1
   },
+  "17194": {
+   "name": "Mind Blast"
+  },
   "17198": {
    "name": "Overpower"
   },
@@ -14485,6 +16895,7 @@
    "gcdMs": 1500,
    "maxLevel": 9,
    "name": "Corruption",
+   "periodMs": 3000,
    "spellLevel": 4,
    "subtext": "Rank 1",
    "v": 1
@@ -14527,6 +16938,7 @@
    "gcdMs": 1500,
    "name": "Distract",
    "spellLevel": 22,
+   "targetCode": 0,
    "v": 1
   },
   "17253": {
@@ -14713,8 +17125,84 @@
    "subtext": "Rank 8",
    "v": 1
   },
+  "17273": {
+   "name": "Pyroblast"
+  },
+  "17274": {
+   "name": "Pyroblast"
+  },
+  "17277": {
+   "name": "Blast Wave"
+  },
   "17281": {
    "name": "Crusader Strike"
+  },
+  "17287": {
+   "name": "Mind Blast"
+  },
+  "17311": {
+   "baseLevel": 28,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 3000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 36,
+   "name": "Mind Flay",
+   "periodMs": 1000,
+   "spellLevel": 28,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "17312": {
+   "baseLevel": 36,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 3000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 44,
+   "name": "Mind Flay",
+   "periodMs": 1000,
+   "spellLevel": 36,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "17313": {
+   "baseLevel": 44,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 3000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 52,
+   "name": "Mind Flay",
+   "periodMs": 1000,
+   "spellLevel": 44,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "17314": {
+   "baseLevel": 52,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 3000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 60,
+   "name": "Mind Flay",
+   "periodMs": 1000,
+   "spellLevel": 52,
+   "subtext": "Rank 5",
+   "v": 1
   },
   "17329": {
    "baseLevel": 58,
@@ -14776,6 +17264,21 @@
    "subtext": "Rank 3",
    "v": 1
   },
+  "17364": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 8000,
+   "durationMs": 12000,
+   "family": 11,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "name": "Stormstrike",
+   "procFlag": 131072,
+   "spellLevel": 40,
+   "v": 1
+  },
   "17366": {
    "name": "Fire Nova"
   },
@@ -14791,8 +17294,10 @@
    "icdMs": 0,
    "maxLevel": 56,
    "name": "Hurricane",
+   "periodMs": 1000,
    "spellLevel": 50,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "17402": {
@@ -14807,8 +17312,10 @@
    "icdMs": 0,
    "maxLevel": 66,
    "name": "Hurricane",
+   "periodMs": 1000,
    "spellLevel": 60,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "1742": {
@@ -15144,6 +17651,7 @@
    "gcdMs": 1500,
    "maxLevel": 24,
    "name": "Consume Shadows",
+   "periodMs": 2000,
    "spellLevel": 18,
    "subtext": "Rank 1",
    "v": 1
@@ -15215,6 +17723,7 @@
    "gcdMs": 1500,
    "maxLevel": 32,
    "name": "Consume Shadows",
+   "periodMs": 2000,
    "spellLevel": 26,
    "subtext": "Rank 2",
    "v": 1
@@ -15230,6 +17739,7 @@
    "gcdMs": 1500,
    "maxLevel": 40,
    "name": "Consume Shadows",
+   "periodMs": 2000,
    "spellLevel": 34,
    "subtext": "Rank 3",
    "v": 1
@@ -15245,6 +17755,7 @@
    "gcdMs": 1500,
    "maxLevel": 48,
    "name": "Consume Shadows",
+   "periodMs": 2000,
    "spellLevel": 42,
    "subtext": "Rank 4",
    "v": 1
@@ -15260,6 +17771,7 @@
    "gcdMs": 1500,
    "maxLevel": 56,
    "name": "Consume Shadows",
+   "periodMs": 2000,
    "spellLevel": 50,
    "subtext": "Rank 5",
    "v": 1
@@ -15275,6 +17787,7 @@
    "gcdMs": 1500,
    "maxLevel": 64,
    "name": "Consume Shadows",
+   "periodMs": 2000,
    "spellLevel": 58,
    "subtext": "Rank 6",
    "v": 1
@@ -15407,6 +17920,7 @@
    "procFlag": 2148147880,
    "spellLevel": 54,
    "subtext": "Rank 2",
+   "targetCode": 5,
    "v": 1
   },
   "17941": {
@@ -15423,6 +17937,7 @@
    "name": "Firestone",
    "spellLevel": 36,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "17947": {
@@ -15431,6 +17946,7 @@
    "name": "Firestone",
    "spellLevel": 46,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "17949": {
@@ -15439,6 +17955,7 @@
    "name": "Firestone",
    "spellLevel": 56,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "17951": {
@@ -15504,6 +18021,19 @@
   "18088": {
    "name": "Corruption"
   },
+  "18091": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "name": "Arcane Blast",
+   "spellLevel": 35,
+   "v": 1
+  },
   "18100": {
    "name": "Frost Armor"
   },
@@ -15523,6 +18053,12 @@
    "subtext": "Rank 1",
    "v": 1
   },
+  "18165": {
+   "name": "Holy Fire"
+  },
+  "18167": {
+   "name": "Holy Fire"
+  },
   "1822": {
    "baseLevel": 24,
    "castMs": 0,
@@ -15533,6 +18069,7 @@
    "family": 7,
    "gcdMs": 1000,
    "name": "Rake",
+   "periodMs": 3000,
    "spellLevel": 24,
    "subtext": "Rank 1",
    "v": 1
@@ -15558,6 +18095,7 @@
    "family": 7,
    "gcdMs": 1000,
    "name": "Rake",
+   "periodMs": 3000,
    "spellLevel": 34,
    "subtext": "Rank 2",
    "v": 1
@@ -15572,6 +18110,7 @@
    "family": 7,
    "gcdMs": 1000,
    "name": "Rake",
+   "periodMs": 3000,
    "spellLevel": 44,
    "subtext": "Rank 3",
    "v": 1
@@ -15587,6 +18126,7 @@
    "gcdMs": 1500,
    "maxLevel": 38,
    "name": "Siphon Life",
+   "periodMs": 3000,
    "spellLevel": 30,
    "subtext": "Rank 1",
    "v": 1
@@ -15639,6 +18179,9 @@
   "18381": {
    "name": "Cripple"
   },
+  "18399": {
+   "name": "Flamestrike"
+  },
   "1842": {
    "baseLevel": 30,
    "castMs": 2000,
@@ -15646,6 +18189,7 @@
    "family": 8,
    "name": "Disarm Trap",
    "spellLevel": 30,
+   "targetCode": 0,
    "v": 1
   },
   "18432": {
@@ -15664,6 +18208,18 @@
    "name": "Berserker Rage",
    "procFlag": 139944,
    "spellLevel": 30,
+   "v": 1
+  },
+  "1850": {
+   "castMs": 0,
+   "category": 44,
+   "categoryCooldownMs": 300000,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "gcdMs": 0,
+   "name": "Dash",
+   "spellLevel": 26,
+   "subtext": "Rank 1",
    "v": 1
   },
   "18501": {
@@ -15756,6 +18312,7 @@
    "name": "Banish",
    "spellLevel": 48,
    "subtext": "Rank 2",
+   "targetCode": 1,
    "v": 1
   },
   "18651": {
@@ -15777,6 +18334,7 @@
    "name": "Hibernate",
    "spellLevel": 38,
    "subtext": "Rank 2",
+   "targetCode": 1,
    "v": 1
   },
   "18658": {
@@ -15792,6 +18350,7 @@
    "name": "Hibernate",
    "spellLevel": 58,
    "subtext": "Rank 3",
+   "targetCode": 1,
    "v": 1
   },
   "18708": {
@@ -15810,8 +18369,50 @@
   "1876": {
    "name": "Devotion Aura"
   },
+  "18763": {
+   "name": "Freeze"
+  },
   "18765": {
    "name": "Sweeping Strikes"
+  },
+  "18798": {
+   "name": "Freeze"
+  },
+  "18799": {
+   "name": "Freeze"
+  },
+  "18807": {
+   "baseLevel": 60,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 3000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 68,
+   "name": "Mind Flay",
+   "periodMs": 1000,
+   "spellLevel": 60,
+   "subtext": "Rank 6",
+   "v": 1
+  },
+  "18809": {
+   "baseLevel": 60,
+   "castMs": 6000,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 12000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 66,
+   "name": "Pyroblast",
+   "periodMs": 3000,
+   "spellLevel": 60,
+   "subtext": "Rank 8",
+   "v": 1
   },
   "18815": {
    "castMs": 0,
@@ -15822,11 +18423,28 @@
    "spellLevel": 60,
    "v": 1
   },
+  "18816": {
+   "castMs": 0,
+   "durationMs": 0,
+   "icdMs": 0,
+   "name": "Flamestrike",
+   "procFlag": 40,
+   "spellLevel": 60,
+   "v": 1
+  },
   "18817": {
    "castMs": 0,
    "category": 0,
    "durationMs": 0,
    "name": "Drain Life",
+   "spellLevel": 60,
+   "v": 1
+  },
+  "18818": {
+   "castMs": 1000,
+   "category": 0,
+   "durationMs": 0,
+   "name": "Flamestrike",
    "spellLevel": 60,
    "v": 1
   },
@@ -15916,6 +18534,7 @@
    "gcdMs": 1500,
    "maxLevel": 48,
    "name": "Siphon Life",
+   "periodMs": 3000,
    "spellLevel": 38,
    "subtext": "Rank 2",
    "v": 1
@@ -15931,6 +18550,7 @@
    "gcdMs": 1500,
    "maxLevel": 58,
    "name": "Siphon Life",
+   "periodMs": 3000,
    "spellLevel": 48,
    "subtext": "Rank 3",
    "v": 1
@@ -15946,6 +18566,7 @@
    "gcdMs": 1500,
    "maxLevel": 68,
    "name": "Siphon Life",
+   "periodMs": 3000,
    "spellLevel": 58,
    "subtext": "Rank 4",
    "v": 1
@@ -16016,6 +18637,9 @@
   },
   "19030": {
    "name": "Bear Form"
+  },
+  "19099": {
+   "name": "Blizzard"
   },
   "19130": {
    "name": "Revenge"
@@ -16186,6 +18810,81 @@
    "icdMs": 0,
    "name": "Touch of Weakness",
    "procFlag": 40,
+   "spellLevel": 60,
+   "subtext": "Rank 6",
+   "v": 1
+  },
+  "19276": {
+   "baseLevel": 28,
+   "castMs": 0,
+   "category": 691,
+   "categoryCooldownMs": 24000,
+   "cooldownMs": 0,
+   "durationMs": 24000,
+   "family": 6,
+   "gcdMs": 1500,
+   "name": "Devouring Plague",
+   "periodMs": 3000,
+   "spellLevel": 28,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "19277": {
+   "baseLevel": 36,
+   "castMs": 0,
+   "category": 691,
+   "categoryCooldownMs": 24000,
+   "cooldownMs": 0,
+   "durationMs": 24000,
+   "family": 6,
+   "gcdMs": 1500,
+   "name": "Devouring Plague",
+   "periodMs": 3000,
+   "spellLevel": 36,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "19278": {
+   "baseLevel": 44,
+   "castMs": 0,
+   "category": 691,
+   "categoryCooldownMs": 24000,
+   "cooldownMs": 0,
+   "durationMs": 24000,
+   "family": 6,
+   "gcdMs": 1500,
+   "name": "Devouring Plague",
+   "periodMs": 3000,
+   "spellLevel": 44,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "19279": {
+   "baseLevel": 52,
+   "castMs": 0,
+   "category": 691,
+   "categoryCooldownMs": 24000,
+   "cooldownMs": 0,
+   "durationMs": 24000,
+   "family": 6,
+   "gcdMs": 1500,
+   "name": "Devouring Plague",
+   "periodMs": 3000,
+   "spellLevel": 52,
+   "subtext": "Rank 5",
+   "v": 1
+  },
+  "19280": {
+   "baseLevel": 60,
+   "castMs": 0,
+   "category": 691,
+   "categoryCooldownMs": 24000,
+   "cooldownMs": 0,
+   "durationMs": 24000,
+   "family": 6,
+   "gcdMs": 1500,
+   "name": "Devouring Plague",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 6",
    "v": 1
@@ -16380,6 +19079,7 @@
    "family": 8,
    "gcdMs": 1000,
    "name": "Rupture",
+   "periodMs": 2000,
    "spellLevel": 20,
    "subtext": "Rank 1",
    "v": 1
@@ -16518,6 +19218,7 @@
    "gcdMs": 1500,
    "maxLevel": 40,
    "name": "Hellfire",
+   "periodMs": 1000,
    "spellLevel": 30,
    "subtext": "Rank 1",
    "v": 1
@@ -16595,6 +19296,7 @@
    "gcdMs": 0,
    "name": "Bestial Wrath",
    "spellLevel": 40,
+   "targetCode": 0,
    "v": 1
   },
   "19577": {
@@ -16610,6 +19312,7 @@
    "name": "Intimidation",
    "procFlag": 65556,
    "spellLevel": 30,
+   "targetCode": 0,
    "v": 1
   },
   "19626": {
@@ -16825,6 +19528,7 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Blessing of Wisdom",
+   "periodMs": 5000,
    "spellLevel": 14,
    "subtext": "Rank 1",
    "v": 1
@@ -16879,6 +19583,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 4,
    "subtext": "Rank 1",
    "v": 1
@@ -16979,6 +19684,7 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Blessing of Wisdom",
+   "periodMs": 5000,
    "spellLevel": 24,
    "subtext": "Rank 2",
    "v": 1
@@ -16993,6 +19699,7 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Blessing of Wisdom",
+   "periodMs": 5000,
    "spellLevel": 34,
    "subtext": "Rank 3",
    "v": 1
@@ -17007,6 +19714,7 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Blessing of Wisdom",
+   "periodMs": 5000,
    "spellLevel": 44,
    "subtext": "Rank 4",
    "v": 1
@@ -17021,6 +19729,7 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Blessing of Wisdom",
+   "periodMs": 5000,
    "spellLevel": 54,
    "subtext": "Rank 5",
    "v": 1
@@ -17168,6 +19877,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Entangling Roots",
+   "periodMs": 3000,
    "procFlag": 2148147880,
    "spellLevel": 58,
    "subtext": "Rank 6",
@@ -17184,6 +19894,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Entangling Roots",
+   "periodMs": 3000,
    "procFlag": 2148147880,
    "spellLevel": 48,
    "subtext": "Rank 5",
@@ -17200,6 +19911,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Entangling Roots",
+   "periodMs": 3000,
    "procFlag": 2148147880,
    "spellLevel": 38,
    "subtext": "Rank 4",
@@ -17216,6 +19928,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Entangling Roots",
+   "periodMs": 3000,
    "procFlag": 2148147880,
    "spellLevel": 28,
    "subtext": "Rank 3",
@@ -17232,6 +19945,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Entangling Roots",
+   "periodMs": 3000,
    "procFlag": 2148147880,
    "spellLevel": 18,
    "subtext": "Rank 2",
@@ -17248,6 +19962,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Entangling Roots",
+   "periodMs": 3000,
    "procFlag": 2148147880,
    "spellLevel": 8,
    "subtext": "Rank 1",
@@ -17284,6 +19999,7 @@
    "category": 0,
    "durationMs": 30000,
    "icdMs": 0,
+   "maxStack": 3,
    "name": "Vengeance",
    "v": 1
   },
@@ -17299,6 +20015,7 @@
    "name": "Resurrection",
    "spellLevel": 10,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "20066": {
@@ -17313,6 +20030,7 @@
    "icdMs": 0,
    "name": "Repentance",
    "spellLevel": 20,
+   "targetCode": 0,
    "v": 1
   },
   "2008": {
@@ -17327,6 +20045,7 @@
    "name": "Ancestral Spirit",
    "spellLevel": 12,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "2010": {
@@ -17341,6 +20060,7 @@
    "name": "Resurrection",
    "spellLevel": 22,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "20116": {
@@ -17353,6 +20073,7 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Consecration",
+   "periodMs": 1000,
    "spellLevel": 30,
    "subtext": "Rank 2",
    "v": 1
@@ -17474,6 +20195,17 @@
    "subtext": "Rank 1",
    "v": 1
   },
+  "20177": {
+   "castMs": 0,
+   "durationMs": 0,
+   "icdMs": 1500,
+   "name": "Reckoning",
+   "procFlag": 131752,
+   "v": 1
+  },
+  "20178": {
+   "name": "Reckoning"
+  },
   "20189": {
    "castMs": 0,
    "durationMs": 0,
@@ -17523,6 +20255,12 @@
    "name": "Blessing of Kings",
    "spellLevel": 20,
    "v": 1
+  },
+  "20228": {
+   "name": "Pyroblast"
+  },
+  "20229": {
+   "name": "Blast Wave"
   },
   "20230": {
    "baseLevel": 20,
@@ -17708,6 +20446,9 @@
   },
   "20294": {
    "name": "Immolate"
+  },
+  "20296": {
+   "name": "Flamestrike"
   },
   "20305": {
    "baseLevel": 22,
@@ -18192,6 +20933,23 @@
   "20454": {
    "name": "Seal of Fury"
   },
+  "20473": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "category": 892,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 10,
+   "gcdMs": 1500,
+   "name": "Holy Shock",
+   "spellLevel": 40,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "20475": {
+   "name": "Living Bomb"
+  },
   "20484": {
    "baseLevel": 20,
    "castMs": 2000,
@@ -18204,6 +20962,7 @@
    "name": "Rebirth",
    "spellLevel": 20,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "20508": {
@@ -18276,6 +21035,7 @@
    "name": "Ancestral Spirit",
    "spellLevel": 24,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "20610": {
@@ -18290,6 +21050,7 @@
    "name": "Ancestral Spirit",
    "spellLevel": 36,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "20616": {
@@ -18320,6 +21081,9 @@
    "subtext": "Rank 3",
    "v": 1
   },
+  "20623": {
+   "name": "Fire Blast"
+  },
   "20654": {
    "name": "Entangling Roots"
   },
@@ -18337,6 +21101,15 @@
   },
   "20672": {
    "name": "Fade"
+  },
+  "20679": {
+   "name": "Fire Blast"
+  },
+  "20680": {
+   "name": "Blizzard"
+  },
+  "20687": {
+   "name": "Starfall"
   },
   "20690": {
    "name": "Moonfire"
@@ -18363,6 +21136,7 @@
    "name": "Sap",
    "spellLevel": 28,
    "subtext": "Rank 2",
+   "targetCode": 1,
    "v": 1
   },
   "20700": {
@@ -18436,6 +21210,7 @@
    "name": "Rebirth",
    "spellLevel": 30,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "20742": {
@@ -18450,6 +21225,7 @@
    "name": "Rebirth",
    "spellLevel": 40,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "20743": {
@@ -18467,6 +21243,7 @@
    "name": "Rebirth",
    "spellLevel": 50,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "20748": {
@@ -18481,6 +21258,7 @@
    "name": "Rebirth",
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "targetCode": 0,
    "v": 1
   },
   "2075": {
@@ -18631,6 +21409,7 @@
    "name": "Resurrection",
    "spellLevel": 58,
    "subtext": "Rank 5",
+   "targetCode": 0,
    "v": 1
   },
   "20772": {
@@ -18644,6 +21423,7 @@
    "name": "Redemption",
    "spellLevel": 48,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "20773": {
@@ -18657,6 +21437,7 @@
    "name": "Redemption",
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "targetCode": 0,
    "v": 1
   },
   "20776": {
@@ -18671,6 +21452,7 @@
    "name": "Ancestral Spirit",
    "spellLevel": 48,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "20777": {
@@ -18685,6 +21467,7 @@
    "name": "Ancestral Spirit",
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "targetCode": 0,
    "v": 1
   },
   "20787": {
@@ -18692,6 +21475,12 @@
   },
   "20788": {
    "name": "Counterspell"
+  },
+  "20794": {
+   "name": "Flamestrike"
+  },
+  "20795": {
+   "name": "Fire Blast"
   },
   "20798": {
    "name": "Demon Skin"
@@ -18702,14 +21491,29 @@
   "20812": {
    "name": "Cripple"
   },
+  "20813": {
+   "name": "Flamestrike"
+  },
   "20817": {
    "name": "Mana Burn"
   },
   "20826": {
    "name": "Immolate"
   },
+  "20827": {
+   "name": "Flamestrike"
+  },
+  "20828": {
+   "name": "Cone of Cold"
+  },
+  "20830": {
+   "name": "Mind Blast"
+  },
   "20831": {
    "name": "Chain Lightning"
+  },
+  "20832": {
+   "name": "Fire Blast"
   },
   "20882": {
    "castMs": 0,
@@ -18718,7 +21522,11 @@
    "family": 5,
    "icdMs": 0,
    "name": "Subjugate Demon",
+   "targetCode": 0,
    "v": 1
+  },
+  "20883": {
+   "name": "Arcane Blast"
   },
   "2090": {
    "baseLevel": 22,
@@ -18732,6 +21540,7 @@
    "icdMs": 0,
    "maxLevel": 27,
    "name": "Rejuvenation",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 22,
    "subtext": "Rank 4",
@@ -18862,6 +21671,7 @@
    "icdMs": 0,
    "maxLevel": 33,
    "name": "Rejuvenation",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 28,
    "subtext": "Rank 5",
@@ -18960,6 +21770,7 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Consecration",
+   "periodMs": 1000,
    "spellLevel": 40,
    "subtext": "Rank 3",
    "v": 1
@@ -18974,6 +21785,7 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Consecration",
+   "periodMs": 1000,
    "spellLevel": 50,
    "subtext": "Rank 4",
    "v": 1
@@ -18988,8 +21800,85 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Consecration",
+   "periodMs": 1000,
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "v": 1
+  },
+  "20925": {
+   "baseLevel": 30,
+   "castMs": 0,
+   "category": 931,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 10000,
+   "family": 10,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "name": "Holy Shield",
+   "procFlag": 131752,
+   "spellLevel": 30,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "20927": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "category": 931,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 10000,
+   "family": 10,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "name": "Holy Shield",
+   "procFlag": 131752,
+   "spellLevel": 40,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "20928": {
+   "baseLevel": 50,
+   "castMs": 0,
+   "category": 931,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 10000,
+   "family": 10,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "name": "Holy Shield",
+   "procFlag": 131752,
+   "spellLevel": 50,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "20929": {
+   "baseLevel": 48,
+   "castMs": 0,
+   "category": 892,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 10,
+   "gcdMs": 1500,
+   "name": "Holy Shock",
+   "spellLevel": 48,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "20930": {
+   "baseLevel": 56,
+   "castMs": 0,
+   "category": 892,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 10,
+   "gcdMs": 1500,
+   "name": "Holy Shock",
+   "spellLevel": 56,
+   "subtext": "Rank 4",
    "v": 1
   },
   "2094": {
@@ -19074,6 +21963,9 @@
    "subtext": "Rank 1",
    "v": 1
   },
+  "21096": {
+   "name": "Blizzard"
+  },
   "21169": {
    "baseLevel": 30,
    "castMs": 0,
@@ -19102,6 +21994,46 @@
    "spellLevel": 60,
    "v": 1
   },
+  "2120": {
+   "baseLevel": 16,
+   "castMs": 3000,
+   "category": 2506,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 21,
+   "name": "Flamestrike",
+   "periodMs": 2000,
+   "spellLevel": 16,
+   "subtext": "Rank 1",
+   "targetCode": 0,
+   "v": 1
+  },
+  "2121": {
+   "baseLevel": 24,
+   "castMs": 3000,
+   "category": 2506,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 29,
+   "name": "Flamestrike",
+   "periodMs": 2000,
+   "spellLevel": 24,
+   "subtext": "Rank 2",
+   "targetCode": 0,
+   "v": 1
+  },
+  "2125": {
+   "name": "Flamestrike"
+  },
+  "2132": {
+   "name": "Freeze"
+  },
   "21331": {
    "name": "Entangling Roots"
   },
@@ -19110,6 +22042,54 @@
   },
   "21337": {
    "name": "Thorns"
+  },
+  "2136": {
+   "baseLevel": 6,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 11,
+   "name": "Fire Blast",
+   "spellLevel": 6,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "21367": {
+   "name": "Blizzard"
+  },
+  "2137": {
+   "baseLevel": 14,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 19,
+   "name": "Fire Blast",
+   "spellLevel": 14,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "2138": {
+   "baseLevel": 22,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 27,
+   "name": "Fire Blast",
+   "spellLevel": 22,
+   "subtext": "Rank 3",
+   "v": 1
   },
   "2139": {
    "baseLevel": 24,
@@ -19211,6 +22191,12 @@
   "21670": {
    "name": "Faerie Fire"
   },
+  "21787": {
+   "name": "Deadly Poison"
+  },
+  "21788": {
+   "name": "Deadly Poison"
+  },
   "21791": {
    "name": "Tranquility"
   },
@@ -19244,6 +22230,13 @@
    "procFlag": 1,
    "spellLevel": 60,
    "subtext": "Rank 2",
+   "v": 1
+  },
+  "21919": {
+   "castMs": 0,
+   "durationMs": 0,
+   "name": "Thrash",
+   "spellLevel": 50,
    "v": 1
   },
   "21962": {
@@ -19294,6 +22287,9 @@
   "22128": {
    "name": "Thorns"
   },
+  "22168": {
+   "name": "Renew"
+  },
   "22187": {
    "name": "Power Word: Shield"
   },
@@ -19302,6 +22298,9 @@
   },
   "22206": {
    "name": "Moonfire"
+  },
+  "22275": {
+   "name": "Flamestrike"
   },
   "22351": {
    "name": "Thorns"
@@ -19321,14 +22320,34 @@
   "22423": {
    "name": "Flame Shock"
   },
+  "22424": {
+   "name": "Blast Wave"
+  },
   "22427": {
    "name": "Concussion Blow"
   },
   "22440": {
    "name": "Commanding Shout"
   },
+  "22568": {
+   "baseLevel": 32,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 7,
+   "gcdMs": 1000,
+   "name": "Ferocious Bite",
+   "spellLevel": 32,
+   "subtext": "Rank 2",
+   "v": 1
+  },
   "22582": {
    "name": "Frost Shock"
+  },
+  "22645": {
+   "name": "Frost Nova"
   },
   "22651": {
    "name": "Sacrifice"
@@ -19354,7 +22373,11 @@
    "durationMs": 0,
    "name": "Inferno",
    "spellLevel": 50,
+   "targetCode": 0,
    "v": 1
+  },
+  "22746": {
+   "name": "Cone of Cold"
   },
   "22782": {
    "baseLevel": 46,
@@ -19400,6 +22423,48 @@
    "spellLevel": 44,
    "v": 1
   },
+  "22827": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 7,
+   "gcdMs": 1000,
+   "name": "Ferocious Bite",
+   "spellLevel": 40,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "22828": {
+   "baseLevel": 48,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 7,
+   "gcdMs": 1000,
+   "name": "Ferocious Bite",
+   "spellLevel": 48,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "22829": {
+   "baseLevel": 56,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 7,
+   "gcdMs": 1000,
+   "name": "Ferocious Bite",
+   "spellLevel": 56,
+   "subtext": "Rank 5",
+   "v": 1
+  },
   "22842": {
    "baseLevel": 36,
    "castMs": 0,
@@ -19410,6 +22475,7 @@
    "family": 7,
    "gcdMs": 1500,
    "name": "Frenzied Regeneration",
+   "periodMs": 1000,
    "spellLevel": 36,
    "v": 1
   },
@@ -19432,6 +22498,9 @@
   "22885": {
    "name": "Earth Shock"
   },
+  "22893": {
+   "name": "Arcane Blast"
+  },
   "22910": {
    "name": "Immolation Trap"
   },
@@ -19444,8 +22513,17 @@
   "22917": {
    "name": "Shadowform"
   },
+  "22919": {
+   "name": "Mind Flay"
+  },
+  "22920": {
+   "name": "Arcane Blast"
+  },
   "22936": {
    "name": "Mana Burn"
+  },
+  "22940": {
+   "name": "Arcane Blast"
   },
   "22947": {
    "name": "Mana Burn"
@@ -19467,8 +22545,80 @@
   "23038": {
    "name": "Flame Shock"
   },
+  "23039": {
+   "name": "Blast Wave"
+  },
+  "23099": {
+   "castMs": 0,
+   "category": 44,
+   "categoryCooldownMs": 30000,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "name": "Dash",
+   "spellLevel": 30,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "23100": {
+   "castMs": 0,
+   "durationMs": 0,
+   "icdMs": 0,
+   "name": "Dash",
+   "spellLevel": 30,
+   "subtext": "Rank 1",
+   "v": 1
+  },
   "23106": {
    "name": "Chain Lightning"
+  },
+  "23109": {
+   "castMs": 0,
+   "category": 44,
+   "categoryCooldownMs": 30000,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "name": "Dash",
+   "spellLevel": 40,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "23110": {
+   "castMs": 0,
+   "category": 44,
+   "categoryCooldownMs": 30000,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "name": "Dash",
+   "spellLevel": 50,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "23111": {
+   "castMs": 0,
+   "durationMs": 0,
+   "icdMs": 0,
+   "name": "Dash",
+   "spellLevel": 40,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "23112": {
+   "castMs": 0,
+   "durationMs": 0,
+   "icdMs": 0,
+   "name": "Dash",
+   "spellLevel": 50,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "23113": {
+   "name": "Blast Wave"
   },
   "23114": {
    "name": "Earth Shock"
@@ -19484,6 +22634,9 @@
   },
   "23268": {
    "name": "Shadow Word: Pain"
+  },
+  "23331": {
+   "name": "Blast Wave"
   },
   "23380": {
    "name": "Moonfire"
@@ -19720,6 +22873,25 @@
   "23642": {
    "name": "Corruption"
   },
+  "23682": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "icdMs": 0,
+   "name": "Heroism",
+   "spellLevel": 50,
+   "v": 1
+  },
+  "23689": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": -1,
+   "icdMs": 0,
+   "name": "Heroism",
+   "procFlag": 20,
+   "spellLevel": 50,
+   "v": 1
+  },
   "23721": {
    "castMs": 0,
    "category": 0,
@@ -19744,6 +22916,9 @@
   },
   "23859": {
    "name": "Dispel Magic"
+  },
+  "23860": {
+   "name": "Holy Fire"
   },
   "23881": {
    "baseLevel": 40,
@@ -19800,6 +22975,9 @@
    "spellLevel": 60,
    "subtext": "Rank 4",
    "v": 1
+  },
+  "23895": {
+   "name": "Renew"
   },
   "23922": {
    "baseLevel": 40,
@@ -19866,6 +23044,9 @@
   "23952": {
    "name": "Shadow Word: Pain"
   },
+  "23953": {
+   "name": "Mind Flay"
+  },
   "24023": {
    "name": "Charge"
   },
@@ -19880,6 +23061,7 @@
    "gcdMs": 1500,
    "maxLevel": 38,
    "name": "Lacerate",
+   "periodMs": 3000,
    "spellLevel": 30,
    "subtext": "Rank 1",
    "v": 1
@@ -19895,6 +23077,7 @@
    "gcdMs": 1500,
    "maxLevel": 48,
    "name": "Lacerate",
+   "periodMs": 3000,
    "spellLevel": 40,
    "subtext": "Rank 2",
    "v": 1
@@ -19910,6 +23093,7 @@
    "gcdMs": 1500,
    "maxLevel": 58,
    "name": "Lacerate",
+   "periodMs": 3000,
    "spellLevel": 50,
    "subtext": "Rank 3",
    "v": 1
@@ -20174,7 +23358,9 @@
    "family": 9,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Scorpid Poison",
+   "periodMs": 2000,
    "spellLevel": 24,
    "subtext": "Rank 2",
    "v": 1
@@ -20201,7 +23387,9 @@
    "family": 9,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Scorpid Poison",
+   "periodMs": 2000,
    "spellLevel": 40,
    "subtext": "Rank 3",
    "v": 1
@@ -20216,7 +23404,9 @@
    "family": 9,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Scorpid Poison",
+   "periodMs": 2000,
    "spellLevel": 56,
    "subtext": "Rank 4",
    "v": 1
@@ -20242,6 +23432,9 @@
   "24594": {
    "name": "Mesmerize"
   },
+  "24612": {
+   "name": "Flamestrike"
+  },
   "24618": {
    "name": "Drain Life"
   },
@@ -20255,7 +23448,9 @@
    "family": 9,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Scorpid Poison",
+   "periodMs": 2000,
    "spellLevel": 8,
    "subtext": "Rank 1",
    "v": 1
@@ -20312,6 +23507,9 @@
   "24854": {
    "name": "Mana Spring Totem"
   },
+  "24857": {
+   "name": "Arcane Blast"
+  },
   "24858": {
    "baseLevel": 40,
    "castMs": 0,
@@ -20341,6 +23539,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Insect Swarm",
+   "periodMs": 2000,
    "spellLevel": 30,
    "subtext": "Rank 2",
    "v": 1
@@ -20356,6 +23555,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Insect Swarm",
+   "periodMs": 2000,
    "spellLevel": 40,
    "subtext": "Rank 3",
    "v": 1
@@ -20371,6 +23571,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Insect Swarm",
+   "periodMs": 2000,
    "spellLevel": 50,
    "subtext": "Rank 4",
    "v": 1
@@ -20386,9 +23587,16 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Insect Swarm",
+   "periodMs": 2000,
    "spellLevel": 60,
    "subtext": "Rank 5",
    "v": 1
+  },
+  "24995": {
+   "name": "Pyroblast"
+  },
+  "25019": {
+   "name": "Blizzard"
   },
   "25020": {
    "name": "Lightning Shield"
@@ -20399,8 +23607,17 @@
   "25025": {
    "name": "Earth Shock"
   },
+  "25028": {
+   "name": "Fire Blast"
+  },
+  "25049": {
+   "name": "Blast Wave"
+  },
   "25051": {
    "name": "Sunder Armor"
+  },
+  "25058": {
+   "name": "Renew"
   },
   "25101": {
    "name": "Battle Shout"
@@ -20453,6 +23670,7 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Blessing of Wisdom",
+   "periodMs": 5000,
    "spellLevel": 60,
    "subtext": "Rank 6",
    "v": 1
@@ -20482,6 +23700,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 9",
    "v": 1
@@ -20514,6 +23733,7 @@
    "icdMs": 0,
    "maxLevel": 65,
    "name": "Rejuvenation",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 60,
    "subtext": "Rank 11",
@@ -20545,6 +23765,7 @@
    "gcdMs": 1500,
    "maxLevel": 65,
    "name": "Immolate",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 8",
    "v": 1
@@ -20560,8 +23781,25 @@
    "gcdMs": 1500,
    "maxLevel": 65,
    "name": "Corruption",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 7",
+   "v": 1
+  },
+  "25315": {
+   "baseLevel": 60,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 65,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 60,
+   "subtext": "Rank 10",
    "v": 1
   },
   "25347": {
@@ -20574,7 +23812,9 @@
    "durationMs": 12000,
    "family": 8,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Deadly Poison V",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 5",
    "v": 1
@@ -20588,6 +23828,7 @@
    "name": "Deadly Poison V",
    "spellLevel": 60,
    "subtext": "Rank 5",
+   "targetCode": 0,
    "v": 1
   },
   "25359": {
@@ -20738,6 +23979,9 @@
   "25809": {
    "name": "Crippling Poison"
   },
+  "25810": {
+   "name": "Mind-numbing Poison"
+  },
   "25816": {
    "name": "Hex of Weakness"
   },
@@ -20757,6 +24001,7 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Greater Blessing of Wisdom",
+   "periodMs": 5000,
    "spellLevel": 54,
    "subtext": "Rank 1",
    "v": 1
@@ -20772,6 +24017,75 @@
    "gcdMs": 1500,
    "name": "Greater Blessing of Kings",
    "spellLevel": 60,
+   "v": 1
+  },
+  "25902": {
+   "baseLevel": 56,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 10,
+   "name": "Holy Shock",
+   "spellLevel": 56,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "25903": {
+   "baseLevel": 56,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 10,
+   "maxLevel": 60,
+   "name": "Holy Shock",
+   "spellLevel": 56,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "25911": {
+   "baseLevel": 48,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 10,
+   "name": "Holy Shock",
+   "spellLevel": 48,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "25912": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 10,
+   "name": "Holy Shock",
+   "spellLevel": 40,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "25913": {
+   "baseLevel": 48,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 10,
+   "maxLevel": 55,
+   "name": "Holy Shock",
+   "spellLevel": 48,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "25914": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 10,
+   "maxLevel": 47,
+   "name": "Holy Shock",
+   "spellLevel": 40,
+   "subtext": "Rank 2",
    "v": 1
   },
   "25916": {
@@ -20799,12 +24113,16 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Greater Blessing of Wisdom",
+   "periodMs": 5000,
    "spellLevel": 60,
    "subtext": "Rank 2",
    "v": 1
   },
   "25972": {
    "name": "Rejuvenation"
+  },
+  "25974": {
+   "name": "Deadly Poison"
   },
   "25976": {
    "name": "Feint"
@@ -20818,8 +24136,14 @@
   "26043": {
    "name": "Battle Shout"
   },
+  "26044": {
+   "name": "Mind Flay"
+  },
   "26046": {
    "name": "Mana Burn"
+  },
+  "26048": {
+   "name": "Mind Blast"
   },
   "26049": {
    "name": "Mana Burn"
@@ -20858,6 +24182,7 @@
    "name": "Thunderstomp",
    "spellLevel": 30,
    "subtext": "Rank 1",
+   "targetCode": 4,
    "v": 1
   },
   "26094": {
@@ -20884,6 +24209,9 @@
   },
   "26141": {
    "name": "Hamstring"
+  },
+  "26143": {
+   "name": "Mind Flay"
   },
   "26177": {
    "baseLevel": 12,
@@ -20973,6 +24301,7 @@
    "name": "Thunderstomp",
    "spellLevel": 40,
    "subtext": "Rank 2",
+   "targetCode": 4,
    "v": 1
   },
   "26188": {
@@ -20988,6 +24317,7 @@
    "name": "Thunderstomp",
    "spellLevel": 50,
    "subtext": "Rank 3",
+   "targetCode": 4,
    "v": 1
   },
   "26189": {
@@ -21124,6 +24454,7 @@
    "name": "Hibernate",
    "spellLevel": 18,
    "subtext": "Rank 1",
+   "targetCode": 1,
    "v": 1
   },
   "26370": {
@@ -21146,6 +24477,7 @@
    "gcdMs": 1500,
    "name": "Dismiss Pet",
    "spellLevel": 10,
+   "targetCode": 0,
    "v": 1
   },
   "2643": {
@@ -21211,6 +24543,9 @@
   "26527": {
    "name": "Enrage"
   },
+  "26540": {
+   "name": "Starfall"
+  },
   "26542": {
    "name": "Sprint"
   },
@@ -21238,12 +24573,16 @@
    "family": 10,
    "gcdMs": 1500,
    "name": "Consecration",
+   "periodMs": 1000,
    "spellLevel": 20,
    "subtext": "Rank 1",
    "v": 1
   },
   "26580": {
    "name": "Fear"
+  },
+  "26607": {
+   "name": "Blizzard"
   },
   "26639": {
    "name": "Drain Mana"
@@ -21305,6 +24644,9 @@
   "27556": {
    "name": "Rake"
   },
+  "27557": {
+   "name": "Ferocious Bite"
+  },
   "27559": {
    "castMs": 0,
    "category": 0,
@@ -21347,6 +24689,9 @@
   "27605": {
    "name": "Shadow Word: Pain"
   },
+  "27606": {
+   "name": "Renew"
+  },
   "27607": {
    "name": "Power Word: Shield"
   },
@@ -21365,8 +24710,14 @@
   "27617": {
    "name": "Vanish"
   },
+  "27618": {
+   "name": "Blizzard"
+  },
   "27619": {
    "name": "Ice Block"
+  },
+  "27621": {
+   "name": "Windfury Totem"
   },
   "27626": {
    "name": "Purge"
@@ -21409,6 +24760,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Shadow Word: Pain",
+   "periodMs": 3000,
    "spellLevel": 34,
    "subtext": "Rank 5",
    "v": 1
@@ -21618,6 +24970,23 @@
   "2786": {
    "name": "Remove Curse"
   },
+  "27867": {
+   "castMs": 0,
+   "durationMs": 0,
+   "icdMs": 60000,
+   "name": "Freeze",
+   "procFlag": 139944,
+   "spellLevel": 50,
+   "v": 1
+  },
+  "27868": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 3000,
+   "name": "Freeze",
+   "spellLevel": 50,
+   "v": 1
+  },
   "27897": {
    "name": "Enrage"
   },
@@ -21696,6 +25065,32 @@
   "28167": {
    "name": "Chain Lightning"
   },
+  "2818": {
+   "baseLevel": 30,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 12000,
+   "family": 8,
+   "icdMs": 0,
+   "maxStack": 5,
+   "name": "Deadly Poison",
+   "periodMs": 3000,
+   "spellLevel": 30,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "2823": {
+   "baseLevel": 30,
+   "castMs": 3000,
+   "durationMs": 0,
+   "family": 8,
+   "icdMs": 0,
+   "name": "Deadly Poison",
+   "spellLevel": 30,
+   "subtext": "Rank 1",
+   "targetCode": 0,
+   "v": 1
+  },
   "28271": {
    "name": "Polymorph"
   },
@@ -21707,6 +25102,9 @@
   },
   "28301": {
    "name": "Mana Burn"
+  },
+  "28310": {
+   "name": "Mind Flay"
   },
   "28334": {
    "name": "Whirlwind"
@@ -21722,6 +25120,9 @@
    "spellLevel": 60,
    "subtext": "Rank 6",
    "v": 1
+  },
+  "2835": {
+   "name": "Deadly Poison"
   },
   "28376": {
    "castMs": 0,
@@ -21848,6 +25249,18 @@
    "subtext": "Rank 5",
    "v": 1
   },
+  "28682": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": -1,
+   "family": 3,
+   "icdMs": 0,
+   "maxStack": 10,
+   "name": "Combustion",
+   "spellLevel": 40,
+   "v": 1
+  },
   "2870": {
    "baseLevel": 22,
    "castMs": 0,
@@ -21927,6 +25340,7 @@
    "castMs": 0,
    "durationMs": -1,
    "name": "Stalker's Ally",
+   "periodMs": 3000,
    "v": 1
   },
   "28757": {
@@ -21964,6 +25378,7 @@
    "procFlag": 2148147880,
    "spellLevel": 24,
    "subtext": "Rank 1",
+   "targetCode": 1,
    "v": 1
   },
   "28787": {
@@ -21988,6 +25403,14 @@
   },
   "28798": {
    "name": "Enrage"
+  },
+  "28807": {
+   "castMs": 0,
+   "durationMs": -1,
+   "family": 6,
+   "icdMs": 0,
+   "name": "Renew",
+   "v": 1
   },
   "28810": {
    "castMs": 0,
@@ -22026,6 +25449,7 @@
    "family": 11,
    "icdMs": 0,
    "name": "Lightning Shield",
+   "periodMs": 5000,
    "v": 1
   },
   "28821": {
@@ -22086,6 +25510,7 @@
    "family": 7,
    "gcdMs": 1500,
    "name": "Abolish Poison",
+   "periodMs": 2000,
    "spellLevel": 26,
    "v": 1
   },
@@ -22113,6 +25538,7 @@
    "name": "Soothe Animal",
    "spellLevel": 22,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "29124": {
@@ -22124,6 +25550,7 @@
    "durationMs": 10000,
    "family": 4,
    "name": "Bloodrage",
+   "periodMs": 1000,
    "spellLevel": 10,
    "v": 1
   },
@@ -22173,6 +25600,7 @@
    "gcdMs": 1500,
    "maxLevel": 67,
    "name": "Flame Shock",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 6",
    "v": 1
@@ -22191,6 +25619,9 @@
   "29310": {
    "name": "Mana Burn"
   },
+  "29407": {
+   "name": "Mind Flay"
+  },
   "2941": {
    "baseLevel": 30,
    "castMs": 2000,
@@ -22202,6 +25633,7 @@
    "gcdMs": 1500,
    "maxLevel": 35,
    "name": "Immolate",
+   "periodMs": 3000,
    "spellLevel": 30,
    "subtext": "Rank 4",
    "v": 1
@@ -22224,6 +25656,21 @@
    "family": 3,
    "name": "Precision",
    "spellLevel": 1,
+   "v": 1
+  },
+  "2944": {
+   "baseLevel": 20,
+   "castMs": 0,
+   "category": 691,
+   "categoryCooldownMs": 24000,
+   "cooldownMs": 0,
+   "durationMs": 24000,
+   "family": 6,
+   "gcdMs": 1500,
+   "name": "Devouring Plague",
+   "periodMs": 3000,
+   "spellLevel": 20,
+   "subtext": "Rank 1",
    "v": 1
   },
   "29443": {
@@ -22255,6 +25702,12 @@
   },
   "29544": {
    "name": "Intimidating Shout"
+  },
+  "29633": {
+   "name": "Fire Blast"
+  },
+  "29644": {
+   "name": "Fire Blast"
   },
   "2973": {
    "baseLevel": 1,
@@ -22301,6 +25754,9 @@
   "29848": {
    "name": "Polymorph"
   },
+  "29849": {
+   "name": "Frost Nova"
+  },
   "29851": {
    "name": "Whirlwind"
   },
@@ -22312,6 +25768,21 @@
   },
   "30002": {
    "name": "Fear"
+  },
+  "30091": {
+   "name": "Flamestrike"
+  },
+  "30092": {
+   "name": "Blast Wave"
+  },
+  "30093": {
+   "name": "Blizzard"
+  },
+  "30094": {
+   "name": "Frost Nova"
+  },
+  "30095": {
+   "name": "Cone of Cold"
   },
   "30160": {
    "castMs": 0,
@@ -22356,6 +25827,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Viper Sting",
+   "periodMs": 2000,
    "spellLevel": 36,
    "subtext": "Rank 1",
    "v": 1
@@ -22402,6 +25874,9 @@
    "spellLevel": 26,
    "v": 1
   },
+  "3068": {
+   "name": "Blizzard"
+  },
   "30799": {
    "name": "Regeneration"
   },
@@ -22417,6 +25892,20 @@
   "3094": {
    "name": "Seal of Righteousness"
   },
+  "31018": {
+   "baseLevel": 60,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 7,
+   "gcdMs": 1000,
+   "name": "Ferocious Bite",
+   "spellLevel": 60,
+   "subtext": "Rank 6",
+   "v": 1
+  },
   "3111": {
    "baseLevel": 20,
    "castMs": 0,
@@ -22427,6 +25916,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Mend Pet",
+   "periodMs": 1000,
    "spellLevel": 20,
    "subtext": "Rank 2",
    "v": 1
@@ -22492,10 +25982,14 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Entangling Roots",
+   "periodMs": 3000,
    "procFlag": 2148147880,
    "spellLevel": 8,
    "subtext": "Rank 1",
    "v": 1
+  },
+  "3391": {
+   "name": "Thrash"
   },
   "34074": {
    "name": "Aspect of the Viper"
@@ -22509,6 +26003,7 @@
    "name": "Crippling Poison",
    "spellLevel": 20,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "3409": {
@@ -22521,6 +26016,9 @@
    "spellLevel": 20,
    "subtext": "Rank 1",
    "v": 1
+  },
+  "3417": {
+   "name": "Thrash"
   },
   "3420": {
    "name": "Crippling Poison"
@@ -22542,6 +26040,7 @@
    "gcdMs": 1500,
    "maxLevel": 5,
    "name": "Immolate",
+   "periodMs": 3000,
    "spellLevel": 1,
    "subtext": "Rank 1",
    "v": 1
@@ -22647,6 +26146,9 @@
   "3577": {
    "name": "Teleport: Undercity"
   },
+  "3583": {
+   "name": "Deadly Poison"
+  },
   "3599": {
    "baseLevel": 10,
    "castMs": 0,
@@ -22676,6 +26178,7 @@
    "icdMs": 0,
    "maxLevel": 39,
    "name": "Rejuvenation",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 34,
    "subtext": "Rank 6",
@@ -22724,6 +26227,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Mend Pet",
+   "periodMs": 1000,
    "spellLevel": 28,
    "subtext": "Rank 3",
    "v": 1
@@ -22738,6 +26242,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Mend Pet",
+   "periodMs": 1000,
    "spellLevel": 36,
    "subtext": "Rank 4",
    "v": 1
@@ -22765,6 +26270,7 @@
    "durationMs": 30000,
    "gcdMs": 1500,
    "name": "Black Arrow",
+   "periodMs": 2000,
    "spellLevel": 50,
    "subtext": "Rank 1",
    "v": 1
@@ -22793,8 +26299,20 @@
   "368235": {
    "name": "Consecration"
   },
+  "368292": {
+   "name": "Mind Flay"
+  },
+  "368315": {
+   "name": "Mind Flay"
+  },
+  "368320": {
+   "name": "Mind Flay"
+  },
   "368368": {
    "name": "Charge"
+  },
+  "369079": {
+   "name": "Thrash"
   },
   "369330": {
    "name": "Rain of Fire"
@@ -22809,6 +26327,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Health Funnel",
+   "periodMs": 1000,
    "spellLevel": 20,
    "subtext": "Rank 2",
    "v": 1
@@ -22823,6 +26342,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Health Funnel",
+   "periodMs": 1000,
    "spellLevel": 28,
    "subtext": "Rank 3",
    "v": 1
@@ -22851,6 +26371,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Health Funnel",
+   "periodMs": 1000,
    "spellLevel": 36,
    "subtext": "Rank 4",
    "v": 1
@@ -22893,6 +26414,14 @@
   },
   "379": {
    "name": "Earth Shield"
+  },
+  "399968": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 8,
+   "name": "Envenom",
+   "spellLevel": 1,
+   "v": 1
   },
   "400009": {
    "castMs": -1000000,
@@ -22965,6 +26494,35 @@
    "spellLevel": 1,
    "v": 1
   },
+  "400573": {
+   "baseLevel": 1,
+   "castMs": 0,
+   "durationMs": 18000,
+   "family": 3,
+   "icdMs": 0,
+   "maxStack": 4,
+   "name": "Arcane Blast",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "400574": {
+   "baseLevel": 20,
+   "castMs": 1500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 28,
+   "name": "Arcane Blast",
+   "spellLevel": 20,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "400586": {
+   "name": "Arcane Blast"
+  },
   "400610": {
    "castMs": 0,
    "category": 0,
@@ -22977,6 +26535,142 @@
    "spellLevel": 1,
    "v": 1
   },
+  "400613": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 12000,
+   "family": 3,
+   "gcdMs": 1500,
+   "name": "Living Bomb",
+   "periodMs": 3000,
+   "spellLevel": 1,
+   "v": 1
+  },
+  "400614": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "name": "Living Bomb",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "400616": {
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 15000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 0,
+   "maxLevel": 27,
+   "name": "Fire Blast",
+   "spellLevel": 22,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "400618": {
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 15000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 0,
+   "maxLevel": 11,
+   "name": "Fire Blast",
+   "spellLevel": 6,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "400619": {
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 15000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 0,
+   "maxLevel": 19,
+   "name": "Fire Blast",
+   "spellLevel": 14,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "400620": {
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 15000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 0,
+   "maxLevel": 35,
+   "name": "Fire Blast",
+   "spellLevel": 30,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "400621": {
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 15000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 0,
+   "maxLevel": 43,
+   "name": "Fire Blast",
+   "spellLevel": 38,
+   "subtext": "Rank 5",
+   "v": 1
+  },
+  "400622": {
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 15000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 0,
+   "maxLevel": 51,
+   "name": "Fire Blast",
+   "spellLevel": 46,
+   "subtext": "Rank 6",
+   "v": 1
+  },
+  "400623": {
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 15000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 0,
+   "maxLevel": 59,
+   "name": "Fire Blast",
+   "spellLevel": 54,
+   "subtext": "Rank 7",
+   "v": 1
+  },
+  "400640": {
+   "baseLevel": 28,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 32,
+   "name": "Ice Lance",
+   "spellLevel": 28,
+   "subtext": "Rank 2",
+   "v": 1
+  },
   "401417": {
    "castMs": 0,
    "category": 0,
@@ -22986,6 +26680,7 @@
    "family": 3,
    "gcdMs": 1500,
    "name": "Regeneration",
+   "periodMs": 1000,
    "spellLevel": 1,
    "v": 1
   },
@@ -23001,6 +26696,23 @@
    "spellLevel": 1,
    "v": 1
   },
+  "401502": {
+   "baseLevel": 40,
+   "castMs": 3000,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 9000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 48,
+   "name": "Frostfire Bolt",
+   "periodMs": 3000,
+   "spellLevel": 40,
+   "subtext": "Rank 1",
+   "v": 1
+  },
   "401556": {
    "castMs": 0,
    "category": 0,
@@ -23010,6 +26722,7 @@
    "family": 3,
    "gcdMs": 1500,
    "name": "Living Flame",
+   "periodMs": 400,
    "spellLevel": 1,
    "v": 1
   },
@@ -23018,6 +26731,7 @@
    "durationMs": 2000,
    "family": 3,
    "name": "Living Flame",
+   "periodMs": 1000,
    "v": 1
   },
   "401559": {
@@ -23031,11 +26745,43 @@
    "spellLevel": 1,
    "v": 1
   },
+  "401729": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "name": "Arcane Blast",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "401731": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "name": "Living Bomb",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "401732": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "name": "Ice Lance",
+   "spellLevel": 1,
+   "v": 1
+  },
   "401734": {
    "castMs": 0,
    "durationMs": 0,
    "family": 3,
    "name": "Rewind Time",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "401735": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "name": "Frostfire Bolt",
    "spellLevel": 1,
    "v": 1
   },
@@ -23054,6 +26800,51 @@
    "name": "Living Flame",
    "spellLevel": 1,
    "v": 1
+  },
+  "401859": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "category": 1181,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "gcdMs": 1500,
+   "name": "Prayer of Mending",
+   "spellLevel": 40,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "401863": {
+   "name": "Prayer of Mending"
+  },
+  "401877": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 30000,
+   "family": 6,
+   "icdMs": 0,
+   "maxStack": 5,
+   "name": "Prayer of Mending",
+   "procFlag": 2148182696,
+   "spellLevel": 40,
+   "subtext": "Rank 1",
+   "targetCode": 1,
+   "v": 1
+  },
+  "401880": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "name": "Prayer of Mending",
+   "spellLevel": 40,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "401882": {
+   "name": "Prayer of Mending"
   },
   "401946": {
    "castMs": 0,
@@ -23109,6 +26900,24 @@
    "spellLevel": 1,
    "v": 1
   },
+  "402668": {
+   "castMs": 1500,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "name": "Vampiric Touch",
+   "periodMs": 3000,
+   "procFlag": 2148139008,
+   "spellLevel": 1,
+   "v": 1
+  },
+  "402779": {
+   "name": "Vampiric Touch"
+  },
   "402789": {
    "castMs": 0,
    "category": 0,
@@ -23148,6 +26957,14 @@
   "402808": {
    "name": "Cripple"
   },
+  "402832": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "name": "Prayer of Mending",
+   "spellLevel": 1,
+   "v": 1
+  },
   "402833": {
    "castMs": 0,
    "durationMs": 0,
@@ -23169,6 +26986,14 @@
    "durationMs": 0,
    "family": 6,
    "name": "Pain Suppression",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "402841": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "name": "Vampiric Touch",
    "spellLevel": 1,
    "v": 1
   },
@@ -23219,6 +27044,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Enraged Regeneration",
+   "periodMs": 1000,
    "spellLevel": 1,
    "v": 1
   },
@@ -23359,6 +27185,7 @@
    "gcdMs": 1500,
    "maxLevel": 19,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 14,
    "subtext": "Rank 1",
    "v": 1
@@ -23373,6 +27200,7 @@
    "gcdMs": 1500,
    "maxLevel": 27,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 22,
    "subtext": "Rank 2",
    "v": 1
@@ -23387,6 +27215,7 @@
    "gcdMs": 1500,
    "maxLevel": 35,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 30,
    "subtext": "Rank 3",
    "v": 1
@@ -23401,6 +27230,7 @@
    "gcdMs": 1500,
    "maxLevel": 43,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 38,
    "subtext": "Rank 4",
    "v": 1
@@ -23415,6 +27245,7 @@
    "gcdMs": 1500,
    "maxLevel": 51,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 46,
    "subtext": "Rank 5",
    "v": 1
@@ -23429,6 +27260,7 @@
    "gcdMs": 1500,
    "maxLevel": 59,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 54,
    "subtext": "Rank 6",
    "v": 1
@@ -23673,6 +27505,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Righteous Fury",
+   "periodMs": 10000,
    "procFlag": 2147518464,
    "spellLevel": 1,
    "v": 1
@@ -23703,6 +27536,7 @@
    "gcdMs": 1500,
    "name": "Divine Storm",
    "spellLevel": 1,
+   "targetCode": 5,
    "v": 1
   },
   "407782": {
@@ -23807,9 +27641,38 @@
    "gcdMs": 1500,
    "maxLevel": 48,
    "name": "Wild Growth",
+   "periodMs": 1000,
    "spellLevel": 40,
    "subtext": "Rank 1",
    "v": 1
+  },
+  "408124": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 7000,
+   "family": 7,
+   "gcdMs": 1000,
+   "icdMs": 2000,
+   "maxStack": 3,
+   "name": "Lifebloom",
+   "periodMs": 1000,
+   "procFlag": 2148182696,
+   "spellLevel": 1,
+   "v": 1
+  },
+  "408245": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 7,
+   "name": "Lifebloom",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "408246": {
+   "name": "Lifebloom"
   },
   "408339": {
    "castMs": 0,
@@ -23898,6 +27761,7 @@
    "name": "Fire Nova",
    "spellLevel": 12,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "408424": {
@@ -23910,6 +27774,7 @@
    "name": "Fire Nova",
    "spellLevel": 22,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "408426": {
@@ -23922,6 +27787,7 @@
    "name": "Fire Nova",
    "spellLevel": 32,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "408427": {
@@ -23934,6 +27800,7 @@
    "name": "Fire Nova",
    "spellLevel": 42,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
   },
   "408428": {
@@ -23946,6 +27813,7 @@
    "name": "Fire Nova",
    "spellLevel": 52,
    "subtext": "Rank 5",
+   "targetCode": 0,
    "v": 1
   },
   "408479": {
@@ -24066,6 +27934,7 @@
    "gcdMs": 1500,
    "maxLevel": 48,
    "name": "Riptide",
+   "periodMs": 3000,
    "spellLevel": 40,
    "subtext": "Rank 1",
    "v": 1
@@ -24086,6 +27955,7 @@
    "durationMs": 15000,
    "family": 11,
    "icdMs": 0,
+   "maxStack": 7,
    "name": "Shield Mastery",
    "spellLevel": 1,
    "v": 1
@@ -24095,6 +27965,7 @@
    "durationMs": 0,
    "family": 11,
    "name": "Way of Earth",
+   "periodMs": 1000,
    "spellLevel": 1,
    "v": 1
   },
@@ -24276,6 +28147,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Heart of the Lion",
+   "periodMs": 14000,
    "spellLevel": 1,
    "v": 1
   },
@@ -24404,11 +28276,27 @@
    "spellLevel": 1,
    "v": 1
   },
+  "409824": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 7,
+   "name": "Lifebloom",
+   "spellLevel": 1,
+   "v": 1
+  },
   "409832": {
    "castMs": 0,
    "durationMs": 0,
    "family": 3,
    "name": "Fury of Stormrage",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "409906": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 10,
+   "name": "Beacon of Light",
    "spellLevel": 1,
    "v": 1
   },
@@ -24441,6 +28329,14 @@
    "durationMs": 0,
    "family": 10,
    "name": "Divine Light",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "409932": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 10,
+   "name": "Aura Mastery",
    "spellLevel": 1,
    "v": 1
   },
@@ -24540,6 +28436,21 @@
    "spellLevel": 1,
    "v": 1
   },
+  "410156": {
+   "name": "Stormstrike"
+  },
+  "410176": {
+   "castMs": 0,
+   "category": 2182,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 10000,
+   "durationMs": 0,
+   "family": 7,
+   "gcdMs": 1000,
+   "name": "Skull Bash",
+   "spellLevel": 1,
+   "v": 1
+  },
   "410412": {
    "castMs": 0,
    "category": 82,
@@ -24565,6 +28476,7 @@
    "gcdMs": 1500,
    "name": "Tame Beast",
    "spellLevel": 10,
+   "targetCode": 0,
    "v": 1
   },
   "411631": {
@@ -24581,6 +28493,19 @@
   },
   "411959": {
    "name": "Fear"
+  },
+  "412096": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 2000,
+   "family": 8,
+   "gcdMs": 1000,
+   "name": "Crimson Tempest",
+   "periodMs": 2000,
+   "spellLevel": 1,
+   "v": 1
   },
   "412113": {
    "castMs": 0,
@@ -24811,6 +28736,7 @@
    "family": 3,
    "gcdMs": 1500,
    "name": "Mass Regeneration",
+   "periodMs": 1000,
    "spellLevel": 1,
    "v": 1
   },
@@ -24824,8 +28750,12 @@
    "gcdMs": 0,
    "icdMs": 0,
    "name": "Gladiator Stance",
+   "periodMs": 1000,
    "procFlag": 4,
    "v": 1
+  },
+  "412526": {
+   "name": "Mind Flay"
   },
   "412527": {
    "name": "Shadowform"
@@ -24841,6 +28771,7 @@
    "family": 4,
    "icdMs": 0,
    "name": "Deep Wound",
+   "periodMs": 3000,
    "spellLevel": 1,
    "v": 1
   },
@@ -24887,6 +28818,29 @@
    "family": 5,
    "name": "Dance of the Wicked",
    "spellLevel": 1,
+   "targetCode": 0,
+   "v": 1
+  },
+  "413259": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 6000,
+   "family": 6,
+   "gcdMs": 1500,
+   "name": "Mind Sear",
+   "periodMs": 1000,
+   "spellLevel": 1,
+   "v": 1
+  },
+  "413260": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 6,
+   "name": "Mind Sear",
+   "spellLevel": 1,
    "v": 1
   },
   "413380": {
@@ -24912,10 +28866,20 @@
    "durationMs": 0,
    "family": 4,
    "name": "Single-Minded Fury",
+   "periodMs": 2000,
    "v": 1
   },
   "413589": {
    "name": "Thunder Clap"
+  },
+  "414621": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 2000,
+   "family": 7,
+   "name": "Skull Bash",
+   "spellLevel": 1,
+   "v": 1
   },
   "414644": {
    "baseLevel": 42,
@@ -24927,7 +28891,9 @@
    "family": 7,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Lacerate",
+   "periodMs": 3000,
    "spellLevel": 42,
    "subtext": "Rank 3",
    "v": 1
@@ -24944,6 +28910,7 @@
    "family": 7,
    "gcdMs": 1500,
    "name": "Sunfire",
+   "periodMs": 3000,
    "spellLevel": 1,
    "v": 1
   },
@@ -25126,6 +29093,7 @@
    "family": 11,
    "gcdMs": 1500,
    "name": "Healing Rain",
+   "periodMs": 1000,
    "v": 1
   },
   "415240": {
@@ -25138,6 +29106,7 @@
    "family": 11,
    "name": "Healing Rain",
    "spellLevel": 1,
+   "targetCode": 0,
    "v": 1
   },
   "415320": {
@@ -25149,6 +29118,7 @@
    "family": 9,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 3,
    "name": "Flanking Strike",
    "spellLevel": 1,
    "v": 1
@@ -25279,6 +29249,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Aspect of the Viper",
+   "periodMs": 3000,
    "procFlag": 69700,
    "spellLevel": 1,
    "v": 1
@@ -25350,6 +29321,14 @@
    "spellLevel": 1,
    "v": 1
   },
+  "415738": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "name": "Mind Sear",
+   "spellLevel": 1,
+   "v": 1
+  },
   "415743": {
    "castMs": 0,
    "durationMs": 0,
@@ -25363,6 +29342,22 @@
    "durationMs": 0,
    "family": 5,
    "name": "Dance of the Wicked",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "415756": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "name": "Aura Mastery",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "415759": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "name": "Skull Bash",
    "spellLevel": 1,
    "v": 1
   },
@@ -25382,8 +29377,14 @@
    "spellLevel": 1,
    "v": 1
   },
+  "41637": {
+   "name": "Prayer of Mending"
+  },
   "4167": {
    "name": "Web"
+  },
+  "416863": {
+   "name": "Aura Mastery"
   },
   "417057": {
    "name": "Rejuvenation"
@@ -25417,6 +29418,17 @@
   },
   "417068": {
    "name": "Rejuvenation"
+  },
+  "417141": {
+   "castMs": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 180000,
+   "durationMs": 15000,
+   "family": 7,
+   "gcdMs": 0,
+   "name": "Berserk",
+   "spellLevel": 1,
+   "v": 1
   },
   "420536": {
    "name": "Stealth"
@@ -25523,6 +29535,7 @@
    "family": 6,
    "gcdMs": 1500,
    "name": "Void Plague",
+   "periodMs": 3000,
    "spellLevel": 1,
    "v": 1
   },
@@ -25548,6 +29561,7 @@
    "gcdMs": 1500,
    "name": "Power Word: Barrier",
    "spellLevel": 1,
+   "targetCode": 0,
    "v": 1
   },
   "425211": {
@@ -25564,6 +29578,159 @@
    "family": 3,
    "name": "Power Word: Barrier",
    "spellLevel": 1,
+   "v": 1
+  },
+  "425233": {
+   "name": "Mind Blast"
+  },
+  "425268": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 13,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 8,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "425269": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 19,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 14,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "425270": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 25,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 20,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "425271": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 31,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 26,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "425272": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 37,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 32,
+   "subtext": "Rank 5",
+   "v": 1
+  },
+  "425273": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 43,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 38,
+   "subtext": "Rank 6",
+   "v": 1
+  },
+  "425274": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 49,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 44,
+   "subtext": "Rank 7",
+   "v": 1
+  },
+  "425275": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 55,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 50,
+   "subtext": "Rank 8",
+   "v": 1
+  },
+  "425276": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 61,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 56,
+   "subtext": "Rank 9",
+   "v": 1
+  },
+  "425277": {
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 65,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 60,
+   "subtext": "Rank 10",
    "v": 1
   },
   "425284": {
@@ -25585,6 +29752,7 @@
    "family": 6,
    "gcdMs": 1500,
    "name": "Dispersion",
+   "periodMs": 1000,
    "spellLevel": 1,
    "v": 1
   },
@@ -25626,6 +29794,7 @@
    "gcdMs": 1500,
    "name": "Molten Blast",
    "spellLevel": 1,
+   "targetCode": 10,
    "v": 1
   },
   "425340": {
@@ -25700,6 +29869,7 @@
    "gcdMs": 1500,
    "name": "Carve",
    "spellLevel": 1,
+   "targetCode": 0,
    "v": 1
   },
   "425728": {
@@ -25708,6 +29878,7 @@
    "durationMs": 12000,
    "family": 9,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 4,
    "subtext": "Rank 1",
    "v": 1
@@ -25718,6 +29889,7 @@
    "durationMs": 12000,
    "family": 9,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 10,
    "subtext": "Rank 2",
    "v": 1
@@ -25728,6 +29900,7 @@
    "durationMs": 12000,
    "family": 9,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 18,
    "subtext": "Rank 3",
    "v": 1
@@ -25738,6 +29911,7 @@
    "durationMs": 12000,
    "family": 9,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 26,
    "subtext": "Rank 4",
    "v": 1
@@ -25748,6 +29922,7 @@
    "durationMs": 12000,
    "family": 9,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 34,
    "subtext": "Rank 5",
    "v": 1
@@ -25758,6 +29933,7 @@
    "durationMs": 12000,
    "family": 9,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 42,
    "subtext": "Rank 6",
    "v": 1
@@ -25768,6 +29944,7 @@
    "durationMs": 12000,
    "family": 9,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 50,
    "subtext": "Rank 7",
    "v": 1
@@ -25778,6 +29955,7 @@
    "durationMs": 12000,
    "family": 9,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 58,
    "subtext": "Rank 8",
    "v": 1
@@ -25788,6 +29966,7 @@
    "durationMs": 12000,
    "family": 9,
    "name": "Serpent Sting",
+   "periodMs": 3000,
    "spellLevel": 60,
    "subtext": "Rank 9",
    "v": 1
@@ -25872,6 +30051,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Shadowflame",
+   "periodMs": 3000,
    "spellLevel": 1,
    "v": 1
   },
@@ -25881,6 +30061,7 @@
    "durationMs": 8000,
    "family": 5,
    "name": "Shadowflame",
+   "periodMs": 2000,
    "spellLevel": 1,
    "v": 1
   },
@@ -25928,6 +30109,9 @@
    "name": "Rallying Cry",
    "spellLevel": 1,
    "v": 1
+  },
+  "426493": {
+   "name": "Mind Blast"
   },
   "426502": {
    "name": "Homunculi"
@@ -25998,6 +30182,7 @@
    "castMs": 0,
    "durationMs": 0,
    "name": "Shield Mastery",
+   "periodMs": 2000,
    "spellLevel": 1,
    "v": 1
   },
@@ -26061,6 +30246,7 @@
    "family": 5,
    "name": "Backdraft",
    "spellLevel": 1,
+   "targetCode": 0,
    "v": 1
   },
   "427717": {
@@ -26073,6 +30259,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Unstable Affliction",
+   "periodMs": 3000,
    "spellLevel": 40,
    "subtext": "Rank 1",
    "v": 1
@@ -26144,6 +30331,7 @@
    "family": 7,
    "gcdMs": 1500,
    "name": "Frenzied Regeneration",
+   "periodMs": 1000,
    "spellLevel": 1,
    "v": 1
   },
@@ -26159,6 +30347,18 @@
    "spellLevel": 1,
    "v": 1
   },
+  "428739": {
+   "castMs": 0,
+   "category": 1221,
+   "categoryCooldownMs": 30000,
+   "cooldownMs": 0,
+   "durationMs": 5000,
+   "family": 3,
+   "gcdMs": 1500,
+   "name": "Deep Freeze",
+   "spellLevel": 60,
+   "v": 1
+  },
   "428741": {
    "castMs": 0,
    "category": 0,
@@ -26169,6 +30369,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Molten Armor",
+   "periodMs": 6000,
    "procFlag": 139944,
    "spellLevel": 1,
    "v": 1
@@ -26219,6 +30420,7 @@
    "durationMs": 0,
    "family": 3,
    "name": "Temporal Anomaly",
+   "periodMs": 2000,
    "spellLevel": 1,
    "v": 1
   },
@@ -26232,13 +30434,45 @@
    "gcdMs": 1500,
    "name": "Temporal Anomaly",
    "spellLevel": 1,
+   "targetCode": 0,
    "v": 1
+  },
+  "428917": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "name": "Deep Freeze",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "428920": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "icdMs": 0,
+   "name": "Deep Freeze",
+   "procFlag": 65536,
+   "spellLevel": 1,
+   "v": 1
+  },
+  "42896": {
+   "name": "Arcane Blast"
   },
   "429125": {
    "name": "Icy Veins"
   },
   "429151": {
    "name": "Hammer of Wrath"
+  },
+  "429303": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "name": "Deep Freeze",
+   "spellLevel": 1,
+   "v": 1
   },
   "429305": {
    "castMs": 0,
@@ -26255,6 +30489,9 @@
    "name": "Molten Armor",
    "spellLevel": 1,
    "v": 1
+  },
+  "429820": {
+   "name": "Starfall"
   },
   "429823": {
    "name": "Moonfire"
@@ -26291,6 +30528,8 @@
    "family": 6,
    "gcdMs": 1500,
    "name": "Void Zone",
+   "periodMs": 1000,
+   "targetCode": 0,
    "v": 1
   },
   "431688": {
@@ -26303,6 +30542,7 @@
    "family": 6,
    "name": "Void Zone",
    "spellLevel": 1,
+   "targetCode": 0,
    "v": 1
   },
   "431704": {
@@ -26406,8 +30646,14 @@
   "434001": {
    "name": "Haunt"
   },
+  "434312": {
+   "name": "Deadly Poison"
+  },
   "434316": {
    "name": "Deadly Poison V"
+  },
+  "434443": {
+   "name": "Pyroblast"
   },
   "434754": {
    "castMs": 2500,
@@ -26420,10 +30666,20 @@
    "name": "Polymorph",
    "spellLevel": 16,
    "subtext": "Odd Melon",
+   "targetCode": 1,
    "v": 1
   },
   "435112": {
    "name": "Vengeance"
+  },
+  "435467": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "icdMs": 0,
+   "name": "Dismantle",
+   "procFlag": 340,
+   "v": 1
   },
   "435898": {
    "name": "Whirlwind"
@@ -26477,6 +30733,14 @@
    "spellLevel": 1,
    "v": 1
   },
+  "436611": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 8,
+   "name": "Crimson Tempest",
+   "spellLevel": 1,
+   "v": 1
+  },
   "436937": {
    "name": "Regrowth"
   },
@@ -26515,6 +30779,7 @@
    "gcdMs": 1500,
    "name": "Totemic Projection",
    "spellLevel": 22,
+   "targetCode": 0,
    "v": 1
   },
   "437032": {
@@ -26543,6 +30808,9 @@
   },
   "437765": {
    "name": "Bloodthirst"
+  },
+  "437809": {
+   "name": "Holy Fire"
   },
   "437817": {
    "name": "Holy Nova"
@@ -26593,6 +30861,9 @@
   "438326": {
    "name": "Thorns"
   },
+  "438341": {
+   "name": "Renew"
+  },
   "438358": {
    "name": "Bloodthirst"
   },
@@ -26604,6 +30875,14 @@
   },
   "438541": {
    "name": "Charge"
+  },
+  "439164": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "name": "Dismantle",
+   "targetCode": 0,
+   "v": 1
   },
   "439431": {
    "baseLevel": 30,
@@ -26635,6 +30914,7 @@
    "icdMs": 0,
    "name": "Sebacious Poison",
    "spellLevel": 56,
+   "targetCode": 0,
    "v": 1
   },
   "439464": {
@@ -26644,6 +30924,7 @@
    "icdMs": 0,
    "name": "Numbing Poison",
    "spellLevel": 56,
+   "targetCode": 0,
    "v": 1
   },
   "439465": {
@@ -26653,6 +30934,7 @@
    "icdMs": 0,
    "name": "Atrophic Poison",
    "spellLevel": 56,
+   "targetCode": 0,
    "v": 1
   },
   "439471": {
@@ -26718,11 +31000,58 @@
    "name": "Tree of Life",
    "v": 1
   },
+  "439748": {
+   "castMs": 0,
+   "category": 1218,
+   "categoryCooldownMs": 90000,
+   "cooldownMs": 0,
+   "durationMs": 10000,
+   "family": 7,
+   "gcdMs": 1500,
+   "name": "Starfall",
+   "periodMs": 1000,
+   "spellLevel": 1,
+   "v": 1
+  },
+  "439753": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 7,
+   "name": "Starfall",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "439755": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 7,
+   "name": "Starfall",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "439756": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "family": 7,
+   "name": "Starfall",
+   "spellLevel": 1,
+   "v": 1
+  },
   "439766": {
    "castMs": 0,
    "durationMs": 0,
    "family": 7,
    "name": "Tree of Life",
+   "spellLevel": 1,
+   "v": 1
+  },
+  "439768": {
+   "castMs": 0,
+   "durationMs": 0,
+   "family": 7,
+   "name": "Starfall",
    "spellLevel": 1,
    "v": 1
   },
@@ -26766,6 +31095,7 @@
    "durationMs": 15000,
    "family": 11,
    "name": "Power Surge",
+   "periodMs": 5000,
    "spellLevel": 1,
    "v": 1
   },
@@ -26788,6 +31118,7 @@
    "icdMs": 0,
    "name": "Shockwave",
    "spellLevel": 1,
+   "targetCode": 0,
    "v": 1
   },
   "440495": {
@@ -26858,6 +31189,7 @@
    "family": 10,
    "icdMs": 0,
    "name": "Righteous Judgement",
+   "periodMs": 2000,
    "spellLevel": 1,
    "v": 1
   },
@@ -26889,6 +31221,7 @@
    "durationMs": 0,
    "family": 3,
    "name": "Frozen Orb",
+   "periodMs": 1000,
    "spellLevel": 1,
    "v": 1
   },
@@ -26902,6 +31235,7 @@
    "gcdMs": 1500,
    "name": "Frozen Orb",
    "spellLevel": 1,
+   "targetCode": 0,
    "v": 1
   },
   "440813": {
@@ -26976,6 +31310,15 @@
    "spellLevel": 1,
    "v": 1
   },
+  "442206": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "icdMs": 12000,
+   "name": "Dismantle",
+   "procFlag": 65536,
+   "v": 1
+  },
   "442226": {
    "castMs": 0,
    "category": 82,
@@ -27011,6 +31354,9 @@
   "444046": {
    "name": "Curse of Tongues"
   },
+  "444894": {
+   "name": "Holy Shock"
+  },
   "445282": {
    "name": "Disarm"
   },
@@ -27041,6 +31387,9 @@
   "446391": {
    "name": "Torment"
   },
+  "447547": {
+   "name": "Flamestrike"
+  },
   "447563": {
    "name": "Blind"
   },
@@ -27049,6 +31398,9 @@
   },
   "447891": {
    "name": "Bash"
+  },
+  "449431": {
+   "name": "Starfall"
   },
   "449669": {
    "name": "Retribution Aura"
@@ -27078,6 +31430,7 @@
    "durationMs": 12000,
    "family": 5,
    "icdMs": 0,
+   "maxStack": 2,
    "name": "Shadow Spark",
    "v": 1
   },
@@ -27096,6 +31449,9 @@
   "450646": {
    "name": "Shadow Word: Pain"
   },
+  "450658": {
+   "name": "Renew"
+  },
   "450667": {
    "name": "Stealth"
   },
@@ -27111,6 +31467,7 @@
    "name": "Mind Soothe",
    "spellLevel": 20,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "456195": {
@@ -27145,6 +31502,9 @@
    "name": "Regeneration",
    "spellLevel": 1,
    "v": 1
+  },
+  "456544": {
+   "name": "Holy Shield"
   },
   "457342": {
    "castMs": 0,
@@ -27199,6 +31559,7 @@
    "name": "Banish",
    "spellLevel": 28,
    "subtext": "Rank 1",
+   "targetCode": 1,
    "v": 1
   },
   "457643": {
@@ -27247,6 +31608,18 @@
    "spellLevel": 1,
    "v": 1
   },
+  "457844": {
+   "name": "Starfall"
+  },
+  "457845": {
+   "name": "Starfall"
+  },
+  "457846": {
+   "name": "Starfall"
+  },
+  "457847": {
+   "name": "Starfall"
+  },
   "458285": {
    "name": "Consecration"
   },
@@ -27288,6 +31661,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Wyvern Strike",
+   "periodMs": 1000,
    "spellLevel": 1,
    "subtext": "Rank 1",
    "v": 1
@@ -27309,6 +31683,7 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Wyvern Strike",
+   "periodMs": 1000,
    "spellLevel": 1,
    "subtext": "Rank 2",
    "v": 1
@@ -27322,9 +31697,13 @@
    "family": 9,
    "gcdMs": 1500,
    "name": "Wyvern Strike",
+   "periodMs": 1000,
    "spellLevel": 1,
    "subtext": "Rank 3",
    "v": 1
+  },
+  "458684": {
+   "name": "Starfall"
   },
   "458856": {
    "castMs": 2500,
@@ -27363,6 +31742,9 @@
   "459621": {
    "name": "Whirlwind"
   },
+  "459622": {
+   "name": "Holy Fire"
+  },
   "459699": {
    "name": "Fear Ward"
   },
@@ -27371,6 +31753,9 @@
   },
   "459710": {
    "name": "Hex of Weakness"
+  },
+  "459713": {
+   "name": "Devouring Plague"
   },
   "459714": {
    "name": "Touch of Weakness"
@@ -27394,8 +31779,10 @@
    "gcdMs": 1500,
    "maxLevel": 25,
    "name": "Rain of Fire",
+   "periodMs": 2000,
    "spellLevel": 20,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "460698": {
@@ -27408,8 +31795,10 @@
    "gcdMs": 1500,
    "maxLevel": 39,
    "name": "Rain of Fire",
+   "periodMs": 2000,
    "spellLevel": 34,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "460699": {
@@ -27422,8 +31811,10 @@
    "gcdMs": 1500,
    "maxLevel": 51,
    "name": "Rain of Fire",
+   "periodMs": 2000,
    "spellLevel": 46,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "460700": {
@@ -27436,9 +31827,17 @@
    "gcdMs": 1500,
    "maxLevel": 63,
    "name": "Rain of Fire",
+   "periodMs": 2000,
    "spellLevel": 58,
    "subtext": "Rank 4",
+   "targetCode": 0,
    "v": 1
+  },
+  "460858": {
+   "name": "Pyroblast"
+  },
+  "460860": {
+   "name": "Pyroblast"
   },
   "460862": {
    "name": "Enrage"
@@ -27457,6 +31856,12 @@
   },
   "461088": {
    "name": "Inferno"
+  },
+  "461090": {
+   "name": "Living Bomb"
+  },
+  "461105": {
+   "name": "Living Bomb"
   },
   "461108": {
    "name": "Inferno"
@@ -27527,11 +31932,17 @@
   "461830": {
    "name": "Thunder Clap"
   },
+  "461896": {
+   "name": "Fire Blast"
+  },
   "461966": {
    "name": "Vampiric Embrace"
   },
   "462221": {
    "name": "Drain Life"
+  },
+  "462402": {
+   "name": "Living Bomb"
   },
   "462482": {
    "name": "Flare"
@@ -27643,6 +32054,9 @@
   "462937": {
    "name": "Charge"
   },
+  "463448": {
+   "name": "Frost Nova"
+  },
   "463620": {
    "name": "Retribution Aura"
   },
@@ -27682,10 +32096,14 @@
    "name": "Banish",
    "spellLevel": 28,
    "subtext": "Rank 2",
+   "targetCode": 1,
    "v": 1
   },
   "465700": {
    "name": "Chain Lightning"
+  },
+  "465725": {
+   "name": "Living Bomb"
   },
   "466219": {
    "name": "Shadowguard"
@@ -27725,6 +32143,7 @@
    "durationMs": 15000,
    "family": 7,
    "name": "Force of Nature",
+   "periodMs": 200,
    "spellLevel": 1,
    "v": 1
   },
@@ -27737,6 +32156,7 @@
    "family": 7,
    "gcdMs": 0,
    "icdMs": 0,
+   "maxStack": 3,
    "name": "Astral Power",
    "procFlag": 87376,
    "spellLevel": 1,
@@ -27763,6 +32183,7 @@
    "castMs": 0,
    "durationMs": 8000,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Swift Judgement",
    "v": 1
   },
@@ -27863,6 +32284,9 @@
    "spellLevel": 60,
    "v": 1
   },
+  "469161": {
+   "name": "Blast Wave"
+  },
   "469277": {
    "name": "Tame Beast"
   },
@@ -27910,6 +32334,15 @@
   },
   "473701": {
    "name": "Taunt"
+  },
+  "474204": {
+   "name": "Mind Flay"
+  },
+  "474268": {
+   "name": "Mind Flay"
+  },
+  "474402": {
+   "name": "Mind Blast"
   },
   "475": {
    "baseLevel": 18,
@@ -28005,6 +32438,7 @@
    "gcdMs": 1500,
    "maxLevel": 29,
    "name": "Drain Mana",
+   "periodMs": 1000,
    "spellLevel": 24,
    "subtext": "Rank 1",
    "v": 1
@@ -28037,6 +32471,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Entangling Roots",
+   "periodMs": 3000,
    "procFlag": 2148147880,
    "spellLevel": 28,
    "subtext": "Rank 3",
@@ -28053,6 +32488,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Entangling Roots",
+   "periodMs": 3000,
    "procFlag": 2148147880,
    "spellLevel": 38,
    "subtext": "Rank 4",
@@ -28111,6 +32547,7 @@
    "family": 7,
    "gcdMs": 0,
    "name": "Enrage",
+   "periodMs": 1000,
    "spellLevel": 12,
    "v": 1
   },
@@ -28177,6 +32614,7 @@
    "name": "Intimidating Shout",
    "procFlag": 2148147880,
    "spellLevel": 22,
+   "targetCode": 5,
    "v": 1
   },
   "526": {
@@ -28205,6 +32643,9 @@
    "spellLevel": 18,
    "subtext": "Rank 1",
    "v": 1
+  },
+  "5276": {
+   "name": "Freeze"
   },
   "5277": {
    "baseLevel": 8,
@@ -28307,6 +32748,7 @@
    "procFlag": 2148147880,
    "spellLevel": 40,
    "subtext": "Rank 1",
+   "targetCode": 5,
    "v": 1
   },
   "5487": {
@@ -28338,6 +32780,7 @@
    "family": 6,
    "gcdMs": 1500,
    "name": "Abolish Disease",
+   "periodMs": 5000,
    "spellLevel": 32,
    "v": 1
   },
@@ -28355,6 +32798,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Insect Swarm",
+   "periodMs": 2000,
    "spellLevel": 20,
    "subtext": "Rank 1",
    "v": 1
@@ -28434,6 +32878,7 @@
    "name": "Exorcism",
    "spellLevel": 28,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "5615": {
@@ -28449,6 +32894,7 @@
    "name": "Exorcism",
    "spellLevel": 36,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "5627": {
@@ -28464,6 +32910,7 @@
    "procFlag": 2148147880,
    "spellLevel": 38,
    "subtext": "Rank 2",
+   "targetCode": 1,
    "v": 1
   },
   "5675": {
@@ -28545,12 +32992,41 @@
    "gcdMs": 1500,
    "maxLevel": 25,
    "name": "Rain of Fire",
+   "periodMs": 2000,
    "spellLevel": 20,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "5759": {
    "name": "Cat Form"
+  },
+  "5760": {
+   "baseLevel": 24,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 10000,
+   "family": 8,
+   "icdMs": 0,
+   "name": "Mind-numbing Poison",
+   "spellLevel": 24,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "5761": {
+   "baseLevel": 24,
+   "castMs": 3000,
+   "durationMs": 0,
+   "family": 8,
+   "icdMs": 0,
+   "name": "Mind-numbing Poison",
+   "spellLevel": 24,
+   "subtext": "Rank 1",
+   "targetCode": 0,
+   "v": 1
+  },
+  "5763": {
+   "name": "Mind-numbing Poison"
   },
   "5782": {
    "baseLevel": 8,
@@ -28566,6 +33042,7 @@
    "procFlag": 2148147880,
    "spellLevel": 8,
    "subtext": "Rank 1",
+   "targetCode": 1,
    "v": 1
   },
   "586": {
@@ -28610,6 +33087,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Shadow Word: Pain",
+   "periodMs": 3000,
    "spellLevel": 4,
    "subtext": "Rank 1",
    "v": 1
@@ -28640,6 +33118,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Shadow Word: Pain",
+   "periodMs": 3000,
    "spellLevel": 10,
    "subtext": "Rank 2",
    "v": 1
@@ -28691,6 +33170,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Bane of Doom",
+   "periodMs": 60000,
    "spellLevel": 60,
    "v": 1
   },
@@ -28738,6 +33218,86 @@
    "subtext": "Rank 6",
    "v": 1
   },
+  "6074": {
+   "baseLevel": 14,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 19,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 14,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "6075": {
+   "baseLevel": 20,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 25,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 20,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "6076": {
+   "baseLevel": 26,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 31,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 26,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "6077": {
+   "baseLevel": 32,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 37,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 32,
+   "subtext": "Rank 5",
+   "v": 1
+  },
+  "6078": {
+   "baseLevel": 38,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 43,
+   "name": "Renew",
+   "periodMs": 3000,
+   "spellLevel": 38,
+   "subtext": "Rank 6",
+   "v": 1
+  },
   "6117": {
    "baseLevel": 34,
    "castMs": 0,
@@ -28750,6 +33310,40 @@
    "name": "Mage Armor",
    "spellLevel": 34,
    "subtext": "Rank 1",
+   "v": 1
+  },
+  "6131": {
+   "baseLevel": 40,
+   "castMs": 0,
+   "category": 35,
+   "categoryCooldownMs": 25000,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 45,
+   "name": "Frost Nova",
+   "procFlag": 2148147880,
+   "spellLevel": 40,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "6141": {
+   "baseLevel": 28,
+   "castMs": 0,
+   "category": 2518,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 33,
+   "name": "Blizzard",
+   "periodMs": 1000,
+   "spellLevel": 28,
+   "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "6143": {
@@ -28829,6 +33423,7 @@
    "gcdMs": 1500,
    "name": "Far Sight",
    "spellLevel": 26,
+   "targetCode": 0,
    "v": 1
   },
   "6197": {
@@ -28840,6 +33435,7 @@
    "gcdMs": 1500,
    "name": "Eagle Eye",
    "spellLevel": 14,
+   "targetCode": 0,
    "v": 1
   },
   "6201": {
@@ -28898,6 +33494,7 @@
    "procFlag": 2148147880,
    "spellLevel": 32,
    "subtext": "Rank 2",
+   "targetCode": 1,
    "v": 1
   },
   "6215": {
@@ -28914,6 +33511,7 @@
    "procFlag": 2148147880,
    "spellLevel": 56,
    "subtext": "Rank 3",
+   "targetCode": 1,
    "v": 1
   },
   "6217": {
@@ -28926,6 +33524,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Bane of Agony",
+   "periodMs": 2000,
    "spellLevel": 28,
    "subtext": "Rank 3",
    "v": 1
@@ -28941,8 +33540,10 @@
    "gcdMs": 1500,
    "maxLevel": 39,
    "name": "Rain of Fire",
+   "periodMs": 2000,
    "spellLevel": 34,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "6222": {
@@ -28956,6 +33557,7 @@
    "gcdMs": 1500,
    "maxLevel": 19,
    "name": "Corruption",
+   "periodMs": 3000,
    "spellLevel": 14,
    "subtext": "Rank 2",
    "v": 1
@@ -28971,6 +33573,7 @@
    "gcdMs": 1500,
    "maxLevel": 29,
    "name": "Corruption",
+   "periodMs": 3000,
    "spellLevel": 24,
    "subtext": "Rank 3",
    "v": 1
@@ -28986,6 +33589,7 @@
    "gcdMs": 1500,
    "maxLevel": 39,
    "name": "Drain Mana",
+   "periodMs": 1000,
    "spellLevel": 34,
    "subtext": "Rank 2",
    "v": 1
@@ -29039,6 +33643,7 @@
    "name": "Thunder Clap",
    "spellLevel": 6,
    "subtext": "Rank 1",
+   "targetCode": 4,
    "v": 1
   },
   "6346": {
@@ -29083,6 +33688,7 @@
    "icdMs": 0,
    "name": "Seduction",
    "spellLevel": 26,
+   "targetCode": 0,
    "v": 1
   },
   "6359": {
@@ -29242,6 +33848,7 @@
    "icdMs": 0,
    "maxLevel": 1,
    "name": "Scorpid Poison",
+   "periodMs": 3000,
    "spellLevel": 1,
    "v": 1
   },
@@ -29372,6 +33979,7 @@
    "gcdMs": 1500,
    "name": "Call of the Elements",
    "spellLevel": 20,
+   "targetCode": 0,
    "v": 1
   },
   "66843": {
@@ -29385,6 +33993,7 @@
    "gcdMs": 1500,
    "name": "Call of the Ancestors",
    "spellLevel": 30,
+   "targetCode": 0,
    "v": 1
   },
   "66844": {
@@ -29398,6 +34007,7 @@
    "gcdMs": 1500,
    "name": "Call of the Spirits",
    "spellLevel": 40,
+   "targetCode": 0,
    "v": 1
   },
   "6713": {
@@ -29464,6 +34074,7 @@
    "name": "Sap",
    "spellLevel": 10,
    "subtext": "Rank 1",
+   "targetCode": 1,
    "v": 1
   },
   "6774": {
@@ -29579,6 +34190,7 @@
    "gcdMs": 1500,
    "maxLevel": 19,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 14,
    "subtext": "Rank 1",
    "v": 1
@@ -29698,6 +34310,7 @@
    "gcdMs": 1500,
    "maxLevel": 27,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 22,
    "subtext": "Rank 2",
    "v": 1
@@ -29708,6 +34321,7 @@
    "icdMs": 0,
    "name": "Feed Pet",
    "spellLevel": 10,
+   "targetCode": 0,
    "v": 1
   },
   "702": {
@@ -29734,6 +34348,7 @@
    "family": 8,
    "gcdMs": 1000,
    "name": "Garrote",
+   "periodMs": 3000,
    "spellLevel": 14,
    "subtext": "Rank 1",
    "v": 1
@@ -29787,6 +34402,7 @@
    "gcdMs": 1500,
    "maxLevel": 15,
    "name": "Immolate",
+   "periodMs": 3000,
    "spellLevel": 10,
    "subtext": "Rank 2",
    "v": 1
@@ -29802,6 +34418,7 @@
    "gcdMs": 1500,
    "maxLevel": 35,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 30,
    "subtext": "Rank 3",
    "v": 1
@@ -29839,6 +34456,7 @@
    "name": "Banish",
    "spellLevel": 28,
    "subtext": "Rank 1",
+   "targetCode": 1,
    "v": 1
   },
   "711": {
@@ -30030,6 +34648,7 @@
    "name": "Redemption",
    "spellLevel": 12,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "7329": {
@@ -30132,6 +34751,7 @@
    "family": 4,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Sunder Armor",
    "spellLevel": 10,
    "subtext": "Rank 1",
@@ -30148,6 +34768,7 @@
    "gcdMs": 1500,
    "maxLevel": 36,
    "name": "Tranquility",
+   "periodMs": 2000,
    "spellLevel": 30,
    "subtext": "Rank 1",
    "v": 1
@@ -30192,6 +34813,7 @@
    "family": 4,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Sunder Armor",
    "spellLevel": 22,
    "subtext": "Rank 2",
@@ -30210,6 +34832,7 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Health Funnel",
+   "periodMs": 1000,
    "spellLevel": 12,
    "subtext": "Rank 1",
    "v": 1
@@ -30220,6 +34843,7 @@
    "name": "Firestone",
    "spellLevel": 28,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "7646": {
@@ -30247,6 +34871,7 @@
    "gcdMs": 1500,
    "maxLevel": 39,
    "name": "Corruption",
+   "periodMs": 3000,
    "spellLevel": 34,
    "subtext": "Rank 4",
    "v": 1
@@ -30262,6 +34887,7 @@
    "gcdMs": 1500,
    "maxLevel": 43,
    "name": "Drain Life",
+   "periodMs": 1000,
    "spellLevel": 38,
    "subtext": "Rank 4",
    "v": 1
@@ -30307,6 +34933,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Cat Form",
+   "periodMs": 5000,
    "spellLevel": 20,
    "subtext": "Shapeshift",
    "v": 1
@@ -30358,6 +34985,7 @@
    "icdMs": 0,
    "maxLevel": 9,
    "name": "Rejuvenation",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 4,
    "subtext": "Rank 1",
@@ -30524,6 +35152,9 @@
   "78156": {
    "name": "Tremor Totem"
   },
+  "78159": {
+   "name": "Windfury Totem"
+  },
   "7816": {
    "baseLevel": 36,
    "castMs": 0,
@@ -30654,6 +35285,7 @@
    "name": "Flametongue Weapon",
    "spellLevel": 10,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "8027": {
@@ -30666,6 +35298,7 @@
    "name": "Flametongue Weapon",
    "spellLevel": 18,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "8030": {
@@ -30678,6 +35311,7 @@
    "name": "Flametongue Weapon",
    "spellLevel": 26,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "8032": {
@@ -30778,6 +35412,7 @@
    "gcdMs": 1500,
    "maxLevel": 15,
    "name": "Flame Shock",
+   "periodMs": 3000,
    "spellLevel": 10,
    "subtext": "Rank 1",
    "v": 1
@@ -30793,6 +35428,7 @@
    "gcdMs": 1500,
    "maxLevel": 23,
    "name": "Flame Shock",
+   "periodMs": 3000,
    "spellLevel": 18,
    "subtext": "Rank 2",
    "v": 1
@@ -30808,6 +35444,7 @@
    "gcdMs": 1500,
    "maxLevel": 33,
    "name": "Flame Shock",
+   "periodMs": 3000,
    "spellLevel": 28,
    "subtext": "Rank 3",
    "v": 1
@@ -30848,6 +35485,7 @@
    "durationMs": 12000,
    "icdMs": 0,
    "name": "Rejuvenation",
+   "periodMs": 3000,
    "spellLevel": 20,
    "subtext": "Rank 1",
    "v": 1
@@ -30883,6 +35521,96 @@
    "subtext": "Rank 1",
    "v": 1
   },
+  "8092": {
+   "baseLevel": 10,
+   "castMs": 1500,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 15,
+   "name": "Mind Blast",
+   "spellLevel": 10,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "8102": {
+   "baseLevel": 16,
+   "castMs": 1500,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 21,
+   "name": "Mind Blast",
+   "spellLevel": 16,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "8103": {
+   "baseLevel": 22,
+   "castMs": 1500,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 27,
+   "name": "Mind Blast",
+   "spellLevel": 22,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "8104": {
+   "baseLevel": 28,
+   "castMs": 1500,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 33,
+   "name": "Mind Blast",
+   "spellLevel": 28,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "8105": {
+   "baseLevel": 34,
+   "castMs": 1500,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 39,
+   "name": "Mind Blast",
+   "spellLevel": 34,
+   "subtext": "Rank 5",
+   "v": 1
+  },
+  "8106": {
+   "baseLevel": 40,
+   "castMs": 1500,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 6,
+   "gcdMs": 1500,
+   "maxLevel": 45,
+   "name": "Mind Blast",
+   "spellLevel": 40,
+   "subtext": "Rank 6",
+   "v": 1
+  },
   "8122": {
    "baseLevel": 14,
    "castMs": 0,
@@ -30897,6 +35625,7 @@
    "procFlag": 2148147880,
    "spellLevel": 14,
    "subtext": "Rank 1",
+   "targetCode": 2,
    "v": 1
   },
   "8124": {
@@ -30913,6 +35642,7 @@
    "procFlag": 2148147880,
    "spellLevel": 28,
    "subtext": "Rank 2",
+   "targetCode": 3,
    "v": 1
   },
   "8129": {
@@ -31160,6 +35890,7 @@
    "name": "Mind Soothe",
    "spellLevel": 36,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "8198": {
@@ -31174,6 +35905,7 @@
    "name": "Thunder Clap",
    "spellLevel": 18,
    "subtext": "Rank 2",
+   "targetCode": 4,
    "v": 1
   },
   "8199": {
@@ -31200,6 +35932,7 @@
    "name": "Thunder Clap",
    "spellLevel": 28,
    "subtext": "Rank 3",
+   "targetCode": 4,
    "v": 1
   },
   "8205": {
@@ -31214,6 +35947,7 @@
    "name": "Thunder Clap",
    "spellLevel": 38,
    "subtext": "Rank 4",
+   "targetCode": 4,
    "v": 1
   },
   "8227": {
@@ -31256,6 +35990,7 @@
    "name": "Windfury Weapon",
    "spellLevel": 30,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "8233": {
@@ -31283,6 +36018,7 @@
    "name": "Windfury Weapon",
    "spellLevel": 40,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "8236": {
@@ -31349,6 +36085,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Drain Soul",
+   "periodMs": 3000,
    "procFlag": 2,
    "spellLevel": 24,
    "subtext": "Rank 2",
@@ -31365,6 +36102,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Drain Soul",
+   "periodMs": 3000,
    "procFlag": 2,
    "spellLevel": 38,
    "subtext": "Rank 3",
@@ -31413,6 +36151,12 @@
   "8351": {
    "name": "Fire Nova"
   },
+  "8362": {
+   "name": "Renew"
+  },
+  "8364": {
+   "name": "Blizzard"
+  },
   "8379": {
    "name": "Disarm"
   },
@@ -31426,10 +36170,95 @@
    "family": 4,
    "gcdMs": 1500,
    "icdMs": 0,
+   "maxStack": 5,
    "name": "Sunder Armor",
    "spellLevel": 34,
    "subtext": "Rank 3",
    "v": 1
+  },
+  "8412": {
+   "baseLevel": 30,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 35,
+   "name": "Fire Blast",
+   "spellLevel": 30,
+   "subtext": "Rank 4",
+   "v": 1
+  },
+  "8413": {
+   "baseLevel": 38,
+   "castMs": 0,
+   "category": 19,
+   "categoryCooldownMs": 8000,
+   "cooldownMs": 0,
+   "durationMs": 0,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 43,
+   "name": "Fire Blast",
+   "spellLevel": 38,
+   "subtext": "Rank 5",
+   "v": 1
+  },
+  "8422": {
+   "baseLevel": 32,
+   "castMs": 3000,
+   "category": 2506,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 37,
+   "name": "Flamestrike",
+   "periodMs": 2000,
+   "spellLevel": 32,
+   "subtext": "Rank 3",
+   "targetCode": 0,
+   "v": 1
+  },
+  "8423": {
+   "baseLevel": 40,
+   "castMs": 3000,
+   "category": 2506,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 45,
+   "name": "Flamestrike",
+   "periodMs": 2000,
+   "spellLevel": 40,
+   "subtext": "Rank 4",
+   "targetCode": 0,
+   "v": 1
+  },
+  "8427": {
+   "baseLevel": 36,
+   "castMs": 0,
+   "category": 2518,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 41,
+   "name": "Blizzard",
+   "periodMs": 1000,
+   "spellLevel": 36,
+   "subtext": "Rank 3",
+   "targetCode": 0,
+   "v": 1
+  },
+  "8428": {
+   "name": "Blizzard"
   },
   "8443": {
    "name": "Fire Nova"
@@ -31532,6 +36361,22 @@
    "subtext": "Rank 3",
    "v": 1
   },
+  "8492": {
+   "baseLevel": 34,
+   "castMs": 0,
+   "category": 50,
+   "categoryCooldownMs": 10000,
+   "cooldownMs": 0,
+   "durationMs": 6000,
+   "family": 3,
+   "gcdMs": 1500,
+   "maxLevel": 39,
+   "name": "Cone of Cold",
+   "spellLevel": 34,
+   "subtext": "Rank 2",
+   "targetCode": 0,
+   "v": 1
+  },
   "8494": {
    "baseLevel": 28,
    "castMs": 0,
@@ -31584,6 +36429,46 @@
   "8509": {
    "name": "Fire Nova"
   },
+  "8512": {
+   "baseLevel": 32,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 300000,
+   "family": 11,
+   "gcdMs": 1000,
+   "name": "Windfury Totem",
+   "spellLevel": 32,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "8515": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 0,
+   "icdMs": 100,
+   "maxLevel": 40,
+   "name": "Windfury Totem",
+   "procFlag": 20,
+   "spellLevel": 32,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "8516": {
+   "baseLevel": 32,
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 1000,
+   "family": 11,
+   "icdMs": 0,
+   "maxLevel": 40,
+   "name": "Windfury Totem",
+   "procFlag": 4,
+   "spellLevel": 32,
+   "subtext": "Rank 1",
+   "v": 1
+  },
   "853": {
    "baseLevel": 8,
    "castMs": 0,
@@ -31633,6 +36518,7 @@
    "family": 8,
    "gcdMs": 1000,
    "name": "Garrote",
+   "periodMs": 3000,
    "spellLevel": 22,
    "subtext": "Rank 2",
    "v": 1
@@ -31647,6 +36533,7 @@
    "family": 8,
    "gcdMs": 1000,
    "name": "Garrote",
+   "periodMs": 3000,
    "spellLevel": 30,
    "subtext": "Rank 3",
    "v": 1
@@ -31661,6 +36548,7 @@
    "family": 8,
    "gcdMs": 1000,
    "name": "Garrote",
+   "periodMs": 3000,
    "spellLevel": 38,
    "subtext": "Rank 4",
    "v": 1
@@ -31696,6 +36584,7 @@
    "family": 8,
    "gcdMs": 1000,
    "name": "Rupture",
+   "periodMs": 2000,
    "spellLevel": 28,
    "subtext": "Rank 2",
    "v": 1
@@ -31713,6 +36602,7 @@
    "family": 8,
    "gcdMs": 1000,
    "name": "Rupture",
+   "periodMs": 2000,
    "spellLevel": 36,
    "subtext": "Rank 3",
    "v": 1
@@ -31767,6 +36657,23 @@
    "gcdMs": 1000,
    "icdMs": 0,
    "name": "Expose Armor",
+   "spellLevel": 26,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "865": {
+   "baseLevel": 26,
+   "castMs": 0,
+   "category": 35,
+   "categoryCooldownMs": 25000,
+   "cooldownMs": 0,
+   "durationMs": 8000,
+   "family": 3,
+   "gcdMs": 1500,
+   "icdMs": 0,
+   "maxLevel": 31,
+   "name": "Frost Nova",
+   "procFlag": 2148147880,
    "spellLevel": 26,
    "subtext": "Rank 2",
    "v": 1
@@ -31851,6 +36758,7 @@
    "name": "Exorcism",
    "spellLevel": 20,
    "subtext": "Rank 1",
+   "targetCode": 0,
    "v": 1
   },
   "8818": {
@@ -31904,6 +36812,9 @@
    "subtext": "Rank 1",
    "v": 1
   },
+  "8876": {
+   "name": "Thrash"
+  },
   "89": {
    "castMs": 0,
    "category": 0,
@@ -31916,6 +36827,9 @@
    "spellLevel": 60,
    "subtext": "Rank 1",
    "v": 1
+  },
+  "890": {
+   "name": "Renew"
   },
   "8907": {
    "baseLevel": 40,
@@ -31948,6 +36862,7 @@
    "icdMs": 0,
    "maxLevel": 45,
    "name": "Rejuvenation",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 40,
    "subtext": "Rank 7",
@@ -31978,6 +36893,7 @@
    "gcdMs": 1500,
    "maxLevel": 46,
    "name": "Tranquility",
+   "periodMs": 2000,
    "spellLevel": 40,
    "subtext": "Rank 2",
    "v": 1
@@ -31996,6 +36912,7 @@
    "gcdMs": 1500,
    "maxLevel": 9,
    "name": "Moonfire",
+   "periodMs": 3000,
    "spellLevel": 4,
    "subtext": "Rank 1",
    "v": 1
@@ -32014,6 +36931,7 @@
    "gcdMs": 1500,
    "maxLevel": 15,
    "name": "Moonfire",
+   "periodMs": 3000,
    "spellLevel": 10,
    "subtext": "Rank 2",
    "v": 1
@@ -32029,6 +36947,7 @@
    "gcdMs": 1500,
    "maxLevel": 21,
    "name": "Moonfire",
+   "periodMs": 3000,
    "spellLevel": 16,
    "subtext": "Rank 3",
    "v": 1
@@ -32044,6 +36963,7 @@
    "gcdMs": 1500,
    "maxLevel": 27,
    "name": "Moonfire",
+   "periodMs": 3000,
    "spellLevel": 22,
    "subtext": "Rank 4",
    "v": 1
@@ -32059,6 +36979,7 @@
    "gcdMs": 1500,
    "maxLevel": 33,
    "name": "Moonfire",
+   "periodMs": 3000,
    "spellLevel": 28,
    "subtext": "Rank 5",
    "v": 1
@@ -32074,6 +36995,7 @@
    "gcdMs": 1500,
    "maxLevel": 39,
    "name": "Moonfire",
+   "periodMs": 3000,
    "spellLevel": 34,
    "subtext": "Rank 6",
    "v": 1
@@ -32089,6 +37011,7 @@
    "gcdMs": 1500,
    "maxLevel": 45,
    "name": "Moonfire",
+   "periodMs": 3000,
    "spellLevel": 40,
    "subtext": "Rank 7",
    "v": 1
@@ -32105,6 +37028,7 @@
    "icdMs": 0,
    "maxLevel": 17,
    "name": "Regrowth",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 12,
    "subtext": "Rank 1",
@@ -32122,6 +37046,7 @@
    "icdMs": 0,
    "maxLevel": 23,
    "name": "Regrowth",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 18,
    "subtext": "Rank 2",
@@ -32139,6 +37064,7 @@
    "icdMs": 0,
    "maxLevel": 29,
    "name": "Regrowth",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 24,
    "subtext": "Rank 3",
@@ -32156,6 +37082,7 @@
    "icdMs": 0,
    "maxLevel": 35,
    "name": "Regrowth",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 30,
    "subtext": "Rank 4",
@@ -32173,6 +37100,7 @@
    "icdMs": 0,
    "maxLevel": 41,
    "name": "Regrowth",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 36,
    "subtext": "Rank 5",
@@ -32206,6 +37134,7 @@
    "name": "Soothe Animal",
    "spellLevel": 38,
    "subtext": "Rank 2",
+   "targetCode": 0,
    "v": 1
   },
   "8981": {
@@ -32272,6 +37201,31 @@
    "name": "Cower",
    "spellLevel": 40,
    "subtext": "Rank 2",
+   "v": 1
+  },
+  "9005": {
+   "baseLevel": 36,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 2000,
+   "family": 7,
+   "gcdMs": 1000,
+   "icdMs": 0,
+   "name": "Pounce",
+   "spellLevel": 36,
+   "subtext": "Rank 1",
+   "v": 1
+  },
+  "9007": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 18000,
+   "name": "Pounce Bleed",
+   "periodMs": 3000,
+   "spellLevel": 36,
+   "subtext": "Rank 1",
    "v": 1
   },
   "9034": {
@@ -32384,6 +37338,9 @@
    "subtext": "Rank 4",
    "v": 1
   },
+  "9454": {
+   "name": "Freeze"
+  },
   "9484": {
    "baseLevel": 20,
    "castMs": 1500,
@@ -32397,6 +37354,7 @@
    "name": "Shackle Undead",
    "spellLevel": 20,
    "subtext": "Rank 1",
+   "targetCode": 1,
    "v": 1
   },
   "9485": {
@@ -32412,6 +37370,7 @@
    "name": "Shackle Undead",
    "spellLevel": 40,
    "subtext": "Rank 2",
+   "targetCode": 1,
    "v": 1
   },
   "9490": {
@@ -32440,6 +37399,7 @@
    "family": 7,
    "gcdMs": 1000,
    "name": "Rip",
+   "periodMs": 2000,
    "spellLevel": 28,
    "subtext": "Rank 2",
    "v": 1
@@ -32454,6 +37414,7 @@
    "family": 7,
    "gcdMs": 1000,
    "name": "Rip",
+   "periodMs": 2000,
    "spellLevel": 36,
    "subtext": "Rank 3",
    "v": 1
@@ -32536,6 +37497,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Shadow Word: Pain",
+   "periodMs": 3000,
    "spellLevel": 18,
    "subtext": "Rank 3",
    "v": 1
@@ -32586,6 +37548,7 @@
    "icdMs": 0,
    "maxLevel": 47,
    "name": "Regrowth",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 42,
    "subtext": "Rank 6",
@@ -32601,6 +37564,7 @@
    "family": 7,
    "gcdMs": 1000,
    "name": "Rip",
+   "periodMs": 2000,
    "spellLevel": 44,
    "subtext": "Rank 4",
    "v": 1
@@ -32660,8 +37624,17 @@
    "family": 5,
    "gcdMs": 1500,
    "name": "Bane of Agony",
+   "periodMs": 2000,
    "spellLevel": 8,
    "subtext": "Rank 1",
+   "v": 1
+  },
+  "9800": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 60000,
+   "icdMs": 0,
+   "name": "Holy Shield",
    "v": 1
   },
   "982": {
@@ -32677,6 +37650,68 @@
    "spellLevel": 10,
    "v": 1
   },
+  "9821": {
+   "castMs": 0,
+   "category": 44,
+   "categoryCooldownMs": 300000,
+   "cooldownMs": 0,
+   "durationMs": 15000,
+   "gcdMs": 0,
+   "name": "Dash",
+   "spellLevel": 46,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "9823": {
+   "baseLevel": 46,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 2000,
+   "family": 7,
+   "gcdMs": 1000,
+   "icdMs": 0,
+   "name": "Pounce",
+   "spellLevel": 46,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "9824": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 18000,
+   "name": "Pounce Bleed",
+   "periodMs": 3000,
+   "spellLevel": 46,
+   "subtext": "Rank 2",
+   "v": 1
+  },
+  "9826": {
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 18000,
+   "name": "Pounce Bleed",
+   "periodMs": 3000,
+   "spellLevel": 56,
+   "subtext": "Rank 3",
+   "v": 1
+  },
+  "9827": {
+   "baseLevel": 56,
+   "castMs": 0,
+   "category": 0,
+   "categoryCooldownMs": 0,
+   "cooldownMs": 0,
+   "durationMs": 2000,
+   "family": 7,
+   "gcdMs": 1000,
+   "icdMs": 0,
+   "name": "Pounce",
+   "spellLevel": 56,
+   "subtext": "Rank 3",
+   "v": 1
+  },
   "9833": {
    "baseLevel": 46,
    "castMs": 0,
@@ -32688,6 +37723,7 @@
    "gcdMs": 1500,
    "maxLevel": 51,
    "name": "Moonfire",
+   "periodMs": 3000,
    "spellLevel": 46,
    "subtext": "Rank 8",
    "v": 1
@@ -32703,6 +37739,7 @@
    "gcdMs": 1500,
    "maxLevel": 57,
    "name": "Moonfire",
+   "periodMs": 3000,
    "spellLevel": 52,
    "subtext": "Rank 9",
    "v": 1
@@ -32718,6 +37755,7 @@
    "gcdMs": 1500,
    "maxLevel": 63,
    "name": "Moonfire",
+   "periodMs": 3000,
    "spellLevel": 58,
    "subtext": "Rank 10",
    "v": 1
@@ -32734,6 +37772,7 @@
    "icdMs": 0,
    "maxLevel": 51,
    "name": "Rejuvenation",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 46,
    "subtext": "Rank 8",
@@ -32751,6 +37790,7 @@
    "icdMs": 0,
    "maxLevel": 57,
    "name": "Rejuvenation",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 52,
    "subtext": "Rank 9",
@@ -32768,6 +37808,7 @@
    "icdMs": 0,
    "maxLevel": 63,
    "name": "Rejuvenation",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 58,
    "subtext": "Rank 10",
@@ -32790,6 +37831,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Entangling Roots",
+   "periodMs": 3000,
    "procFlag": 2148147880,
    "spellLevel": 48,
    "subtext": "Rank 5",
@@ -32806,6 +37848,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Entangling Roots",
+   "periodMs": 3000,
    "procFlag": 2148147880,
    "spellLevel": 58,
    "subtext": "Rank 6",
@@ -32823,6 +37866,7 @@
    "icdMs": 0,
    "maxLevel": 53,
    "name": "Regrowth",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 48,
    "subtext": "Rank 7",
@@ -32840,6 +37884,7 @@
    "icdMs": 0,
    "maxLevel": 59,
    "name": "Regrowth",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 54,
    "subtext": "Rank 8",
@@ -32857,6 +37902,7 @@
    "icdMs": 0,
    "maxLevel": 65,
    "name": "Regrowth",
+   "periodMs": 3000,
    "procFlag": 2148182696,
    "spellLevel": 60,
    "subtext": "Rank 9",
@@ -32873,6 +37919,7 @@
    "gcdMs": 1500,
    "maxLevel": 56,
    "name": "Tranquility",
+   "periodMs": 2000,
    "spellLevel": 50,
    "subtext": "Rank 3",
    "v": 1
@@ -32888,6 +37935,7 @@
    "gcdMs": 1500,
    "maxLevel": 66,
    "name": "Tranquility",
+   "periodMs": 2000,
    "spellLevel": 60,
    "subtext": "Rank 4",
    "v": 1
@@ -32963,6 +38011,7 @@
    "family": 7,
    "gcdMs": 1000,
    "name": "Rip",
+   "periodMs": 2000,
    "spellLevel": 52,
    "subtext": "Rank 5",
    "v": 1
@@ -32977,6 +38026,7 @@
    "family": 7,
    "gcdMs": 1000,
    "name": "Rip",
+   "periodMs": 2000,
    "spellLevel": 60,
    "subtext": "Rank 6",
    "v": 1
@@ -33025,6 +38075,7 @@
    "name": "Soothe Animal",
    "spellLevel": 54,
    "subtext": "Rank 3",
+   "targetCode": 0,
    "v": 1
   },
   "9904": {
@@ -33037,6 +38088,7 @@
    "family": 7,
    "gcdMs": 1000,
    "name": "Rake",
+   "periodMs": 3000,
    "spellLevel": 54,
    "subtext": "Rank 4",
    "v": 1
@@ -33099,6 +38151,9 @@
    "subtext": "Rank 3",
    "v": 1
   },
+  "9915": {
+   "name": "Frost Nova"
+  },
   "992": {
    "baseLevel": 26,
    "castMs": 0,
@@ -33110,6 +38165,7 @@
    "gcdMs": 1500,
    "icdMs": 0,
    "name": "Shadow Word: Pain",
+   "periodMs": 3000,
    "spellLevel": 26,
    "subtext": "Rank 4",
    "v": 1
