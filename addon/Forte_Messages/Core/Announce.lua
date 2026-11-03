@@ -30,6 +30,24 @@
 --     `C_ChatInfo.AreOutgoingAddonChatMessagesRestricted` +
 --     `C_ChatInfo.InChatMessagingLockdown` (Core/Drops.lua:616,
 --     Core/Init.lua:453-455);
+--   * and the shipped chat installs gate FOURTH on the client's own
+--     `addonChatRestrictionsForced` CVar (EUI_Chat_EditBox.lua:308,
+--     EllesmereUI.lua:3648, EUIChat_SessionHistory.lua:70 — note §4, "our
+--     Announce.lua:196-206 gates the two C_ChatInfo predicates and not the
+--     CVar"). Added 2026-11-03 (I3b) as the gate's fourth leg, read through the
+--     catalog's `C_CVar.GetCVarBool` (@CVarDocumentation.lua:50, `bool?` —
+--     "unknown is distinct from false"), so the consumer law is intact: a
+--     plain true locks, everything else does not. See CHAT_RESTRICTIONS_FORCED.
+--   * THE VERDICT HALF OF I3b lives in Forte_Warlock/Core/Comms.lua (the
+--     VERDICT LAW of its header: classify the `SendAddonMessageResult` of
+--     `C_ChatInfo.SendAddonMessage`). It is deliberately NOT copied here:
+--     `C_ChatInfo.SendChatMessage` (@ChatInfoDocumentation.lua:563) declares
+--     NO return in the pinned catalog — a plain chat send answers nothing, so
+--     there is no result code to classify on this route. The lockdown gates
+--     above are what this route has, and a skipped announce is the original's
+--     own skip-and-count law, not a re-queue: these lines are event echoes
+--     (a cooldown that is ready, a cast that landed), not restatements a
+--     later frame repeats.
 --   * the cached project view is FX.SecretState.chat -- AddOnRestrictionType
 --     Chat = 5 read through C_RestrictedActions.IsAddOnRestrictionActive
 --     (Forte_Core/Core/Compat.lua RESTRICTION_TYPES + the pinned
@@ -65,8 +83,28 @@ Announce.counts = {
 Announce.last = nil      -- { text, chatType, result } -- the status line's datum
 
 -- The test seam: { inLockdown, outgoingRestricted, isActive, send, isRaid,
--- groupCount }. Production leaves every slot nil and reads the real surface.
+-- groupCount, chatRestrictionsForced }. Production leaves every slot nil and
+-- reads the real surface.
 Announce.readers = {}
+
+--- 2026-11-03 note §4: the shipped installs gate this same leg on the client's
+--- own forced-restriction CVar (EllesmereUIChat/EUI_Chat_EditBox.lua:308,
+--- EllesmereUI/EllesmereUI.lua:3648, EUIChat_SessionHistory.lua:70), and the
+--- note names our gate as the one that reads the two `C_ChatInfo` predicates
+--- and NOT this flag. The CVar NAME is not in the generated catalog (the
+--- catalog declares the readers, not the CVar list); its evidence is the
+--- binary's own string table — `addonChallengeModeRestrictionsForced`,
+--- `addonPvPMatchRestrictionsForced`, `addonMapRestrictionsForced`,
+--- `addonChatRestrictionsForced` ("in lockdown"), docs/research/
+--- secrets-unknowns.md:62-63 — and the shipped gates above. The catalog's
+--- READER is `C_CVar.GetCVarBool(name) -> value: bool, Nilable: true`
+--- (@CVarDocumentation.lua:50), whose contract note is the exact shape the
+--- SecretState consumer law needs: "Returns bool?; unknown is distinct from
+--- false" (wow-api-settings-system CURRENT-SETTINGS.md:58). The read is
+--- pcall'd and passes PlainOrNil, because a plain GetCVar "can read secret
+--- inside a restricted add-on" (note §7.5): an unknown, secret or absent
+--- answer is NOT a lock.
+local CHAT_RESTRICTIONS_FORCED = "addonChatRestrictionsForced"
 
 local function plainCall(fn, arg)
     if type(fn) ~= "function" then return nil end
@@ -81,7 +119,9 @@ end
 --- consumer law -- nil/unknown never suppresses):
 ---   FX.SecretState.chat (the C_RestrictedActions Chat=5 snapshot, refreshed
 ---   right here so the answer is current), C_ChatInfo.InChatMessagingLockdown,
----   C_ChatInfo.AreOutgoingAddonChatMessagesRestricted.
+---   C_ChatInfo.AreOutgoingAddonChatMessagesRestricted, and the client's own
+---   `addonChatRestrictionsForced` CVar (CHAT_RESTRICTIONS_FORCED above -- the
+---   shipped installs' fourth leg, the one this gate used to miss).
 function Announce:chatLocked()
     local r = self.readers
     local SS = FX.SecretState
@@ -95,6 +135,16 @@ function Announce:chatLocked()
         or (C_ChatInfo and C_ChatInfo.AreOutgoingAddonChatMessagesRestricted)) then
         return true
     end
+    local forced = r.chatRestrictionsForced
+    if forced == nil then
+        local getCVarBool = C_CVar and C_CVar.GetCVarBool
+        if type(getCVarBool) == "function" then
+            forced = function()
+                return getCVarBool(CHAT_RESTRICTIONS_FORCED)
+            end
+        end
+    end
+    if plainCall(forced) then return true end
     return false
 end
 

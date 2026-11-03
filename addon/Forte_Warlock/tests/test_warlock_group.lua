@@ -29,6 +29,11 @@ local function resetComms()
     C._lastAt = {}
     C._lastSent = {}
     C._lastTarget = nil
+    C.outbox = {}                 -- the I3b outbox leaves no line behind
+    C._throttleStrikes = 0
+    C._pausedUntil = nil
+    C._pumpArmed = false
+    C._stopped = nil
     C.group = freshGroup()
     if not savedCounts then
         savedCounts = {}
@@ -395,6 +400,322 @@ function()
     hs.present, hs.count = saved[1], saved[2]
     sh.count, sh.source = saved[3], saved[4]
     C.readers.rosterScan = nil
+end)
+
+-- ============================================ the verdict + the outbox (I3b) --
+-- docs/research/upstream-addons-2026-11-03.md §4 + ranked 3: a send ANSWERS a
+-- `SendAddonMessageResult` code (the pinned enumeration
+-- @ChatConstantsDocumentation.lua:146, the 0..12 set named in Core/Comms.lua's
+-- VERDICT LAW), and the codes fall in three classes — throttle (3
+-- AddonMessageThrottle, 8 ChannelThrottle) re-queues behind a back-off, 11
+-- AddOnMessageLockdown re-queues at the head, anything else drops and counts.
+-- The outbox is bounded four ways (the cap, the retry budget, the TTL, the
+-- group-left clear) and its pump is driven BY HAND through the module's own
+-- PumpOutbox on the clock seam: the headless sim fires no timer callback, so
+-- a test that waited on C_Timer would assert nothing. `readers.after` is the
+-- pump's seam — capturing the armed steps is how these tests read the
+-- "at most one closure in flight" law. The 255-byte gate of I2a runs ahead of
+-- every send, queued lines included.
+
+local function verdictHarness(script)
+    resetComms()
+    local clock = { 10000 }
+    local attempts = {}      -- every call the seam saw, with its code
+    local sent = {}          -- ONLY the lines the client ACCEPTED (code 0)
+    local scheduled = {}     -- the pump closures the chain armed
+    local codes = {}
+    for i = 1, #script do codes[i] = script[i] end
+    C.readers.now = function() return clock[1] end
+    C.readers.isRaid = function() return true end
+    C.readers.after = function(seconds, fn)
+        scheduled[#scheduled + 1] = { delay = seconds, fn = fn }
+    end
+    C.readers.send = function(prefix, text)
+        local code = codes[#attempts + 1]
+        if code == nil then code = codes[#codes] end
+        attempts[#attempts + 1] = { text = text, code = code }
+        if code == 0 then sent[#sent + 1] = text end
+        return code
+    end
+    return clock, sent, attempts, scheduled
+end
+local function attemptsOf(attempts)
+    local out = {}
+    for i = 1, #attempts do out[i] = attempts[i].text end
+    return out
+end
+
+test("a throttled verdict (3 AddonMessageThrottle, 8 ChannelThrottle) "
+.. "re-queues behind a back-off and the retry goes out exactly once",
+function()
+    local clock, sent, attempts, scheduled
+        = verdictHarness({ 3, 0, 3, 3, 3, 0 })
+    local q0 = C.counts.queued
+    assertEquals("throttled", C:SendCmd("HS", 7),
+        "the code is a class, not a failure")
+    assertEquals(0, C.counts.sent, "the client took nothing")
+    assertEquals(0, #sent)
+    assertEquals(1, #attempts, "one call")
+    assertEquals(1, #C.outbox, "the line waits in the outbox")
+    assertEquals("HS1 7", C.outbox[1].text)
+    assertEquals(q0 + 1, C.counts.queued)
+    assertEquals(0, C.counts.sendFailed,
+        "the pre-I3b fold of every code into sendFailed is gone")
+    assertEquals(1, C.counts.throttled, "the class has its own counter")
+    assertEquals(1, #scheduled, "one pump closure armed by the enqueue")
+    -- The back-off: a pass before the line is due sends nothing.
+    assertEquals("waiting", C:PumpOutbox())
+    assertEquals(1, #attempts, "a pass before the back-off sends nothing")
+    assertEquals(1, #C.outbox)
+    clock[1] = clock[1] + C.BACKOFF_BASE
+    assertEquals("sent", C:PumpOutbox())
+    assertEquals(2, #attempts)
+    assertEquals(1, #sent, "the room received the line exactly once")
+    assertEquals("HS1 7", attemptsOf(attempts)[2], "the same line retried")
+    assertEquals(0, #C.outbox, "and the queue drains")
+    assertEquals("empty", C:PumpOutbox())
+    -- 8 ChannelThrottle is the same class (TrueshotLodge src/share.lua:56's
+    -- `THROTTLED = {[3]=true,[8]=true}` set).
+    local q1 = C.counts.queued
+    assertEquals("throttled", C:Send("SH1 4", "RAID"))    -- strike one
+    assertEquals(1, #C.outbox)
+    assertEquals(q1 + 1, C.counts.queued)
+    assertEquals(2, C.counts.throttled)
+    -- The strikes: the THIRD consecutive throttled answer keeps the WHOLE
+    -- outbox quiet for THROTTLE_PAUSE (NeedRoll Drops.lua:628-630's law);
+    -- two answers on their own cost nothing but the back-off.
+    local p0 = C.counts.throttlePaused
+    clock[1] = clock[1] + C.BACKOFF_MAX
+    assertEquals("throttled", C:PumpOutbox(), "strike two")
+    assertEquals(p0, C.counts.throttlePaused, "two strikes do not pause")
+    clock[1] = clock[1] + C.BACKOFF_MAX
+    assertEquals("throttled", C:PumpOutbox(), "strike three")
+    assertEquals(p0 + 1, C.counts.throttlePaused)
+    assertEquals("paused", C:PumpOutbox())
+    assertEquals(5, #attempts, "a paused outbox sends nothing")
+    assertEquals(1, #sent, "and the accepted half stays where it was")
+    clock[1] = clock[1] + C.THROTTLE_PAUSE + 1
+    assertEquals("sent", C:PumpOutbox(), "the pause is bounded, never a stop")
+    assertEquals(2, #sent)
+    assertEquals("SH1 4", sent[2])
+end)
+
+test("the lockdown verdict (11 AddOnMessageLockdown) holds at the head and "
+.. "flushes in the order it arrived", function()
+    local clock, sent, attempts, scheduled = verdictHarness({ 11, 11, 0, 0 })
+    local function runPumpStep()
+        -- The event path only REQUESTS a step (the chain has no cancel); the
+        -- suite runs the armed closure, which is what the client's timer does.
+        local step = scheduled[#scheduled]
+        assertTrue(step ~= nil, "a pump step is armed")
+        step.fn()
+    end
+    assertEquals("lockdown", C:SendCmd("HG"))
+    assertEquals("lockdown", C:SendCmd("SG"))
+    assertEquals(0, C.counts.sent)
+    assertEquals(2, #attempts, "two calls, both answered the lockdown code")
+    assertEquals(0, C.counts.sendFailed, "a lockdown is not a failure")
+    assertEquals(2, C.counts.lockdownRefused)
+    assertEquals(2, #C.outbox)
+    assertEquals("HG1", C.outbox[1].text, "the head-run keeps the arrival order")
+    assertEquals("SG1", C.outbox[2].text)
+    -- The room goes shut under the queue: the pump meets the gate and the
+    -- head goes back at the head with its tries UNSPENT (the client never
+    -- saw it), so a long lockdown costs the lines nothing.
+    C.readers.inLockdown = function() return true end
+    assertEquals("locked", C:PumpOutbox())
+    assertEquals(2, #attempts, "a locked pass calls the client zero times")
+    assertEquals(0, #sent)
+    assertEquals(2, #C.outbox, "held, not lost")
+    assertEquals("HG1", C.outbox[1].text)
+    assertEquals("SG1", C.outbox[2].text)
+    local tries = C.outbox[1].tries
+    assertEquals("locked", C:PumpOutbox())
+    assertEquals(tries, C.outbox[1].tries, "the gate spends no retry")
+    -- The lift: ADDON_RESTRICTION_STATE_CHANGED (RestrictedActionsDocu
+    -- mentation.lua:96) pumps the head through the REAL frame script.
+    C.readers.inLockdown = function() return false end
+    C:EnableEvents()
+    local f = C._eventFrame
+    local handler = f:GetScript("OnEvent")
+    assertEquals("function", type(handler))
+    handler(f, "ADDON_RESTRICTION_STATE_CHANGED", 5, 0)
+    runPumpStep()
+    assertEquals(1, #sent)
+    assertEquals("HG1", sent[1])
+    assertEquals(1, #C.outbox)
+    handler(f, "ADDON_RESTRICTION_STATE_CHANGED", 5, 0)
+    runPumpStep()
+    assertEquals(2, #sent)
+    assertEquals("SG1", sent[2], "the pair left in the order it arrived")
+    assertEquals(0, #C.outbox)
+    C:DisableEvents()
+end)
+
+test("an out-of-class verdict drops and counts; a shape fact drops; no "
+.. "answer at all is not a verdict", function()
+    local clock, sent, attempts = verdictHarness({ 9 })        -- 9 GeneralError
+    local failed0 = C.counts.sendFailed
+    assertEquals("refused", C:SendCmd("HS", 2))
+    assertEquals(failed0 + 1, C.counts.sendFailed)
+    assertEquals(1, #attempts, "the client saw the attempt")
+    assertEquals(0, #sent, "and accepted nothing")
+    assertEquals(0, #C.outbox,
+        "a shape/audience fact: a retry would send the same bad line")
+    -- 5 NotInGroup, 12 TargetOffline, 1 InvalidPrefix: the drop class.
+    for _, code in ipairs({ 1, 2, 4, 5, 6, 7, 10, 12 }) do
+        C.readers.send = function() return code end
+        assertEquals("refused", C:Send("HS1 3", "RAID"), "code " .. code)
+        assertEquals(0, #C.outbox, "code " .. code .. " queues nothing")
+    end
+    -- An out-of-pin code (99): the class falls out to the drop side, counted.
+    C.readers.send = function() return 99 end
+    assertEquals("refused", C:Send("HS1 3", "RAID"))
+    assertEquals(0, #C.outbox)
+    -- A send that answers NOTHING (the sim's own SendChatMessage shape, and
+    -- the declared-returnless chat half) is not a verdict: the pre-I3b
+    -- reading stands — the send happened.
+    C.readers.send = function() return nil end
+    assertEquals("sent", C:Send("HS1 4", "RAID"))
+    -- A secret verdict passes PlainOrNil to nil, so it is the same non-answer.
+    C.readers.send = function() return nil end
+    assertEquals("sent", C:Send("HS1 5", "RAID"))
+end)
+
+test("the outbox is bounded: over the cap the OLDEST line is the one that goes",
+function()
+    local clock, sent = verdictHarness({ 11 })        -- every answer: lockdown
+    local n = C.OUTBOX_MAX + 5
+    for i = 1, n do
+        assertEquals("lockdown", C:Send("HS1 " .. i, "RAID"))
+    end
+    assertEquals(C.OUTBOX_MAX, #C.outbox,
+        "the cap is the ceiling: the queue never grows past it")
+    assertEquals(5, C.counts.outboxDropped, "five over-cap drops")
+    assertEquals("HS1 6", C.outbox[1].text, "the five OLDEST are the ones that went")
+    assertEquals("HS1 " .. n, C.outbox[#C.outbox].text,
+        "the freshest restatement is the one that survives")
+    -- The drop law of a STATE wire: the newest count is the truth.
+    assertEquals(C.OUTBOX_MAX, C.counts.queued - C.counts.outboxDropped)
+    assertEquals(0, C.counts.sent)
+end)
+
+test("a queued line that spends its retry budget is dropped and counted",
+function()
+    local clock, sent, attempts = verdictHarness({ 3 })         -- every answer: throttled
+    assertEquals("throttled", C:SendCmd("HS", 9))
+    local pumps = 0
+    while #C.outbox > 0 and pumps < 40 do
+        pumps = pumps + 1
+        clock[1] = clock[1] + C.BACKOFF_MAX     -- never wait on a back-off
+        if C:PumpOutbox() == "paused" then
+            -- The strike pause is bounded too: outlast it, the line goes back.
+            clock[1] = clock[1] + C.THROTTLE_PAUSE + 1
+        end
+    end
+    assertEquals(0, #C.outbox, "the budget bounds the line's life")
+    assertEquals(1, C.counts.outboxDropped, "the spent line is the counted drop")
+    assertEquals(0, C.counts.sent)
+    assertEquals(C.counts.throttled, #attempts, "every answer was a throttle")
+    assertTrue(pumps <= C.RETRY_MAX + 4,
+        "the budget bounds the attempts: " .. pumps
+        .. " pumps against a " .. C.RETRY_MAX .. "-send budget")
+    assertEquals("empty", C:PumpOutbox())
+end)
+
+test("a long lockdown cannot grow the outbox unbounded, and the group-left "
+.. "law clears it", function()
+    local clock, sent = verdictHarness({ 11 })
+    local peak = 0
+    for i = 1, 120 do
+        C:Send("SH1 " .. (i % 50), "RAID")
+        peak = math.max(peak, #C.outbox)
+    end
+    assertTrue(peak <= C.OUTBOX_MAX,
+        "the cap is the ceiling across a whole lockdown, not the average")
+    assertEquals(C.OUTBOX_MAX, #C.outbox)
+    assertTrue(C.counts.outboxDropped > 0, "and every over-cap drop is counted")
+    local dropped0 = C.counts.outboxDropped
+    C:OnGroupLeft()
+    assertEquals(0, #C.outbox,
+        "the queued lines had THAT room as their audience")
+    assertTrue(C.counts.outboxDropped > dropped0, "the clear is counted")
+    assertEquals("empty", C:PumpOutbox())
+end)
+
+test("the pump is a self-terminating chain: one closure in flight, and none "
+.. "for an empty outbox", function()
+    local clock, sent, attempts, scheduled = verdictHarness({ 3 })
+    C:Send("HS1 1", "RAID")
+    assertEquals(1, #scheduled, "the enqueue arms exactly one step")
+    for _ = 1, 5 do C:_SchedulePump(C.PUMP_STEP) end
+    assertEquals(1, #scheduled,
+        "while a step is in flight the arm is idempotent (the _pumpArmed flag)")
+    -- Walk the chain the client would walk: every executed step arms at most
+    -- the NEXT one, and the chain STOPS the pass the outbox drains (the
+    -- Forte_Messages/Module.lua:249-267 law — no timer runs on an idle session).
+    local steps, guard = 0, 0
+    while scheduled[steps + 1] and guard < 40 do
+        guard = guard + 1
+        local step = scheduled[steps + 1]
+        steps = steps + 1
+        clock[1] = clock[1] + C.BACKOFF_MAX      -- never wait on a back-off
+        step.fn()
+    end
+    assertEquals(0, #C.outbox, "the retry budget drained the queue")
+    assertEquals(steps, #scheduled, "no closure is armed once the queue is empty")
+    assertEquals(0, C.counts.sent, "every answer was a throttle")
+    assertTrue(C.counts.outboxDropped >= 1, "the spent line is counted")
+    -- The disable half: with the events stopped the chain stops too.
+    C:Send("HS1 2", "RAID")
+    assertTrue(#C.outbox > 0)
+    local armed = #scheduled
+    C:DisableEvents()
+    assertEquals("stopped", C:PumpOutbox())
+    assertEquals(armed, #scheduled, "a stopped pump arms nothing")
+    assertEquals(1, #C.outbox, "the line keeps its place for the next enable")
+    C:EnableEvents()
+    C:ClearOutbox()
+    C:DisableEvents()
+end)
+
+test("the 255-byte gate runs ahead of the outbox too", function()
+    local clock, sent = verdictHarness({ 3, 0 })
+    local over = string.rep("x", C.MAX_WIRE_BYTES + 1)
+    local long0 = C.counts.tooLongSkipped
+    assertEquals("tooLong", C:Send(over, "RAID"))
+    assertEquals(long0 + 1, C.counts.tooLongSkipped)
+    assertEquals(0, #C.outbox, "a line the client would eat never enters the queue")
+    assertEquals("throttled", C:Send(string.rep("y", C.MAX_WIRE_BYTES), "RAID"))
+    assertEquals(1, #C.outbox, "the cap itself rides, queued like any line")
+    clock[1] = clock[1] + C.BACKOFF_BASE
+    assertEquals("sent", C:PumpOutbox())
+    assertEquals(1, #sent)
+    assertEquals(C.MAX_WIRE_BYTES, #sent[1], "the full-length line arrived")
+end)
+
+test("prefixState names all four RegisterAddonMessagePrefixResult codes "
+.. "(0 ok, 1 duplicate, 2 invalid, 3 toomany)", function()
+    resetComms()
+    local cases = {
+        { 0, "ok" }, { 1, "duplicate" }, { 2, "invalid" }, { 3, "toomany" },
+        { 7, "refused:7" },
+    }
+    for _, c in ipairs(cases) do
+        C.prefixState = nil
+        C.readers = { register = function() return c[1] end }
+        assertEquals(c[2], C:RegisterPrefix(), "code " .. tostring(c[1]))
+        assertContains(C:StatusLine(), c[2],
+            "the /fx status label names it (the launch-day evidence)")
+    end
+    C.prefixState = nil
+    C.readers = { register = function() return nil end }
+    assertEquals("okUnlabelled", C:RegisterPrefix())
+    C.prefixState = nil
+    C.readers = { register = function() error("FXTEST-NO-PREFIX", 0) end }
+    assertEquals("raised", C:RegisterPrefix())
+    C.readers = {}
+    C.prefixState = nil
 end)
 
 -- ============================================================ the plate ----

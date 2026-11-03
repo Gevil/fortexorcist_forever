@@ -4,7 +4,11 @@
 -- lockdown, and is SILENTLY SKIPPED AND COUNTED when one does -- the
 -- C_RestrictedActions Chat=5 snapshot on FX.SecretState.chat (the Compat.lua
 -- RESTRICTION_TYPES seam), C_ChatInfo.InChatMessagingLockdown, the
--- C_ChatInfo.AreOutgoingAddonChatMessagesRestricted pair NeedRoll gates on.
+-- C_ChatInfo.AreOutgoingAddonChatMessagesRestricted pair NeedRoll gates on,
+-- and — added by I3b for the gap the 2026-11-03 note §4 names — the client's
+-- own `addonChatRestrictionsForced` CVar, the fourth leg the shipped chat
+-- installs gate on, read through the catalog's C_CVar.GetCVarBool
+-- (@CVarDocumentation.lua:50, a bool? where unknown is distinct from false).
 -- Only a PLAIN true skips (the SecretState consumer law); a raising send is
 -- counted, never propagated. Routing is the original's ToGroup/ToChannel
 -- (Forte_Core.lua:2046-2070); the soulstone row is the Warlock family's
@@ -110,6 +114,44 @@ test("locked (C_ChatInfo.AreOutgoingAddonChatMessagesRestricted true): the "
     FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 5.0, nil, nil)
     assertEquals(0, #sent)
     assertEquals(s0 + 1, Announce.counts.lockedSkipped)
+    ST:Set("RaidMsg", "ReadyAnnounce", false)
+    restoreAll()
+end)
+
+test("locked (the client's addonChatRestrictionsForced CVar): the shipped "
+.. "installs' fourth leg (note §4), skip + count", function()
+    enable()
+    installReaders({ chatRestrictionsForced = function() return true end })
+    ST:Set("RaidMsg", "ReadyAnnounce", true)
+    local s0 = Announce.counts.lockedSkipped
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 5.5, nil, nil)
+    assertEquals(0, #sent, "the forced-restriction flag locks the send")
+    assertEquals(s0 + 1, Announce.counts.lockedSkipped)
+    -- A plain false is not a lock, and NEITHER is an unknown: the reader is
+    -- `C_CVar.GetCVarBool(name) -> bool?` (@CVarDocumentation.lua:50) whose
+    -- contract note is "unknown is distinct from false", and the SecretState
+    -- consumer law reads an unknown as "no evidence", never as a suppression.
+    installReaders({ chatRestrictionsForced = function() return false end })
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 5.6, nil, nil)
+    assertEquals(1, #sent, "false: the send goes")
+    installReaders({ chatRestrictionsForced = function() return nil end })
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 5.7, nil, nil)
+    assertEquals(1, #sent, "nil/unknown: the send goes")
+    -- A CVar with no surface at all (a client that has no such flag) raises:
+    -- counted as no evidence, the send goes (the same law as the pair above).
+    installReaders({ chatRestrictionsForced = function()
+        error("FXTEST-NO-CVAR", 0)
+    end })
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 5.8, nil, nil)
+    assertEquals(1, #sent, "no surface: the send goes")
+    -- The leg gates the whisper route too (it runs the same chatLocked gate).
+    installReaders({ chatRestrictionsForced = function() return true end })
+    ST:Set("RaidMsg", "SoulstoneStartWhisper", true)
+    local w0 = Announce.counts.lockedSkipped
+    Announce:Whisper("Soulstoning >> Bob << Now", "SoulstoneStartWhisper", "Bob")
+    assertEquals(0, #sent, "the whisper route is gated by the same flag")
+    assertEquals(w0 + 1, Announce.counts.lockedSkipped)
+    ST:Set("RaidMsg", "SoulstoneStartWhisper", false)
     ST:Set("RaidMsg", "ReadyAnnounce", false)
     restoreAll()
 end)
