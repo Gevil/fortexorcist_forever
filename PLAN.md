@@ -786,3 +786,26 @@ Our generated data is 70425 → it may be stale for live.
 | D2 Gap research | `fx-scout` `DataGaps` | `docs/research/forever-data-gaps.md` | Online + local research on known gaps: the generator's uncoded fallbacks (Dismiss Pet, Feed Pet, Vigor) and companion-row shadows; trinket/enchant proc internal cooldowns (the original's `AddHiddenCooldown` list, `/tmp/fxref/Forte_Cooldown/Forte_Cooldown.lua:1636-1693`) and whether Forever data has ICDs; buff-only items without durations (gen_item_data report); Forever patch/hotfix notes since 70425; which public databases cover Forever (and their licence) | each gap: status, source, proposed fix |
 | D3 Generator refresh | `fx-worker` (after D1/D2) | `tools/gen_*.py`, `tools/spell_lists/*.json`, generated `Data/*.lua` | take 70707 values (source + licence recorded), regenerate deterministically, keep the 70425 → 70707 change list in the generated headers | gate PASS incl. determinism; diff list matches D1 |
 
+
+### 11.2 Iteration I — upstream refresh, local combat simulation, nicer demos (owner request 2026-11-03)
+
+Repo is **public** since 2026-11-03 (authors rewritten to Gevil, paths scrubbed, `docs/refs/` local-only). Gate PASS 716,
+battery 16/16. Upstream heads checked by the manager (2026-11-03): wowsims/forever `6e69a7f4` (ours `164d1cf6`), mythicsim
+`14b1a693` (ours `f794f2b`), JBurlison/WoWAddonAPIAgents `20585807` (ours `f9269081`), Osso/wow-ui-sim `06b67d9a` source
+commits after the **v0.1.39** binary we run, CooldownMaster v2.0.4 (`e5811752`), Atraeau/WoW-Addons `b64aab0a` — *"Identity:
+a character is its first and last name, not Name-Realm"* (possible impact: `FX.DB.CharacterKey`, Warlock comms sender names),
+forever-addon-kit unchanged since 2026-09-25.
+
+**Wave I-1 (research, parallel, basalt `fx-scout`; each writes only its note)**
+
+| Slice | Agent | Output | Questions |
+|---|---|---|---|
+| Data upstreams | `DataScout2` | `docs/research/upstream-data-2026-11-03.md` | wowsims `164d1cf6..6e69a7f4` and mythicsim `f794f2b..14b1a693`: new client build pins? spell/item/consumable/ICD/rank changes touching our lists or `tools/overrides_70707.json`; new Forever rules (book ranks, procs) that change what we show; must-regenerate list with cites |
+| API upstreams | `ApiScout2` | `docs/research/upstream-api-2026-11-03.md` | JBurlison catalog `f9269081..20585807` and Atraeau docs: new/removed/changed APIs, events, payloads, secret flags vs our 58 linted files (`scripts/api_lint.py`); the **first-and-last-name identity** finding and what it means for `CharacterKey`, `CHAT_MSG_ADDON` senders, `UnitName`, `GetRealmName`; uiforever changelog tab notes |
+| Reference addons | `RefScout2` | `docs/research/upstream-addons-2026-11-03.md` | CooldownMaster (since the version we studied, `docs/reference/addons/`), WeaponSwingTimer SixxFix newer Forever files (CurseForge), forever-addon-kit, EllesmereUIForeverFix, installed client addons: new Forever client facts (secrets, combat, PLAYER_SWING, comms, SavedVariables) we should adopt |
+| Simulator | `SimScout2` | `docs/research/upstream-sim-2026-11-03.md` | wow-ui-sim source after v0.1.39: new features for **combat simulation** (secret values, combat lockdown, InCombatLockdown, aura secrecy, cast events, PLAYER_SWING), **recording** (frame capture, video, higher-res, animation), how to build/update our local binary (`$WORK/wow-ui-sim`), and the existing combat/secrecy flags in v0.1.39 (`--help`, `run.sh`, docs) |
+
+**Wave I-2 (after I-1; planned from the notes)**
+- Data/API refresh workers (regenerate data, update the pinned catalog + api_lint, identity fix if confirmed).
+- **Combat simulation round**: scripted wow-ui-sim scenarios (enter combat, secret cooldown/aura reads per the Forever secrecy table, in-combat casts, chat lockdown, leave combat → reconcile) driving every module; findings fixed with tests.
+- **Nicer demos**: simulated scenes using the best capture path SimScout2 finds (smooth frame rate, higher resolution, scripted sequences), README refresh.
