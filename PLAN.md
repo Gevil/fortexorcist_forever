@@ -756,6 +756,17 @@ store + v2 migration, Advanced page, right-click/lock law, pickers, feeds, annou
 settings-store correctness and every new option's consumer. Findings must quote the line; the manager re-verifies each
 before any fix (review 5 contained invented sites).
 
+**Review 6 result + fix slice (2026-11-03):** 0 blockers, 4 majors — **all four re-verified by the manager against the
+quoted code**: M1 `Settings.lua:524` `S:Set(module, key, v ~= nil and v or deepCopy(d))` turns a stored `false` into the
+default (a profile switch re-locks unlocked bars and deletes the key); M2 the right-click press stamp is taken only in the
+LeftButton `OnDragStart` and never cleared, so after one drag every later right-click reads as "moved" (live-only; the
+suites stamp by hand); M3 the Splash frame has no right-click seam though the wave-6 commit claimed it; M4 the Hunter
+`HunterStrata` key has no `OnChange("Advanced")` listener. Fix slice `fx-worker` `Fix6` owns `Forte_Options/Core/Settings.lua`,
+the four frames' mouse scripts (`Forte_Cooldown/UI/{Timeline,Splash}.lua`, `Forte_Timer/UI/Rows.lua`, `Forte_Hunter/UI/Swing.lua`,
+`Forte_Warlock/UI/Frame.lua`) and their tests: stamp on `OnMouseDown` (any button) and clear on `OnMouseUp`, as the
+original's `FW:StartMoving`/`FW:Moved` pair does; Splash gets the seam; Hunter listens to `Advanced`; tests drive the real
+`OnMouseDown`→drag→`OnMouseUp` sequence (left drag then right click opens). Minors verified by the worker before fixing.
+
 **H10 Data refresh (owner request 2026-11-02, runs beside wave 1)**
 
 Facts (manager, 2026-11-02): `mythicsim-forever-engine` fast-forwarded 21 commits to `f794f2b` — its `data/` is still pinned
