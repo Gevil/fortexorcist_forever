@@ -519,7 +519,7 @@ owner (Gevil). You do not need to be clever; you need to be **rigorous**. Read �
 7. The game canvas is a `<canvas>` (about 1300×577 CSS px at x=300,y=79); `tab.screenshot({format:"png"})` saves at 1.25× scale — crop the bar with ffmpeg (`crop=700:240:837:470,scale=2100:-1:flags=lanczos` found it at default scale). Save captures into `docs/media/sim/uif_*.png`.
 8. **Gotcha:** the simulated player has no real cooldown state, so our own reconcile (plain read says "ready") clears predicted timers within ~2 s. To inspect the display, first run in the console `ForteXorcist.Cooldown.Engine.OnRead=function() end`, then start entries: `local E=ForteXorcist.Cooldown.Engine; E:AttachStorage({}); E:Build("HUNTER",function() return true end); ... E:OnCast(name, GetTime()-offset)` choosing names whose `E.tracked[name].baseDuration >= offset+15`.
 
-**Sim screenshot** (headless, for worker comparisons): `... run.sh wow-sim --allow-ui-version-mismatch --addons-path <addon dir> --class Hunter --delay 3500 --exec-lua '<inline lua only>' screenshot --png -o <out.png> --width 1280 --height 1024`. `--exec-lua @file` is silently ignored; `print`/`io` are swallowed — create named frames and read them with `dump-tree`. The sim world is black; add a warm backdrop frame in the scenario only when comparing against the originals.
+**Sim screenshot** (headless, for worker comparisons): `... run.sh wow-sim --allow-ui-version-mismatch --addons-path <addon dir> --class Hunter --delay 3500 --exec-lua '<lua or @file>' screenshot --png -o <out.png> --width 1280 --height 1024`. `--exec-lua @file` **works** in v0.1.39 (corrected 2026-11-03, `docs/reference/wow-ui-sim-specs/time-and-capture.md`); `print`/`io` are swallowed — create named frames and read them with `dump-tree`, or `error("…")` and read `lua-errors`. The sim world is black; add a warm backdrop frame in the scenario only when comparing against the originals.
 
 ### 10.4 Work queue (in order; each item = dispatch → verify → record)
 **A. Receive and verify the four running workers** (per-item checks in §10.5). Then update §6, §9.
@@ -561,10 +561,8 @@ owner (Gevil). You do not need to be clever; you need to be **rigorous**. Read �
 ### 10.6 Known pitfalls
 - The shell blocks `grep`, `cat`, redirection (`>`), `head/tail`; use the `grep`/`read`/`write` tools, or Python via `eval`.
 - `edit` needs the file's current tag; `PUT >$` appends; lines you did not read are rejected.
-- `wow-ui-sim --exec-lua @file` is ignored; `print` is swallowed; `--class` takes `Hunter` etc.
-- **`--exec-lua` chunks over ~1.2 KB are silently ignored** (measured 2026-11-02: a 2.2 KB
-  chunk never ran, a 1.27 KB one did; the sim's arg parser has a ~4 KB per-arg limit). Capture
-  drivers must be compact.
+- `wow-ui-sim --exec-lua @file` **works** (corrected 2026-11-03: 1.3 KB files ran to the last statement); `print` is swallowed (surface results with `error()` + the `lua-errors` subcommand); `--class` takes `Hunter` etc.
+- `--exec-lua` chunk size: a 2.2 KB inline chunk never ran (2026-11-02), 1.34 KB files did (2026-11-03); the ceiling between is unmapped — keep capture drivers compact.
 - **The Forte stack loads LATE in a headless boot**: `Forte_Cooldown` is LoadOnDemand, forced
   by `Forte_Options`, whose page `FX.Settings:Register("Cooldown", ...)` runs on
   `FORTEXORCIST_ADDONS_LOADED` with retry timers - all of it AFTER a `--delay 3500`

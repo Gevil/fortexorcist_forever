@@ -39,9 +39,9 @@ ForteXorcistDB = {
   profiles = {
     perCharacter = true,                 -- false => the whole account rides `shared`
     shared  = "ForteXorcist",            -- the account-wide profile's name
-    active  = "Name-Realm",              -- the profile this session rides
-    characters = { ["Name-Realm"] = "Name-Realm" },   -- who rides what
-    byName  = { ["Name-Realm"]  = { settings = { [module] = { [key] = value } } } },
+    active  = "AriaDawnsong",            -- the profile this session rides
+    characters = { ["AriaDawnsong"] = "AriaDawnsong" },   -- who rides what
+    byName  = { ["AriaDawnsong"]  = { settings = { [module] = { [key] = value } } } },
                 ["ForteXorcist"] = { settings = … } },
   },
   probes = {…}, probesEvents = {…}, diag = {…}, probeEpoch = n,   -- Forte_Core/Probe.lua
@@ -76,7 +76,7 @@ ForteXorcistDB = {
   a type law: values it does not understand are left for the value layer, which
   is the only place the registered defaults exist.
 * **v1**: today's flat `db.settings[module][key]` map becomes
-  the profile named `Name-Realm`, plus a copy under `ForteXorcist`; the v0 map
+  the profile named after the character (then `Name-Realm`; v3 below re-keys it), plus a copy under `ForteXorcist`; the v0 map
   is *removed* (no second live table for the same settings). A fresh install
   gets the same shape with empty settings.
 * **v2 (the default prune, wave 5 2026-11-03)**: the old value layer *seeded*
@@ -97,12 +97,24 @@ ForteXorcistDB = {
   player's) is pruned in the first session that registers it — until then
   its stored default reads identically to the default, so nothing hangs on
   the timing.
+* **v3 (realm-free character key, wave I-2a 2026-11-03)**: on Forever a
+  character is a first + last name and `GetRealmName()` is only a connection
+  label that can change between logins (`docs/research/upstream-api-2026-11-03.md`
+  §2), so `FX.DB.CharacterKey()` is now the fullest plain player name with the
+  spaces packed (`"Aria Dawnsong"` → `"AriaDawnsong"`), **no realm**; the
+  client's `UNKNOWNOBJECT` placeholder is a failed read. `DB.RekeyLegacy` moves
+  the current character's legacy `Name-Realm` row (only keys bound in
+  `characters` or equal to `active` — a profile the user named `Name-Raid`
+  stays), its binding and `active` onto the new key, never overwriting an
+  existing new-key profile; it runs from the ladder and again at the first
+  readable key of a session (a login whose name was not yet readable still
+  re-keys).
 * **Frame geometry** (`cooldownDisplay`, `hunterSwing`, `timer.display`,
   `optionsPos`, …) is **not** profile data: a dragged bar stays where it is
   across a profile switch. The original stored it *inside* the profile
   (`Forte_Core.lua:2013-2039`), which is what made its profile copies carry
   frame positions. Moving geometry into the profile is a separate schema
-  step (v3) and needs a decision per module — it is not part of H3.
+  step (v4) and needs a decision per module — it is not part of H3.
 
 ## 3. The value layer (`Forte_Options/Core/Settings.lua`)
 
@@ -170,7 +182,7 @@ the module list. So:
   the active one gold, a click switches live, past `MAX_TABS` the row folds
   into a `...` tab onto the page;
 * the **Profiles page** (`Pages/Profiles.lua`) is the editor: the sharing row,
-  the active profile and its `Name-Realm` key, Use/Delete rows per profile, the
+  the active profile and its character key (the plain name, no realm), Use/Delete rows per profile, the
   typed name + Create (a copy of the profile in use), and the reset rows;
 * `O.INDEX` (the module grid) gets **no** new cell — the original has none.
 
