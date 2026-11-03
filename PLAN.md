@@ -766,6 +766,9 @@ the four frames' mouse scripts (`Forte_Cooldown/UI/{Timeline,Splash}.lua`, `Fort
 `Forte_Warlock/UI/Frame.lua`) and their tests: stamp on `OnMouseDown` (any button) and clear on `OnMouseUp`, as the
 original's `FW:StartMoving`/`FW:Moved` pair does; Splash gets the seam; Hunter listens to `Advanced`; tests drive the real
 `OnMouseDown`→drag→`OnMouseUp` sequence (left drag then right click opens). Minors verified by the worker before fixing.
+**Review 6 fixes accepted (`a040c33`):** all four majors + all five minors (each minor confirmed by its quoted line, none
+refuted this time). Gate PASS **716**; live battery 16/16; live real-script sequence on the cooldown bar: left press →
+drag → release, then a right press + release opens the Cooldown page.
 
 **H10 Data refresh (owner request 2026-11-02, runs beside wave 1)**
 
