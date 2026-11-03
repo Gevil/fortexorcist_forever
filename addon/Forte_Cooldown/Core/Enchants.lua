@@ -266,6 +266,12 @@ end
 --- so no plain read landed it) is landed for the next Sweep -- the charge
 --- snapshot shape never self-retires (file header).
 function Enchants:ReadAll(now, readers)
+    -- TEST MODE GATE (`/fx test`, Forte_Core/Core/TestMode.lua): the weapon-
+    -- enchant ICD windows are a third writer into Engine.entries, and
+    -- WEAPON_ENCHANT_CHANGED drives this pass directly (Module.lua), past the
+    -- gated M:ReadAll. Parked for the demo, exactly as the cast feed and the
+    -- proc window are; the real windows resume when the mode is off.
+    if FX.TestMode and FX.TestMode:IsActive() then return end
     now = now or GetTime()
     readers = readers or {}
     local read = readers.read or (FX.Compat and FX.Compat.GetWeaponEnchantInfo)

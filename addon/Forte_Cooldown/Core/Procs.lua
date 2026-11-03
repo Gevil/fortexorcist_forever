@@ -251,6 +251,16 @@ end
 --- a second proc (the ICD by definition runs from the proc, not from the
 --- aura's refresh). Returns the number of entries created.
 function Procs:OnProcSeen(buffID, now)
+    -- TEST MODE GATE (`/fx test`, Forte_Core/Core/TestMode.lua): the proc ICD
+    -- window is the third writer into Engine.entries, so the demo parks it
+    -- with the cast feed and the read pass (Forte_Cooldown/Module.lua) --
+    -- CooldownMaster's law for the same feature, "all feeds are skipped while
+    -- Test Mode is active" (Core/Cooldown.lua:233-255). This is the ONE write
+    -- site of both seen-routes (the sweep and the _AURA event both arrive
+    -- here), so one gate covers the feature; the rising-edge bookkeeping in
+    -- `seen` keeps running, and real proc windows resume the moment the mode
+    -- is off.
+    if FX.TestMode and FX.TestMode:IsActive() then return 0 end
     local rows = type(buffID) == "number" and self.byBuff[buffID] or nil
     if not rows then return 0 end
     local created = 0

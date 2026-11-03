@@ -599,11 +599,27 @@ end
 
 function M:Logic()
     local now = self:Clock()
-    FX.Timer.Casts:Pump(now)
+    -- TEST MODE GATES (`/fx test`, Forte_Core/Core/TestMode.lua). The two
+    -- writers of this pass are parked for the demo -- `Casts:Pump` is the cast
+    -- queue's insert path (a real insert is a real row, and the pump is fed by
+    -- the event spine parked below) and `Reconcile:SweepAll` is the aura pass
+    -- that ADOPTS, EXTENDS, REFRESHES and fades rows it finds, which over rows
+    -- the demo invented would be a real read annotating a fiction. `Rows:Sweep`
+    -- is NOT gated: it is the row lifecycle machine (the expiry, the fade, the
+    -- compaction) that the synthetic rows must ride exactly as a real one does
+    -- so the panel animates. CooldownMaster's rule for the same feature:
+    -- "all feeds are skipped while Test Mode is active" (Core/Cooldown.lua
+    -- :233-255).
+    local demo = FX.TestMode and FX.TestMode:IsActive()
+    if not demo then
+        FX.Timer.Casts:Pump(now)
+    end
     Rows:Sweep(now)
     -- the 0.5 s safety sweep of the aura law: gated, so it costs nothing while
     -- the client says aura reads are secret
-    FX.Timer.Reconcile:SweepAll(now)
+    if not demo then
+        FX.Timer.Reconcile:SweepAll(now)
+    end
 end
 
 --- The synchronous kick every signal rides: the panel must be up before its
@@ -611,6 +627,86 @@ end
 function M:Kick()
     if not self.options or not self.options.enable then return end
     self:Draw()
+end
+
+-- ======================================================== Test Mode (I-3c) ==
+--- The `/fx test` donor law (docs/research/upstream-addons-2026-11-03.md §6
+--- "Test Mode"): the rows are drawn from THIS panel's own registered pool --
+--- `FX.Timer.Registry.entries`, this class's registered spells, the names of
+--- the generated data -- inserted through the panel's own insert path
+--- (`Rows:InsertFromCast`, the same one `/fx timer test` rides), and tagged. No
+--- spell id is typed, no name is compared against a client name
+--- (docs/localization.md), and no unit is invented: every row rides
+--- `targetKey = "none"`, the panel's own self/no-target key, so the group key
+--- is a PRIOR_* sentinel and no consumer resolves the row against a live unit
+--- (the CDM demo law: synthetic entries carry no `dObj`).
+--- The two public legs are disarmed at the seam -- `expireMsgAt` is the
+--- announce stamp (`opts.onExpire` = the module's printed expiry line) and
+--- `fadeWarn` is the FX_TIMER_FADING threshold -- so a demo row can not reach a
+--- chat line even if `AnnounceExpiry` is on; the fire-side gates in
+--- Core/Rows.lua carry the same law for the expiry and break events.
+local DEMO_ROWS = 5
+local demoScratch = {}
+
+local function demoFill(now)
+    now = now or M:Clock()
+    local pool, n = demoScratch, 0
+    for name in pairs(FX.Timer.Registry.entries) do
+        n = n + 1
+        pool[n] = name
+    end
+    if n == 0 then return 0 end
+    table.sort(pool)
+    local take = math.min(DEMO_ROWS, n)
+    local created = 0
+    for i = 1, take do
+        local name = pool[math.floor((i - 1) * n / take) + 1]
+        local dur = FX.Timer.Registry.BestDuration(name)
+        if type(dur) == "number" and dur > 0 then
+            -- The stamp rides the PAST, spread across the row's own window, so
+            -- the panel opens on rows that are running (a stamp in the future
+            -- is a negative elapsed, which the arrival-highlight law reads as
+            -- "arrived": the finding `/fx timer test` documents).
+            local started = now - (dur * (i - 1) / take)
+            local row = Rows:InsertFromCast(name, "none", dur, started,
+                started, 1)
+            if row then
+                row.expireMsgAt = 0
+                row.fadeWarn = 0
+                FX.TestMode.Tag(row)
+                created = created + 1
+            end
+        end
+    end
+    -- The synchronous-show law of this panel (the hidden anchor gets no
+    -- OnUpdate): a row arrives with the panel shown, in the same pass.
+    M:Kick()
+    return created
+end
+
+--- Scrub: drop every tagged row, then close the holes at once (the compaction
+--- `Sweep` would run at its tail cannot be deferred behind a `Sorted` pass).
+local function demoScrub()
+    local n = 0
+    for i = Rows.rows_n, 1, -1 do
+        local row = Rows.rows[i]
+        if row and FX.TestMode.IsSynthetic(row) then
+            Rows:removeAt(i)
+            n = n + 1
+        end
+    end
+    Rows:Compact()
+    M:Kick()
+    return n
+end
+
+local function demoCount()
+    local n = 0
+    for i = 1, Rows.rows_n do
+        local row = Rows.rows[i]
+        if row and FX.TestMode.IsSynthetic(row) then n = n + 1 end
+    end
+    return n
 end
 
 function M:OnEnable()
@@ -693,11 +789,33 @@ function M:OnEnable()
         if ticks % 12 == 0 then M:Logic() end
     end)
 
+    -- `/fx test` (Forte_Core/Core/TestMode.lua): this panel owns these rows.
+    -- Registered in the enable, idempotent by name (a re-enable replaces the
+    -- pair, so the fill can not double).
+    if FX.TestMode then
+        FX.TestMode.RegisterFeeder({ Name = "SpellTimer", Fill = demoFill,
+            Scrub = demoScrub, Live = demoCount })
+    end
+
     -- The pages are Forte_Options' framework; registering from here is the
     -- point where every addon chunk has run (the Hunter page's law).
     local pages = FX.Timer.Pages
     if pages and pages.RegisterTimerPage then pages.RegisterTimerPage() end
 end
+
+--- The `/fx test` parked set: the events of the feed spine whose whole job is
+--- a row WRITE (a cast fact into the queue, an aura fact into a sweep, a target
+--- change into a sweep). The cleanups and the read-only secret-state
+--- snapshots are deliberately absent: they must keep running during a demo.
+local DEMO_PARKED = {
+    UNIT_SPELLCAST_SENT = true,
+    UNIT_SPELLCAST_START = true,
+    UNIT_SPELLCAST_SUCCEEDED = true,
+    UNIT_SPELLCAST_FAILED = true,
+    UNIT_SPELLCAST_INTERRUPTED = true,
+    UNIT_AURA = true,
+    PLAYER_TARGET_CHANGED = true,
+}
 
 --- The event spine. The payload fields arrive as `a1..a4` and are classified
 --- at the callee (PlainOrNil), never compared here. The ONE exception is the
@@ -708,7 +826,35 @@ end
 --- before the compare, and the pet branch hands the payload to the pet half
 --- of the feed; every non-pet token -- "player", a sealed read, the tests'
 --- token-free shape -- rides the v1 player path untouched.
+--- The `/fx test` parked set: the events of the feed spine whose whole job is
+--- a row WRITE (a cast fact into the queue, an aura fact into a sweep, a target
+--- change into a sweep). The cleanups and the read-only secret-state
+--- snapshots are deliberately absent: they must keep running during a demo.
+local DEMO_PARKED = {
+    UNIT_SPELLCAST_SENT = true,
+    UNIT_SPELLCAST_START = true,
+    UNIT_SPELLCAST_SUCCEEDED = true,
+    UNIT_SPELLCAST_FAILED = true,
+    UNIT_SPELLCAST_INTERRUPTED = true,
+    UNIT_AURA = true,
+    PLAYER_TARGET_CHANGED = true,
+}
+
 function M:OnEvent(event, a1, a2, a3, a4)
+    -- TEST MODE GATE (`/fx test`, Forte_Core/Core/TestMode.lua): the feed spine
+    -- is parked while the demo owns the panel -- every event below is a cast,
+    -- a hit or an aura fact that ends in a row insert, an adopt or a fade, and
+    -- a real row landing on a demo panel is the mixed frame the upstream law
+    -- exists to prevent ("all feeds are skipped while Test Mode is active",
+    -- CooldownMaster Core/Cooldown.lua:233-255). What is deliberately NOT
+    -- parked: the two secret-state snapshots (they read, they never write),
+    -- PLAYER_LEAVING_WORLD / PLAYER_DEAD (the erase-everything cleanup, which
+    -- is also the mode's own scrub path -- FX.TestMode stops on the same
+    -- events) and UNIT_DIED's row fade, which retires a row of a dead unit and
+    -- must never be skipped.
+    if FX.TestMode and FX.TestMode:IsActive() and DEMO_PARKED[event] then
+        return
+    end
     local C = FX.Timer.Casts
     local caster = FX.Compat.PlainOrNil(a1)
     local isPet = type(caster) == "string" and caster == "pet"
@@ -761,8 +907,12 @@ function M:OnEvent(event, a1, a2, a3, a4)
         -- runs in the mode it is about to see, then the full sweep (the design's
         -- "combat end" trigger: adopt / extend / refresh / fade AND learn).
         FX.Timer:RefreshSecretState()
-        FX.Timer.Reconcile:SweepAll()
-        M:Kick()
+        -- TEST MODE GATE (`/fx test`): the sweep is the aura writer; the
+        -- snapshot above is a read and keeps running.
+        if not (FX.TestMode and FX.TestMode:IsActive()) then
+            FX.Timer.Reconcile:SweepAll()
+            M:Kick()
+        end
     elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
         FX.Timer:RefreshSecretState()
     elseif event == "UNIT_DIED" then

@@ -484,6 +484,12 @@ function Engine:Sweep(now, out, popInfo)
                     end
                     info.duration, info.icon, info.category =
                         e.duration, e.icon, e.category
+                    -- TEST MODE (`/fx` Core/TestMode.lua): the pop consumer
+                    -- needs to know a popping entry is a synthetic one, and
+                    -- this is the last site where the entry itself is in hand
+                    -- (the loop below deletes it). A tag of OUR entry table,
+                    -- never a client read.
+                    info._source = e._source
                 end
             end
         end

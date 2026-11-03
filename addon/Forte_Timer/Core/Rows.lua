@@ -67,6 +67,18 @@ FX.Timer.Rows = Rows
 
 local Laws = FX.Timer.Laws
 
+--- Forte_Core/Core/TestMode.lua's tag reader. The four public legs of the row
+--- machine (FX_TIMER_FADING / TIMER_EXPIRED / TIMER_BROKEN and the
+--- announce channel) skip a row the `/fx test` demo invented, and the tag is a
+--- field of OUR row table -- this file reads no game API and this is not one.
+--- Captured at load (Forte_Core is a hard dependency and loads first), with the
+--- nil test so a Core without the feature leaves the fires exactly as they
+--- were.
+local TestMode = FX.TestMode
+local function isSynthetic(row)
+    return TestMode ~= nil and TestMode.IsSynthetic(row)
+end
+
 Rows.rows = {}          -- array 1..rows_n; holes are compacted by Sweep
 Rows.rows_n = 0
 Rows.byKey = {}         -- Laws.RowKey(name, targetKey) -> index
@@ -561,7 +573,8 @@ function Rows:OnAuraAbsent(row, now)
     -- open: with nothing readable to say so, a kill that dropped the aura
     -- fires BROKEN, exactly the behaviour this file had before. The
     -- renderer of the break message/sound is Forte_Messages.
-    if not self:TargetIsDead(row) and FX.Fire then
+    if not self:TargetIsDead(row) and FX.Fire
+        and not isSynthetic(row) then
         FX.Fire(FX.EVENTS.TIMER_BROKEN, row.name, row.targetKey, row.kind)
     end
     self:Fade(row, Laws.REMOVE, now)
@@ -610,7 +623,13 @@ function Rows:Sweep(now)
             if row.fadeWarn > 0 and remaining <= row.fadeWarn
                 and row.state <= Laws.NORMAL then
                 row.fadeWarn = 0
-                if FX.Fire then
+                -- TEST MODE SILENCE (`/fx test`, Forte_Core/Core/TestMode.lua):
+                -- the tag is on OUR row table, and the consumer that speaks to
+                -- the world (Forte_Messages renders FX_TIMER_FADING into a chat
+                -- line + a bell) must not hear for a made-up row. The row's own
+                -- machine -- the stamp, the fade, the draw -- runs untouched, so
+                -- the demo panel behaves exactly like a live one.
+                if FX.Fire and not isSynthetic(row) then
                     FX.Fire(FX.EVENTS.TIMER_FADING, row.name, row.targetKey,
                         row.kind, remaining)
                 end
@@ -619,8 +638,13 @@ function Rows:Sweep(now)
             if row.expireMsgAt > 0 and remaining <= row.expireMsgAt
                 and row.state <= Laws.NORMAL then
                 row.expireMsgAt = 0
-                FX.Timer.NotifyExpiry = (FX.Timer.NotifyExpiry or 0) + 1
-                if opts.onExpire then opts.onExpire(row) end
+                -- The CHAT leg of the pair: `opts.onExpire` is the module's
+                -- `announceExpiry`, a printed line. Silenced for a synthetic
+                -- row by the same law as the fires above.
+                if opts.onExpire and not isSynthetic(row) then
+                    FX.Timer.NotifyExpiry = (FX.Timer.NotifyExpiry or 0) + 1
+                    opts.onExpire(row)
+                end
             end
             -- THE EXPIRY EVENT (review 4 E3): `FX_TIMER_EXPIRED` is fired
             -- HERE, at the Timer's own expiry site, and nowhere else. The
@@ -639,7 +663,12 @@ function Rows:Sweep(now)
             if not row.expiredFired and remaining <= 0
                 and row.state <= Laws.NORMAL then
                 row.expiredFired = true
-                if FX.Fire then
+                -- The stamp is set either way (a re-extended row can not
+                -- announce the same expiry twice), and a synthetic row says
+                -- nothing out loud: Forte_Messages' whole "Timer Expiry" group
+                -- -- its chat rows, its sounds, its announces -- rides this
+                -- fire, and test mode sends no chat.
+                if FX.Fire and not isSynthetic(row) then
                     FX.Fire(FX.EVENTS.TIMER_EXPIRED, row.name, row.targetKey,
                         row.kind)
                 end
@@ -683,6 +712,19 @@ function Rows:removeAt(i)
     if self.byKey[Laws.RowKey(row.name, row.targetKey)] == i then
         self.byKey[Laws.RowKey(row.name, row.targetKey)] = nil
     end
+end
+
+--- Close the holes `removeAt` left, on demand. `Sweep` runs this at its tail,
+--- so the panel needs no caller that knows about `_dirty`; this is the seam for
+--- a caller that removes rows OUT of the sweep -- the `/fx test` scrub
+--- (Forte_Timer/Module.lua) is the one today -- and must not leave a hole for
+--- the next `Sorted` pass to walk past.
+function Rows:Compact()
+    if not self._dirty then return 0 end
+    local before = self.rows_n
+    self._dirty = nil
+    compact(self)
+    return before - self.rows_n
 end
 
 --- Drop every row: the leave-world / class-change purge (the original's

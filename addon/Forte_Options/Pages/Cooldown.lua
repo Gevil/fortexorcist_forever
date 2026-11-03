@@ -231,6 +231,27 @@ O:RegisterPage({
                 tip = "Hide the cooldown timer scale and background when you have no visible cooldowns; the bar returns with the first one (Forte_Cooldown.lua :1348). Live." })
             s.CHK({ module = M, key = "HideCombat", label = "Hide when out of combat",
                 tip = "Hide the frame when you get out of combat (FWL.TIMER_HIDE, Forte_Core/Localization.lua:526; the source's BASICS row :1708). Auto-hides the bar out of combat, live with the combat state." })
+            -- Wave I-3c (docs/research/upstream-addons-2026-11-03.md §6 "Test
+            -- Mode", ranked row 3): the demo control. An ACTION row -- W.BTN
+            -- carries no `key` -- deliberately NOT a checkbox: a W.CHK writes
+            -- FX.Settings, and a demo mode is not a player preference. The
+            -- sparse-store law of Core/Settings.lua says the store holds the
+            -- values that differ from the shipped defaults, i.e. the player's
+            -- choices; persisting a demo switch would put a fiction in a
+            -- profile. One press fills the cooldown bar, the Secondary Splash
+            -- and the Spell Timer with synthetic rows of the player's own
+            -- class (Forte_Core/Core/TestMode.lua, the `/fx test` command);
+            -- pressing again, a combat start or a logout scrubs every one of
+            -- them. The state is session-only, so a `/reload` is always off.
+            s.BTN({
+                label = "Fill the frames with test data",
+                text = "Fill",
+                tip = "Demo mode (/fx test): put synthetic entries of your OWN spells on the cooldown bar, the splash and the Spell Timer so you can place and judge the frames without a fight. Nothing is sent, nothing is saved, real data resumes -- and a combat start, a logout or a second press scrubs every test entry. It refuses to start while you are in combat.",
+                enabled = true,
+                onPress = function()
+                    if FX.TestMode then FX.TestMode:Toggle() end
+                end,
+            })
         end, {
             module = M,
             keys = { "Enable", "Lock", "Vertical", "Flip", "HideZero",

@@ -7,6 +7,11 @@ ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
 local Engine = FX.Cooldown.Engine
 
+--- Forte_Core/Core/TestMode.lua: the tag reader for the pop site's silence (a
+--- synthetic entry fills the bar and the splash and fires no bus event).
+--- Captured at load; Forte_Core is a hard dependency and loads first.
+local TestMode = FX.TestMode
+
 local M = {}
 FX.Cooldown.Module = M
 FX.RegisterModule("Cooldown", M)
@@ -212,6 +217,17 @@ end
 --- work-saver, and a plain numeric read that does arrive is never discarded
 --- on the strength of it (the spell-level exceptions the mode cannot see).
 function M:ReadAll()
+    -- TEST MODE GATE (Forte_Core/Core/TestMode.lua, `/fx test`): the demo's
+    -- synthetic entries live in Engine.entries beside the real ones, and this
+    -- pass would re-anchor or clear them against the player's real cooldowns
+    -- -- within one global cooldown the frame would be half fiction and the
+    -- read-tier counters below would be measuring our own rows. CooldownMaster's
+    -- rule for the same feature, gate-for-gate: "all feeds are skipped while
+    -- Test Mode is active" (Core/Cooldown.lua:233-255, its `IsDemoActive()`
+    -- checks on its scan and its event feeds). The DRAW path (the ticker's
+    -- Display:Update) and the public reads are NOT gated: the mode fills the
+    -- bar, it does not blind it.
+    if FX.TestMode and FX.TestMode:IsActive() then return end
     local now = GetTime()
     local chargesReader = FX.Compat.GetSpellCharges
     local skipNumeric = FX.SecretState ~= nil
@@ -300,6 +316,96 @@ function M:ReadAll()
     end
 end
 
+-- ======================================================== Test Mode (I-3c) ==
+--- The `/fx test` donor law (docs/research/upstream-addons-2026-11-03.md §6
+--- "Test Mode", the CooldownMaster port law): the synthetic rows are drawn
+--- from THIS add-on's own live pool, they carry no `dObj` and no `itemID`, and
+--- the pump spreads their ready moments out so the bar keeps moving. Here the
+--- pool is `Engine.tracked` -- the player's own class spells, the names of the
+--- generated data table -- so every row the demo shows is a spell the player
+--- really has, spelled the way our data spells it, and the fill reads no
+--- client API at all: `Engine:BestDuration` is our own number, and the entries
+--- arrive through `Engine:OnCast`, which is the engine's own insert path (so
+--- the shape, the charge rules and the pop are the real ones, and the rows are
+--- as far from a secret-prone read as a row can be). Charge spells are left
+--- out: `Engine:Sorted` hides an entry whose bar has charges to spare, so a
+--- charge row is a bar that shows nothing -- the wrong donor for a layout pass.
+--- The count and the spread are the CDM pair (`spellCooldownPumpPool = 5`,
+--- `spellCooldownPumpPeriod = 1`), widened to six rows over a 12 s fall so a
+--- screenshot pass sees a full bar and a live splash in the same minute.
+local DEMO_ROWS = 6
+local DEMO_SPREAD = 12
+local demoNames = {}
+
+--- The donor spread: a stable pick over the tracked set, sorted so the pick is
+--- the same set on every pass (a `pairs` order is not a contract, and a demo
+--- that reshuffles its own rows every second is not a layout aid).
+local function demoPick()
+    wipe(demoNames)
+    local pool = {}
+    local n = 0
+    for name, t in pairs(Engine.tracked) do
+        if type(name) == "string" and not t.maxCharges
+            and Engine:BestDuration(name) then
+            n = n + 1
+            pool[n] = name
+        end
+    end
+    if n == 0 then return 0 end
+    table.sort(pool)
+    local take = math.min(DEMO_ROWS, n)
+    for i = 1, take do
+        demoNames[i] = pool[math.floor((i - 1) * n / take) + 1]
+    end
+    return take
+end
+
+--- Fill the bar: insert each donor through the engine's own cast path and
+--- spread its ready moment. Returns the number of rows created.
+local function demoFill(now)
+    now = now or GetTime()
+    local take = demoPick()
+    local created = 0
+    for i = 1, take do
+        local e = Engine:OnCast(demoNames[i], now)
+        if e then
+            local remain = math.min(e.duration, DEMO_SPREAD * i / take)
+            e.start = now + remain - e.duration
+            e.endTime = now + remain
+            TestMode.Tag(e)
+            created = created + 1
+        end
+    end
+    return created
+end
+
+--- Scrub: drop every tagged entry. The engine's own table is the only thing
+--- touched -- a real entry of the player's never matches the tag.
+local function demoScrub()
+    local n = 0
+    for name, e in pairs(Engine.entries) do
+        if TestMode.IsSynthetic(e) then
+            Engine.entries[name] = nil
+            n = n + 1
+        end
+    end
+    return n
+end
+
+--- How many of the bar's entries are the demo's. A scan, not a counter: the
+--- engine's own Sweep retires entries at their `endTime` (the pump's whole
+--- reason to exist), so a counter this file kept would go stale the first time
+--- the 10 Hz heartbeat popped one, and a stale count tells `TestMode:Pump` the
+--- bar is still full. The scan is the pump's own 1 Hz pass over a bar of a few
+--- dozen entries, which is the shape `TestMode:Count` documents for a feeder.
+local function demoCount()
+    local n = 0
+    for _, e in pairs(Engine.entries) do
+        if TestMode.IsSynthetic(e) then n = n + 1 end
+    end
+    return n
+end
+
 function M:Rebuild()
     -- The source line and the zero notice below describe THIS pass: clear
     -- the recorded source so Build's isKnown calls repopulate it (nil =
@@ -347,6 +453,11 @@ function M:Rebuild()
     -- be measured on a non-enUS install).
     Engine:DetectCharges(M.ReadChargesFor)
     M:ReadAll()
+    -- TEST MODE (`/fx test`): `Engine:Build` wiped `entries` -- and with them
+    -- the synthetic rows the player is looking at -- while the mode is still
+    -- on, so the feeder puts its own rows back. Out of demo mode this is one
+    -- boolean; the real feeds resume as soon as the mode is off.
+    if FX.TestMode then FX.TestMode:Refill() end
 end
 
 --- Core FX.RefreshPlayerClass notification (uiforever T4 class guard):
@@ -427,6 +538,13 @@ end
 --- PlainOrNil and only ever looked up (pcall: a tainted-argument lookup
 --- may raise in a restricted environment).
 function M:RecordCastEvent(spellID, inCombat)
+    -- TEST MODE GATE (`/fx test`): a real cast during a layout pass is a real
+    -- entry on a frame the demo owns; the feed is parked with the read pass
+    -- (M:ReadAll above) so the two entry sources stay one story. The cast-
+    -- secrecy counters this pass keeps are a launch-day instrument over the
+    -- player's real fight, so a parked event is not a seen event: the counting
+    -- starts after the gate, and `/fx status` never mixes demo traffic in.
+    if FX.TestMode and FX.TestMode:IsActive() then return end
     local d = M._castDiag
     if not d then d = M:InitCastDiag() end
     d.seen = d.seen + 1
@@ -530,7 +648,16 @@ function M:ProcessReadyPops(now)
         end
         -- The event bus (Forte_Core/Core/Events.lua): nil-guarded per the
         -- shared contract, every listener runs in the bus's pcall.
-        if FX.Fire then
+        -- TEST MODE SILENCE (`/fx test`): a synthetic pop feeds the bar's
+        -- pulse and the Splash above -- the frames the demo exists to fill --
+        -- and stops HERE on the way out: FX_COOLDOWN_READY is the event
+        -- Forte_Messages turns into ready chat / banners / sounds and
+        -- Forte_Warlock/Core/Tools.lua into its soulstone rows, so firing it
+        -- for a made-up row would be test mode talking to the raid. The
+        -- tag rides the Sweep's pop-site snapshot (Core/Engine.lua's
+        -- `popInfo` write), which is the only place the popping entry is
+        -- still in hand.
+        if FX.Fire and not (info and TestMode.IsSynthetic(info)) then
             FX.Fire("FX_COOLDOWN_READY", name, now, texPath, category)
         end
     end
@@ -685,6 +812,16 @@ function M:OnEnable()
             end
         end
     end)
+
+    -- `/fx test` (Forte_Core/Core/TestMode.lua): this add-on owns the bar, so
+    -- this add-on owns its synthetic rows. Registered here, in the enable, not
+    -- at load: the feeders are keyed by name and Replace on a re-enable, so a
+    -- re-enable cannot double the fill, and the pair is only live while the
+    -- module is.
+    if FX.TestMode then
+        FX.TestMode.RegisterFeeder({ Name = "Cooldown", Fill = demoFill,
+            Scrub = demoScrub, Live = demoCount })
+    end
 
     -- 10 Hz heartbeat: sweep ready alerts + feed the display. Every 10th
     -- tick do a full read pass: the 1 Hz safety net self-heals any spell
