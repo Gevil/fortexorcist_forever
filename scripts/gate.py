@@ -25,7 +25,12 @@ failures = []
 
 
 def sim(*args):
-    p = subprocess.run([SIM, "wow-sim", "--allow-ui-version-mismatch", "--addons-path", ADDONS, *args],
+    # --no-saved-vars: every gate run starts from a fresh SavedVariables state.
+    # Without it the sim reloads whatever the last run wrote (a demo capture
+    # that switched the splash on made test_splash's "OFF by default" fail at
+    # a clean HEAD — wave I, 2026-11-03).
+    p = subprocess.run([SIM, "wow-sim", "--allow-ui-version-mismatch", "--no-saved-vars",
+                        "--addons-path", ADDONS, *args],
                        cwd="/tmp", capture_output=True, text=True, errors="replace")
     return p.returncode, ANSI.sub("", p.stdout + p.stderr)
 
