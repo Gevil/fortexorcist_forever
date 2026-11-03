@@ -8,8 +8,20 @@
 # installed Forte_* trees against this repo's shipped file set (read-only).
 # Nothing outside this script's own symlinks/marked copies is ever deleted.
 #
-# FOREVERSVFIX LAW (PLAN §9, 2026-11-01): the installed client carries
-# ForeverSVFix's SavedVariables workaround, which (a) edits addon .toc files
+# FOREVERSVFIX GUARD. Added under PLAN §9 (2026-11-01) on the premise "the
+# installed client carries ForeverSVFix's SavedVariables workaround"; that
+# premise is RETIRED by docs/research/upstream-addons-2026-11-03.md §5
+# (2026-11-03): SVFix's own README (@c1591b1 README.md:1-5, head 2026-09-25)
+# declares the loader bug fixed by Blizzard, and in the live _forever_ install
+# exactly 1 of 33 add-on folders carries a stamp — and that one's
+# ForeverSVFixData link is a dangling symlink into the retired _classic_beta_
+# compatdata path. The reference set (CooldownMaster 2.0.4, EllesmereUI 9.7.2,
+# TidyPlates, Auctionator, NeedRoll, WarEffortScout, WhisperMessenger) ships
+# plain, unpatched `## SavedVariables:` headers.
+# The guard stays: it is shape handling, not a premise. It costs nothing when
+# the tool is absent (the normal case), and the hazard it guards is live —
+# upstream-addons §10.6: a fresh SVFix run can re-stamp our TOCs through this
+# script's symlinks. When such a tool IS installed it (a) edits addon .toc files
 # IN PLACE — it stamps a `## X-ForeverSVFix: <n>` header and appends a
 # `ForeverSVFixData\<Name>.lua` load line — and (b) links a `ForeverSVFixData`
 # symlink from inside the addon folder into the WTF SavedVariables store.
@@ -67,11 +79,12 @@ usage() {
 	                (bytes differ) and svfix (a .toc whose only difference is
 	                ForeverSVFix's own in-place patch lines: a
 	                '## X-ForeverSVFix' header and/or a 'ForeverSVFixData\\'
-	                load line — expected, NOT counted as a diff; the file is
-	                left exactly as the patch made it). Files the release does
-	                not ship are excluded from BOTH sides: any tests/ dir,
-	                any docs/ dir and *.otf. Exit 0 only when every installed
-	                addon matches the shipped set.
+	                load line — a third-party patch, NOT counted as a diff and
+	                the file is left exactly as the patch made it; the guard
+	                does not assume any install carries such a patch). Files
+	                the release does not ship are excluded from BOTH sides: any
+	                tests/ dir, any docs/ dir and *.otf. Exit 0 only when every
+	                installed addon matches the shipped set.
 
 	Options:
 	  --dest <dir>  Destination AddOns dir (overrides \$DEPLOY_DEST).
@@ -212,7 +225,7 @@ verify_addon() { # <src-dir>
           continue
         fi
         if diff -q <(toc_norm "$src/$f") <(toc_norm "$target/$f") >/dev/null 2>&1; then
-          printf 'SVFIX %s/%s (carries ForeverSVFix'\''s in-place .toc patch: expected, left untouched)\n' "$name" "$f"
+          printf 'SVFIX %s/%s (carries ForeverSVFix'\''s in-place .toc patch: a third-party patch, NOT a deploy diff, left untouched)\n' "$name" "$f"
         else
           printf 'DIFFERENT %s/%s\n' "$name" "$f"
           rc=1

@@ -1,7 +1,12 @@
 -- Forte_Core/Core/Init.lua
 -- Bootstrap. Other Forte_* addons (Forte_Cooldown, Forte_Hunter, Forte_Warlock, ...)
 -- call FX.RegisterModule(name, mod) from their own files; mod.OnEnable(mod) runs
--- once at PLAYER_LOGIN, in registration order.
+-- exactly once in the login pass (FX.RunLoginPass: PLAYER_LOGIN, or the first
+-- PLAYER_ENTERING_WORLD when PLAYER_LOGIN was missed), in registration order.
+-- Login-time work belongs in OnEnable, which the pass calls DIRECTLY: a module
+-- that registers PLAYER_LOGIN in its own OnEnable can wait for the session
+-- (docs/research/upstream-addons-2026-11-03.md §7.3; proven by
+-- addon/Forte_Core/tests/test_login_order.lua).
 --
 -- Safety note (see docs/engine-notes.md): never RegisterEvent/RegisterUnitEvent at
 -- a file's top level except the single bootstrap frame below. If another addon's
@@ -40,7 +45,8 @@ function FX.EnableModule(name)
 end
 
 --- Call from any Forte_* addon's own Lua: at file load, and -- for the
---- load-on-demand class add-ons -- from inside the PLAYER_LOGIN handling.
+--- load-on-demand class add-ons -- from inside the login pass
+--- (FX.RunLoginPass) while it loads the class add-on.
 function FX.RegisterModule(name, mod)
     if FX.modules[name] then
         FX.Print("|cffff5555module '" .. name .. "' registered twice|r")
@@ -163,7 +169,64 @@ function FX.PrintStartupLine()
     return true
 end
 
+--- THE LOGIN PASS: capture the class token, pull in the player's
+--- load-on-demand class add-on (Core/Loader.lua), enable every registered
+--- module in registration order, then open the late-registration seam.
+---
+--- ONE-SHOT: `FX._loginDone` is the guard, checked before anything else, so
+--- the PLAYER_LOGIN dispatch and the PLAYER_ENTERING_WORLD fallback below can
+--- not run the enable loop twice; the `FX._enabledModules` ledger is the
+--- second, per-module half of that law (Core/Init.lua's EnableModule).
+--- Returns true when THIS call was the pass, false when the pass had already
+--- run -- which is exactly the shape the PLAYER_ENTERING_WORLD handler wants.
+---
+--- Why PLAYER_ENTERING_WORLD is a legal second driver (the shipped law,
+--- docs/research/upstream-addons-2026-11-03.md §7.3, from
+--- `CDM@e5811752 Core/Init.lua:153-157, 214-218`): "the login handler is driven
+--- from whichever of PLAYER_LOGIN / first PLAYER_ENTERING_WORLD reaches us
+--- first (`PLAYER_LOGIN` can be missed)". The client fires PLAYER_LOGIN
+--- *before* PLAYER_ENTERING_WORLD, and a frame that registers during the
+--- PLAYER_LOGIN dispatch (an add-on loaded on demand by us, a late-loaded
+--- split) is not yet listening for its own login event. A missed PLAYER_LOGIN
+--- with no fallback is the whole add-on never enabling, so the zone-in event
+--- -- which every class module's own event set includes, i.e. provably
+--- arrives -- carries the pass when PLAYER_LOGIN did not reach us.
+---
+--- The consequence for every module (the same §7.3 law, and the reason this
+--- file registers PLAYER_LOGIN on no frame but this one): login-time work
+--- belongs in `OnEnable`, which this function calls DIRECTLY. A module that
+--- registers `PLAYER_LOGIN` inside its own OnEnable and waits for the event
+--- can wait for the whole session; addon/Forte_Core/tests/test_login_order.lua
+--- proves the tree keeps to that shape.
+function FX.RunLoginPass()
+    if FX._loginDone then return false end
+    -- pcall: on the fallback leg this runs from a zone-in handler, where a
+    -- failing class read must cost the token, never the enable loop.
+    local ok, _, classFile = pcall(UnitClass, "player")
+    FX._playerClass = (ok and type(classFile) == "string") and classFile or nil
+        -- e.g. "HUNTER", "WARLOCK" -- matches ForteXorcist.Data keys title-cased below
+    -- Load-on-demand: every Forte_<Class> add-on is metadata-only until
+    -- this call (Core/Loader.lua). Its files run to completion before
+    -- LoadClassAddOn returns, so its data table and its modules are in the
+    -- registry before the enable loop below -- the class's modules enable in
+    -- the same pass, in registration order, as everyone else's. A failure
+    -- prints one notice there and costs this class its tools, nothing else.
+    FX.LoadClassAddOn(FX._playerClass)
+    for _, name in ipairs(FX._moduleOrder) do
+        FX.EnableModule(name)
+    end
+    -- From here on, a module that registers is enabled at once (see
+    -- FX.RegisterModule); the login loop above must never run twice.
+    FX._loginDone = true
+    FX.PrintStartupLine()
+    return true
+end
+
 local bootstrap = CreateFrame("Frame")
+-- The tests' handle: they dispatch events on it, so the login and zone-in
+-- paths are driven through the real script (the Forte_Cooldown module's
+-- `M._eventFrame` convention).
+FX._bootstrapFrame = bootstrap
 bootstrap:RegisterEvent("ADDON_LOADED")
 bootstrap:RegisterEvent("PLAYER_LOGIN")
 bootstrap:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -179,26 +242,17 @@ bootstrap:SetScript("OnEvent", function(_, event, addonName)
         -- login down. Never raises; it prints and stops.
         FX.DB.Migrate(FX.db)
     elseif event == "PLAYER_ENTERING_WORLD" then
-        -- Zone-in re-read (the login capture below is the first one): the
-        -- uiforever T4 artifact class guard, see FX.RefreshPlayerClass.
+        -- The login fallback: a no-op when PLAYER_LOGIN reached us (the
+        -- normal order), the whole login pass when it did not. See
+        -- FX.RunLoginPass.
+        FX.RunLoginPass()
+        -- Zone-in re-read (the login capture inside FX.RunLoginPass is the
+        -- first one): the uiforever T4 artifact class guard, see
+        -- FX.RefreshPlayerClass.
         FX.RefreshPlayerClass()
     elseif event == "PLAYER_LOGIN" then
-        local _, classFile = UnitClass("player")
-        FX._playerClass = classFile -- e.g. "HUNTER", "WARLOCK" -- matches ForteXorcist.Data keys title-cased below
-        -- Load-on-demand: every Forte_<Class> add-on is metadata-only until
-        -- this call (Core/Loader.lua). Its files run to completion before
-        -- LoadClassAddOn returns, so its data table and its modules are in
-        -- the registry before the enable loop below -- the class's modules
-        -- enable in the same pass, in registration order, as everyone else's.
-        -- A failure prints one notice there and costs this class its tools,
-        -- nothing else.
-        FX.LoadClassAddOn(classFile)
-        for _, name in ipairs(FX._moduleOrder) do
-            FX.EnableModule(name)
-        end
-        -- From here on, a module that registers is enabled at once (see
-        -- FX.RegisterModule); the login loop above must never run twice.
-        FX._loginDone = true
-        FX.PrintStartupLine()
+        -- The normal login driver; FX.RunLoginPass is one-shot, so the
+        -- PLAYER_ENTERING_WORLD leg above can never repeat this work.
+        FX.RunLoginPass()
     end
 end)

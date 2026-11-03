@@ -9,12 +9,14 @@
 -- EllesmereUI's options/locales slots use on this exact client). That saves a
 -- Hunter the ~300 KB of Mage/Priest/... spell data every character used to pay
 -- for. This file decides WHEN a load-on-demand add-on is pulled in -- the
--- class loader at PLAYER_LOGIN, a feature loader (Forte_Cooldown/Core/
--- Procs.lua for Forte_ItemProcs) at the moment its own switch is switched
+-- class loader in the login pass (Core/Init.lua's FX.RunLoginPass, driven by
+-- PLAYER_LOGIN, or by the first PLAYER_ENTERING_WORLD when PLAYER_LOGIN was
+-- missed), a feature loader (Forte_Cooldown/Core/Procs.lua for
+-- Forte_ItemProcs) at the moment its own switch is switched
 -- on -- and reports the failure cases. `FX.LoadAddOnOnDemand(name)` is the
 -- general, idempotent seam; `FX.LoadClassAddOn(token)` is its class half.
 --
--- The law: a class add-on is loaded inside the PLAYER_LOGIN handling, BEFORE
+-- The law: a class add-on is loaded inside the login pass, BEFORE
 -- the module enable loop in Init.lua runs, so its `FX.RegisterModule` calls
 -- land in the registry in file order and its modules enable in the same pass
 -- as everyone else's. `C_AddOns.LoadAddOn` runs the add-on's files to
