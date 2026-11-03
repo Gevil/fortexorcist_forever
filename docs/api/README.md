@@ -5,7 +5,7 @@ disagree, and they fail differently, so use them in a fixed order:
 
 | # | Layer | Where | What it is pinned to | Fails by |
 |---|---|---|---|---|
-| **1** | **WoWAddonAPIAgents catalogs** | `docs/api/wow-addon-api-agents/` | `Gethe/wow-ui-source` @ `ca8368f2…`, **1.60.1.70532**, interface **16001** | Silent on load conditions + addon permission (it says so: `evidence.loadConditions = "unknown"`, `addonAccess = "unknown"`). Two builds behind our client. |
+| **1** | **WoWAddonAPIAgents catalogs** | `docs/api/wow-addon-api-agents/` | `Gethe/wow-ui-source` @ `aff0d8cd5…`, **1.60.1.70707**, interface **16001** (package `2.3.0` @ upstream `20585807…`, 2026-11-03) | Silent on load conditions + addon permission (it says so: `evidence.loadConditions = "unknown"`, `addonAccess = "unknown"`). Source-declared only - never a client run. |
 | **2** | **Atraeau generated reference** | `github.com/Atraeau/WoW-Addons` `docs/api/` (also hosted at `atraeau.github.io`) — not cloned locally yet | Client `APIDocumentation`, build **70170**, interface **16001**, ~6,598 funcs | Older build than layer 1; generated from the shipped API docs, so it carries less annotation detail (no per-field secret annotations). |
 | **3** | **wow-ui-sim built-in API surface** | `$WORK/wow-ui-sim/` (`./run.sh wow-cli … audit-api`), binary **v0.1.39** | Sim's own extracted Blizzard UI tree (`~/.cache/wow-ui-sim/blizzard-ui/wowforever/`, 4,488 files) + the sim's **implemented** API surface | It is *the simulator*: an API can exist in the catalog and be absent/stubbed here (that is the point of `--gaps`). Never a compatibility certificate. |
 
@@ -43,8 +43,10 @@ real client  ~/.steam/…/_forever_/  interface 16001, build 1.60.1.70707
   widget/FrameXML boundaries** → layer 1 curated guides **plus** a sim run, never prose alone.
   Our own hard rule: `luajit` stub tests accept invented APIs; they are not an API check
   (`PLAN.md` §5 lesson).
-- **Version skew is the trap.** Layer 1 = 70532, layer 2 = 70170, layer 3 = the sim's pinned UI
-  build (70532, run with `--allow-ui-version-mismatch` against our 70707), our client = 70707.
+- **Version skew is the trap.** Layer 1 = 70707 (re-pinned 2026-11-03 — the same build our
+  client runs), layer 2 = 70170, layer 3 = the sim's pinned UI build (70532, run with
+  `--allow-ui-version-mismatch` against our 70707; the 70707 sim profile ships with the next
+  release), our client = 70707.
   When layers 1 and 2 disagree, neither is authoritative over the client — record the
   disagreement in a note under `docs/research/` and probe it in-game.
 
@@ -62,13 +64,15 @@ real client  ~/.steam/…/_forever_/  interface 16001, build 1.60.1.70707
 ## Layer 1 in one paragraph
 
 `docs/api/wow-addon-api-agents/` is the Forever-targeted slice of
-`github.com/JBurlison/WoWAddonAPIAgents` (MIT, cloned at `f9269081…`, 2026-11-01): 39 portable
-skills, the client-aware instruction file, the pinned **Forever** declaration catalogs
+`github.com/JBurlison/WoWAddonAPIAgents` (MIT, cloned at `20585807…`, 2026-11-03, package 2.3.0):
+39 portable skills, the client-aware instruction file, the pinned **Forever** declaration catalogs
 (`forever.json`, one JSON line per declaration, full signatures/payloads/security annotations),
 the snapshot manifest (`skills/wow-client-targets/references/targets.json`: commit, version,
 derived interface value, verification date), the curated contracts (restricted values,
 damage-meter/cooldown contracts, Forever identity, swing timers, aura APIs, settings
-registration, UI loading/callback boundaries, visual fidelity) and the audit reports.
+registration, UI loading/callback boundaries, visual fidelity), the 70532 → 70707 migration
+guide (`skills/wow-client-targets/references/FOREVER-70707-CHANGES.md` — read it before
+applying any guidance written for the 70532 pin) and the audit reports.
 Provenance, scope decisions, the no-Node query recipe and a per-file index:
 `wow-addon-api-agents/SOURCE.md`.
 
