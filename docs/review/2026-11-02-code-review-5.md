@@ -1,11 +1,11 @@
-# Code review 5 — changes since review 4 (`4cf0cf0..HEAD`)
+# Code review 5 — changes since review 4 (`433fced..HEAD`)
 
 Scope: `git -C wow-fortexorcist log --stat 4cf0cf0..HEAD -- addon tools scripts` —
-`c02528e` Hunter swing v2, `695434c` README media, `366eee3` H7 item-proc split
-(`Forte_ItemProcs`, `Cooldown.Procs`), `7eb1751` wave 2b class spells + cast
-announces, `1624991` wave 2a data refresh (build 70707), `9a9bf86` `uif_battery.js`
-console commands, `55c1ebc` H1 localization + H3 settings/profiles, `e3de949` H2
-launch kit, `3e62477` Warlock plate icons, `9aee3b7` review-4 fixes.
+`8378a3b` Hunter swing v2, `5961f89` README media, `fd746a4` H7 item-proc split
+(`Forte_ItemProcs`, `Cooldown.Procs`), `38497d1` wave 2b class spells + cast
+announces, `e899374` wave 2a data refresh (build 70707), `28dddd7` `uif_battery.js`
+console commands, `5e9b115` H1 localization + H3 settings/profiles, `9bd571e` H2
+launch kit, `8e05da5` Warlock plate icons, `a686ec6` review-4 fixes.
 129 files, `+51404 −1980`.
 
 Read-only review: nothing was edited, no gate/sim run.
@@ -321,7 +321,7 @@ the earlier suspicion about `"Salvation"` and `"Vigilance"` — both are present
   `type(InCombatLockdown) == "function" and InCombatLockdown()` samples the
   read outside a `pcall` and truth-tests the raw value, against the tree's
   convention (`Core/Procs.lua:132-137`, `Forte_Timer/Core/Casts.lua:84-88`).
-  Pre-existing (predates `4cf0cf0`), inside a handler this window changed.
+  Pre-existing (predates `433fced`), inside a handler this window changed.
 
 # Clean checks (verified, no finding)
 

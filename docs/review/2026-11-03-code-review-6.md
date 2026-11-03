@@ -1,9 +1,9 @@
-# Code review 6 — waves 4–6 (`a2fdaf5..HEAD`)
+# Code review 6 — waves 4–6 (`5e3c71b..HEAD`)
 
 Scope: `git -C wow-fortexorcist log --stat a2fdaf5..HEAD -- addon tools scripts` —
-`b88c454` wave 6 (right-click-to-options on every module frame, bar font/texture
-pickers, Cooldown IconSize + TextColor rows), `08422b0` `uif_battery` DB row
-follows `DB.SCHEMA_VERSION`, `7c361f2` wave 5 (sparse settings store + schema v2
+`5c773a3` wave 6 (right-click-to-options on every module frame, bar font/texture
+pickers, Cooldown IconSize + TextColor rows), `76959be` `uif_battery` DB row
+follows `DB.SCHEMA_VERSION`, `11e0c4d` wave 5 (sparse settings store + schema v2
 prune, Advanced Options page, review-5 minors). Gate at HEAD: PASS 707 (as
 recorded in PLAN §11.1; not re-run here — read-only review, no sim/gate run).
 
@@ -144,7 +144,7 @@ press script again, release `RightButton` → opens. Also read the catalog's thi
 `OnMouseUp` slot while in there (m2).
 
 **M3 — the Secondary Splash has no right-click seam, contradicting the wave-6
-commit message** (`b88c454`: “right-click-to-options on every module frame
+commit message** (`5c773a3`: “right-click-to-options on every module frame
 (Spell Timer, Hunter swing, each Warlock plate, cooldown bar **+ splash**)”).
 `addon/Forte_Cooldown/UI/Splash.lua` carries no `OnMouseUp`, `_StampPress`,
 `Moved` or `RightClickOptions` (grep: no match in the file), while its `SetLocked`

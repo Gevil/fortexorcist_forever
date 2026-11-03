@@ -1,6 +1,6 @@
 # Code Review 4 — 2026-11-02 (CodeReview4, read-only)
 
-Scope: Iteration E (`a156812`, 33 files, +3523/−41) — `Forte_Cooldown/UI/Splash.lua`,
+Scope: Iteration E (`b342922`, 33 files, +3523/−41) — `Forte_Cooldown/UI/Splash.lua`,
 the Iteration-E parts of `Forte_Cooldown/UI/Timeline.lua` (`Warn`, `CastFailed`,
 right-click, `Vertical`/`Flip`/`HideZero`), `Forte_Cooldown/Module.lua`
 (`ProcessReadyPops`), `Forte_Core/Core/Events.lua`, all of `Forte_Messages/`,
@@ -11,7 +11,7 @@ Source law: `/tmp/fxref/Forte_Cooldown/Forte_Cooldown.lua` (md5
 `/tmp/fxref/Forte_Class/{Warlock,Mage,Rogue}/*.lua`. Review 3's items (C1–C5,
 m1–m9) are NOT re-raised.
 
-Tree basis: the review ran against the **working tree at HEAD `851817f`**, which
+Tree basis: the review ran against the **working tree at HEAD `40f2542`**, which
 carries a concurrent cleanup agent's uncommitted edits (`Rows.lua`,
 `UI/Timeline.lua`, `Reconcile.lua`, the `messages-sounds.md` move), so every
 cite below is a working-tree line verified against the file as it sits on
@@ -213,7 +213,7 @@ elseif st[i][1] ~= -1 and st[i][1] < (GetTime()-st[i][16]) then
 
 Port: `Forte_Timer/Core/Rows.lua:479-499` — the same early-end branch fires
 `FX.EVENTS.TIMER_BROKEN` with **no liveness test**, and the delta is
-self-documented in the commit at `a156812`'s `:384-392` ("the original's
+self-documented in the commit at `b342922`'s `:384-392` ("the original's
 `if not UnitIsDead(unit)` gate is **not ported** … a kill that dropped the aura
 fires BROKEN, exactly the behaviour this file had before"); the working tree
 documents the same asymmetry at `:488-496` — see the note at the end of this
