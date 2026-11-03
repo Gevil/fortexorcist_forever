@@ -158,6 +158,57 @@ function Compat.ShouldAurasBeSecret()
     return nil
 end
 
+--- Is THIS spell's aura read going to come back secret right now? The
+--- per-spell form of ShouldAurasBeSecret: the shipped gate set is per-domain
+--- AND per-spell (docs/research/upstream-addons-2026-11-03.md §1 — addons
+--- shipping for this product gate `ShouldAurasBeSecret()` AND
+--- `ShouldSpellAuraBeSecret(spellID)` in one gate), and one cast's aura can
+--- read plain while the whole aura domain is secret, or the reverse.
+--- C_Secrets.ShouldSpellAuraBeSecret(spellIdentifier) -> bool
+--- (pinned catalog @SecretPredicateAPIDocumentation.lua:138, arg
+--- SpellIdentifier, returns isAuraSecret; SecretArguments =
+--- AllowedWhenUntainted). nil where the API is absent; the answer passes
+--- PlainOrNil at the call site like every secret-prone read.
+function Compat.ShouldSpellAuraBeSecret(spellIdentifier)
+    if C_Secrets and C_Secrets.ShouldSpellAuraBeSecret then
+        return C_Secrets.ShouldSpellAuraBeSecret(spellIdentifier)
+    end
+    return nil
+end
+
+--- Is THIS unit's identity (name/class) read going to come back secret?
+--- The gate above the raw name reads (UnitName / UnitFullName /
+--- UnitNameUnmodified carry `SecretWhenUnit[Identity]Restricted` in the
+--- pinned catalog, @UnitDocumentation.lua:2488/:1223/:2522), so the identity
+--- probes and the comms self-name ask this first (docs/research/
+--- upstream-api-2026-11-03.md §2 identity law).
+--- C_Secrets.ShouldUnitIdentityBeSecret(unit) -> bool
+--- (pinned catalog @SecretPredicateAPIDocumentation.lua:304, arg UnitToken,
+--- returns isUnitIdentitySecret). nil where the API is absent.
+function Compat.ShouldUnitIdentityBeSecret(unit)
+    if C_Secrets and C_Secrets.ShouldUnitIdentityBeSecret then
+        return C_Secrets.ShouldUnitIdentityBeSecret(unit)
+    end
+    return nil
+end
+
+--- Are the (unit vs mobUnit) threat values going to come back secret?
+--- The predicate ships in addons built for this product (docs/research/
+--- upstream-addons-2026-11-03.md §1: EllesmereUIForeverEssentials_ThreatData
+--- calls it), which is the standing evidence that a server-pushed threat
+--- surface exists on the client even though no declared threat read does —
+--- the launch probe is Probe's SEC row (IsEventValid("UNIT_THREAT") +
+--- this gate). C_Secrets.ShouldUnitThreatValuesBeSecret(unit, mobUnit) ->
+--- bool (pinned catalog @SecretPredicateAPIDocumentation.lua:414, args
+--- UnitToken + UnitToken, returns isUnitThreatSecret). nil where the API is
+--- absent.
+function Compat.ShouldUnitThreatValuesBeSecret(unit, mobUnit)
+    if C_Secrets and C_Secrets.ShouldUnitThreatValuesBeSecret then
+        return C_Secrets.ShouldUnitThreatValuesBeSecret(unit, mobUnit)
+    end
+    return nil
+end
+
 --- Which spell-known source last answered a Compat.IsPlayerSpell query:
 --- "IsPlayerSpell", "IsSpellKnownOrInSpellBook", "IsSpellKnown", or nil
 --- while none has answered. /fx status and the Module:Rebuild zero-tracked

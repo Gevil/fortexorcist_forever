@@ -64,6 +64,8 @@ end
 
 local savedEpoch = FX.db and FX.db.probeEpoch
 local savedRuns = FX.db and FX.db.probes
+local savedStamp = FX.db and FX.db.probeStamp
+local savedSvLogin = Probe._svLogin
 
 -- 1. Registration surfaces.
 test("probe registered: slash seam, module, API shape", function()
@@ -346,6 +348,158 @@ test("copy window: gaining focus selects all (HighlightText, no raise)", functio
     FX.db.probes = saved
 end)
 
+-- 16. I2c NAME row (upstream-api Open question 1): the raw name APIs, both
+-- returns, + the realm label, through the real run. Shape law: no entry is
+-- "absent" and no entry is a recorded raise on the sim (the globals exist
+-- there); the exact strings are the client's answer, launch-day data.
+test("NAME row: three name APIs x both returns + realm, plain shape", function()
+    local run = Probe:Run("pt-names")
+    local e = findGroup(run, "^NAME$")
+    assertNotNil(e)
+    local v = e.values
+    for _, k in ipairs({ "n1", "n2", "f1", "f2", "u1", "u2", "realm" }) do
+        assertNotNil(v[k], k .. " reported")
+        assertTrue(not v[k]:find("^raise"), k .. " did not raise: " .. v[k])
+        assertTrue(v[k] ~= "absent", k .. " is present on the sim")
+    end
+end)
+
+-- 17. The NAME row under the secret seam: a sentinel out of UnitName is
+-- stored as SECRET and never lands raw (the K law over the identity reads).
+test("NAME row: a sentinel name stores SECRET, not the value", function()
+    local real = _G.UnitName
+    withSeam(function()
+        _G.UnitName = function() return SENT, "plainServer" end
+        local ok, run = pcall(Probe.Run, Probe, "pt-names-secret")
+        _G.UnitName = real
+        assertTrue(ok)
+        local v = findGroup(run, "^NAME$").values
+        assertEquals("SECRET", v.n1)
+        assertEquals("string:plainServer", v.n2)
+        assertFalse(deepFind(run, SENT))
+    end)
+    _G.UnitName = real
+end)
+
+-- 17b. A raising name API records the raise, the run completes.
+test("NAME row: a raising GetRealmName records raise=", function()
+    local real = _G.GetRealmName
+    _G.GetRealmName = function() error("FXTEST-REALM-RAISE", 0) end
+    local ok, run = pcall(Probe.Run, Probe, "pt-names-raise")
+    _G.GetRealmName = real
+    assertTrue(ok)
+    local v = findGroup(run, "^NAME$").values
+    assertContains(v.realm, "FXTEST-REALM-RAISE")
+end)
+
+-- 18. I2c EVENTS row (upstream-addons ranked 5): the shipped capability
+-- probe over every event literal the addons register. The green sim answer
+-- is every name valid; UNIT_THREAT is the third leg of the threat probe.
+test("EVENTS row: IsEventValid over the registered set, all valid on the sim", function()
+    local run = Probe:Run("pt-events")
+    local v = findGroup(run, "^EVENTS$").values
+    assertEquals("number:42", v.n)
+    if v.iev == "absent" then return end -- a surface without C_EventUtils
+    assertEquals("number:42", v.ok)
+    assertEquals("-", v.bad)
+    assertEquals("-", v.raise)
+    for _, k in ipairs({ "ievT1", "ievT2", "ievT3" }) do
+        assertNotNil(v[k], k .. " reported")
+        assertTrue(not v[k]:find("^raise"), k .. ": " .. v[k])
+    end
+end)
+
+-- 19. I2c SV row: every run writes a stamp; the NEXT run reports the
+-- PREVIOUS run's write in `db=`; a login (OnEnable) latches the store value
+-- into `login=` -- the value-level round-trip pair of the epoch counter.
+test("SV row: stamp written each run; db= echoes the last write; login= latches", function()
+    local run1 = Probe:Run("pt-sv1")
+    local v1 = findGroup(run1, "^SV$").values
+    assertNotNil(v1.wrote:find("^string:FXS@"))
+    assertEquals(v1.wrote:sub(8), tostring(FX.db.probeStamp),
+        "FX.db.probeStamp carries the K-stripped stamp")
+    local run2 = Probe:Run("pt-sv2")
+    local v2 = findGroup(run2, "^SV$").values
+    assertEquals(v1.wrote, v2.db, "the second run reads back the first run's write")
+    Probe._svLogin = "FXS@login-latched"
+    local run3 = Probe:Run("pt-sv3")
+    local v3 = findGroup(run3, "^SV$").values
+    assertEquals("string:FXS@login-latched", v3.login)
+    Probe._svLogin = nil
+end)
+
+-- 19b. OnEnable latches the stored stamp before the run overwrites it (the
+-- login read half rides the PLAYER_LOGIN chain).
+test("SV row: OnEnable latches the stored stamp", function()
+    FX.db.probeStamp = "FXS@pre-login"
+    local epochBefore = FX.db.probeEpoch
+    Probe:OnEnable()
+    assertEquals("FXS@pre-login", Probe._svLogin)
+    FX.db.probeEpoch = epochBefore -- OnEnable bumps the login counter; undo
+    Probe._svLogin = savedSvLogin
+end)
+
+-- 20. I2c HS row (dev-notes §2): the stone set rides the generated
+-- Forte_Warlock data; off a warlock session the row says so (the class law),
+-- with the data loaded every generated stone reports a count and a raw
+-- (start/duration/enable) item-cooldown read, none raising.
+test("HS row: the generated stones report count+cooldown, no raise", function()
+    FX.LoadClassAddOn("WARLOCK")
+    local data = FX.Data and FX.Data.Warlock
+    local run = Probe:Run("pt-hs")
+    local v = findGroup(run, "^HS$").values
+    if type(data) ~= "table" then
+        assertEquals("no-warlock-data", v.hs)
+        return
+    end
+    local stones = 0
+    for _, row in pairs(data) do
+        if type(row) == "table" and type(row.name) == "string"
+            and type(row.id) == "number"
+            and row.name:find("Healthstone$")
+            and not row.name:find("^Create ") then
+            stones = stones + 1
+            assertNotNil(v["cnt" .. row.id], "count of stone " .. row.id)
+            assertNotNil(v["cd" .. row.id], "cooldown of stone " .. row.id)
+            assertTrue(not v["cd" .. row.id]:find("^raise"),
+                "no raise on stone " .. row.id)
+        end
+    end
+    assertTrue(stones >= 1)
+    assertEquals("number:" .. stones, v.hs)
+end)
+
+-- 21. I2c PET row (dev-notes §2): gated on a pet existing; on the sim
+-- (no pet) the honest answer is the pet flag alone.
+test("PET row: gated on UnitExists(pet); reports the pet flag", function()
+    local v = findGroup(Probe:Run("pt-pet"), "^PET$").values
+    assertNotNil(v.pet)
+    assertTrue(v.pet:find("^boolean") ~= nil or v.pet == "absent",
+        "the gate is a plain boolean: " .. tostring(v.pet))
+    assertTrue(not tostring(v.pet):find("^raise"))
+end)
+
+-- 22. I2c ENCH row (dev-notes §2): the three Enum.WeaponSlot slots report
+-- record counts (or nil/absent), never a raise on the sim.
+test("ENCH row: mh/oh/rng report, no raise", function()
+    local v = findGroup(Probe:Run("pt-ench"), "^ENCH$").values
+    if v.en == "absent" then return end
+    for _, k in ipairs({ "mh", "oh", "rng" }) do
+        assertNotNil(v[k], k .. " reported")
+        assertTrue(not v[k]:find("^raise"), k .. ": " .. v[k])
+    end
+end)
+
+-- 23. I2c BSW row (dev-notes §2 "Blizzard's own UI has swing timers"): the
+-- four Blizzard_SwingTimer frames report presence/shown, never a raise.
+test("BSW row: the Blizzard swing frames report presence, no raise", function()
+    local v = findGroup(Probe:Run("pt-bsw"), "^BSW$").values
+    for _, k in ipairs({ "mgr", "mh", "oh", "rng" }) do
+        assertNotNil(v[k], k .. " reported")
+        assertTrue(not v[k]:find("^raise"), k .. ": " .. v[k])
+    end
+end)
+
 -- Restore the SavedVariables shapes the file's runs touched.
 test("state restored: epoch and the stored run list", function()
     -- The store is created lazily by Run; a pre-run session had no key at
@@ -354,4 +508,6 @@ test("state restored: epoch and the stored run list", function()
     assertEquals(savedEpoch, FX.db.probeEpoch)
     assertNotNil(FX.db.probes)
     if not savedRuns then assertEquals(0, #FX.db.probes) end
+    FX.db.probeStamp = savedStamp
+    Probe._svLogin = savedSvLogin
 end)

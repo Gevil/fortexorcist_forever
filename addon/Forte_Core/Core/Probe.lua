@@ -25,6 +25,16 @@
 -- (_RANGE_UPDATE) / ADDON_RESTRICTION_STATE_CHANGED payloads, K-classified
 -- at capture time, into bounded rings in FX.db.probesEvents.
 --
+-- Wave I-2 rows (2026-11-03, upstream-api Open questions 1/3, upstream-addons
+-- ranked 4/5, dev-notes §2): SEC gains the widened gate set (per-spell aura,
+-- unit identity, threat values, UnitThreat presence); NAME = the raw name
+-- APIs (both returns) + the realm label; EVENTS = C_EventUtils.IsEventValid
+-- over OUR_EVENTS (every event literal the addons register) + UNIT_THREAT;
+-- SV = the SavedVariables stamp write/login-read pair; HS = healthstone
+-- counts + item cooldowns (warlock data); PET = pet-bar action-cooldown
+-- readability; ENCH = weapon-enchant records; BSW = Blizzard's own
+-- swing-timer frames (the launch overlap question).
+--
 -- Slash surface (registered through FX.RegisterSlash, Core/Init.lua):
 --   /fx probe [label]   run the battery; label defaults ooc / combat by
 --                       InCombatLockdown()
@@ -192,8 +202,13 @@ end
 -- ------------------------------------------------------- probe groups --
 -- Every function returns a table whose values are all Probe.K outputs.
 
---- Research Q5: the cheap "is everything secret right now" mode surface.
-local function probeSecretState()
+--- Research Q5: the cheap "is everything secret right now" mode surface,
+--- widened by the I2c gate set (upstream-addons-2026-11-03.md §1: the shipped
+--- set gates per-domain AND per-spell/per-unit) + the threat-surface
+--- presence the §10.3 open question asks for. `firstSpell` (I2c) is a
+--- tracked spell NAME for the per-spell gate -- planRuns passes the picked
+--- spell so the row stays class-independent.
+local function probeSecretState(firstSpell)
     local g = {}
     local CRA = _G.C_RestrictedActions
     if CRA and CRA.GetAddOnRestrictionState then
@@ -210,9 +225,15 @@ local function probeSecretState()
         g.cbs = callK(CS.ShouldCooldownsBeSecret)
         g.hsr = callK(CS.HasSecretRestrictions)
         g.castP = callK(CS.ShouldUnitSpellCastingBeSecret, "player")
+        g.sabs = firstSpell and callK(CS.ShouldSpellAuraBeSecret, firstSpell)
+            or "no-spell"
+        g.uibsP = callK(CS.ShouldUnitIdentityBeSecret, "player")
+        g.uibsT = callK(CS.ShouldUnitIdentityBeSecret, "target")
+        g.utbs = callK(CS.ShouldUnitThreatValuesBeSecret, "player", "target")
     else
         g.cSec = "absent"
     end
+    g.threatFn = K(_G.UnitThreat)
     -- Event capture: has ADDON_RESTRICTION_STATE_CHANGED (the design's mode
     -- switch trigger, research Q5) been seen at all this session?
     local ev = events()
@@ -423,6 +444,344 @@ local function probeEpoch()
     }
 end
 
+-- ------------------------------------------- I2c rows (wave I-2, 2026-11-03) --
+-- The rows the launch-day guide adds for docs/research/upstream-api-2026-11-03.md
+-- "Open questions" 1/3, upstream-addons-2026-11-03.md ranked 4 + 5 (§1, §2, §5)
+-- and forever-dev-notes-2026-11-03.md §2 (Blizzard's own swing timers; the
+-- Cooldown Manager "cannot track" healthstone cooldowns, pet cooldowns, item
+-- enhancements -- the hints at what the client exposes). Every row is read-only
+-- against the client (the SV row writes OUR own SavedVariables key, by design)
+-- and rides the file's K law: every value passes K before it is stored.
+
+--- Call `fn(...)` and K BOTH returns (the raw name APIs answer
+--- (name, server)). Returns two K strings; "absent" / "raise:..." as usual.
+local function call2K(fn, ...)
+    if type(fn) ~= "function" then return "absent", "absent" end
+    local ok, a, b = pcall(fn, ...)
+    if not ok then return "raise:" .. tostring(a), "raise:" end
+    return K(a), K(b)
+end
+
+--- NAME: the raw identity reads, both returns, for "player", plus the
+--- connection realm label (upstream-api Open questions 1; the identity
+--- finding: "a character is its first and last name, not Name-Realm", and
+--- GetRealmName is the connection label, not identity). The three globals
+--- carry SecretWhenUnit[Name]IdentityRestricted in the pinned catalog
+--- (@UnitDocumentation.lua:2488/:1223/:2522) -- a SECRET entry in the combat
+--- run is the answer Open-question 3 asks for.
+local function probeRawNames()
+    local g = {}
+    g.n1, g.n2 = call2K(_G.UnitName, "player")
+    g.f1, g.f2 = call2K(_G.UnitFullName, "player")
+    g.u1, g.u2 = call2K(_G.UnitNameUnmodified, "player")
+    g.realm = callK(_G.GetRealmName)
+    return g
+end
+
+--- Every event literal our addons RegisterEvent/RegisterUnitEvent (static
+--- scan of addon/**, 2026-11-03; api_lint.py checks the literals themselves
+--- against the pinned catalog, this row asks the CLIENT, the shipped
+--- capability probe -- upstream-addons-2026-11-03.md §2: C_EventUtils.
+--- IsEventValid(event) @EventUtilsDocumentation.lua:25). MAINTENANCE LAW: a
+--- new registration in any Forte_* module lands here too -- an event the
+--- launch client does not know RAISES at RegisterEvent and kills that
+--- module's event frame.
+local OUR_EVENTS = {
+    "ADDON_LOADED",
+    "ADDON_RESTRICTION_STATE_CHANGED",
+    "BAG_UPDATE_COOLDOWN",
+    "BAG_UPDATE_DELAYED",
+    "CHAT_MSG_ADDON",
+    "GET_ITEM_INFO_RECEIVED",
+    "GROUP_FORMED",
+    "GROUP_JOINED",
+    "GROUP_LEFT",
+    "GROUP_ROSTER_UPDATE",
+    "ITEM_COUNT_CHANGED",
+    "ITEM_DATA_LOAD_RESULT",
+    "PLAYER_DEAD",
+    "PLAYER_ENTERING_WORLD",
+    "PLAYER_EQUIPMENT_CHANGED",
+    "PLAYER_LEAVING_WORLD",
+    "PLAYER_LOGIN",
+    "PLAYER_REGEN_DISABLED",
+    "PLAYER_REGEN_ENABLED",
+    "PLAYER_STARTED_MOVING",
+    "PLAYER_STOPPED_MOVING",
+    "PLAYER_SWING",
+    "PLAYER_SWING_RANGE_UPDATE",
+    "PLAYER_TARGET_CHANGED",
+    "PLAYER_TOTEM_UPDATE",
+    "SPELLS_CHANGED",
+    "SPELL_UPDATE_COOLDOWN",
+    "START_AUTOREPEAT_SPELL",
+    "STOP_AUTOREPEAT_SPELL",
+    "UNIT_AURA",
+    "UNIT_DIED",
+    "UNIT_POWER_UPDATE",
+    "UNIT_SPELLCAST_CHANNEL_START",
+    "UNIT_SPELLCAST_CHANNEL_STOP",
+    "UNIT_SPELLCAST_FAILED",
+    "UNIT_SPELLCAST_FAILED_QUIET",
+    "UNIT_SPELLCAST_INTERRUPTED",
+    "UNIT_SPELLCAST_SENT",
+    "UNIT_SPELLCAST_START",
+    "UNIT_SPELLCAST_STOP",
+    "UNIT_SPELLCAST_SUCCEEDED",
+    "WEAPON_ENCHANT_CHANGED",
+}
+
+--- EVENTS: ask the client about every event we register (dynamic half; the
+--- static half is api_lint.py). `ok` == n and `bad` == "-" is the green
+--- launch-day answer; a name in `bad`/`raise` names an event whose
+--- registration raises on this build. The list is OUR literals -- echoing a
+--- name back as text is plain by construction, no API value is concatenated.
+local function probeEventValidity()
+    local g = { n = K(#OUR_EVENTS) }
+    local CEU = _G.C_EventUtils
+    if not (CEU and CEU.IsEventValid) then
+        g.iev = "absent"
+        return g
+    end
+    local okCount, bad, raised = 0, {}, {}
+    for _, name in ipairs(OUR_EVENTS) do
+        local ok, valid = pcall(CEU.IsEventValid, name)
+        if not ok then
+            raised[#raised + 1] = name
+        elseif K(valid) == "boolean:true" then
+            okCount = okCount + 1
+        else
+            bad[#bad + 1] = name
+        end
+    end
+    g.ok = K(okCount)
+    g.bad = (#bad == 0) and "-" or table.concat(bad, ",")
+    g.raise = (#raised == 0) and "-" or table.concat(raised, ",")
+    -- The threat-surface probe of upstream-addons-2026-11-03 §1/§10.3: the
+    -- shipped ShouldUnitThreatValuesBeSecret predicate contradicts a pure
+    -- "no threat API" reading. The classic UNIT_THREAT is NOT in the pinned
+    -- catalog (only the two *_UPDATE events below are), so `ievThreat=false`
+    -- is the catalog-expected answer -- the pair says which event shape the
+    -- 70707 client carries.
+    for key, ev in ipairs({
+        "UNIT_THREAT", -- api-lint: ok deliberate probe of the catalog-absent classic name (the answer IS the datum)
+        "UNIT_THREAT_LIST_UPDATE",        -- @UnitDocumentation.lua:4888
+        "UNIT_THREAT_SITUATION_UPDATE",   -- @UnitDocumentation.lua:4899
+    }) do
+        local tok, tvalid = pcall(CEU.IsEventValid, ev)
+        g["ievT" .. key] = tok and K(tvalid) or "raise:" .. tostring(tvalid)
+    end
+    return g
+end
+
+--- SV: the SavedVariables round-trip MARKER (upstream-addons §5 open
+--- question 1: does the 70707 restore work, SVFix's claim is from
+--- 2026-09-25). Every run writes a fresh stamp into ForteXorcistDB;
+--- Probe:OnEnable latches whatever the store held at login (before any
+--- write) into Probe._svLogin. `login=` equalling the PREVIOUS run's
+--- `wrote=` -- across a /reload, and again across a full relog -- is the
+--- value-level proof the epoch counter only implies.
+local function svStamp()
+    local t = 0
+    if type(_G.GetTime) == "function" then
+        local ok, v = pcall(_G.GetTime)
+        t = (ok and FX.Compat.PlainOrNil(v)) or 0
+    end
+    return "FXS@" .. (stamp()):gsub(" ", "T") .. "/" .. string.format("%.4f", t)
+end
+
+local function probeSavedVars()
+    local wrote = svStamp()
+    local before
+    if FX.db then
+        before = FX.db.probeStamp
+        FX.db.probeStamp = wrote
+    else
+        -- Session-local mirror (matches dbRuns' no-store posture).
+        before = Probe._lastStamp
+        Probe._lastStamp = wrote
+    end
+    return {
+        login = K(Probe._svLogin),
+        db = K(before),
+        wrote = K(wrote),
+        saved = K(FX.db ~= nil),
+    }
+end
+
+--- HS: healthstone presence + the stones' ITEM cooldowns (dev-notes §2:
+--- Blizzard's Cooldown Manager "cannot track" the healthstone cooldown --
+--- the hint of what the client exposes). The stone rows ride the generated
+--- Forte_Warlock data (ids are generated, never hand-typed), so the row
+--- answers on a warlock session and says `no-warlock-data` elsewhere (the
+--- class-independent law of planRuns). Bag items read by itemID --
+--- Forte_Cooldown/Core/Items.lua's split; the count asks the CLIENT's name
+--- through FX.L, Forte_Warlock/Core/Tools.lua's law.
+local function healthstoneRows()
+    local out = {}
+    local data = FX.Data and FX.Data.Warlock
+    if type(data) ~= "table" then return out end
+    for _, row in pairs(data) do
+        if type(row) == "table" and type(row.name) == "string"
+            and type(row.id) == "number"
+            and row.name:find("Healthstone$")
+            and not row.name:find("^Create ") then
+            out[#out + 1] = row
+        end
+    end
+    table.sort(out, function(a, b) return a.name < b.name end)
+    return out
+end
+
+local function probeHealthstones()
+    local rows = healthstoneRows()
+    if #rows == 0 then return { hs = "no-warlock-data" } end
+    local g = { hs = K(#rows) }
+    for _, row in ipairs(rows) do
+        local key = tostring(row.id)
+        local CI = _G.C_Item
+        if CI and CI.GetItemCount then
+            local ok, n = pcall(CI.GetItemCount, FX.L(row.name))
+            g["cnt" .. key] = ok and K(n) or "raise:" .. tostring(n)
+        else g["cnt" .. key] = "absent" end
+        local read = FX.Compat and FX.Compat.GetItemCooldownInfo
+        if read then
+            local ok, st, du, en = pcall(read, row.id)
+            if not ok then
+                g["cd" .. key] = "raise:" .. tostring(st)
+            else
+                g["cd" .. key] = K(st) .. "/" .. K(du) .. "/" .. K(en)
+            end
+        else g["cd" .. key] = "absent" end
+    end
+    return g
+end
+
+--- PET: a pet spell-cooldown read on the action-bar surface (dev-notes §2:
+--- the Cooldown Manager "cannot track" pet cooldowns). pet bar 1, its first
+--- slot, resolved through the catalog-declared C_ActionBar pet lookups
+--- (@ActionBarFrameDocumentation.lua:386/:466/:433/:163 -- GetActionCooldown
+--- carries SecretWhenCooldownsRestricted, the in-combat leg of the answer).
+--- No action id is hand-typed: the first entry of GetPetActionPetBarIndices
+--- IS pet bar 1 slot 1.
+local PET_ACTION_BAR = 1
+
+local function probePet()
+    local g = {}
+    if type(_G.UnitExists) == "function" then
+        local ok, ex = pcall(_G.UnitExists, "pet")
+        local plain = ok and FX.Compat.PlainOrNil(ex)
+        g.pet = K(plain)
+        if plain ~= true then return g end
+    else g.pet = "absent" end
+    local CAB = _G.C_ActionBar
+    if not (CAB and CAB.GetPetActionPetBarIndices) then
+        g.slots = "absent"
+        return g
+    end
+    local okS, slots = pcall(CAB.GetPetActionPetBarIndices, PET_ACTION_BAR)
+    if not okS then
+        g.slots = "raise:" .. tostring(slots)
+        return g
+    end
+    if slots == nil then g.slots = "nil" return g end
+    g.slots = K(#slots)
+    local first
+    for _, slot in ipairs(slots) do
+        local plain = FX.Compat.PlainOrNil(slot)
+        if type(plain) == "number" and (first == nil or plain < first) then
+            first = plain
+        end
+    end
+    g.slot = K(first)
+    if type(first) ~= "number" then return g end
+    if CAB.HasAction then
+        local ok, v = pcall(CAB.HasAction, first)
+        g.has = ok and K(v) or "raise:" .. tostring(v)
+    else g.has = "absent" end
+    if CAB.GetSpell then
+        local ok, id = pcall(CAB.GetSpell, first)
+        g.spell = ok and K(id) or "raise:" .. tostring(id)
+    else g.spell = "absent" end
+    if CAB.GetActionCooldown then
+        local ok, ci = pcall(CAB.GetActionCooldown, first)
+        if not ok then
+            g.cd = "raise:" .. tostring(ci)
+        elseif ci == nil then
+            g.cd = "nil"
+        else
+            g.cd = "table"
+            g.en = K(ci.isEnabled) g.st = K(ci.startTime)
+            g.dur = K(ci.duration) g.rate = K(ci.modRate)
+        end
+    else g.cd = "absent" end
+    return g
+end
+
+--- ENCH: weapon-enchant records, Enum.WeaponSlot 0/1/2 (the pinned
+--- enumeration { MainHand=0, OffHand=1, Ranged=2 }) -- readable out of
+--- combat, the pair run decides in combat (dev-notes §2: the Cooldown
+--- Manager "cannot track" item enhancements like Windfury/poisons).
+--- Compat.GetWeaponEnchantInfo carries the catalog law: timeLeft is
+--- MILLISECONDS, no SecretWhen annotation at the pin.
+local WEAPON_SLOTS = {
+    { key = "mh", slot = 0 },   -- Enum.WeaponSlot.MainHand
+    { key = "oh", slot = 1 },   -- Enum.WeaponSlot.OffHand
+    { key = "rng", slot = 2 },  -- Enum.WeaponSlot.Ranged
+}
+
+local function probeEnchants()
+    local read = FX.Compat and FX.Compat.GetWeaponEnchantInfo
+    if not read then return { en = "absent" } end
+    local g = {}
+    for _, ws in ipairs(WEAPON_SLOTS) do
+        local ok, arr = pcall(read, ws.slot)
+        if not ok then
+            g[ws.key] = "raise:" .. tostring(arr)
+        elseif arr == nil then
+            g[ws.key] = "nil"
+        else
+            g[ws.key] = "n" .. tostring(#arr)
+            local rec = arr[1]
+            if type(rec) == "table" then
+                g[ws.key .. "e"] = K(rec.hasEnchant)
+                g[ws.key .. "t"] = K(rec.timeLeft)
+                g[ws.key .. "i"] = K(rec.enchantID)
+                g[ws.key .. "c"] = K(rec.charges)
+            end
+        end
+    end
+    return g
+end
+
+--- BSW: Blizzard's OWN swing-timer frames (dev-notes §2: "the Off-Hand
+--- Swing Timer" is Blizzard UI -- Blizzard_SwingTimer.xml ships
+--- SwingTimerManagerFrame + MainHand/OffHand/Ranged frames, gated on the
+--- showSwingTimer CVar). The launch-day overlap question for the Hunter bar
+--- starts with: are they live on the client at all. Frame globals exist
+--- only when the add-on loaded -> "absent" is itself the answer.
+local function framePresence(name)
+    local f = _G[name]
+    if f == nil then return "absent" end
+    if type(f.IsShown) == "function" then
+        local ok, v = pcall(f.IsShown, f)
+        if not ok then return "raise:" .. tostring(v) end
+        local plain = FX.Compat.PlainOrNil(v)
+        if plain == nil then return "SECRET" end
+        return plain and "shown" or "hidden"
+    end
+    return K(f)
+end
+
+local function probeBlizzardSwing()
+    return {
+        mgr = framePresence("SwingTimerManagerFrame"),
+        mh = framePresence("SwingTimerMainHandFrame"),
+        oh = framePresence("SwingTimerOffHandFrame"),
+        rng = framePresence("SwingTimerRangedFrame"),
+    }
+end
+
 -- ------------------------------------------------------- run planning --
 
 local function sortedNames(t)
@@ -512,8 +871,12 @@ local function findBagPotion()
 end
 
 local function planRuns()
-    local plan = { { label = "SEC", fn = probeSecretState } }
-    for _, name in ipairs(pickSpells()) do
+    local picks = pickSpells()
+    local plan = {
+        { label = "SEC", fn = function() return probeSecretState(picks[1]) end },
+        { label = "NAME", fn = probeRawNames },
+    }
+    for _, name in ipairs(picks) do
         plan[#plan + 1] = { label = "CD " .. name, fn = function() return probeSpell(name) end }
     end
     local items = {
@@ -530,9 +893,15 @@ local function planRuns()
     end
     plan[#plan + 1] = { label = "CAST", fn = probeCastCounters }
     plan[#plan + 1] = { label = "SWING", fn = probeSwing }
+    plan[#plan + 1] = { label = "BSW", fn = probeBlizzardSwing }
     plan[#plan + 1] = { label = "GATE", fn = probeGate }
     plan[#plan + 1] = { label = "PRES", fn = probePresence }
+    plan[#plan + 1] = { label = "EVENTS", fn = probeEventValidity }
     plan[#plan + 1] = { label = "EPOCH", fn = probeEpoch }
+    plan[#plan + 1] = { label = "SV", fn = probeSavedVars }
+    plan[#plan + 1] = { label = "HS", fn = probeHealthstones }
+    plan[#plan + 1] = { label = "PET", fn = probePet }
+    plan[#plan + 1] = { label = "ENCH", fn = probeEnchants }
     return plan
 end
 
@@ -874,6 +1243,10 @@ local CAPTURE_EVENTS = {
 
 function Probe:OnEnable()
     if FX.db then
+        -- The SV row's read half: latch the stamp the PREVIOUS session's
+        -- last run wrote, as it stands in the restored SavedVariables at
+        -- PLAYER_LOGIN -- before this session's runs overwrite it.
+        Probe._svLogin = FX.db.probeStamp
         FX.db.probeEpoch = (tonumber(FX.db.probeEpoch) or 0) + 1
     else
         Probe._epoch = (Probe._epoch or 0) + 1
