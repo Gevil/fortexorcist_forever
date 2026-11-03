@@ -732,6 +732,15 @@ per-frame strata ×8; rows without a consumer dropped and listed); review-5 mino
 (3 described code that never existed, 2 would have regressed — reviewer output is re-verified before it changes code).
 Gate PASS **691**; live battery 15/15 (+ the DB row now follows `DB.SCHEMA_VERSION`).
 
+**Wave 6 (dispatched 2026-11-03)**
+
+| Slice | Agent | Owns | Deliverable | Acceptance |
+|---|---|---|---|---|
+| Right-click everywhere | `fx-worker` `RightClick` | `addon/Forte_Timer/UI/Rows.lua` (panel anchor), `addon/Forte_Hunter/UI/Swing.lua`, `addon/Forte_Warlock/UI/Frame.lua`, their tests | the original's CD-30 law on every module frame (Spell Timer panel, Hunter swing bar, the four Warlock plates; `Forte_Soulstone.lua:510-530`, `Forte_Healthstone.lua:234-249`, `Forte_Summon.lua:437-451`): right-button release opens the options window on that module's page, never after a drag (`Moved` press-stamp guard, as `Timeline.lua` does), gated by `General.RightClickOptions` | per frame: right-release opens the right page, drag-release does not, the gate off silences it — through the real `OnMouseDown`/`OnMouseUp` scripts; gate PASS |
+| Options cosmetics | `fx-worker` `Cosmetics` | `addon/Forte_Options/Core/Widgets.lua`, `addon/Forte_Options/Pages/General.lua`, `addon/Forte_Options/Pages/Cooldown.lua`, `addon/Forte_Cooldown/UI/Timeline.lua` (icon size/colours only), their tests | fix-list item 9: Bar Font / Bar Texture pickers (dropdowns over the vendored fonts/textures, live), Cooldown IconSize + TextColor rows with consumers, per the original's rows | each picker/row changes its consumer live through the real widget; gate PASS; manager capture |
+| README swing loop | manager | `docs/demo/`, `README.md` | live uiforever recording of the Hunter shot cycle (orange → red aim → white), addon-only crop | viewed frame by frame; renders on GitHub |
+| PLAN §6 refresh | manager | `PLAN.md` §6 | current state after waves H1–5 | — |
+
 **H10 Data refresh (owner request 2026-11-02, runs beside wave 1)**
 
 Facts (manager, 2026-11-02): `mythicsim-forever-engine` fast-forwarded 21 commits to `f794f2b` — its `data/` is still pinned
