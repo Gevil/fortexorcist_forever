@@ -466,17 +466,20 @@ async function uifBattery(options) {
     'Splash + Messages in the module list', modList.join(','));
 
   // -------------------------------------------------------------- 6. DB
+  // The expected schema is the addon's own DB.SCHEMA_VERSION (v2 since wave 5:
+  // the sparse store), so the row never pins a stale number.
   const db = await luaMarked(
     'local d=ForteXorcist.db local v=d and d.version '
+    + 'local want=ForteXorcist.DB and ForteXorcist.DB.SCHEMA_VERSION '
     + 'local a=d and d.profiles and d.profiles.active '
-    + 'print("FXBAT-DB version="..tostring(v).." active="..tostring(a) '
+    + 'print("FXBAT-DB version="..tostring(v).." want="..tostring(want).." active="..tostring(a) '
     + '.." activen="..(type(a)=="string" and #a>0 and "1" or "0"))',
     'FXBAT-DB');
-  const mDb = db.printed.match(/^FXBAT-DB version=(\S+) active=(\S*) activen=([01])$/m);
-  add('DB the schema is v1 and the active profile is set',
-    !!mDb && mDb[1] === '1' && mDb[3] === '1',
-    'version=1 activen=1',
-    mDb ? `version=${mDb[1]} active=${mDb[2]}` : (db.line || '(no printed line)'));
+  const mDb = db.printed.match(/^FXBAT-DB version=(\S+) want=(\S+) active=(\S*) activen=([01])$/m);
+  add('DB the schema is the build\'s SCHEMA_VERSION and the active profile is set',
+    !!mDb && mDb[1] === mDb[2] && mDb[1] !== 'nil' && mDb[4] === '1',
+    'version == DB.SCHEMA_VERSION, activen=1',
+    mDb ? `version=${mDb[1]} want=${mDb[2]} active=${mDb[3]}` : (db.line || '(no printed line)'));
 
   // ----------------------------------- 7. party/raid chat defaults OFF
   // The announce gate counts accepted sends; a ready pop with the shipped
