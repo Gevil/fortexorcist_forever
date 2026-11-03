@@ -369,9 +369,19 @@ function LocaleModule.OnEnable()
 end
 
 function LocaleModule.OnDisable()
-    if Locale.state.frame then
-        Locale.state.frame:UnregisterEvent("GET_ITEM_INFO_RECEIVED")
-        Locale.state.frame:UnregisterEvent("ITEM_DATA_LOAD_RESULT")
+    -- The tear-down pair of WatchItemLoads, guarded the way every other
+    -- disable site in the tree guards it (Forte_Hunter/UI/Swing.lua:926-941,
+    -- Forte_Shaman/Core/Totems.lua:347-353, Forte_Warlock/Core/Comms.lua:
+    -- 639-646): `UnregisterEvent` is catalog-declared for the real client's
+    -- Frame but ABSENT from the simulator's frame emulation, and a
+    -- restricted client may raise on the call -- an unguarded call dies in
+    -- the middle of the disable, which is the one path that must always
+    -- finish. The frame handle survives on purpose: WatchItemLoads is
+    -- idempotent on it, so a re-enable re-runs the pair from the same frame.
+    local frame = Locale.state.frame
+    if frame and frame.UnregisterEvent then
+        pcall(frame.UnregisterEvent, frame, "GET_ITEM_INFO_RECEIVED")
+        pcall(frame.UnregisterEvent, frame, "ITEM_DATA_LOAD_RESULT")
     end
     return true
 end

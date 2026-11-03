@@ -644,7 +644,15 @@ end
 --- The fail / interrupt band: settle for CANCEL_SETTLE, then the row goes into
 --- the FAILED band. No cause is ever named (CA-08: a resist/immune/reflect
 --- classification is log-only and the log is closed).
-function Casts:OnFailed(spellID, target, now)
+---
+--- Slot 2 is the caller's SOURCE KEY, not a target: the Module hands the
+--- FAILED/INTERRUPTED payload's castGUID into it (Module.lua:682,685 -- that
+--- family carries no target at all), and the band keys its rows off the
+--- targetKey of its OWN queued record, so nothing here reads it. `_sourceKey`
+--- says so (code-review-5 m3: a parameter named `target` on a slot that
+--- receives a GUID is the contract-lie class this review exists to catch --
+--- the name is the documentation of a slot a reader will otherwise trust).
+function Casts:OnFailed(spellID, _sourceKey, now)
     now = now or self:Clock()
     local name = self:NameOf(spellID)
     if type(name) ~= "string" then return end

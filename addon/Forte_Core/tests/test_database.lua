@@ -1,13 +1,14 @@
 -- addon/Forte_Core/tests/test_database.lua
 -- The SavedVariables schema of Forte_Core/Core/Database.lua: the ordered
--- migration ladder (v0 = today's flat settings map -> v1 = the profiles
--- table), its idempotence, the never-fatal law, the shape guard and the
--- `Name-Realm` profile key. Synthetic DB tables -- plus one look at the live
--- FX.db to prove the bootstrap in Core/Init.lua ran the ladder at
--- ADDON_LOADED, before any module could read the DB.
+-- migration ladder (v0 = the flat settings map -> v1 = the profiles table
+-- -> v2 = the default-equal prune), its idempotence, the never-fatal law,
+-- the shape guard and the `Name-Realm` profile key. Synthetic DB tables --
+-- plus one look at the live FX.db to prove the bootstrap in Core/Init.lua ran
+-- the ladder at ADDON_LOADED, before any module could read the DB.
 --
--- The acceptance law this file carries (PLAN §11.1 H3): "migration of a v0 DB
--- snapshot", "never erroring at login".
+-- The acceptance law this file carries (PLAN §11.1 H3 + wave 5): "migration
+-- of a v0 DB snapshot", "never erroring at login", "v2 drops stored values
+-- equal to their current default; a user-set value survives".
 
 local FX = ForteXorcist
 local DB = FX.DB
@@ -35,8 +36,9 @@ end
 
 test("FX.DB ships the schema surface", function()
     assertNotNil(DB, "Forte_Core/Core/Database.lua loaded")
-    assertEquals(1, DB.SCHEMA_VERSION)
+    assertEquals(2, DB.SCHEMA_VERSION)
     assertEquals("function", type(DB.MIGRATIONS[1]))
+    assertEquals("function", type(DB.MIGRATIONS[2]))
     assertEquals("function", type(DB.Migrate))
     assertEquals("function", type(DB.Guard))
     assertEquals("function", type(DB.CharacterKey))
@@ -78,6 +80,15 @@ function()
     assertEquals(-150, db.cooldownDisplay.y)
     assertEquals(1, #db.probes)
     assertEquals(2, db.probeEpoch)
+    -- Step 2 ran after the move: its marker table names the modules it
+    -- pruned. (Every value in this snapshot differs from its shipped
+    -- default, so the prune of a migrated v0 keeps them all.)
+    assertNotNil(db.defaultsPruned, "the v2 step leaves its marker")
+    assertNotNil(db.defaultsPruned.Cooldown,
+        "Forte_Options' chunks registered Cooldown before the ladder ran")
+    assertNotNil(db.defaultsPruned.General)
+    assertEquals(311, db.profiles.byName[DB.SHARED_NAME].settings.Cooldown.Width,
+        "none of these values equals a shipped default: the prune keeps them")
 end)
 
 test("the ladder is idempotent: a second pass rewrites nothing", function()
@@ -99,7 +110,7 @@ test("the ladder is idempotent: a second pass rewrites nothing", function()
     assertEquals(nil, db.settings)
 end)
 
-test("a fresh install lands on the v1 shape with an empty profile", function()
+test("a fresh install lands on the v2 shape with empty profiles", function()
     local db = {}
     assertEquals(DB.SCHEMA_VERSION, DB.Migrate(db))
     local key = DB.CharacterKey()
@@ -107,6 +118,9 @@ test("a fresh install lands on the v1 shape with an empty profile", function()
     assertEquals(0, countKeys(db.profiles.byName[key].settings))
     assertNotNil(db.profiles.byName[DB.SHARED_NAME])
     assertEquals(0, countKeys(db.profiles.byName[DB.SHARED_NAME].settings))
+    assertNotNil(db.defaultsPruned,
+        "a fresh install carries the prune marker: nothing to prune, "
+        .. "later registrations are marked as they arrive")
 end)
 
 test("a v0 DB whose profiles table is only the shape repair still adopts its settings",
@@ -126,6 +140,65 @@ function()
     assertEquals(311, db.profiles.byName[key].settings.Cooldown.Width)
     assertEquals(key, db.profiles.active)
     assertEquals(nil, db.settings)
+end)
+
+test("v2 drops the defaults the old seeding law froze and keeps every choice",
+function()
+    -- A v1 install written by the OLD value layer: the profile carries
+    -- every key, the untouched ones sitting AT their shipped defaults (the
+    -- uiforever probe: all 8 General keys on a player who only ever set
+    -- Cooldown.Width). Values equal to the CURRENT registered default are
+    -- frozen defaults and go; values that differ are indistinguishable
+    -- from user choices and stay (wave 5).
+    local key = DB.CharacterKey()
+    local db = {
+        version = 1,
+        profiles = {
+            perCharacter = true,
+            shared = DB.SHARED_NAME,
+            active = key,
+            characters = { [key] = key },
+            byName = {
+                [key] = {
+                    settings = {
+                        Cooldown = {
+                            Width = 311,    -- a user value: kept
+                            Lock = false,   -- the shipped default is true:
+                                            -- a stored false is a choice,
+                                            -- kept
+                            Height = 24,    -- == the shipped default:
+                                            -- frozen, goes
+                            Spark = true,   -- == the shipped default:
+                                            -- frozen, goes
+                        },
+                    },
+                },
+                [DB.SHARED_NAME] = {
+                    settings = {
+                        Cooldown = { Height = 24 },
+                    },
+                },
+            },
+        },
+    }
+    assertEquals(2, DB.Migrate(db))
+    local cd = db.profiles.byName[key].settings.Cooldown
+    assertEquals(311, cd.Width, "a user-set value survives v2")
+    assertEquals(false, cd.Lock,
+        "a stored value that differs from the shipped default survives")
+    assertEquals(nil, cd.Height,
+        "the frozen default goes: the key follows the shipped value from now on")
+    assertEquals(nil, cd.Spark)
+    assertEquals(nil, db.profiles.byName[DB.SHARED_NAME].settings.Cooldown.Height,
+        "every profile of the install is pruned, not only the active one")
+    assertNotNil(db.defaultsPruned.Cooldown,
+        "the modules registered at the ladder are marked done in the file")
+    -- Idempotence: the marker is the step's own output; a retried ladder of
+    -- an install stamped at 2 runs no step at all.
+    cd.Height = 24
+    assertEquals(2, DB.Migrate(db))
+    assertEquals(24, cd.Height,
+        "a retried login of a stamped install drops nothing new")
 end)
 
 test("a raising step stops the ladder, stamps the last good version and never propagates",
@@ -150,7 +223,7 @@ function()
         assertEquals(true, db.stepTwoRan)
         assertEquals(311, db.profiles.byName[db.profiles.active].settings.Cooldown.Width)
     end
-    DB.MIGRATIONS[1], DB.MIGRATIONS[2] = saved1, nil
+    DB.MIGRATIONS[1], DB.MIGRATIONS[2] = saved1, saved2
     DB.SCHEMA_VERSION = savedVersion
 end)
 
@@ -201,7 +274,7 @@ test("the character key is Name-Realm and a session constant", function()
     assertEquals(key, DB.CharacterKey(), "cached: a mid-session nil can not orphan the profile")
 end)
 
-test("the live FX.db reached the v1 shape through the bootstrap", function()
+test("the live FX.db reached the v2 shape through the bootstrap", function()
     assertNotNil(FX.db, "the bootstrap adopted the SavedVariables global")
     assertEquals(DB.SCHEMA_VERSION, FX.db.version,
         "Core/Init.lua ran the ladder at ADDON_LOADED")
@@ -212,4 +285,10 @@ test("the live FX.db reached the v1 shape through the bootstrap", function()
     assertNotNil(FX.db.profiles.byName[active], "the active profile exists")
     assertEquals(DB.SHARED_NAME, FX.db.profiles.shared)
     assertEquals(true, FX.db.profiles.perCharacter)
+    -- The v2 step ran in the bootstrap: its marker names the modules the
+    -- Forte_Options chunks had registered before ADDON_LOADED; a LoD page
+    -- that registered at PLAYER_LOGIN is marked by the Register hook.
+    assertNotNil(FX.db.defaultsPruned, "the v2 step marked this install")
+    assertNotNil(FX.db.defaultsPruned.Cooldown)
+    assertNotNil(FX.db.defaultsPruned.General)
 end)

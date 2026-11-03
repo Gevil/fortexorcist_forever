@@ -21,7 +21,7 @@ the original's registrations, our module pages carry roughly:
 | Party/Raid Msg | 2 Core + ~40 module rows (`Forte_Core/Options.lua:5558-5564` + module files) | 107 (structure rows; ~90 generated) | Soulstone Start/Cancel + whispers, Seduce/SpellLock/DevourMagic pet rows, DK rows |
 | Self Messages | 4 (+1 INF) | 13 (10 = ours) | Blood Pact trio (parked) |
 | Sound | 6 SND rows +1 INF | 12 (3 rows = ours; 12 keys/4 files) | **Soulstone Fade/Ready sounds** (verbatim pair missing) |
-| Advanced | ~35 | page not built (cell dim) | startup text, scroll/expand prefs, Core intervals, strata |
+| Advanced | ~35 | built 2026-11-03, 12 rows | startup text, scroll/expand prefs, per-module strata (shipped); Core intervals, snap, columns dropped (see "Advanced cell") |
 | Hunter Tools | **0** (`Forte_Class/Hunter/Hunter.lua` has zero AddOption) | 21 | no original baseline (all ours, WST law) |
 | Profiles | no cell in the original grid | full page + tab row | documented match, `Pages/Profiles.lua:4-14` |
 | About | 4 IMG/URL + 20 INF | 7 INFO | fine (2012 URLs are dead) |
@@ -281,13 +281,34 @@ The shard modules are not in `/tmp/fxref/` — no original tree on disk to diff.
 Manager page = our design; ShardSpy stays dim per the warlock-tools law
 (`Pages/Warlock.lua:6-10`). Verdict: no claim made.
 
-## Advanced cell (page not built)
+## Advanced cell (v1 built 2026-11-03: `Pages/Advanced.lua`, 12 rows)
 
-The original's ADVANCED (`Options.lua:5574-5629`) plus module rows: the rows are
-enumerated in the tables above (7 strata rows, Casting `Forte_Casting.lua:868-874`,
+SHIPPED, every row with a live consumer: `ShowStartupText` (the login print,
+`Forte_Core/Core/Init.lua` `PrintStartupLine`); `AnimateScroll`,
+`ExpandSubcats`, `LoadExpandSubcats` (the window's wheel and section-fold law,
+`UI/Window.lua` `Scroll`/`StartCollapsed`/`RememberCollapse` — `ExpandSubcats`
+ships TRUE, the recorded panel-look drift, the fold law is live); eight
+`<Module>Strata` rows (`Cooldown`, `Splash`, `Timer`, `Hunter`, `Shard`,
+`Soulstone`, `Healthstone`, `Summon`) landing on each frame's `SetStrata` →
+`SetFrameStrata` (the catalog's eight names validated at the consumer).
+`RightClickOptions` is a row of the **General** page (`Options.lua:5550` sits
+in that category; consumer: the Cooldown bar's `OnMouseUp` gate).
+
+DROPPED, no consumer: `FrameSnap`/`FrameSnapDistance`/`FrameDistance` (every
+frame drags via the engine's native `StartMoving`; no snap grid exists — the
+registered `General.FrameSnap` key stays stored-only and says so); Core
+`LoadDelay`/`UpdateInterval`/`AnimationInterval`/`Chill` (fixed per-module
+cadences, none reads a setting); `OptionsColums`/`OptionsHeight` (fixed grid,
+fixed 780x650 window); `GlobalFrameNames` (compiled in); `TimerSpellsTooltip`,
+the Options Linking block (no spell-group tooltips, no clones), the options
+appearance rows (no themable window); `REMOVE_BACKUP`.
+
+The survey this came from (the original's ADVANCED, `Options.lua:5574-5629`
+plus module rows: 7 strata rows, Casting `Forte_Casting.lua:868-874`,
 module intervals, IgnoreCooldown, per-module strata) and Core
 (`Options.lua:5626-5630`: LoadDelay 1, UpdateInterval 0.5, AnimationInterval 0.04,
-Chill 0.05, defaults `Forte_Core.lua:2472-2475`). Feasibility: strata + startup text
+Chill 0.05, defaults `Forte_Core.lua:2472-2475`). Feasibility notes kept for the
+dropped set: strata + startup text
 (`ShowStartupText` def true `:2529`) + AnimateScroll (`:2477`) + ExpandSubcats/
 LoadExpandSubcats (`:2530-2531`) + Core intervals = **feasible** (all our own
 mechanics); OptionsColums = inert (our builder is fixed 2-col, `Window.lua:565-585`);

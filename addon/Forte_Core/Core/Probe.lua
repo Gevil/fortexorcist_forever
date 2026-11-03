@@ -856,6 +856,22 @@ end
 -- probeEpoch bump happen in OnEnable, which the Forte_Core bootstrap calls
 -- from its PLAYER_LOGIN handler -- exactly once per login.
 
+--- The capture set, spelled out one event literal per line, and the reason
+--- it is spelled out (code-review-5 m6): the registrations run through
+--- `pcall(f.RegisterEvent, f, e)`, a shape `scripts/api_lint.py` cannot see
+--- (its scans are a `RegisterEvent("NAME")` call and a line that is nothing
+--- but quoted ALL-CAPS names), so a typo in one of these names -- which
+--- RAISES on the live client, killing the passive capture for the whole
+--- launch session -- would ship unlinted. Every line of this table is a line
+--- the lint checks against the pinned catalog, and OnEnable registers
+--- exactly this list.
+local CAPTURE_EVENTS = {
+    "UNIT_SPELLCAST_SUCCEEDED",
+    "PLAYER_SWING",
+    "PLAYER_SWING_RANGE_UPDATE",
+    "ADDON_RESTRICTION_STATE_CHANGED",
+}
+
 function Probe:OnEnable()
     if FX.db then
         FX.db.probeEpoch = (tonumber(FX.db.probeEpoch) or 0) + 1
@@ -865,8 +881,7 @@ function Probe:OnEnable()
     if not self._frame and _G.CreateFrame then
         local ok, f = pcall(_G.CreateFrame, "Frame")
         if ok and f then
-            for _, e in ipairs({ "UNIT_SPELLCAST_SUCCEEDED", "PLAYER_SWING",
-                "PLAYER_SWING_RANGE_UPDATE", "ADDON_RESTRICTION_STATE_CHANGED" }) do
+            for _, e in ipairs(CAPTURE_EVENTS) do
                 pcall(f.RegisterEvent, f, e)
             end
             pcall(f.SetScript, f, "OnEvent", function(_, event, a, b, c, d)

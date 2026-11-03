@@ -429,6 +429,32 @@ test("the on-use item tracking the split did not touch still works", function()
         "the enchant rows no longer name the Enchants module's fallback")
 end)
 
+-- The status half of the same feed (code-review-5 m10): `/fx status` is the
+-- launch-day instrument, so its Procs rows are evidence, and evidence has to
+-- name its own reach. There is NO party/raid half of this feed to alias a
+-- wider scan to: the event route rides the Module's
+-- `RegisterUnitEvent("UNIT_AURA", "player")` and the sweep route is
+-- `GetUnitAuras("player", "HELPFUL")` (Core/Procs.lua's LiveReaders). A
+-- reader who counted `aura events` as party/raid coverage in a raid would
+-- read "0 events" as a dead route on the live client -- the row therefore
+-- prints the reach next to the counters, from the module's own `coverage`
+-- fact, so the day-one reading cannot drift from the code.
+test("the /fx status Procs rows name the feed's self-only reach", function()
+    assertEquals("self only", Procs.coverage,
+        "the tracker owns the one statement of its reach")
+    local lines = {}
+    local realPrint = FX.Print
+    FX.Print = function(msg) lines[#lines + 1] = tostring(msg) end
+    FX.Cooldown.Module:Status()
+    FX.Print = realPrint
+    local joined = table.concat(lines, "\n")
+    assertContains(joined, "Procs: ")
+    assertContains(joined, "proc feed coverage: self only")
+    assertContains(joined, 'UNIT_AURA("player")')
+    assertContains(joined, 'GetUnitAuras("player")')
+    assertContains(joined, "no party/raid route")
+end)
+
 -- Self-cleaning (the framework has no teardown): the feature goes back to
 -- its shipped default so the suites that run after this one keep their
 -- entry counts, and the injected seams go with it.

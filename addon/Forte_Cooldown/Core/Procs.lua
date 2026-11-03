@@ -91,6 +91,16 @@ Procs.seen = {}      -- [spellId] = the frame time the aura was last seen plain
 -- seen-route is real on the live client, and how often is it sealed".
 Procs.counts = { reads = 0, plain = 0, secret = 0, raised = 0,
     edges = 0, added = 0, events = 0, skipped = 0 }
+--- The honest reach of the two seen-routes, printed on the `/fx status`
+--- gate row (code-review-5 m10). There is NO party/raid half of this feed to
+--- alias to a wider scan: the event route rides the Module's
+--- `RegisterUnitEvent("UNIT_AURA", "player")` (Module.lua -- the player's
+--- own aura list) and the sweep route is `GetUnitAuras("player", "HELPFUL")`
+--- (`LiveReaders` below). Reading the counters below as party/raid evidence
+--- is the misreading this string exists to block; widening the feed (a
+--- party-unit registration + per-unit sweeps) is a design step, not a
+--- documentation one (docs/design-combat-procs.md §3 channels).
+Procs.coverage = "self only"
 
 -- The injectable seams (the tests script them; the live defaults are below).
 Procs.readers = nil

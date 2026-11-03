@@ -1058,6 +1058,38 @@ function Frame:SetScale(s)
     if self.anchor then self.anchor:SetScale(s) end
 end
 
+--- The eight FrameStrata names (`SetFrameStrata`,
+--- SimpleFrameAPIDocumentation.lua:1293); the same eight the source's own
+--- tip lists (Forte_Core/Localization.lua:441). Plain string literals.
+local STRATA = { "background", "low", "medium", "high", "dialog",
+    "fullscreen", "fullscreen_dialog", "tooltip" }
+local function strataOrNil(value)
+    if type(value) ~= "string" then return nil end
+    local up = string.upper(value)
+    local low = string.lower(up)
+    for i = 1, #STRATA do
+        if STRATA[i] == low then return up end
+    end
+    return nil
+end
+
+--- The Advanced page's strata row for this plate (`opts.advancedKey`:
+--- `SoulstoneStrata` / `HealthstoneStrata` / `SummonStrata` /
+--- `ShardStrata`). The source's per-module rows are
+--- `Forte_Soulstone.lua:645`, `Forte_Healthstone.lua:316`,
+--- `Forte_Summon.lua:573`, each applied by its own
+--- `SetFrameStrata(FW.Settings.<Name>Strata)` (:71, :38, :67); the default
+--- is the source's `Strata = "MEDIUM"` (Forte_Core.lua:2531). A name
+--- outside the eight is ignored: the plate keeps the strata it has.
+function Frame:SetStrata(name)
+    local up = strataOrNil(name)
+    if not up then return end
+    self.state.strata = up
+    if self.anchor and self.anchor.SetFrameStrata then
+        self.anchor:SetFrameStrata(up)
+    end
+end
+
 --- The stored mouse master; the lock law decides whether the frame takes the
 --- mouse at all.
 function Frame:SetEnableMouse(on)
@@ -1210,6 +1242,21 @@ function Frame:_HookSettings()
     apply(self.opts.keys, module, km)
     apply({ "Lock", "Enable", "Scale", "Alpha", "EnableMouse", "ShowTime" },
         module, km)
+    -- The Advanced page's shared strata key of THIS plate (the source's
+    -- `<Name>Strata` row of its Advanced category: Forte_Soulstone.lua:645,
+    -- Forte_Healthstone.lua:316, Forte_Summon.lua:573). One key per plate,
+    -- named by the plate, applied like the shared `General` keys above.
+    local akey = self.opts.advancedKey
+    if akey then
+        self.settings:OnChange("Advanced", function(key, value)
+            if key == akey then self:SetStrata(value) end
+        end)
+        if not self.settings.IsRegistered
+            or self.settings:IsRegistered("Advanced") then
+            local v = self.settings.Get and self.settings:Get("Advanced", akey)
+            if v ~= nil then self:SetStrata(v) end
+        end
+    end
     -- The shared lock law (mirrored from Forte_Hunter/UI/Swing.lua): the
     -- General page's Global Frame Lock (= /fx lock|unlock) and Forte_Cooldown's
     -- published Lock (its SetLocked publish IS its lock-change hook, plan m4)

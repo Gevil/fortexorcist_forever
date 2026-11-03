@@ -240,6 +240,35 @@ function D:SetLocked(locked)
     if locked then self.title:Hide() else self.title:Show() end
 end
 
+--- The eight FrameStrata names (`SetFrameStrata`,
+--- SimpleFrameAPIDocumentation.lua:1293); the same eight the source's own
+--- tip lists (Forte_Core/Localization.lua:441). Plain string literals.
+local STRATA = { "background", "low", "medium", "high", "dialog",
+    "fullscreen", "fullscreen_dialog", "tooltip" }
+local function strataOrNil(value)
+    if type(value) ~= "string" then return nil end
+    local up = string.upper(value)
+    local low = string.lower(up)
+    for i = 1, #STRATA do
+        if STRATA[i] == low then return up end
+    end
+    return nil
+end
+
+--- The Advanced page's strata row for this panel (the source's
+--- `TimerStrata`, Forte_Timer.lua:3277, applied by its own
+--- `self:SetFrameStrata(FW.Settings.TimerStrata)` at :2619; default
+--- `Strata = "MEDIUM"`, Forte_Core.lua:2531). A name outside the eight is
+--- ignored: the panel keeps the strata it has.
+function D:SetStrata(name)
+    local up = strataOrNil(name)
+    if not up then return end
+    if self.options then self.options.strata = up end
+    if self.anchor and self.anchor.SetFrameStrata then
+        self.anchor:SetFrameStrata(up)
+    end
+end
+
 -- ------------------------------------------------------------- the pools --
 --- Group i: the per-target box. The backdrop is the instance's Backdrop
 --- (Background/Border, tile 16, EDGE 3 -- the Spell Timer's own value, :3414-3417)

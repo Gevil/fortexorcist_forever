@@ -66,6 +66,9 @@ local Summon = Frame:new({
     size = { Width = 106, Height = 20, Point = "CENTER", X = 60, Y = -240 },
     module = "Warlock",
     sharedModule = "General",
+    -- The Advanced page's strata row of this plate (the source's
+    -- `SummonStrata`, Forte_Summon.lua:573).
+    advancedKey = "SummonStrata",
     lockKey = "Lock",
     keys = { "SummonWidth", "SummonHeight", "SummonColor",
              "SummonStrikethrough", "SummonDetails", "SummonExpand" },

@@ -49,6 +49,9 @@ local HS = Frame:new({
     size = { Width = 106, Height = 20, Point = "CENTER", X = 190, Y = -215 },
     module = "Warlock",
     sharedModule = "General",
+    -- The Advanced page's strata row of this plate (the source's
+    -- `HealthstoneStrata`, Forte_Healthstone.lua:316).
+    advancedKey = "HealthstoneStrata",
     lockKey = "Lock",
     keys = { "HealthstoneSize", "HealthstoneColor",
              "HealthstoneStrikethrough", "HealthstoneExpand",

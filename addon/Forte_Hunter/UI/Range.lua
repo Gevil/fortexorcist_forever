@@ -176,6 +176,14 @@ end
 --- EnableRangeCheck around the light's lifetime (CAT-declared,
 --- pcall-guarded; the probe-gated launch behaviour rides it, hunter-tools
 --- probe 7).
+---
+--- THE ONE CLIENT-WIDE SIDE EFFECT IN THE HUNTER'S UI (code-review-5 m11):
+--- the call is the game's own switch for ranged swing-range checking, so
+--- while the light is enabled the CLIENT range-checks the swing, not just
+--- our meter. Accepted because the option is opt-in (default OFF), the pair
+--- closes on the same seam (`SetEnabled`), and the tip says it; the live
+--- proof is launch-day check F17 in docs/launch-day.md, which measures the
+--- effect on the client's own Auto Shot cycle in both directions.
 local function enableRangeCheck(on)
     local ok, t = pcall(function()
         local e = _G.Enum and _G.Enum.PlayerSwingType

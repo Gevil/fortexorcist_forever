@@ -147,6 +147,22 @@ function FX.RefreshPlayerClass()
     end
 end
 
+--- The login line (the version + the `/fx status` pointer), gated by the
+--- Advanced page's `ShowStartupText` (the source's row of the same name,
+--- Forte_Core/Options.lua:5577, default true at :2529: "Show the
+--- ForteXorcist startup lines in your chat window", Localization.lua:497).
+--- Off = a silent login. Returns whether the line went out, which is what
+--- the gate's test drives.
+function FX.PrintStartupLine()
+    local st = FX.Settings
+    if st and st.IsRegistered and st:IsRegistered("Advanced")
+        and st:Get("Advanced", "ShowStartupText") == false then
+        return false
+    end
+    FX.Print(FX.CONST.VERSION .. " loaded. /fx status")
+    return true
+end
+
 local bootstrap = CreateFrame("Frame")
 bootstrap:RegisterEvent("ADDON_LOADED")
 bootstrap:RegisterEvent("PLAYER_LOGIN")
@@ -181,8 +197,8 @@ bootstrap:SetScript("OnEvent", function(_, event, addonName)
             FX.EnableModule(name)
         end
         -- From here on, a module that registers is enabled at once (see
-        -- FX.RegisterModule); the loop above must never run twice.
+        -- FX.RegisterModule); the login loop above must never run twice.
         FX._loginDone = true
-        FX.Print(FX.CONST.VERSION .. " loaded. /fx status")
+        FX.PrintStartupLine()
     end
 end)

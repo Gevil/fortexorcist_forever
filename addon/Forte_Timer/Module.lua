@@ -218,7 +218,10 @@ local KEYMAP = {
 }
 -- The map is the page's census surface (tests/test_module.lua): every key
 -- here must be consumed, declared stored, or structural -- the C5 guard that
--- stops a widget shipping with an "Applied live" tip and no consumer.
+-- stops a widget shipping with an "Applied live" tip and no consumer. The
+-- Advanced page's `TimerStrata` rides NO row here on purpose: the map is
+-- THIS page's widget map, and that row is Forte_Options/Pages/Advanced.lua's;
+-- the module listens to the shared `Advanced` module in `_WireSettings`.
 M.KEYMAP = KEYMAP
 
 --- The stored shape of the wired keys, per settings module (the page's
@@ -239,11 +242,28 @@ local STORED = {
         "ColourExpired", "BarColorSelf", "BarColorTarget", "BarColorFocus",
         "BarColorPet", "BarColorEnemy" },
     General = {},
+    -- The Advanced page's shared keys (Forte_Options/Pages/Advanced.lua):
+    -- the module-prefixed strata row of the source's Advanced category.
+    Advanced = { "TimerStrata" },
 }
 
 function M:ApplySettings(tbl)
     for key, value in pairs(tbl or {}) do
         local m = KEYMAP[key]
+        if m and self[m] then self[m](self, value) end
+    end
+end
+
+--- The Advanced page's keys of this module (the source's own per-module
+--- Advanced rows: `TimerStrata`, Forte_Timer.lua:3277). The
+--- page-census KEYMAP is deliberately NOT their route -- the page that
+--- carries them is Forte_Options/Pages/Advanced.lua's, and its rows name the
+--- setter directly (the source's `STR` row type, `Options.lua:5574-5592`).
+local ADVANCED_KEYMAP = { TimerStrata = "SetStrata" }
+
+function M:ApplyAdvancedSettings(tbl)
+    for key, value in pairs(tbl or {}) do
+        local m = ADVANCED_KEYMAP[key]
         if m and self[m] then self[m](self, value) end
     end
 end
@@ -255,7 +275,11 @@ function M:ApplyStoredSettings()
         if st:IsRegistered(module) then
             local out = {}
             for i = 1, #keys do out[keys[i]] = st:Get(module, keys[i]) end
-            self:ApplySettings(out)
+            if module == "Advanced" then
+                self:ApplyAdvancedSettings(out)
+            else
+                self:ApplySettings(out)
+            end
         end
     end
 end
@@ -276,6 +300,9 @@ function M:_WireSettings()
     st:OnChange("General", function(key, value)
         if key == "GlobalLock" then self:SetLocked(not not value) end
     end)
+    st:OnChange("Advanced", function(key, value)
+        self:ApplyAdvancedSettings({ [key] = value })
+    end)
 end
 
 -- ----------------------------------------------------------------- setters --
@@ -283,6 +310,32 @@ function M:SetEnabled(on)
     self.options.enable = not not on
     local d = FX.Timer.Display
     if d and d.SetEnabled then d:SetEnabled(self.options.enable) end
+end
+
+--- The eight FrameStrata names (`SetFrameStrata`,
+--- SimpleFrameAPIDocumentation.lua:1293); the same eight the source's own
+--- tip lists (Forte_Core/Localization.lua:441). Plain string literals.
+local STRATA = { "background", "low", "medium", "high", "dialog",
+    "fullscreen", "fullscreen_dialog", "tooltip" }
+local function strataOrNil(value)
+    if type(value) ~= "string" then return nil end
+    local up = string.upper(value)
+    local low = string.lower(up)
+    for i = 1, #STRATA do
+        if STRATA[i] == low then return up end
+    end
+    return nil
+end
+
+--- The Advanced page's strata row for this panel (the source's
+--- `TimerStrata`, Forte_Timer.lua:3277; default `Strata = "MEDIUM"`,
+--- :2531). The frame call is the display's.
+function M:SetStrata(name)
+    local up = strataOrNil(name)
+    if not up then return end
+    self.options.strata = up
+    local d = FX.Timer.Display
+    if d and d.SetStrata then d:SetStrata(up) end
 end
 
 function M:SetWidth(v)

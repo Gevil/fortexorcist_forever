@@ -193,6 +193,74 @@ test("cast counters classify plain/secret/unresolved, split combat, persist", fu
     M:InitCastDiag()
 end)
 
+-- Code-review-5 m12: the in-combat half of that split is a SAMPLE of
+-- InCombatLockdown taken inside the event handler. It used to run outside a
+-- pcall and truth-test the raw return, and both halves of that are live
+-- hazards: a restricted client RAISES on the read, and a raise inside an
+-- OnEvent is a Lua error popup plus a LOST cast event (the counters above
+-- are launch-day evidence -- losing in-combat events to the sample is
+-- exactly the way that evidence comes back skewed), and a secret-classified
+-- answer truth-tests as "in combat" without ever passing PlainOrNil. The
+-- handler now samples the tree's way (Core/Procs.lua's Gates,
+-- Forte_Timer/Core/Casts.lua's `inCombat`), driven here through the REAL
+-- frame with the catalog's 4-slot payload: a raise and a secret answer are
+-- both "no answer", which rides the out-of-combat half, and the event is
+-- counted in every case.
+test("the frame samples InCombatLockdown pcall'd and classified (m12)",
+function()
+    local savedCasts = FX.db and FX.db.diag and FX.db.diag.casts
+    local savedLockdown = _G.InCombatLockdown
+    if FX.db then FX.db.diag = nil end
+    local d = M:InitCastDiag()
+    local handler = M._eventFrame:GetScript("OnEvent")
+    assertNotNil(handler, "the frame is bound at OnEnable")
+    -- A plain number that resolves to NO name: the counters move, the Engine
+    -- does not, so every number below belongs to the dispatch under test.
+    local BOGUS = 987654321
+
+    -- (a) the sealed read: the raise is contained, the event survives.
+    _G.InCombatLockdown = function()
+        error("FXTEST: the lockdown read is sealed")
+    end
+    local seen, inSeen = d.seen, d.inSeen
+    local ok, err = pcall(handler, M._eventFrame, "UNIT_SPELLCAST_SUCCEEDED",
+        "player", "G:fxtest-raise", BOGUS, 1)
+    assertTrue(ok, "a sealed InCombatLockdown escaped the handler: "
+        .. tostring(err))
+    assertEquals(seen + 1, d.seen, "the raise swallowed the cast event")
+    assertEquals(inSeen, d.inSeen, "a sealed read counted as in combat")
+
+    -- (b) the plain answers: the split behaves as the counters' own contract.
+    _G.InCombatLockdown = function() return true end
+    seen, inSeen = d.seen, d.inSeen
+    handler(M._eventFrame, "UNIT_SPELLCAST_SUCCEEDED", "player",
+        "G:fxtest-in", BOGUS, 1)
+    assertEquals(seen + 1, d.seen)
+    assertEquals(inSeen + 1, d.inSeen, "a plain true is the in-combat half")
+    _G.InCombatLockdown = function() return false end
+    seen, inSeen = d.seen, d.inSeen
+    handler(M._eventFrame, "UNIT_SPELLCAST_SUCCEEDED", "player",
+        "G:fxtest-out", BOGUS, 1)
+    assertEquals(seen + 1, d.seen)
+    assertEquals(inSeen, d.inSeen, "a plain false is the out-of-combat half")
+
+    -- (c) a SECRET lockdown answer is truthy and is not a fact: the raw
+    -- truth test of the old shape counted the cast in the in-combat half.
+    _G.InCombatLockdown = function() return SECRET end
+    seen, inSeen = d.seen, d.inSeen
+    patchPlain()
+    handler(M._eventFrame, "UNIT_SPELLCAST_SUCCEEDED", "player",
+        "G:fxtest-secret", BOGUS, 1)
+    restorePlain()
+    _G.InCombatLockdown = savedLockdown
+    assertEquals(seen + 1, d.seen)
+    assertEquals(inSeen, d.inSeen, "a secret lockdown answer is no answer")
+
+    wipe(Engine.entries)
+    if FX.db then FX.db.diag.casts = savedCasts end
+    M:InitCastDiag()
+end)
+
 test("/fx status prints the casts line and the combat split", function()
     local savedCasts = FX.db and FX.db.diag and FX.db.diag.casts
     if FX.db then FX.db.diag = nil end

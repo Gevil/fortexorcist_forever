@@ -13,4 +13,5 @@ Pages/General.lua
 Pages/Profiles.lua
 Pages/Cooldown.lua
 Pages/Splash.lua
+Pages/Advanced.lua
 Pages/About.lua

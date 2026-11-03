@@ -567,6 +567,35 @@ function D:SetScale(v)
     if self.anchor then self.anchor:SetSize(self:NormalSize(), self:NormalSize()) end
 end
 
+--- The eight FrameStrata names (`SetFrameStrata`,
+--- SimpleFrameAPIDocumentation.lua:1293); the same eight the source's own
+--- tip lists (Forte_Core/Localization.lua:441). Plain string literals.
+local STRATA = { "background", "low", "medium", "high", "dialog",
+    "fullscreen", "fullscreen_dialog", "tooltip" }
+local function strataOrNil(value)
+    if type(value) ~= "string" then return nil end
+    local up = string.upper(value)
+    local low = string.lower(up)
+    for i = 1, #STRATA do
+        if STRATA[i] == low then return up end
+    end
+    return nil
+end
+
+--- The Advanced page's strata row for this window (the source's
+--- `SplashStrata`, Forte_Cooldown.lua:1793, applied by its own
+--- `self:SetFrameStrata(FW.Settings.SplashStrata)` at :1067; default
+--- `Strata = "MEDIUM"`, Forte_Core.lua:2531). A name outside the eight is
+--- ignored: the window keeps the strata it has.
+function D:SetStrata(name)
+    local up = strataOrNil(name)
+    if not up then return end
+    S.Strata = up
+    if self.anchor and self.anchor.SetFrameStrata then
+        self.anchor:SetFrameStrata(up)
+    end
+end
+
 -- --------------------------------------------------------- live settings --
 --- options key -> setter (the Timeline's / the Swing's seam shape). Lock
 --- rides SetLocked (the frame publishes it back); GlobalLock is the
@@ -580,6 +609,9 @@ local KEYMAP = {
     SplashGlow = "SetSplashGlow",
     Alpha = "SetAlpha",
     Scale = "SetScale",
+    -- The Advanced page's shared strata row for this window (the source's
+    -- `SplashStrata`, Forte_Cooldown.lua:1793).
+    SplashStrata = "SetStrata",
 }
 
 --- The stored shape of the wired keys (the page's defaults are canonical).
@@ -588,6 +620,7 @@ local KEYMAP = {
 local STORED = {
     Splash = { "Enable", "SecondSplashMax", "SplashMax",
         "SplashGlow", "Alpha", "Scale" },
+    Advanced = { "SplashStrata" },
 }
 
 function D:ApplySettings(tbl)
@@ -628,6 +661,9 @@ function D:_WireSettings()
     end)
     st:OnChange("General", function(key, value)
         if key == "GlobalLock" then self:SetLocked(not not value) end
+    end)
+    st:OnChange("Advanced", function(key, value)
+        self:ApplySettings({ [key] = value })
     end)
 end
 

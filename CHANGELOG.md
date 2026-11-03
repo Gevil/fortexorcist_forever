@@ -12,6 +12,45 @@ headless interface simulator and on uiforever.com — not in a live game.
 
 ---
 
+## Unreleased — 2026-11-03 (Iteration H, wave 5)
+
+- **The Advanced Options page has a cell that lights.** The module index of
+  the options window had a dimmed `Advanced Options` square since the first
+  build; it is a page now, and the square is live. In it: **Show startup
+  text** (the login line in your chat, off = a silent login), **Expand all**
+  and **Load expanded** (how a page opens: every section open, or folded
+  except the tips and `Basics`, and whether a section you folded yourself is
+  remembered on the next visit), **Animate auto-scrolling** (the mouse wheel
+  eases to its target in the options list instead of jumping), and a
+  **Frame level (strata)** row for each module frame — the Cooldown Timer,
+  the Secondary Splash, the Spell Timers panel, the Hunter swing bar and the
+  four Warlock plates — for the case the original's own tip describes: a
+  module you can not click through, or that hides behind a Blizzard dialog,
+  is one name off (`BACKGROUND`, `LOW`, `MEDIUM`, `HIGH`, `DIALOG`,
+  `FULLSCREEN`, `FULLSCREEN_DIALOG`, `TOOLTIP`). Every row is applied live on
+  the frame it names, and a name outside the eight is kept as typed and
+  ignored, so a typo can not drop a bar off the screen. Rows of the 2012 page
+  that have nothing to drive here — frame snapping, the update and animation
+  intervals, the options column count and height — are not on the page, and
+  the ones that are on the General page (**Right-click headers for options**,
+  live on the Cooldown bar) are named in `Pages/Advanced.lua`.
+- **Your settings, not ours.** Add-ons that remember every setting ever
+  shipped remember them at the value the build had when they wrote the
+  file — so a default the developers later changed (the alternate time
+  format shipped ON, a shipped OFF for a chatty alert) never reached an
+  install that never touched the switch: the stored old default won. The
+  settings store now keeps **only the values that differ from the shipped
+  defaults** — reading an untouched switch stores nothing, moving a switch
+  back to its shipped value forgets it, and a reset clears the stored
+  values instead of writing them. A one-time file cleanup (schema v2)
+  drops the frozen defaults from existing installs, profile by profile;
+  values that differ from a shipped default are kept (a stored choice can
+  not be told apart from a frozen default, and losing your choices is the
+  worse failure). SavedVariables files shrink to what you actually chose,
+  and a future default change reaches every install that never opted out.
+
+---
+
 ## Unreleased — 2026-11-02 (Iteration H: the launch kit)
 
 - **Item proc timers have a switch.** The Cooldown Timer page's Specifics

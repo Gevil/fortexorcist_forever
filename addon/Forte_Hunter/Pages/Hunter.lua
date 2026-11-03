@@ -212,7 +212,11 @@ function P.RegisterHunterPage()
                     s.NUM({ module = M, key = "OutOfCombatAlpha",
                         label = "Out-of-combat alpha", min = 0, max = 1,
                         step = 0.05,
-                        tip = "Bar alpha out of combat (default 0.0 = hidden out of combat, the WeaponSwingTimer in-combat-only law). Live." })
+                        tip = "Bar alpha out of combat (default 1.0 = VISIBLE "
+                            .. "out of combat, the shipped shape: the WeaponSwingTimer "
+                            .. "in-combat-only law is NOT copied -- the bar hides "
+                            .. "itself while the swing cycle is idle, so an alpha of "
+                            .. "0.0 is the way to park it out of combat by hand). Live." })
                 end, {
                     module = M,
                     keys = { "InCombatAlpha", "OutOfCombatAlpha" },

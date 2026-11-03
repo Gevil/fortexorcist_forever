@@ -53,6 +53,9 @@ local Stone = Frame:new({
     size = { Width = 106, Height = 20, Point = "CENTER", X = 60, Y = -215 },
     module = "Warlock",
     sharedModule = "General",
+    -- The Advanced page's strata row of this plate (the source's
+    -- `SoulstoneStrata`, Forte_Soulstone.lua:645).
+    advancedKey = "SoulstoneStrata",
     lockKey = "Lock",
     keys = { "SoulstoneWidth", "SoulstoneHeight", "SoulstoneColor",
              "SoulstoneStrikethrough", "SoulstoneExpand",

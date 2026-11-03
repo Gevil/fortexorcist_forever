@@ -65,6 +65,10 @@ local Shards = Frame:new({
     size = { Width = 106, Height = 20, Point = "CENTER", X = -180, Y = -215 },
     module = "Warlock",
     sharedModule = "General",
+    -- The Advanced page's strata row of this plate (the shard plates are
+    -- not in the /tmp/fxref snapshot, so the key is ours, named like the
+    -- source's own per-module rows: Forte_Soulstone.lua:645).
+    advancedKey = "ShardStrata",
     lockKey = "Lock",
     keys = { "ShardSize", "ShardColor", "ShardStrikethrough" },
     keymap = {

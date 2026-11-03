@@ -545,6 +545,65 @@ test("the Hunter page builds in the options window", function()
     assertEquals(false, FX.Options:IsOpen())
 end)
 
+-- The page's tips are the shipped defaults' only prose, and two of them
+-- used to describe code that is not the code (code-review-5 m4, m5): the
+-- Combat Alpha row stated the WeaponSwingTimer in-combat-only law against a
+-- shipped default of 1.0 (UI/Swing.lua's skin comment: "parked VISIBLE"), and
+-- the Latency row was pushed toward "Live" against a control whose state
+-- field no render pass reads. A tip that contradicts its own key is a defect
+-- the owner files as "the option does nothing", so the two rows are pinned
+-- to the code they describe -- the same pin on every future tip edit.
+test("the Hunter page's tips tell the truth about their keys", function()
+    if not (FX.Options and FX.Options.pages and FX.Options.pages["Hunter"]) then
+        print("[page] Forte_Options has no Hunter page -- skipped")
+        return
+    end
+    FX.Options:Open("Hunter")
+    local page = FX.Options.pagesBuilt["Hunter"]
+    assertNotNil(page, "the page builds")
+    local tips, labels = {}, {}
+    for _, sec in ipairs(page.sections) do
+        for _, w in ipairs(sec.widgets) do
+            local spec = w.spec
+            if spec and spec.key then
+                tips[spec.key] = spec.tip or ""
+                labels[spec.key] = spec.label or ""
+            end
+        end
+    end
+    FX.Options:Close()
+
+    -- m4: the alpha pair's default IS visible (the store's default and the
+    -- skin agree -- the alpha law of UI/Swing.lua's pair), so the tip has to
+    -- say the shipped number and never the WST law the module does not ship.
+    assertEquals(1.0, FX.Settings:GetDefault("Hunter", "OutOfCombatAlpha"))
+    local ooc = tips["OutOfCombatAlpha"]
+    assertNotNil(ooc, "the OutOfCombatAlpha row is on the page")
+    assertContains(ooc, "1.0")
+    assertContains(ooc, "VISIBLE")
+    local inCombat = tips["InCombatAlpha"]
+    assertContains(inCombat, "1.0")
+
+    -- m5: the latency strip has no render consumer -- the state field its
+    -- setter writes is read by nobody in the bar (UI/Swing.lua), which is the
+    -- Gap-12 launch-probe law, not a live feature. The tip says "inert", the
+    -- label says "needs launch probe", and NEITHER may claim "Live" while no
+    -- render path reads it.
+    local lat = tips["ShowLatency"]
+    assertNotNil(lat, "the ShowLatency row is on the page")
+    assertContains(lat, "inert")
+    assertContains(labels["ShowLatency"], "launch probe")
+    local function claimsLive(text)
+        return text:find("Live", 1, true) ~= nil
+    end
+    assertFalse(claimsLive(lat), "the latency tip claims a live strip")
+    assertFalse(claimsLive(labels["ShowLatency"]),
+        "the latency label claims a live strip")
+    -- And the claim the sibling rows DO make: the alpha pair is applied at
+    -- the frame (UI/Swing.lua's _ApplyCombatAlpha leg).
+    assertContains(inCombat, "Live")
+end)
+
 test("Status prints the swing bar, the reminder and the range light", function()
     local lines = {}
     local realPrint = FX.Print

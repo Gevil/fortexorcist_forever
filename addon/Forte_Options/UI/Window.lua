@@ -53,6 +53,8 @@ O.C = {
     MAX_TABS = 6,           -- more profiles -> a "..." tab onto the page
 
     WHEEL_STEP = 40,
+    -- AnimateScroll (Advanced page): the eased wheel ride, px per second.
+    SCROLL_ANIM_SPEED = 900,
 
     -- scroll indication (2026-11-01 defect pass): a 6px track on the
     -- viewport's right edge + an Aluminium thumb (UpdateScrollbar).
@@ -75,6 +77,58 @@ local C = O.C
 
 O.pages = O.pages or {}     -- [id] = def
 O.PAGE_ORDER = O.PAGE_ORDER or {}
+
+--- One switch of the Advanced page (`Pages/Advanced.lua`), read live. The
+--- page file owns the defaults; `missing` is the shipped behaviour for a
+--- session in which it is not registered.
+local function advancedFlag(key, missing)
+    local st = FX.Settings
+    if not st or not st.IsRegistered or not st:IsRegistered("Advanced") then
+        return missing
+    end
+    local v = st:Get("Advanced", key)
+    if v == nil then return missing end
+    return v and true or false
+end
+
+-- ---------------------------------------------------- section expand law --
+--- The Advanced page's ExpandSubcats / LoadExpandSubcats pair
+--- (`Forte_Core/Options.lua:5589-5590`, defaults `ExpandSubcats = false`,
+--- `LoadExpandSubcats = true` at Forte_Core.lua:2530-2531). With `Expand
+--- all` off a fresh page opens with its sections folded, "except from the
+--- 'Basics'" (the option's own words, Localization.lua:501); `Load expanded`
+--- is the memory of the sections the player folded himself, kept in the
+--- lazily-created `FX.db.optionsExpanded` row (the `optionsPos` idiom).
+local function expandMemory()
+    if FX.db then
+        FX.db.optionsExpanded = FX.db.optionsExpanded or {}
+        return FX.db.optionsExpanded
+    end
+    O._expandFallback = O._expandFallback or {}
+    return O._expandFallback
+end
+
+--- Record a manual fold. `Load expanded` off = the fold is this session's
+--- only (the built page keeps it, a rebuilt page falls back to `Expand
+--- all`).
+function O:RememberCollapse(pageId, title, collapsed)
+    if not advancedFlag("LoadExpandSubcats", true) then return end
+    local mem = expandMemory()
+    local per = mem[pageId]
+    if not per then per = {} ; mem[pageId] = per end
+    per[title] = collapsed and true or false
+end
+
+--- The state one section of a FRESH page build starts in.
+function O:StartCollapsed(pageId, title, isFirst)
+    if advancedFlag("LoadExpandSubcats", true) then
+        local per = expandMemory()[pageId]
+        local v = per and per[title]
+        if v ~= nil then return v and true or false end
+    end
+    if advancedFlag("ExpandSubcats", true) then return false end
+    return not (isFirst or title == "Basics")
+end
 
 --- The full original module index, in the original's order. Only pages a
 --- Pages/*.lua file registered are live; the rest render dimmed with the
@@ -531,9 +585,17 @@ local function newBuilder(o, page)
         end)
     end
 
-    --- Section(title, fillFn(s), opts). fillFn adds rows through s.CHK/...
+    --- Section(title, fillFn, opts). fillFn adds rows through s.CHK/...
     function b.Section(title, fillFn, opts)
         opts = opts or {}
+        b.sectionIndex = (b.sectionIndex or 0) + 1
+        -- The Advanced page's ExpandSubcats / LoadExpandSubcats pair: a
+        -- section with no state of this build yet starts where those two
+        -- say (the law is in O:StartCollapsed).
+        if page.collapsed[title] == nil then
+            page.collapsed[title] = o:StartCollapsed(page.id, title,
+                b.sectionIndex == 1)
+        end
         local pad, y0, w = 0, b.y, b.width
         local secFrame = CreateFrame("Frame", nil, page.frame)
         secFrame:SetWidth(w)
@@ -544,6 +606,7 @@ local function newBuilder(o, page)
             tip = opts.tip,
             onToggle = function(collapsed)
                 page.collapsed[title] = collapsed
+                o:RememberCollapse(page.id, title, collapsed)
                 o:LayoutPage(page)
             end,
             onResetAll = (opts.module and opts.keys) and function()
@@ -688,6 +751,7 @@ function O:SetPage(pageId)
     -- that page), and the first Open builds the shell before the page is
     -- known: the row is redrawn with every page change.
     self:RefreshProfileTabs()
+    self:StopScrollAnim()
     self._scroll = 0
     self:ApplyScroll()
 end
@@ -820,11 +884,59 @@ function O:BuildHeader(def)
 end
 
 -- ---------------------------------------------------------------- scroll --
+--- `AnimateScroll` (`Forte_Core/Options.lua:5590`, default false at
+--- Forte_Core.lua:2477): the wheel target is eased to instead of jumped to.
+function O:AnimateScrollOn()
+    return advancedFlag("AnimateScroll", false)
+end
+
+function O:StopScrollAnim()
+    self._scrollAnim = nil
+    self._scrollTarget = nil
+    if self.window then self.window:SetScript("OnUpdate", nil) end
+end
+
+function O:StartScrollAnim()
+    local f = self.window
+    if not f or self._scrollAnim then return end
+    self._scrollAnim = true
+    f:SetScript("OnUpdate", function(_, elapsed)
+        self:StepScrollAnim(elapsed)
+    end)
+end
+
+--- One easing step toward `_scrollTarget` (C.SCROLL_ANIM_SPEED px/s); the
+--- driver script is dropped the moment the target is reached, so an idle
+--- window runs no per-frame work.
+function O:StepScrollAnim(elapsed)
+    local target = self._scrollTarget
+    if target == nil then return self:StopScrollAnim() end
+    local cur = self._scroll or 0
+    local step = (tonumber(elapsed) or 0.04) * C.SCROLL_ANIM_SPEED
+    if step < 1 then step = 1 end
+    local d = target - cur
+    if math.abs(d) <= step then
+        self._scroll = target
+        self:ApplyScroll()
+        return self:StopScrollAnim()
+    end
+    self._scroll = cur + (d > 0 and step or -step)
+    self:ApplyScroll()
+end
+
 function O:Scroll(delta)
     if not self.content then return end
     local maxScroll = math.max(0, self.contentHeight - self.viewport:GetHeight())
-    self._scroll = math.max(0, math.min(maxScroll, (self._scroll or 0) - delta))
-    self:ApplyScroll()
+    local from = self._scrollTarget or self._scroll or 0
+    local target = math.max(0, math.min(maxScroll, from - delta))
+    if not self:AnimateScrollOn() then
+        self:StopScrollAnim()
+        self._scroll = target
+        self:ApplyScroll()
+        return
+    end
+    self._scrollTarget = target
+    self:StartScrollAnim()
 end
 
 function O:ApplyScroll()

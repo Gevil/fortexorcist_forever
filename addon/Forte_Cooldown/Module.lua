@@ -598,8 +598,22 @@ function M:OnEnable()
             -- castBarID) is tolerated above and RecordCastEvent counts the
             -- spellID's secrecy per event (the first live session reads the
             -- truth off /fx status).
-            local inCombat = type(InCombatLockdown) == "function" and InCombatLockdown()
-            M:RecordCastEvent(spellID, inCombat and true or false)
+            -- The combat split is SAMPLED, never assumed: the read runs in a
+            -- pcall and its value passes PlainOrNil before the truth test --
+            -- a restricted client may raise on InCombatLockdown and a
+            -- restricted client may answer secretly, and a raise inside an
+            -- OnEvent is a Lua error popup on the player's screen. "No
+            -- answer" counts as out of combat, the safe half of the split
+            -- (the totals are printed beside it, so a skewed split is
+            -- readable off /fx status; the tree's convention:
+            -- Core/Procs.lua's Gates, Forte_Timer/Core/Casts.lua's
+            -- `inCombat` -- code-review-5 m12).
+            local inCombat = false
+            if type(InCombatLockdown) == "function" then
+                local okIC, locked = pcall(InCombatLockdown)
+                inCombat = (okIC and FX.Compat.PlainOrNil(locked)) and true or false
+            end
+            M:RecordCastEvent(spellID, inCombat)
         elseif event == "SPELL_UPDATE_COOLDOWN" then
             -- Blizzard says one cooldown changed; it says this per spell, so
             -- a spell-learn burst would mean N passes. Coalesce to one.
@@ -613,15 +627,22 @@ function M:OnEnable()
         elseif event == "UNIT_AURA" then
             -- An aura list changed. The payload is (unitTarget,
             -- UnitAuraUpdateInfo) and lands in the handler's `unit` /
-            -- `castGUID` slots (the ADDON_RESTRICTION_STATE_CHANGED
-            -- precedent above: a payload in foreign slots is named, not
-            -- ignored). The proc tracker's in-combat half (Core/Procs.lua):
-            -- the event is SecretWhenAurasRestricted and its payload is the
+            -- `castGUID` slots -- the names of the CAST family this frame
+            -- also carries (the ADDON_RESTRICTION_STATE_CHANGED precedent
+            -- below: a payload in foreign slots is named, not ignored) --
+            -- so THIS leg aliases them to the aura event's own names right
+            -- away and hands those on (code-review-5 m1): the callee is
+            -- `Procs:OnUnitAura(unitTarget, updateInfo, now)`
+            -- (Core/Procs.lua), and a handoff that reads
+            -- `OnUnitAura(unit, castGUID)` is how a slot swap hides.
+            -- The proc tracker's in-combat half: the event is
+            -- SecretWhenAurasRestricted and its payload is the
             -- UnitAuraUpdateInfo struct, so every field read runs pcall'd
             -- inside OnUnitAura and only a PLAIN spellId from `addedAuras`
             -- may speak.
+            local unitTarget, updateInfo = unit, castGUID
             if Engine.Procs then
-                Engine.Procs:OnUnitAura(unit, castGUID)
+                Engine.Procs:OnUnitAura(unitTarget, updateInfo)
             end
         elseif event == "ADDON_RESTRICTION_STATE_CHANGED"
             or event == "PLAYER_REGEN_DISABLED" then
@@ -731,6 +752,9 @@ function M:Status()
     end
     -- Proc ICD windows (Core/Procs.lua) + the launch-day evidence of the
     -- two seen-routes: reads plain/secret/raised, the edges, the entries.
+    -- The row NAMES its reach (Core/Procs.lua's `coverage`, code-review-5
+    -- m10): the aura-event counter is the player's own aura list, so a
+    -- launch-day reader cannot count it as party/raid proc evidence.
     if Engine.Procs then
         local watched, live = Engine.Procs:Counts()
         local c = Engine.Procs.counts
@@ -741,6 +765,10 @@ function M:Status()
         FX.Print(string.format(
             "  proc reads %d | plain %d | secret %d | raised %d | skipped %d",
             c.reads, c.plain, c.secret, c.raised, c.skipped))
+        FX.Print(string.format(
+            "  proc feed coverage: %s (the aura events are UNIT_AURA(\"player\"),"
+            .. " the sweep reads GetUnitAuras(\"player\"); no party/raid route)",
+            tostring(Engine.Procs.coverage)))
     end
     -- Cast-secrecy counters (PLAN §8 "instrument" mitigation): the first
     -- live combat session reads the truth off the `secret` column.

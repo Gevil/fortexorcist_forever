@@ -424,6 +424,36 @@ function D:SetFont(path)
     end
 end
 
+--- The eight FrameStrata names (`SetFrameStrata`,
+--- SimpleFrameAPIDocumentation.lua:1293); the same eight the source's own
+--- tip lists (Forte_Core/Localization.lua:441). Plain string literals.
+local STRATA = { "background", "low", "medium", "high", "dialog",
+    "fullscreen", "fullscreen_dialog", "tooltip" }
+local function strataOrNil(value)
+    if type(value) ~= "string" then return nil end
+    local up = string.upper(value)
+    local low = string.lower(up)
+    for i = 1, #STRATA do
+        if STRATA[i] == low then return up end
+    end
+    return nil
+end
+
+--- The Advanced page's strata row for this bar (`HunterStrata`). The
+--- source's Hunter class module registers ZERO options
+--- (`Forte_Class/Hunter/Hunter.lua`), so the row is ours; the key follows
+--- the source's per-module strata naming (Forte_Cooldown.lua:1790,
+--- Forte_Timer.lua:3277). A name outside the eight is ignored: the bar
+--- keeps the strata it has.
+function D:SetStrata(name)
+    local up = strataOrNil(name)
+    if not up then return end
+    S.Strata = up
+    if self.anchor and self.anchor.SetFrameStrata then
+        self.anchor:SetFrameStrata(up)
+    end
+end
+
 -- ------------------------------------------------------- swing v2 seams --
 function D:SetShowSafeWindow(on)
     ST.showSafeWindow = not not on
@@ -759,6 +789,11 @@ local KEYMAP = {
     InCombatAlpha = "SetInCombatAlpha",
     OutOfCombatAlpha = "SetOutOfCombatAlpha",
     BaseSpeed = "SetBaseSpeed",
+    -- The Advanced page's strata row for this bar (the source has no Hunter
+    -- options at all; the key is the shared Advanced page's, named like the
+    -- source's per-module rows: Forte_Cooldown.lua:1790, Forte_Timer
+    -- .lua:3277).
+    HunterStrata = "SetStrata",
 }
 
 --- The stored shape of the wired keys, per settings module (the pages'
@@ -771,6 +806,8 @@ local STORED = {
         "ShowRetry", "ShowLatency", "InCombatAlpha", "OutOfCombatAlpha",
         "BaseSpeed" },
     General = { "BarFont" },
+    -- The Advanced page's shared keys (Forte_Options/Pages/Advanced.lua).
+    Advanced = { "HunterStrata" },
 }
 
 function D:ApplySettings(tbl)

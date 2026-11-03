@@ -114,6 +114,7 @@ a screenshot of anything that looks wrong is worth more than a description.
 | F14 | Try to cast a spell that is on cooldown (with Cooldown → Warn on) | that icon on the bar flashes and comes to the front |
 | F15 | Right-click the cooldown bar (don't drag) | the options window opens on the Cooldown page; a drag-and-release does **not** open it |
 | F16 | (Warlock) Banish a demon/elemental; (Mage) Polymorph; (Rogue) Sap | ~3 s before it ends you hear the bell twice (ShaysBell); if it breaks early you hear the break sound. **No party chat** unless you ticked it on the Party/Raid Messages page |
+| F17 | (Hunter) `/fx options` → Hunter Tools → tick **Enable range / dead-zone light**, stand at ~20 yd on the dummy and start Auto Shot; walk past 35 yd; then untick it | the strip shows MELEE/DEAD/8-35/35+/OUT as you move. **This option switches a CLIENT-wide feature on: `C_SwingTimer.EnableRangeCheck(Ranged, true)`** (`addon/Forte_Hunter/UI/Range.lua`), so while the light is on the game itself starts range-checking the ranged swing. Expected: Auto Shot keeps cycling inside 35 yd, the strip reads OUT beyond it, and the client's own swing behaviour is unchanged from what you see with the light off (no new "out of range" ability flashes, no swing stall). Untick → the strip hides and the check is switched back off: the swing cycle goes back to the plain behaviour and nothing else in the UI keeps range-checking. Report any swing-range change that OUTLIVES the untick — that would mean the pair is not closed |
 
 
 ## Reading the output (one line per probe group)

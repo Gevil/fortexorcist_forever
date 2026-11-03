@@ -171,3 +171,42 @@ test("locale: the family gate canonicalizes the client name first", function()
     assertFalse(FX.MatchesFamily("Seelenstein erstellen", FX.SoulstonePatterns),
         "with no alias the German name is not in the family (enUS shape)")
 end)
+
+-- Code-review-5 m7: the item watch's own tear-down. The module's disable
+-- hook used to call `frame:UnregisterEvent(...)` straight out, against the
+-- tree's guarded disable law (Forte_Hunter/UI/Swing.lua:926-941,
+-- Forte_Warlock/Core/Comms.lua:639-646, Forte_Shaman/Core/Totems.lua:347-353):
+-- the method is catalog-declared for the REAL client's Frame and absent from
+-- the simulator's frame emulation, and a restricted client may raise on it,
+-- so the hook the loader runs on every disable died on its first line -- the
+-- module tore down half its own state. The hook is nil-guarded and pcall'd
+-- now; this drives the REAL hook against the real frame (the shape that used
+-- to raise) and against a frame whose method raises.
+test("locale: the item-watch disable survives the frame shapes", function()
+    local mod = FX.modules and FX.modules["Locale"]
+    assertNotNil(mod, "the Locale module is registered")
+    assertNotNil(mod.OnDisable, "the module ships a disable hook")
+    local frame = Locale.WatchItemLoads()
+    assertNotNil(frame, "the watch builds the frame")
+    local ok, err = pcall(mod.OnDisable)
+    assertTrue(ok, "the disable raised on this client's frame: " .. tostring(err))
+    -- The idempotence half: a second pass with nothing left to do.
+    local ok2, err2 = pcall(mod.OnDisable)
+    assertTrue(ok2, "the second disable raised: " .. tostring(err2))
+    -- The restricted-client half: the method exists and raises.
+    local saved = Locale.state.frame
+    Locale.state.frame = {
+        UnregisterEvent = function()
+            error("FXTEST: the un-register is sealed")
+        end,
+    }
+    local ok3, err3 = pcall(mod.OnDisable)
+    Locale.state.frame = saved
+    assertTrue(ok3, "a raising UnregisterEvent escaped the disable: "
+        .. tostring(err3))
+    -- The handle rides on, so the watch's pair has one home and a re-enable
+    -- re-runs against the same frame it registered on.
+    assertEquals(frame, Locale.WatchItemLoads(),
+        "the watch is idempotent on the frame handle")
+    assertNotNil(Locale.state.frame, "the disable kept the frame handle")
+end)

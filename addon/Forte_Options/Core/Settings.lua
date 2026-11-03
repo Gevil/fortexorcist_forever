@@ -3,17 +3,31 @@
 -- Every page registers a module's defaults table once; live values live in
 -- the ACTIVE PROFILE's table, `db.profiles.byName[<profile>].settings[module]`
 -- (SavedVariables, ForteXorcistDB, shape owned by Forte_Core/Core/Database.lua).
--- Defaults NEVER overwrite a saved value: seeding copies a default only where
--- the profile table has nil.
+--
+-- THE STORE IS SPARSE (Wave 5, 2026-11-03): it holds ONLY the values that
+-- differ from the registered defaults. Reading a key nobody set fills the
+-- default in (Get returns a deep copy of the registered value) and stores
+-- NOTHING -- writing a value equal to the registered default DELETES the
+-- stored key. The live uiforever probe is why: the old layer seeded every
+-- default into every profile table, so each install froze the defaults it
+-- was written under (all 8 General keys on a player who only ever set
+-- Cooldown.Width; the shipped AltTimeFormat=true never reached a profile
+-- carrying the old false). The v1 -> v2 migration (Core/Database.lua) drops
+-- the frozen values of EXISTING installs; this law keeps new writes clean.
+-- Defaults NEVER overwrite a stored value: a stored key always wins.
 --
 -- Contract (docs/reference-functional-spec.md §8.1 OP-03/OP-04, PLAN §3.6):
 --   * values are flat scalars, strings, arrays (time-tag string is one string)
 --     or nested tables for colours: { r, g, b, a } (the original's positional
 --     colour shape).
 --   * Reset(module) restores every key of the module; Reset(module, key)
---     restores one key. Both write the *deep copy* of the registered default,
---     so callers can mutate the table they get back from Get() without
---     corrupting the default.
+--     restores one key. Both push the *deep copy* of the registered default
+--     through Set -- which, the value being equal to the default, removes
+--     the stored keys of the module and notifies every consumer, so the
+--     effective value is the shipped one and the file keeps no shadow of
+--     the old. Callers mutating a table they got from Get() (the colour
+--     contract) can not corrupt the registered defaults: Get hands out a
+--     deep copy of a default, never the registered table.
 --   * Set fires every callback registered through OnChange(module, fn) as
 --     fn(key, value) -- this is the wiring seam pages use to push a value
 --     into a live consumer (e.g. FX.Cooldown.Display:SetLocked). It is also
@@ -82,6 +96,22 @@ local function deepCopy(v)
     return out
 end
 S._deepCopy = deepCopy   -- shared with the widget layer (colour rows)
+
+--- Deep equality over the plain-data shapes the store carries: scalars by
+--- `==`, tables by key set + recursive compare (the { r, g, b, a } colour
+--- rows ride it). Read-only on both sides.
+local function deepEqual(a, b)
+    if a == b then return true end
+    if type(a) ~= "table" or type(b) ~= "table" then return false end
+    local n = 0
+    for k, v in pairs(a) do
+        n = n + 1
+        if b[k] == nil or not deepEqual(v, b[k]) then return false end
+    end
+    for _ in pairs(b) do n = n - 1 end
+    return n == 0
+end
+S._deepEqual = deepEqual -- test seam
 
 -- =============================================================== profiles ==
 local P = {}
@@ -260,12 +290,66 @@ end
 
 function S.DroppedKeys() return droppedKeys end
 
+-- ------------------------------------------------- v2 default-equal prune --
+--- The v2 prune of ONE module over one profile map (`byName`): drop every
+--- stored value that equals the module's CURRENT registered default (deep
+--- equality — the colour rows). Such a value is a default FROZEN at the
+--- build that wrote it, not a choice: keeping it pins the install to the
+--- old default forever. Idempotent (a second pass drops nothing) and a
+--- no-op for an unregistered module (no type law, no opinion — the
+--- LoadOnDemand law). Assigning nil to existing keys inside pairs() is the
+--- legal shape of the walk.
+local function pruneModuleDefaults(module, byName)
+    local def = defaults[module]
+    if not def then return 0 end
+    local n = 0
+    for _, profile in pairs(byName) do
+        local st = type(profile) == "table" and profile.settings
+        local t = type(st) == "table" and st[module]
+        if type(t) == "table" then
+            for key, value in pairs(t) do
+                local d = def[key]
+                if d ~= nil and deepEqual(value, d) then
+                    t[key] = nil
+                    n = n + 1
+                end
+            end
+        end
+    end
+    return n
+end
+
+--- The migration-2 entry (Forte_Core/Core/Database.lua MIGRATIONS[2], called
+--- on the raw table): prune every module REGISTERED IN THIS SESSION over
+--- every profile of the given DB and mark each in the step's marker table.
+--- LoD pages register AFTER the ladder (their AddOn loads at PLAYER_LOGIN,
+--- the ladder at ADDON_LOADED) — the standing law of the original's ladder
+--- ("always use real values for defaults... these defaults/modules may not
+--- be loaded", Forte_Core.lua:1332) forbids inventing the missing defaults
+--- here, so the Register hook prunes those modules lazily at their
+--- registration, and the marker is what tells the hook which are already
+--- done. Returns the number of dropped values.
+function S.PruneStoredDefaults(db, marked)
+    local p = type(db) == "table" and db.profiles
+    local byName = type(p) == "table" and p.byName
+    if type(byName) ~= "table" then return 0 end
+    local n = 0
+    for _, module in ipairs(S:GetModuleNames()) do
+        if type(marked) == "table" then marked[module] = true end
+        n = n + pruneModuleDefaults(module, byName)
+    end
+    return n
+end
+
 -- ------------------------------------------------------------------ store --
---- The live storage table for a module, in the ACTIVE PROFILE, seeded from
---- the registered defaults without overwriting any saved value. The
---- type-check pass is keyed by (profile, module): a profile the player
---- switches to is checked when this session first reads it, and a profile
---- it returns to is not re-checked.
+--- The live storage table for a module, in the ACTIVE PROFILE. SPARSE: it
+--- is never seeded -- a key the player never moved is NOT in the table,
+--- Get fills the registered default in (a deep copy, not a write). Seeding
+--- here is exactly what froze the shipped defaults into every profile file
+--- (Wave 5, see the file header). The type-check pass is keyed by
+--- (profile, module): a profile the player switches to is checked when
+--- this session first reads it, and a profile it returns to is not
+--- re-checked.
 local function store(module)
     local profileName = P.Bind()
     local base = profileSettings(profileName)
@@ -292,11 +376,6 @@ local function store(module)
                     n, module, tostring(profileName)))
             end
         end
-        for key, value in pairs(def) do
-            if t[key] == nil then
-                t[key] = deepCopy(value)
-            end
-        end
     end
     return t
 end
@@ -307,6 +386,29 @@ S._store = store
 --- the page files, which register from their own chunk).
 function S:Register(moduleName, def)
     defaults[moduleName] = def
+    -- The v2 LAZY prune: the migration ladder runs at ADDON_LOADED, the
+    -- load-on-demand pages (Hunter, Spell Timer, Warlock, the Messages
+    -- pages) register at PLAYER_LOGIN, after it. The ladder leaves the
+    -- marker table `db.defaultsPruned` behind; a module it could not see
+    -- (absent from the marker) gets its stored, default-frozen values
+    -- pruned HERE, at its registration, over every profile of the live DB.
+    -- A module never registered in a session (a class that is not yours)
+    -- is pruned in the first session where it is: a stored value equal to
+    -- the current default reads identically to the default until then, so
+    -- the delay costs nothing. An install that never ran the v2 ladder (a
+    -- newer DB stamped above this build) has no marker and gets no prune.
+    local marked = FX.db and FX.db.defaultsPruned
+    if type(marked) == "table" and not marked[moduleName] then
+        marked[moduleName] = true
+        local n = pruneModuleDefaults(moduleName,
+            (profilesRoot().byName))
+        if n > 0 then
+            FX.Print(string.format(
+                "dropped %d saved value(s) of %s that equalled their shipped"
+                .. " default; they follow the shipped defaults from now on",
+                n, moduleName))
+        end
+    end
 end
 
 function S:IsRegistered(moduleName)
@@ -320,14 +422,33 @@ function S:GetModuleNames()
     return names
 end
 
+--- The effective value of one key: the stored value if the player set one,
+--- else a DEEP COPY of the registered default (never the registered table,
+--- never a write: the read that fills a default in must not put it back
+--- into the file, the Wave 5 law). nil for a key nobody registered.
 function S:Get(moduleName, key)
-    return store(moduleName)[key]
+    local v = store(moduleName)[key]
+    if v ~= nil then return v end
+    local def = defaults[moduleName]
+    local d = def and def[key]
+    if d == nil then return nil end
+    return deepCopy(d)
 end
 
---- Write a value and notify this module's change listeners.
+--- Write a value and notify this module's change listeners. A value
+--- DEEP-EQUAL to the registered default is not a user preference: it
+--- DELETES the stored key instead of writing it (the effective value is the
+--- default either way, and the file carries no frozen shadow of it). The
+--- listeners still see (key, value) exactly as before, so the apply path
+--- of a widget, a reset and a profile switch is unchanged.
 function S:Set(moduleName, key, value)
     local t = store(moduleName)
-    t[key] = value
+    local def = defaults[moduleName]
+    if def ~= nil and def[key] ~= nil and deepEqual(value, def[key]) then
+        t[key] = nil
+    else
+        t[key] = value
+    end
     local fns = listeners[moduleName]
     if fns then
         for i = 1, #fns do
@@ -368,7 +489,10 @@ function S:GetDefault(moduleName, key)
 end
 
 --- key form: restore one key. module form: restore every key of the module.
---- Writes flow through Set, so live consumers get notified.
+--- Writes flow through Set as the deep copy of the registered default -- so
+--- the stored key is REMOVED (a default is not stored, the Wave 5 law) and
+--- live consumers are notified, which is the whole restore: the effective
+--- value is the default and the file keeps no frozen copy of it.
 function S:Reset(moduleName, key)
     if key ~= nil then
         return S:Set(moduleName, key, S:GetDefault(moduleName, key))
@@ -382,21 +506,31 @@ end
 
 -- ------------------------------------------------------ profile operations --
 --- Push the active profile's values through the live seam: every registered
---- module's every key goes back out through Set, so every OnChange consumer
---- (the pages' wiring, the modules' ApplySettings) re-reads the new profile.
---- This is FW:UseProfile's `FW_CopyNew(FW.Default, FW.Settings)` +
---- `FW:RefreshFrames()` pass (Forte_Core.lua:2155-2158) in our idiom.
+--- module's every REGISTERED key goes back out through Set with its
+--- EFFECTIVE value (the stored one, else the default), so every OnChange
+--- consumer (the pages' wiring, the modules' ApplySettings) re-reads the
+--- new profile. Iterating the defaults, not the stored table, is what the
+--- SPARSE store demands: a key the new profile does not store is its
+--- default, and the consumer must be told to move back to it. Set of a
+--- default-equal value removes the key, so a switch self-cleans the profile
+--- it switches into of frozen defaults. This is FW:UseProfile's
+--- `FW_CopyNew(FW.Default, FW.Settings)` + `FW:RefreshFrames()` pass
+--- (Forte_Core.lua:2155-2158) in our idiom.
 function P.ApplyLive()
     for _, module in ipairs(S:GetModuleNames()) do
-        local t = store(module)          -- seeds + type-checks the new profile
-        for key, value in pairs(t) do
-            S:Set(module, key, value)
+        local t = store(module)          -- shape + key-sanity touch
+        for key, d in pairs(defaults[module]) do
+            local v = t[key]
+            S:Set(module, key, v ~= nil and v or deepCopy(d))
         end
     end
 end
 
 --- Copy the ACTIVE profile into a new one (the original's `[create new]
 --- copies your current settings to a new profile`, Localization.lua:341).
+--- The store is sparse, so the copy carries EXPLICIT values only: the new
+--- profile shares every unchanged key with the registration (it follows a
+--- future default change), exactly like a fresh profile.
 --- @return name | nil, reason
 function P.Create(raw)
     local r = profilesRoot()

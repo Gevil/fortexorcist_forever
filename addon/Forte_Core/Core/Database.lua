@@ -30,6 +30,13 @@
 -- pick at `:1078-1084`; the switch at `:2142-2162`). The value layer that reads
 -- the shape is FX.Settings (Forte_Options/Core/Settings.lua), its UI is
 -- Forte_Options/Pages/Profiles.lua, and docs/profiles.md is the prose.
+-- Step 2 is the default prune: the old value layer seeded every registered
+-- default into every profile table, so installs carried (and froze) the
+-- defaults of the build that wrote them; the layer is now sparse (stores
+-- only values that differ from the registered default) and step 2 drops the
+-- stored values equal to their current defaults, lazily per module at
+-- registration for the LoD pages the ladder cannot see (the marker table
+-- `db.defaultsPruned` is the hand-off).
 --
 -- Version numbering is NUMERIC here (0, 1, 2 ...), not the original's
 -- string-compared "v1.975.1" (`FX_Saved.VERSION < "v1.90"`, :1374): a string
@@ -45,7 +52,7 @@ FX.DB = DB
 --- The shape this build writes. A DB stamped ABOVE it is from a newer build:
 --- the ladder skips (Forward compatibility, PLAN §11.1 H3: a downgrade must
 --- not invent keys) and the shape guard still repairs what it can.
-DB.SCHEMA_VERSION = 1
+DB.SCHEMA_VERSION = 2
 
 DB.SHARED_NAME = "ForteXorcist"
 
@@ -83,6 +90,45 @@ DB.MIGRATIONS[1] = function(db)
     -- The moved map is REMOVED, not left as an alias: two live tables for the
     -- same settings is the defect this step exists to prevent.
     db.settings = nil
+end
+
+--- v1 -> v2: drop the defaults FROZEN into the profiles (PLAN §11.1 wave 5
+--- "Settings defaults"). The live uiforever probe: a profile carried EVERY
+--- key of EVERY module (all 8 General keys on a player who only ever set
+--- Cooldown.Width; `AltTimeFormat = false`, the default of an older build,
+--- beat the shipped true) because the old value layer SEEDED the defaults
+--- into the profile tables. The layer now stores only values that differ
+--- from the registered default (Forte_Options/Core/Settings.lua, the sparse
+--- store); this step cleans what the old law left behind: over every
+--- profile it drops every stored value equal to its CURRENT registered
+--- default. A stored value that differs from the shipped default survives:
+--- it is indistinguishable from a user choice, and data loss is the worse
+--- failure (a v0 `Lock = false` under the shipped true stays).
+---
+--- LAZY BY MODULE: the ladder runs at ADDON_LOADED (Core/Init.lua), the
+--- load-on-demand pages -- Hunter, Spell Timer, the Warlock plates, the
+--- Messages pages -- register their defaults only at PLAYER_LOGIN, and the
+--- standing law of the original's ladder ("always use real values for
+--- defaults in modules, since these defaults/modules may not be loaded",
+--- Forte_Core.lua:1332) forbids inventing the missing ones here. So the
+--- step (a) prunes every module REGISTERED IN THIS SESSION and (b) leaves
+--- the marker table `db.defaultsPruned` with the pruned module names;
+--- FX.Settings:Register prunes every later registration lazily at its
+--- registration (the module name is its entry in the marker). A module no
+--- session ever registers (a class that is not the player's) is pruned by
+--- the first session that registers it -- until then a stored value equal
+--- to the current default reads identically to the default, so nothing
+--- hangs on the timing. Idempotent by CONTENT: the marker table is the
+--- step's own output.
+DB.MIGRATIONS[2] = function(db)
+    if type(db.defaultsPruned) ~= "table" then
+        local mark = {}
+        db.defaultsPruned = mark
+        local st = FX.Settings
+        if st and type(st.PruneStoredDefaults) == "function" then
+            st.PruneStoredDefaults(db, mark)
+        end
+    end
 end
 
 local function isTable(v) return type(v) == "table" end

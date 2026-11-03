@@ -1097,6 +1097,36 @@ function D:ApplyFrameFX()
     self.anchor:SetAlpha(FS.alpha * FS.globalAlpha)
 end
 
+--- The eight FrameStrata names (`SetFrameStrata`,
+--- SimpleFrameAPIDocumentation.lua:1293) — the same eight the source's own
+--- tip lists, Forte_Core/Localization.lua:441. Plain string literals.
+local STRATA = { "background", "low", "medium", "high", "dialog",
+    "fullscreen", "fullscreen_dialog", "tooltip" }
+local function strataOrNil(value)
+    if type(value) ~= "string" then return nil end
+    local up = string.upper(value)
+    local low = string.lower(up)
+    for i = 1, #STRATA do
+        if STRATA[i] == low then return up end
+    end
+    return nil
+end
+
+--- The Advanced page's "Frame level (strata)" row for this frame (the
+--- source's `CooldownStrata`, Forte_Cooldown.lua:1790, applied by its own
+--- `self:SetFrameStrata(FW.Settings.CooldownStrata)` at :1490; default
+--- `Strata = "MEDIUM"`, Forte_Core.lua:2531). A name outside the eight is
+--- ignored: the store keeps the player's text, the bar keeps the strata it
+--- has.
+function D:SetStrata(name)
+    local up = strataOrNil(name)
+    if not up then return end
+    FS.strata = up
+    if self.anchor and self.anchor.SetFrameStrata then
+        self.anchor:SetFrameStrata(up)
+    end
+end
+
 function D:SetEnabled(on)
     FS.enabled = not not on
     self:UpdateVisibility()
@@ -1229,6 +1259,15 @@ end
 function D:OnMouseUp(button)
     if button ~= "RightButton" then return end
     if self:Moved() then return end
+    -- `RightClickOptions` (the source's row of the same name,
+    -- Forte_Core/Options.lua:5545, default true at Forte_Core.lua:2495; our
+    -- row rides the General page, where the shared frame keys live). Off =
+    -- the bar is silent: the release is consumed, nothing opens.
+    local st = FX.Settings
+    if st and st.IsRegistered and st:IsRegistered("General")
+        and st:Get("General", "RightClickOptions") == false then
+        return
+    end
     local O = FX.Options
     if not O or not O.Open then return end
     pcall(O.Open, O, "Cooldown")
@@ -1320,6 +1359,9 @@ local KEYMAP = {
     AltTimeFormat = "SetTimeFormatAlt",
     BarFont = "SetBarFont",
     BarTexture = "SetBarTexture",
+    -- The Advanced page's strata row for this bar (the source's
+    -- `CooldownStrata`, Forte_Cooldown.lua:1790).
+    CooldownStrata = "SetStrata",
 }
 
 function D:SetWidth(v) self:SetSize(v, nil) end
@@ -1356,6 +1398,11 @@ local STORED = {
         "ColorPet", "ColorInternal", "ColorBuff", "ColorDebuff" },
     General = { "FrameAlpha", "FrameScale", "AltTimeFormat",
         "BarFont", "BarTexture" },
+    -- The Advanced page's shared keys (Forte_Options/Pages/Advanced.lua):
+    -- the module-prefixed strata row of the source's Advanced category
+    -- (`CooldownStrata`, Forte_Cooldown.lua:1790). Shared-module keys ride
+    -- the same ApplySettings seam as this module's own.
+    Advanced = { "CooldownStrata" },
 }
 
 --- Apply every saved value (login: Init runs at PLAYER_LOGIN). Lock and
@@ -1386,6 +1433,9 @@ function D:_WireSettings()
         self:ApplySettings({ [key] = value })
     end)
     st:OnChange("General", function(key, value)
+        self:ApplySettings({ [key] = value })
+    end)
+    st:OnChange("Advanced", function(key, value)
         self:ApplySettings({ [key] = value })
     end)
 end

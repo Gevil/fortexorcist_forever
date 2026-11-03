@@ -39,6 +39,13 @@ FX.Settings:Register(M, {
     -- Forte_Timer's own AltTimeFormat key is its page's.
     AltTimeFormat = true,
     ShowTooltips = true,
+    -- `RightClickOptions` (Forte_Core/Options.lua:5545, default true at
+    -- Forte_Core.lua:2495): right-clicking a module frame's header opens
+    -- that module's options page. The consumer is the Cooldown bar's own
+    -- release handler (Forte_Cooldown/UI/Timeline.lua `OnMouseUp`, the
+    -- source's `Frame_OnClick` :901-909); the other module frames have no
+    -- right-click seam at all (reported, not invented here).
+    RightClickOptions = true,
     BarFont = FONT,
     BarTexture = TEX .. "Aluminium",
 })
@@ -99,6 +106,19 @@ O:RegisterPage({
                 label = "Global Frame Lock",
                 tip = "Lock all Forte module frames (same state as /fx lock).",
             })
+            -- The original's first General row (`Options.lua:5545`,
+            -- `FWL.GENERAL_MO1_TT` Localization.lua:315, default true at
+            -- Forte_Core.lua:2495). Live on the one frame that has the
+            -- seam: the Cooldown bar's right-release opens its page
+            -- (Forte_Cooldown/UI/Timeline.lua `OnMouseUp`).
+            s.CHK({
+                module = M, key = "RightClickOptions",
+                label = "Right-click headers for options",
+                tip = "Right-click a module frame header to open its options."
+                    .. " Applied live on the Forte Cooldowns bar"
+                    .. " (the frames with the seam; a frame with no"
+                    .. " right-click handler is never made one).",
+            })
             s.NUM({
                 module = M, key = "FrameAlpha",
                 label = "Global Frame Alpha",
@@ -117,7 +137,8 @@ O:RegisterPage({
             })
         end, {
             module = M,
-            keys = { "GlobalLock", "FrameAlpha", "FrameSnap", "AltTimeFormat" },
+            keys = { "GlobalLock", "RightClickOptions", "FrameAlpha",
+                "FrameSnap", "AltTimeFormat" },
             tip = "Global behaviour of every Forte module.",
         })
         b.Section("General Module Appearance", function(s)

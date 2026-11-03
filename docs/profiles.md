@@ -34,7 +34,8 @@ new schema step.
 
 ```
 ForteXorcistDB = {
-  version  = 1,                          -- numeric schema stamp
+  version  = 2,                          -- numeric schema stamp
+  defaultsPruned = { Cooldown = true, General = true, ... },  -- v2 marker (below)
   profiles = {
     perCharacter = true,                 -- false => the whole account rides `shared`
     shared  = "ForteXorcist",            -- the account-wide profile's name
@@ -74,16 +75,34 @@ ForteXorcistDB = {
   `active` naming a profile that is not there is cleared. It is a shape fix, not
   a type law: values it does not understand are left for the value layer, which
   is the only place the registered defaults exist.
-* **v1 (the only step)**: today's flat `db.settings[module][key]` map becomes
+* **v1**: today's flat `db.settings[module][key]` map becomes
   the profile named `Name-Realm`, plus a copy under `ForteXorcist`; the v0 map
   is *removed* (no second live table for the same settings). A fresh install
   gets the same shape with empty settings.
+* **v2 (the default prune, wave 5 2026-11-03)**: the old value layer *seeded*
+  every registered default into every profile table, so a profile carried
+  every key — the untouched ones frozen at the defaults of the build that
+  wrote the file (the uiforever probe: all 8 General keys on a player who
+  only ever set `Cooldown.Width`; a shipped `AltTimeFormat = true` that never
+  reached a profile carrying the old `false`). The layer is now sparse (see
+  §3); this step drops, over every profile, every stored value **equal to its
+  current registered default**. A stored value that *differs* from the
+  shipped default survives: it is indistinguishable from a user choice
+  (data loss is the worse failure). The step is LAZY BY MODULE: the ladder
+  runs at `ADDON_LOADED`, the load-on-demand pages register at
+  `PLAYER_LOGIN`, so the step prunes the modules registered by then, writes
+  their names into the marker table `defaultsPruned`, and
+  `FX.Settings:Register` prunes every later registration at its
+  registration. A module no session registers (a class that is not the
+  player's) is pruned in the first session that registers it — until then
+  its stored default reads identically to the default, so nothing hangs on
+  the timing.
 * **Frame geometry** (`cooldownDisplay`, `hunterSwing`, `timer.display`,
   `optionsPos`, …) is **not** profile data: a dragged bar stays where it is
   across a profile switch. The original stored it *inside* the profile
   (`Forte_Core.lua:2013-2039`), which is what made its profile copies carry
-  frame positions. Moving geometry into the profile is a separate schema step
-  (v2) and needs a decision per module — it is not part of H3.
+  frame positions. Moving geometry into the profile is a separate schema
+  step (v3) and needs a decision per module — it is not part of H3.
 
 ## 3. The value layer (`Forte_Options/Core/Settings.lua`)
 
@@ -91,12 +110,31 @@ ForteXorcistDB = {
 unchanged in its public contract (Register/Get/Set/OnChange/Reset/GetDefault)
 — the store it reads is now the active profile's table.
 
+* **The store is SPARSE** (wave 5, 2026-11-03): a profile's module table
+  carries **only the values that differ from the registered defaults**.
+  Reading an unset key fills the default in (`Get` returns a deep copy of
+  the registered value and writes nothing); `Set` of a value **equal to the
+  registered default (deep equality — the colour rows) deletes the stored
+  key** and notifies the listeners exactly as a write does. `Reset` is
+  therefore the *removal* of the module's stored keys plus the notify, and
+  the effective value is the shipped one. The whole window built and a
+  `/reload` pass over such a store leaves no default-valued key anywhere
+  (the law `test_profiles.lua` scans); a shipped default the build moves
+  reaches every profile that never set the key — the frozen
+  `AltTimeFormat = false` a live profile carried under the shipped `true`
+  is the defect this law ends. `P.ApplyLive` pushes, per module, every
+  *registered* key's effective value (stored, else default), so a key the new
+  profile does not store moves its consumers back to the default, and the
+  switch self-cleans the profile it switches into. A profile copy (`Create`,
+  the sharing copy) copies **explicit values only**: the new profile shares
+  every unchanged key with the registration.
 * **Key sanity.** The first time this session reads a `(profile, module)` pair,
   its keys are type-checked against that module's **registered defaults**: a
   value whose type does not match the default's, a key the module does not
-  register, and a non-table module block are dropped, and seeding puts the
-  default back. A repaired module prints one chat line ("repaired N saved
-  value(s) of Cooldown in the profile X; they are back on their defaults",
+  register, and a non-table module block are dropped, and the unseeded store
+  serves the default from the registration. A repaired module prints one chat
+  line ("repaired N saved value(s) of Cooldown in the profile X; they are
+  back on their defaults",
   once per pair per session) — a silent repair reads as "my settings vanished
   at the update". `FX.Settings.DroppedKeys()` counts them for the tests. A module that is not registered *in this session* is left
   completely alone — with `## LoadOnDemand: 1` a Hunter page registers its
@@ -149,8 +187,11 @@ the module list. So:
 | `/fx reset confirm` / `cancel` | the chat gate of the ask |
 | `/fx reset` (bare) | **unchanged**: the cooldown bar's position reset (Forte_Cooldown's `Display:Slash` claims the bare word ahead of every registered sub — `Core/Init.lua` dispatch order, asserted by `test_timeline.lua:482-490`) |
 
-Every reset is **per module** (`FX.Settings:Reset(module)`, which writes the
-deep copy of each default and notifies) and **behind a confirmation**:
+Every reset is **per module** (`FX.Settings:Reset(module)`, which pushes the
+deep copy of each default through `Set` — the stored key is *deleted*, a
+default is not stored, and every consumer is notified, so the effective
+value and the live frames move to the shipped state while the file keeps no
+frozen copy of it) and **behind a confirmation**:
 `StaticPopup_ShowGenericConfirmation(text, callback)` — Blizzard's generic
 yes/no (`Blizzard_StaticPopup/StaticPopup.lua:225`, called the same way by
 `Blizzard_AccountStoreCardTemplates.lua:183`), the live equivalent of the

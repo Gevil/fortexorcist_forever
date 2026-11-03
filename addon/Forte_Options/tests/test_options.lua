@@ -63,6 +63,45 @@ test("Settings: Reset(key) and Reset(module) restore defaults", function()
     assertEquals("0 1", S:Get("TestMod", "tags"))
 end)
 
+test("Settings: the store is SPARSE -- a Set equal to the default deletes the key",
+function()
+    -- Wave 5: the store keeps only values that differ from the registered
+    -- defaults, so a moved shipped default reaches every profile that never
+    -- set the key (the frozen AltTimeFormat=false of a live profile).
+    local t = S._store("TestMod")
+    S:Set("TestMod", "alpha", 0.75)
+    assertEquals(0.75, t.alpha, "a real choice lands in the raw table")
+    S:Set("TestMod", "alpha", 0.5)
+    assertEquals(nil, t.alpha, "the shipped value DELETES the stored key")
+    assertEquals(0.5, S:Get("TestMod", "alpha"), "the effective value is unchanged")
+    S:Set("TestMod", "flag", false)      -- false IS the registered default
+    assertEquals(nil, t.flag, "a boolean default is not stored")
+    S:Set("TestMod", "flag", true)
+    assertEquals(true, t.flag)
+    S:Reset("TestMod", "flag")
+    assertEquals(nil, t.flag, "the reset is the delete")
+    -- Colour rows: deep equality over the { r, g, b, a } array.
+    local col = S:GetDefault("TestMod", "col")
+    S:Set("TestMod", "col", { col[1], col[2], col[3], col[4] })
+    assertEquals(nil, t.col, "a colour deep-equal to the default is not stored")
+    S:Set("TestMod", "col", { col[1], col[2], col[3], 0.5 })
+    assertNotNil(t.col, "a moved alpha is a value")
+    S:Reset("TestMod", "col")
+    assertEquals(nil, t.col)
+    -- Get hands out a DEEP COPY of the default, never the registered table.
+    local c = S:Get("TestMod", "col")
+    c[1] = 0.99
+    assertEquals(1, S:Get("TestMod", "col")[1],
+        "mutating a read default can not corrupt the registration")
+    -- A Set-to-default still notifies: the apply path of a reset, a
+    -- recycle icon and a profile switch rides the listeners.
+    local fired = 0
+    S:OnChange("TestMod", function() fired = fired + 1 end)
+    S:Set("TestMod", "alpha", 0.5)
+    assertEquals(1, fired, "a Set that stores nothing still fires OnChange")
+    S:Reset("TestMod")
+end)
+
 test("Settings: Register never overwrites saved values", function()
     -- Write BEFORE the module has defaults: the store exists, no seed.
     S:Set("LateMod", "x", 42)
