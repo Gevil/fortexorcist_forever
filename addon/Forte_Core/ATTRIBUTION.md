@@ -18,8 +18,16 @@ ForteXorcist © Xus (Xussie of Kazzak EU), v1.980.8 (2012), licensed under **GPL
   `Otravi.tga`, `Perl.tga`, `Rocks.tga`, `Runes.tga`, `SWSDefault.tga`, `Smooth.tga`,
   `Smudge.tga`, `Striped.tga`, `Xeon.tga`, `Xus.tga`
 
+## Sound — from ForteXorcist (GPL-3.0)
+
+Vendored unmodified from the same owner's release (same licence, full text above):
+
+- `Sounds/SoulstoneExpire.mp3` — the original's `SoulstoneFadeSound`
+  (Forte_Soulstone.lua:677 default path `Interface\\AddOns\\Forte_Core\\Sounds\\SoulstoneExpire.mp3`),
+  the soulstone-window-expiry bell played by `Forte_Messages/Core/Sounds.lua`. Vendored 2026-11-03.
+
 The ForteXorcist-for-WoW-Forever Lua code is an independent reimplementation, not a port of the
-2012 sources; only the textures above (all unmodified) are shared with it.
+2012 sources; only the textures and the sound above (all unmodified) are shared with it.
 
 ## Font — URW Gothic Book (AGPL-3.0 with font exception)
 (URW)++ Design & Development, from the `urw-base35-fonts` set as packaged by Fedora

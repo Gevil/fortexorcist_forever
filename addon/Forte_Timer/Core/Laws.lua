@@ -423,7 +423,10 @@ function Laws.GateAlpha(state, expireAt, removeAt, now, opts)
     elseif state == Laws.FADING_INSTANT then
         return Laws.Alpha(removeAt, now)
     elseif state == Laws.FADING then
-        return Laws.Alpha(removeAt + Laws.FADE, now)
+        -- The source's own ramp: `links[k][4] = Alpha(t17 + s.FadeTime, t)`
+        -- (:2166) — the row rides `FadeTime` (:3339, def 1) of full visibility
+        -- past its window, then the cubic fall. The constant is the fallback.
+        return Laws.Alpha(removeAt + (opts.fadeTime or Laws.FADE), now)
     end
     return Laws.Alpha(removeAt + Laws.FAIL, now)
 end

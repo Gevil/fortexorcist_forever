@@ -2,9 +2,32 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T19:08:53+00:00
+-- Regenerated: 2026-11-02T23:57:13+00:00
 -- 70707 overlay changes in this file (1):
---   Shadowguard: { id = 19312, name = "Shadowguard", durationMs = 600000, gcdMs = 1500, rank = "Rank 6" } -> { id = 19312, name = "Shadowguard", durationMs = 600000, gcdMs = 1500, icdMs = 3500, rank = "Rank 6" }
+--   Shadowguard: { id = 19312, name = "Shadowguard", noTarget = true, durationMs = 600000, gcdMs = 1500, rank = "Rank 6" } -> { id = 19312, name = "Shadowguard", noTarget = true, durationMs = 600000, gcdMs = 1500, icdMs = 3500, rank = "Rank 6" }
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (base row `Effects[].PeriodMs`), `maxStack` = the row's own `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). BASE DATA ONLY: the 70707 overlay captures no Effects/MaxStack/Target (see tools/overrides_70707.json's per-id keys), so it can not add, remove or move a feed -- a 70707-sourced or store-rank row carries none. This file: 11 tickEvery, 0 maxStack, 12 noTarget.
+--   feeds [431681] Void Zone: tickEvery = 1
+--   feeds [425204] Void Plague: tickEvery = 3
+--   feeds [19280] Devouring Plague: tickEvery = 3
+--   feeds [10894] Shadow Word: Pain: tickEvery = 3
+--   feeds [14751] Inner Focus: noTarget
+--   feeds [425294] Dispersion: tickEvery = 1, noTarget
+--   feeds [425284] Spirit of the Redeemer: noTarget
+--   feeds [27779] Divine Protection: noTarget
+--   feeds [10952] Inner Fire: noTarget
+--   feeds [1706] Levitate: noTarget
+--   feeds [19312] Shadowguard: noTarget
+--   feeds [27827] Spirit of Redemption: noTarget
+--   feeds [19266] Touch of Weakness: noTarget
+--   feeds [10942] Fade: noTarget
+--   feeds [552] Abolish Disease: tickEvery = 5
+--   feeds [402668] Vampiric Touch: tickEvery = 3
+--   feeds [425277] Renew: tickEvery = 3
+--   feeds [15261] Holy Fire: tickEvery = 2
+--   feeds [18807] Mind Flay: tickEvery = 1
+--   feeds [413259] Mind Sear: tickEvery = 1
+--   feeds [15473] Shadowform: noTarget
+--   feeds [467543] Deliverance: noTarget
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
@@ -13,50 +36,50 @@ ForteXorcist.Data.Priest = {
   [401977] = { id = 401977, name = "Shadowfiend", durationMs = 15000, cooldownMs = 300000, gcdMs = 1500 },
   [1277455] = { id = 1277455, name = "Confounding Flash", durationMs = 3000, cooldownMs = 120000, castMs = 500 },
   [15487] = { id = 15487, name = "Silence", durationMs = 5000, cooldownMs = 45000, gcdMs = 1500 },
-  [431681] = { id = 431681, name = "Void Zone", durationMs = 10000, cooldownMs = 30000, gcdMs = 1500, castMs = 2000 },
+  [431681] = { id = 431681, name = "Void Zone", tickEvery = 1, durationMs = 10000, cooldownMs = 30000, gcdMs = 1500, castMs = 2000 },
   [401946] = { id = 401946, name = "Circle of Healing", cooldownMs = 6000, gcdMs = 1500 },
   [402789] = { id = 402789, name = "Eye of the Void", durationMs = 30000, cooldownMs = 180000, gcdMs = 1500 },
   [402799] = { id = 402799, name = "Homunculi", durationMs = 120000, cooldownMs = 120000, gcdMs = 1500 },
-  [425204] = { id = 425204, name = "Void Plague", durationMs = 18000, cooldownMs = 6000, gcdMs = 1500 },
-  [19280] = { id = 19280, name = "Devouring Plague", durationMs = 24000, cooldownMs = 24000, cooldownCategory = 691, gcdMs = 1500, rank = "Rank 6" },
+  [425204] = { id = 425204, name = "Void Plague", tickEvery = 3, durationMs = 18000, cooldownMs = 6000, gcdMs = 1500 },
+  [19280] = { id = 19280, name = "Devouring Plague", tickEvery = 3, durationMs = 24000, cooldownMs = 24000, cooldownCategory = 691, gcdMs = 1500, rank = "Rank 6" },
   [1240827] = { id = 1240827, name = "Prayer of Mending", cooldownMs = 10000, cooldownCategory = 1181, gcdMs = 1500, rank = "Rank 3" },
   [10947] = { id = 10947, name = "Mind Blast", cooldownMs = 8000, cooldownCategory = 19, gcdMs = 1500, castMs = 1500, rank = "Rank 9" },
   -- discipline_pd
   [10938] = { id = 10938, name = "Power Word: Fortitude", durationMs = 3600000, gcdMs = 1500, rank = "Rank 6" },
   [10901] = { id = 10901, name = "Power Word: Shield", durationMs = 30000, cooldownMs = 4000, cooldownCategory = 56, gcdMs = 1500, rank = "Rank 10" },
   [425207] = { id = 425207, name = "Power Word: Barrier", durationMs = 10000, cooldownMs = 180000, gcdMs = 1500 },
-  [10894] = { id = 10894, name = "Shadow Word: Pain", durationMs = 18000, gcdMs = 1500, rank = "Rank 8" },
+  [10894] = { id = 10894, name = "Shadow Word: Pain", tickEvery = 3, durationMs = 18000, gcdMs = 1500, rank = "Rank 8" },
   [1309636] = { id = 1309636, name = "Shadow Word: Death", cooldownMs = 18000, cooldownCategory = 1169, gcdMs = 1500, rank = "Rank 4" },
   [6346] = { id = 6346, name = "Fear Ward", durationMs = 180000, cooldownMs = 180000, gcdMs = 1500 },
   [402004] = { id = 402004, name = "Pain Suppression", durationMs = 8000, cooldownMs = 180000, gcdMs = 1500 },
   [10060] = { id = 10060, name = "Power Infusion", durationMs = 15000, cooldownMs = 180000 },
-  [14751] = { id = 14751, name = "Inner Focus", durationMs = -1, cooldownMs = 180000 },
+  [14751] = { id = 14751, name = "Inner Focus", noTarget = true, durationMs = -1, cooldownMs = 180000 },
   [15286] = { id = 15286, name = "Vampiric Embrace", durationMs = 30000, cooldownMs = 30000, gcdMs = 1500 },
-  [425294] = { id = 425294, name = "Dispersion", durationMs = 6000, cooldownMs = 120000, gcdMs = 1500 },
-  [425284] = { id = 425284, name = "Spirit of the Redeemer", durationMs = 10000, cooldownMs = 120000 },
-  [27779] = { id = 27779, name = "Divine Protection", durationMs = 30000 },
+  [425294] = { id = 425294, name = "Dispersion", tickEvery = 1, noTarget = true, durationMs = 6000, cooldownMs = 120000, gcdMs = 1500 },
+  [425284] = { id = 425284, name = "Spirit of the Redeemer", noTarget = true, durationMs = 10000, cooldownMs = 120000 },
+  [27779] = { id = 27779, name = "Divine Protection", noTarget = true, durationMs = 30000 },
   -- buffs
   [27841] = { id = 27841, name = "Divine Spirit", durationMs = 3600000, gcdMs = 1500, rank = "Rank 4" },
   [27681] = { id = 27681, name = "Prayer of Spirit", durationMs = 3600000, gcdMs = 1500, rank = "Rank 1" },
   [21564] = { id = 21564, name = "Prayer of Fortitude", durationMs = 3600000, gcdMs = 1500, rank = "Rank 2" },
   [10958] = { id = 10958, name = "Shadow Protection", durationMs = 600000, gcdMs = 1500, rank = "Rank 3" },
   [27683] = { id = 27683, name = "Prayer of Shadow Protection", durationMs = 1200000, gcdMs = 1500 },
-  [10952] = { id = 10952, name = "Inner Fire", durationMs = 600000, gcdMs = 1500, rank = "Rank 6" },
-  [1706] = { id = 1706, name = "Levitate", durationMs = 120000, gcdMs = 1500 },
-  [19312] = { id = 19312, name = "Shadowguard", durationMs = 600000, gcdMs = 1500, icdMs = 3500, rank = "Rank 6" },
-  [27827] = { id = 27827, name = "Spirit of Redemption", durationMs = 15000 },
+  [10952] = { id = 10952, name = "Inner Fire", noTarget = true, durationMs = 600000, gcdMs = 1500, rank = "Rank 6" },
+  [1706] = { id = 1706, name = "Levitate", noTarget = true, durationMs = 120000, gcdMs = 1500 },
+  [19312] = { id = 19312, name = "Shadowguard", noTarget = true, durationMs = 600000, gcdMs = 1500, icdMs = 3500, rank = "Rank 6" },
+  [27827] = { id = 27827, name = "Spirit of Redemption", noTarget = true, durationMs = 15000 },
   [19285] = { id = 19285, name = "Hex of Weakness", durationMs = 120000, gcdMs = 1500, rank = "Rank 6" },
-  [19266] = { id = 19266, name = "Touch of Weakness", durationMs = 600000, gcdMs = 1500, rank = "Rank 6" },
-  [10942] = { id = 10942, name = "Fade", durationMs = 10000, cooldownMs = 30000, cooldownCategory = 82, gcdMs = 1500, rank = "Rank 6" },
-  [552] = { id = 552, name = "Abolish Disease", durationMs = 20000, gcdMs = 1500 },
+  [19266] = { id = 19266, name = "Touch of Weakness", noTarget = true, durationMs = 600000, gcdMs = 1500, rank = "Rank 6" },
+  [10942] = { id = 10942, name = "Fade", noTarget = true, durationMs = 10000, cooldownMs = 30000, cooldownCategory = 82, gcdMs = 1500, rank = "Rank 6" },
+  [552] = { id = 552, name = "Abolish Disease", tickEvery = 5, durationMs = 20000, gcdMs = 1500 },
   [28810] = { id = 28810, name = "Armor of Faith", durationMs = 30000 },
-  [402668] = { id = 402668, name = "Vampiric Touch", durationMs = 15000, gcdMs = 1500, castMs = 1500 },
-  [425277] = { id = 425277, name = "Renew", durationMs = 15000, gcdMs = 1500, rank = "Rank 10" },
-  [15261] = { id = 15261, name = "Holy Fire", durationMs = 10000, gcdMs = 1500, castMs = 3500, rank = "Rank 8" },
-  [18807] = { id = 18807, name = "Mind Flay", durationMs = 3000, gcdMs = 1500, rank = "Rank 6" },
-  [413259] = { id = 413259, name = "Mind Sear", durationMs = 6000, gcdMs = 1500 },
+  [402668] = { id = 402668, name = "Vampiric Touch", tickEvery = 3, durationMs = 15000, gcdMs = 1500, castMs = 1500 },
+  [425277] = { id = 425277, name = "Renew", tickEvery = 3, durationMs = 15000, gcdMs = 1500, rank = "Rank 10" },
+  [15261] = { id = 15261, name = "Holy Fire", tickEvery = 2, durationMs = 10000, gcdMs = 1500, castMs = 3500, rank = "Rank 8" },
+  [18807] = { id = 18807, name = "Mind Flay", tickEvery = 1, durationMs = 3000, gcdMs = 1500, rank = "Rank 6" },
+  [413259] = { id = 413259, name = "Mind Sear", tickEvery = 1, durationMs = 6000, gcdMs = 1500 },
   -- utility
-  [15473] = { id = 15473, name = "Shadowform", durationMs = -1, cooldownMs = 1500, cooldownCategory = 39, gcdMs = 1500 },
+  [15473] = { id = 15473, name = "Shadowform", noTarget = true, durationMs = -1, cooldownMs = 1500, cooldownCategory = 39, gcdMs = 1500 },
   [988] = { id = 988, name = "Dispel Magic", gcdMs = 1500, rank = "Rank 2" },
   [528] = { id = 528, name = "Cure Disease", gcdMs = 1500 },
   [20770] = { id = 20770, name = "Resurrection", gcdMs = 1500, castMs = 10000, rank = "Rank 5" },
@@ -67,7 +90,7 @@ ForteXorcist.Data.Priest = {
   [10909] = { id = 10909, name = "Mind Vision", durationMs = 60000, gcdMs = 1500, rank = "Rank 2" },
   [1277335] = { id = 1277335, name = "Chastise", durationMs = 2000, cooldownMs = 120000, cooldownCategory = 2491, gcdMs = 1500, rank = "Rank 5" },
   [10876] = { id = 10876, name = "Mana Burn", gcdMs = 1500, castMs = 3000, rank = "Rank 5" },
-  [467543] = { id = 467543, name = "Deliverance", durationMs = -1 },
+  [467543] = { id = 467543, name = "Deliverance", noTarget = true, durationMs = -1 },
 }
 
 ForteXorcist.Data.PriestByName = {

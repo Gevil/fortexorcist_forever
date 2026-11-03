@@ -2,82 +2,119 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T19:46:44+00:00
+-- Regenerated: 2026-11-02T23:57:12+00:00
 -- 70707 overlay changes in this file (8):
 --   Cower: { id = 9892, name = "Cower", cooldownMs = 10000, cooldownCategory = 84, gcdMs = 1000, rank = "Rank 3" } -> { id = 16697, name = "Cower", cooldownMs = 5000, cooldownCategory = 82, gcdMs = 1500, rank = "Rank 6" }
 --   Hurricane: { id = 1278759, name = "Hurricane", durationMs = 10000, gcdMs = 1500, rank = "Rank 3" } -> { id = 1278759, name = "Hurricane", durationMs = 10000, cooldownCategory = 571, gcdMs = 1500, rank = "Rank 3" }
---   Shifting Power: { id = 1322605, name = "Shifting Power", cooldownMs = 16000, gcdMs = 1000 } -> { id = 1322605, name = "Shifting Power", cooldownMs = 8000, gcdMs = 1000 }
---   Wild Growth: { id = 1238215, name = "Wild Growth", durationMs = 7000, cooldownMs = 6000, gcdMs = 1500, rank = "Rank 3" } -> { id = 1238215, name = "Wild Growth", durationMs = 7000, cooldownMs = 6000, gcdMs = 1500, castMs = 3000, rank = "Rank 3" }
+--   Shifting Power: { id = 1322605, name = "Shifting Power", noTarget = true, cooldownMs = 16000, gcdMs = 1000 } -> { id = 1322605, name = "Shifting Power", noTarget = true, cooldownMs = 8000, gcdMs = 1000 }
+--   Wild Growth: { id = 1238215, name = "Wild Growth", tickEvery = 1, durationMs = 7000, cooldownMs = 6000, gcdMs = 1500, rank = "Rank 3" } -> { id = 1238215, name = "Wild Growth", durationMs = 7000, cooldownMs = 6000, gcdMs = 1500, castMs = 3000, rank = "Rank 3" }
 --   Faerie Fire: { id = 9907, name = "Faerie Fire", durationMs = 40000, gcdMs = 1500, rank = "Rank 4" } -> { id = 9907, name = "Faerie Fire", durationMs = 40000, cooldownCategory = 1133, gcdMs = 1500, rank = "Rank 4" }
---   Lacerate: { id = 1235827, name = "Lacerate", durationMs = 15000, gcdMs = 1500, rank = "Rank 3" } -> { id = 1235827, name = "Lacerate", durationMs = 15000, gcdMs = 1500, rank = "Rank 5" }
---   Rejuvenation: { id = 25299, name = "Rejuvenation", durationMs = 12000, gcdMs = 1500, rank = "Rank 11" } -> { id = 9841, name = "Rejuvenation", durationMs = 12000, gcdMs = 1500, rank = "Rank 10" }
---   Lifebloom: { id = 408124, name = "Lifebloom", durationMs = 7000, gcdMs = 1000 } -> { id = 408124, name = "Lifebloom", durationMs = 7000, gcdMs = 1000, icdMs = 2000 }
+--   Lacerate: { id = 1235827, name = "Lacerate", tickEvery = 3, maxStack = 5, durationMs = 15000, gcdMs = 1500, rank = "Rank 3" } -> { id = 1235827, name = "Lacerate", tickEvery = 3, maxStack = 5, durationMs = 15000, gcdMs = 1500, rank = "Rank 5" }
+--   Rejuvenation: { id = 25299, name = "Rejuvenation", tickEvery = 3, durationMs = 12000, gcdMs = 1500, rank = "Rank 11" } -> { id = 9841, name = "Rejuvenation", tickEvery = 3, durationMs = 12000, gcdMs = 1500, rank = "Rank 10" }
+--   Lifebloom: { id = 408124, name = "Lifebloom", tickEvery = 1, maxStack = 3, durationMs = 7000, gcdMs = 1000 } -> { id = 408124, name = "Lifebloom", tickEvery = 1, maxStack = 3, durationMs = 7000, gcdMs = 1000, icdMs = 2000 }
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (base row `Effects[].PeriodMs`), `maxStack` = the row's own `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). BASE DATA ONLY: the 70707 overlay captures no Effects/MaxStack/Target (see tools/overrides_70707.json's per-id keys), so it can not add, remove or move a feed -- a 70707-sourced or store-rank row carries none. This file: 18 tickEvery, 3 maxStack, 23 noTarget.
+--   feeds [467088] Astral Power: maxStack = 3, noTarget
+--   feeds [22812] Barkskin: noTarget
+--   feeds [5229] Enrage: tickEvery = 1, noTarget
+--   feeds [22842] Frenzied Regeneration: tickEvery = 1, noTarget
+--   feeds [17329] Nature's Grasp: noTarget
+--   feeds [17116] Nature's Swiftness: noTarget
+--   feeds [9913] Prowl: noTarget
+--   feeds [1322605] Shifting Power: noTarget
+--   feeds [408024] Survival Instincts: noTarget
+--   feeds [9863] Tranquility: tickEvery = 2, noTarget
+--   feeds [417141] Berserk: noTarget
+--   feeds [439748] Starfall: tickEvery = 1, noTarget
+--   feeds [23110] Dash: noTarget
+--   feeds [2893] Abolish Poison: tickEvery = 2
+--   feeds [19970] Entangling Roots: tickEvery = 3
+--   feeds [9835] Moonfire: tickEvery = 3
+--   feeds [24977] Insect Swarm: tickEvery = 2
+--   feeds [9896] Rip: tickEvery = 2
+--   feeds [9904] Rake: tickEvery = 3
+--   feeds [1235827] Lacerate: tickEvery = 3, maxStack = 5
+--   feeds [414684] Sunfire: tickEvery = 3
+--   feeds [9841] Rejuvenation: tickEvery = 3
+--   feeds [9858] Regrowth: tickEvery = 3
+--   feeds [414800] Fury of Stormrage: noTarget
+--   feeds [467079] Force of Nature: tickEvery = 0.2
+--   feeds [408124] Lifebloom: tickEvery = 1, maxStack = 3
+--   feeds [9826] Pounce Bleed: tickEvery = 3
+--   feeds [21919] Thrash: noTarget
+--   feeds [5487] Bear Form: noTarget
+--   feeds [768] Cat Form: tickEvery = 5, noTarget
+--   feeds [9634] Dire Bear Form: noTarget
+--   feeds [1066] Aquatic Form: noTarget
+--   feeds [783] Travel Form: noTarget
+--   feeds [439745] Tree of Life: noTarget
+--   feeds [24858] Moonkin Form: noTarget
+--   feeds [18960] Teleport: Moonglade: noTarget
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
 ForteXorcist.Data.Druid = {
   -- cooldowns
-  [467088] = { id = 467088, name = "Astral Power", durationMs = 15000, cooldownMs = 180000 },
-  [22812] = { id = 22812, name = "Barkskin", durationMs = 15000, cooldownMs = 60000, gcdMs = 1500 },
+  [467088] = { id = 467088, name = "Astral Power", maxStack = 3, noTarget = true, durationMs = 15000, cooldownMs = 180000 },
+  [22812] = { id = 22812, name = "Barkskin", noTarget = true, durationMs = 15000, cooldownMs = 60000, gcdMs = 1500 },
   [8983] = { id = 8983, name = "Bash", durationMs = 4000, cooldownMs = 60000, cooldownCategory = 32, gcdMs = 1500, rank = "Rank 3" },
   [5209] = { id = 5209, name = "Challenging Roar", durationMs = 6000, cooldownMs = 600000, gcdMs = 1500 },
   [16697] = { id = 16697, name = "Cower", cooldownMs = 5000, cooldownCategory = 82, gcdMs = 1500, rank = "Rank 6" },
-  [5229] = { id = 5229, name = "Enrage", durationMs = 10000, cooldownMs = 60000 },
+  [5229] = { id = 5229, name = "Enrage", tickEvery = 1, noTarget = true, durationMs = 10000, cooldownMs = 60000 },
   [1238122] = { id = 1238122, name = "Feral Charge", cooldownMs = 15000, cooldownCategory = 2182 },
-  [22842] = { id = 22842, name = "Frenzied Regeneration", durationMs = 10000, cooldownMs = 180000, cooldownCategory = 1011, gcdMs = 1500 },
+  [22842] = { id = 22842, name = "Frenzied Regeneration", tickEvery = 1, noTarget = true, durationMs = 10000, cooldownMs = 180000, cooldownCategory = 1011, gcdMs = 1500 },
   [6795] = { id = 6795, name = "Growl", durationMs = 3000, cooldownMs = 8000, cooldownCategory = 82 },
   [1278759] = { id = 1278759, name = "Hurricane", durationMs = 10000, cooldownCategory = 571, gcdMs = 1500, rank = "Rank 3" },
   [29166] = { id = 29166, name = "Innervate", durationMs = 20000, cooldownMs = 360000, gcdMs = 1500 },
-  [17329] = { id = 17329, name = "Nature's Grasp", durationMs = 45000, cooldownMs = 60000, cooldownCategory = 531, gcdMs = 1500, rank = "Rank 6" },
-  [17116] = { id = 17116, name = "Nature's Swiftness", durationMs = -1, cooldownMs = 180000 },
+  [17329] = { id = 17329, name = "Nature's Grasp", noTarget = true, durationMs = 45000, cooldownMs = 60000, cooldownCategory = 531, gcdMs = 1500, rank = "Rank 6" },
+  [17116] = { id = 17116, name = "Nature's Swiftness", noTarget = true, durationMs = -1, cooldownMs = 180000 },
   [1238073] = { id = 1238073, name = "Primal Bite", cooldownMs = 6000, cooldownCategory = 971, gcdMs = 1500, rank = "Rank 4" },
-  [9913] = { id = 9913, name = "Prowl", durationMs = -1, cooldownMs = 10000, cooldownCategory = 38, rank = "Rank 3" },
-  [1322605] = { id = 1322605, name = "Shifting Power", cooldownMs = 8000, gcdMs = 1000 },
-  [408024] = { id = 408024, name = "Survival Instincts", durationMs = 20000, cooldownMs = 180000 },
+  [9913] = { id = 9913, name = "Prowl", noTarget = true, durationMs = -1, cooldownMs = 10000, cooldownCategory = 38, rank = "Rank 3" },
+  [1322605] = { id = 1322605, name = "Shifting Power", noTarget = true, cooldownMs = 8000, gcdMs = 1000 },
+  [408024] = { id = 408024, name = "Survival Instincts", noTarget = true, durationMs = 20000, cooldownMs = 180000 },
   [18562] = { id = 18562, name = "Swiftmend", cooldownMs = 15000, gcdMs = 1500 },
-  [9863] = { id = 9863, name = "Tranquility", durationMs = 10000, cooldownMs = 300000, cooldownCategory = 46, gcdMs = 1500, rank = "Rank 4" },
+  [9863] = { id = 9863, name = "Tranquility", tickEvery = 2, noTarget = true, durationMs = 10000, cooldownMs = 300000, cooldownCategory = 46, gcdMs = 1500, rank = "Rank 4" },
   [1238215] = { id = 1238215, name = "Wild Growth", durationMs = 7000, cooldownMs = 6000, gcdMs = 1500, castMs = 3000, rank = "Rank 3" },
   [1226046] = { id = 1226046, name = "Wild Rejuvenation", cooldownMs = 6000, gcdMs = 1500 },
   [410176] = { id = 410176, name = "Skull Bash", cooldownMs = 10000, cooldownCategory = 2182, gcdMs = 1000 },
-  [417141] = { id = 417141, name = "Berserk", durationMs = 15000, cooldownMs = 180000 },
-  [439748] = { id = 439748, name = "Starfall", durationMs = 10000, cooldownMs = 90000, cooldownCategory = 1218, gcdMs = 1500 },
-  [23110] = { id = 23110, name = "Dash", durationMs = 15000, cooldownMs = 30000, cooldownCategory = 44, gcdMs = 1500, rank = "Rank 3" },
+  [417141] = { id = 417141, name = "Berserk", noTarget = true, durationMs = 15000, cooldownMs = 180000 },
+  [439748] = { id = 439748, name = "Starfall", tickEvery = 1, noTarget = true, durationMs = 10000, cooldownMs = 90000, cooldownCategory = 1218, gcdMs = 1500 },
+  [23110] = { id = 23110, name = "Dash", noTarget = true, durationMs = 15000, cooldownMs = 30000, cooldownCategory = 44, gcdMs = 1500, rank = "Rank 3" },
   -- buffs
   [9910] = { id = 9910, name = "Thorns", durationMs = 600000, gcdMs = 1500, rank = "Rank 6" },
   [9885] = { id = 9885, name = "Mark of the Wild", durationMs = 3600000, gcdMs = 1500, rank = "Rank 7" },
   [21850] = { id = 21850, name = "Gift of the Wild", durationMs = 3600000, gcdMs = 1500, rank = "Rank 2" },
-  [2893] = { id = 2893, name = "Abolish Poison", durationMs = 8000, gcdMs = 1500 },
-  [19970] = { id = 19970, name = "Entangling Roots", durationMs = 27000, gcdMs = 1500, castMs = 1500, rank = "Rank 6" },
+  [2893] = { id = 2893, name = "Abolish Poison", tickEvery = 2, durationMs = 8000, gcdMs = 1500 },
+  [19970] = { id = 19970, name = "Entangling Roots", tickEvery = 3, durationMs = 27000, gcdMs = 1500, castMs = 1500, rank = "Rank 6" },
   [18658] = { id = 18658, name = "Hibernate", durationMs = 40000, gcdMs = 1500, castMs = 1500, rank = "Rank 3" },
   [9901] = { id = 9901, name = "Soothe Animal", durationMs = 15000, gcdMs = 1500, castMs = 1500, rank = "Rank 3" },
   [9907] = { id = 9907, name = "Faerie Fire", durationMs = 40000, cooldownCategory = 1133, gcdMs = 1500, rank = "Rank 4" },
-  [9835] = { id = 9835, name = "Moonfire", durationMs = 12000, gcdMs = 1500, rank = "Rank 10" },
-  [24977] = { id = 24977, name = "Insect Swarm", durationMs = 12000, gcdMs = 1500, rank = "Rank 5" },
-  [9896] = { id = 9896, name = "Rip", durationMs = 12000, gcdMs = 1000, rank = "Rank 6" },
-  [9904] = { id = 9904, name = "Rake", durationMs = 9000, gcdMs = 1000, rank = "Rank 4" },
-  [1235827] = { id = 1235827, name = "Lacerate", durationMs = 15000, gcdMs = 1500, rank = "Rank 5" },
-  [414684] = { id = 414684, name = "Sunfire", durationMs = 12000, gcdMs = 1500 },
+  [9835] = { id = 9835, name = "Moonfire", tickEvery = 3, durationMs = 12000, gcdMs = 1500, rank = "Rank 10" },
+  [24977] = { id = 24977, name = "Insect Swarm", tickEvery = 2, durationMs = 12000, gcdMs = 1500, rank = "Rank 5" },
+  [9896] = { id = 9896, name = "Rip", tickEvery = 2, durationMs = 12000, gcdMs = 1000, rank = "Rank 6" },
+  [9904] = { id = 9904, name = "Rake", tickEvery = 3, durationMs = 9000, gcdMs = 1000, rank = "Rank 4" },
+  [1235827] = { id = 1235827, name = "Lacerate", tickEvery = 3, maxStack = 5, durationMs = 15000, gcdMs = 1500, rank = "Rank 5" },
+  [414684] = { id = 414684, name = "Sunfire", tickEvery = 3, durationMs = 12000, gcdMs = 1500 },
   [9898] = { id = 9898, name = "Demoralizing Roar", durationMs = 30000, gcdMs = 1500, rank = "Rank 5" },
   [407988] = { id = 407988, name = "Savage Roar", durationMs = 9000, gcdMs = 1000 },
-  [9841] = { id = 9841, name = "Rejuvenation", durationMs = 12000, gcdMs = 1500, rank = "Rank 10" },
-  [9858] = { id = 9858, name = "Regrowth", durationMs = 21000, gcdMs = 1500, castMs = 2000, rank = "Rank 9" },
-  [414800] = { id = 414800, name = "Fury of Stormrage", durationMs = 15000 },
-  [467079] = { id = 467079, name = "Force of Nature", durationMs = 15000 },
-  [408124] = { id = 408124, name = "Lifebloom", durationMs = 7000, gcdMs = 1000, icdMs = 2000 },
+  [9841] = { id = 9841, name = "Rejuvenation", tickEvery = 3, durationMs = 12000, gcdMs = 1500, rank = "Rank 10" },
+  [9858] = { id = 9858, name = "Regrowth", tickEvery = 3, durationMs = 21000, gcdMs = 1500, castMs = 2000, rank = "Rank 9" },
+  [414800] = { id = 414800, name = "Fury of Stormrage", noTarget = true, durationMs = 15000 },
+  [467079] = { id = 467079, name = "Force of Nature", tickEvery = 0.2, durationMs = 15000 },
+  [408124] = { id = 408124, name = "Lifebloom", tickEvery = 1, maxStack = 3, durationMs = 7000, gcdMs = 1000, icdMs = 2000 },
   [9827] = { id = 9827, name = "Pounce", durationMs = 2000, gcdMs = 1000, rank = "Rank 3" },
-  [9826] = { id = 9826, name = "Pounce Bleed", durationMs = 18000, rank = "Rank 3" },
-  [21919] = { id = 21919, name = "Thrash" },
+  [9826] = { id = 9826, name = "Pounce Bleed", tickEvery = 3, durationMs = 18000, rank = "Rank 3" },
+  [21919] = { id = 21919, name = "Thrash", noTarget = true },
   -- forms
-  [5487] = { id = 5487, name = "Bear Form", durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
-  [768] = { id = 768, name = "Cat Form", durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
-  [9634] = { id = 9634, name = "Dire Bear Form", durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
-  [1066] = { id = 1066, name = "Aquatic Form", durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
-  [783] = { id = 783, name = "Travel Form", durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
-  [439745] = { id = 439745, name = "Tree of Life", durationMs = -1 },
-  [24858] = { id = 24858, name = "Moonkin Form", durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
+  [5487] = { id = 5487, name = "Bear Form", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
+  [768] = { id = 768, name = "Cat Form", tickEvery = 5, noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
+  [9634] = { id = 9634, name = "Dire Bear Form", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
+  [1066] = { id = 1066, name = "Aquatic Form", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
+  [783] = { id = 783, name = "Travel Form", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
+  [439745] = { id = 439745, name = "Tree of Life", noTarget = true, durationMs = -1 },
+  [24858] = { id = 24858, name = "Moonkin Form", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
   -- utility
   [20748] = { id = 20748, name = "Rebirth", cooldownMs = 1800000, cooldownCategory = 26, gcdMs = 1500, castMs = 2000, rank = "Rank 5" },
-  [18960] = { id = 18960, name = "Teleport: Moonglade", gcdMs = 1500, castMs = 10000 },
+  [18960] = { id = 18960, name = "Teleport: Moonglade", noTarget = true, gcdMs = 1500, castMs = 10000 },
   [8946] = { id = 8946, name = "Cure Poison", gcdMs = 1500 },
   [2782] = { id = 2782, name = "Remove Curse", gcdMs = 1500 },
 }

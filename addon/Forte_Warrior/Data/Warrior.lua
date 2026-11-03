@@ -2,30 +2,62 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T19:08:53+00:00
+-- Regenerated: 2026-11-02T23:57:14+00:00
 -- 70707 overlay changes in this file (5):
 --   Charge: { id = 1240289, name = "Charge", cooldownMs = 15000, cooldownCategory = 44, rank = "Rank 3" } -> { id = 27685, name = "Charge", durationMs = 4000, cooldownMs = 25000, cooldownCategory = 44, gcdMs = 1500, rank = "Rank 6" }
 --   Revenge: { id = 25288, name = "Revenge", cooldownMs = 5000, cooldownCategory = 65, gcdMs = 1500, rank = "Rank 6" } -> { id = 11601, name = "Revenge", cooldownMs = 5000, cooldownCategory = 65, gcdMs = 1500, rank = "Rank 5" }
 --   Cripple: { id = 18381, name = "Cripple", durationMs = 30000 } -> { id = 89, name = "Cripple", durationMs = 20000, cooldownMs = 30000, gcdMs = 1500, rank = "Rank 1" }
---   Taste for Blood: { id = 426969, name = "Taste for Blood", durationMs = 9000 } -> { id = 426969, name = "Taste for Blood", durationMs = 9000, icdMs = 5800 }
+--   Taste for Blood: { id = 426969, name = "Taste for Blood", noTarget = true, durationMs = 9000 } -> { id = 426969, name = "Taste for Blood", noTarget = true, durationMs = 9000, icdMs = 5800 }
 --   Battle Shout: { id = 25289, name = "Battle Shout", durationMs = 180000, gcdMs = 1500, rank = "Rank 7" } -> { id = 11551, name = "Battle Shout", durationMs = 180000, gcdMs = 1500, rank = "Rank 6" }
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (base row `Effects[].PeriodMs`), `maxStack` = the row's own `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). BASE DATA ONLY: the 70707 overlay captures no Effects/MaxStack/Target (see tools/overrides_70707.json's per-id keys), so it can not add, remove or move a feed -- a 70707-sourced or store-rank row carries none. This file: 3 tickEvery, 3 maxStack, 29 noTarget.
+--   feeds [18499] Berserker Rage: noTarget
+--   feeds [2687] Bloodrage: noTarget
+--   feeds [12328] Death Wish: noTarget
+--   feeds [402913] Enraged Regeneration: tickEvery = 1, noTarget
+--   feeds [12975] Last Stand: noTarget
+--   feeds [426940] Rampage: noTarget
+--   feeds [1719] Recklessness: noTarget
+--   feeds [20230] Retaliation: noTarget
+--   feeds [2565] Shield Block: noTarget
+--   feeds [871] Shield Wall: noTarget
+--   feeds [12292] Sweeping Strikes: noTarget
+--   feeds [457816] Battle Forecast: noTarget
+--   feeds [457817] Berserker Forecast: noTarget
+--   feeds [413399] Blood Surge: noTarget
+--   feeds [28846] Cheat Death: noTarget
+--   feeds [412609] Deep Wound: tickEvery = 3
+--   feeds [457814] Defensive Forecast: noTarget
+--   feeds [457699] Echoes of Defensive Stance: noTarget
+--   feeds [1234067] Gladiator's Cunning: maxStack = 5, noTarget
+--   feeds [430472] Single-Minded Fury: noTarget
+--   feeds [1234005] Slammin': maxStack = 5, noTarget
+--   feeds [440114] Sudden Death: noTarget
+--   feeds [11597] Sunder Armor: maxStack = 5
+--   feeds [426979] Sword and Board: noTarget
+--   feeds [426969] Taste for Blood: noTarget
+--   feeds [402975] Victorious: noTarget
+--   feeds [2457] Battle Stance: noTarget
+--   feeds [2458] Berserker Stance: noTarget
+--   feeds [71] Defensive Stance: noTarget
+--   feeds [412513] Gladiator Stance: tickEvery = 1, noTarget
+--   feeds [403437] Intervene: noTarget
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
 ForteXorcist.Data.Warrior = {
   -- cooldowns
-  [18499] = { id = 18499, name = "Berserker Rage", durationMs = 10000, cooldownMs = 30000, gcdMs = 1500 },
-  [2687] = { id = 2687, name = "Bloodrage", cooldownMs = 60000 },
+  [18499] = { id = 18499, name = "Berserker Rage", noTarget = true, durationMs = 10000, cooldownMs = 30000, gcdMs = 1500 },
+  [2687] = { id = 2687, name = "Bloodrage", noTarget = true, cooldownMs = 60000 },
   [23894] = { id = 23894, name = "Bloodthirst", durationMs = 10000, cooldownMs = 6000, cooldownCategory = 971, gcdMs = 1500, rank = "Rank 4" },
   [1161] = { id = 1161, name = "Challenging Shout", durationMs = 6000, cooldownMs = 600000, gcdMs = 1500 },
   [27685] = { id = 27685, name = "Charge", durationMs = 4000, cooldownMs = 25000, cooldownCategory = 44, gcdMs = 1500, rank = "Rank 6" },
   [12809] = { id = 12809, name = "Concussion Blow", durationMs = 5000, cooldownMs = 45000 },
-  [12328] = { id = 12328, name = "Death Wish", durationMs = 30000, cooldownMs = 180000, gcdMs = 1500 },
+  [12328] = { id = 12328, name = "Death Wish", noTarget = true, durationMs = 30000, cooldownMs = 180000, gcdMs = 1500 },
   [676] = { id = 676, name = "Disarm", durationMs = 10000, cooldownMs = 60000, cooldownCategory = 109, gcdMs = 1500 },
-  [402913] = { id = 402913, name = "Enraged Regeneration", durationMs = 10000, cooldownMs = 180000, gcdMs = 1500 },
+  [402913] = { id = 402913, name = "Enraged Regeneration", tickEvery = 1, noTarget = true, durationMs = 10000, cooldownMs = 180000, gcdMs = 1500 },
   [20617] = { id = 20617, name = "Intercept", cooldownMs = 30000, cooldownCategory = 872, rank = "Rank 3" },
   [5246] = { id = 5246, name = "Intimidating Shout", durationMs = 8000, cooldownMs = 180000, gcdMs = 1500 },
-  [12975] = { id = 12975, name = "Last Stand", cooldownMs = 180000 },
+  [12975] = { id = 12975, name = "Last Stand", noTarget = true, cooldownMs = 180000 },
   [403228] = { id = 403228, name = "Meathook", cooldownMs = 35000, gcdMs = 1500 },
   [20560] = { id = 20560, name = "Mocking Blow", durationMs = 6000, cooldownMs = 120000, cooldownCategory = 40, gcdMs = 1500, rank = "Rank 5" },
   [21553] = { id = 21553, name = "Mortal Strike", durationMs = 10000, cooldownMs = 6000, cooldownCategory = 971, gcdMs = 1500, rank = "Rank 4" },
@@ -33,54 +65,54 @@ ForteXorcist.Data.Warrior = {
   [6554] = { id = 6554, name = "Pummel", durationMs = 4000, cooldownMs = 10000, cooldownCategory = 88, gcdMs = 1500, rank = "Rank 2" },
   [402911] = { id = 402911, name = "Raging Blow", cooldownMs = 8000, gcdMs = 1500 },
   [426490] = { id = 426490, name = "Rallying Cry", durationMs = 10000, cooldownMs = 180000 },
-  [426940] = { id = 426940, name = "Rampage", durationMs = 30000, cooldownMs = 120000 },
-  [1719] = { id = 1719, name = "Recklessness", durationMs = 15000, cooldownMs = 1800000, gcdMs = 1500 },
-  [20230] = { id = 20230, name = "Retaliation", durationMs = 15000, cooldownMs = 900000, gcdMs = 1500 },
+  [426940] = { id = 426940, name = "Rampage", noTarget = true, durationMs = 30000, cooldownMs = 120000 },
+  [1719] = { id = 1719, name = "Recklessness", noTarget = true, durationMs = 15000, cooldownMs = 1800000, gcdMs = 1500 },
+  [20230] = { id = 20230, name = "Retaliation", noTarget = true, durationMs = 15000, cooldownMs = 900000, gcdMs = 1500 },
   [11601] = { id = 11601, name = "Revenge", cooldownMs = 5000, cooldownCategory = 65, gcdMs = 1500, rank = "Rank 5" },
   [1672] = { id = 1672, name = "Shield Bash", durationMs = 6000, cooldownMs = 12000, cooldownCategory = 88, gcdMs = 1500, rank = "Rank 3" },
-  [2565] = { id = 2565, name = "Shield Block", durationMs = 7000, cooldownMs = 5000 },
+  [2565] = { id = 2565, name = "Shield Block", noTarget = true, durationMs = 7000, cooldownMs = 5000 },
   [23925] = { id = 23925, name = "Shield Slam", cooldownMs = 6000, cooldownCategory = 971, gcdMs = 1500, rank = "Rank 4" },
-  [871] = { id = 871, name = "Shield Wall", durationMs = 12000, cooldownMs = 900000, gcdMs = 1500 },
+  [871] = { id = 871, name = "Shield Wall", noTarget = true, durationMs = 12000, cooldownMs = 900000, gcdMs = 1500 },
   [440488] = { id = 440488, name = "Shockwave", durationMs = 4000, cooldownMs = 20000, cooldownCategory = 1201, gcdMs = 1500 },
   [1310200] = { id = 1310200, name = "Slam", cooldownMs = 18000, cooldownCategory = 2412, gcdMs = 1500, castMs = 1500, rank = "Rank 5" },
   [1310222] = { id = 1310222, name = "Spearing Strike", cooldownMs = 20000, gcdMs = 1500 },
-  [12292] = { id = 12292, name = "Sweeping Strikes", durationMs = 20000, cooldownMs = 30000 },
+  [12292] = { id = 12292, name = "Sweeping Strikes", noTarget = true, durationMs = 20000, cooldownMs = 30000 },
   [355] = { id = 355, name = "Taunt", durationMs = 3000, cooldownMs = 8000, cooldownCategory = 82 },
   [11581] = { id = 11581, name = "Thunder Clap", durationMs = 30000, cooldownMs = 6000, cooldownCategory = 49, gcdMs = 1500, rank = "Rank 6" },
   [402927] = { id = 402927, name = "Victory Rush", cooldownMs = 30000, gcdMs = 1500 },
   [1680] = { id = 1680, name = "Whirlwind", cooldownMs = 10000, cooldownCategory = 891, gcdMs = 1500 },
   -- buffs
-  [457816] = { id = 457816, name = "Battle Forecast", durationMs = 15000 },
-  [457817] = { id = 457817, name = "Berserker Forecast", durationMs = 15000 },
-  [413399] = { id = 413399, name = "Blood Surge", durationMs = 15000 },
-  [28846] = { id = 28846, name = "Cheat Death", durationMs = 5000 },
+  [457816] = { id = 457816, name = "Battle Forecast", noTarget = true, durationMs = 15000 },
+  [457817] = { id = 457817, name = "Berserker Forecast", noTarget = true, durationMs = 15000 },
+  [413399] = { id = 413399, name = "Blood Surge", noTarget = true, durationMs = 15000 },
+  [28846] = { id = 28846, name = "Cheat Death", noTarget = true, durationMs = 5000 },
   [89] = { id = 89, name = "Cripple", durationMs = 20000, cooldownMs = 30000, gcdMs = 1500, rank = "Rank 1" },
-  [412609] = { id = 412609, name = "Deep Wound", durationMs = 12000 },
-  [457814] = { id = 457814, name = "Defensive Forecast", durationMs = 15000 },
-  [457699] = { id = 457699, name = "Echoes of Defensive Stance", durationMs = 15000 },
-  [1234067] = { id = 1234067, name = "Gladiator's Cunning", durationMs = 15000 },
+  [412609] = { id = 412609, name = "Deep Wound", tickEvery = 3, durationMs = 12000 },
+  [457814] = { id = 457814, name = "Defensive Forecast", noTarget = true, durationMs = 15000 },
+  [457699] = { id = 457699, name = "Echoes of Defensive Stance", noTarget = true, durationMs = 15000 },
+  [1234067] = { id = 1234067, name = "Gladiator's Cunning", maxStack = 5, noTarget = true, durationMs = 15000 },
   [7373] = { id = 7373, name = "Hamstring", durationMs = 15000, gcdMs = 1500, rank = "Rank 3" },
   [13490] = { id = 13490, name = "Howling Blade", durationMs = 30000, rank = "Rank 1" },
   [12323] = { id = 12323, name = "Piercing Howl", durationMs = 6000, gcdMs = 1500 },
   [468071] = { id = 468071, name = "Retaliate", durationMs = 30000 },
-  [430472] = { id = 430472, name = "Single-Minded Fury", durationMs = 3000 },
-  [1234005] = { id = 1234005, name = "Slammin'", durationMs = 15000 },
+  [430472] = { id = 430472, name = "Single-Minded Fury", noTarget = true, durationMs = 3000 },
+  [1234005] = { id = 1234005, name = "Slammin'", maxStack = 5, noTarget = true, durationMs = 15000 },
   [23605] = { id = 23605, name = "Spell Vulnerability", durationMs = 5000 },
-  [440114] = { id = 440114, name = "Sudden Death", durationMs = 10000 },
-  [11597] = { id = 11597, name = "Sunder Armor", durationMs = 30000, gcdMs = 1500, rank = "Rank 5" },
-  [426979] = { id = 426979, name = "Sword and Board", durationMs = 5000 },
-  [426969] = { id = 426969, name = "Taste for Blood", durationMs = 9000, icdMs = 5800 },
-  [402975] = { id = 402975, name = "Victorious", durationMs = 20000 },
+  [440114] = { id = 440114, name = "Sudden Death", noTarget = true, durationMs = 10000 },
+  [11597] = { id = 11597, name = "Sunder Armor", maxStack = 5, durationMs = 30000, gcdMs = 1500, rank = "Rank 5" },
+  [426979] = { id = 426979, name = "Sword and Board", noTarget = true, durationMs = 5000 },
+  [426969] = { id = 426969, name = "Taste for Blood", noTarget = true, durationMs = 9000, icdMs = 5800 },
+  [402975] = { id = 402975, name = "Victorious", noTarget = true, durationMs = 20000 },
   -- stances
-  [2457] = { id = 2457, name = "Battle Stance", durationMs = -1, cooldownMs = 1000, cooldownCategory = 47 },
-  [2458] = { id = 2458, name = "Berserker Stance", durationMs = -1, cooldownMs = 1000, cooldownCategory = 47 },
-  [71] = { id = 71, name = "Defensive Stance", durationMs = -1, cooldownMs = 1000, cooldownCategory = 47 },
-  [412513] = { id = 412513, name = "Gladiator Stance", durationMs = -1, cooldownMs = 1000, cooldownCategory = 47 },
+  [2457] = { id = 2457, name = "Battle Stance", noTarget = true, durationMs = -1, cooldownMs = 1000, cooldownCategory = 47 },
+  [2458] = { id = 2458, name = "Berserker Stance", noTarget = true, durationMs = -1, cooldownMs = 1000, cooldownCategory = 47 },
+  [71] = { id = 71, name = "Defensive Stance", noTarget = true, durationMs = -1, cooldownMs = 1000, cooldownCategory = 47 },
+  [412513] = { id = 412513, name = "Gladiator Stance", tickEvery = 1, noTarget = true, durationMs = -1, cooldownMs = 1000, cooldownCategory = 47 },
   [11551] = { id = 11551, name = "Battle Shout", durationMs = 180000, gcdMs = 1500, rank = "Rank 6" },
   [11556] = { id = 11556, name = "Demoralizing Shout", durationMs = 45000, gcdMs = 1500, rank = "Rank 5" },
   [403215] = { id = 403215, name = "Commanding Shout", durationMs = 300000, gcdMs = 1500 },
   -- utility
-  [403437] = { id = 403437, name = "Intervene" },
+  [403437] = { id = 403437, name = "Intervene", noTarget = true },
 }
 
 ForteXorcist.Data.WarriorByName = {

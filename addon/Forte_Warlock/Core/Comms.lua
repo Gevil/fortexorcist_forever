@@ -48,7 +48,9 @@
 --   * a query burst on roster change at most once per 5 s (the original's
 --     queries ride PARTY/RAID join events, Forte_Core.lua:2295,
 --     Forte_Healthstone.lua:268);
---   * an own-count announce at most once per 2 s per family and only on a
+--   * an own-count announce at most once per AnnounceGap (the user's
+--     `HealthstoneInterval`, default 2 s -- the key is the spy's own
+--     re-ask cadence, see the consumer below) per family and only on a
 --     CHANGE (the original had no own-count broadcast at all — it answered
 --     queries — and 2 s is its own HealthstoneInterval floor,
 --     Forte_Healthstone.lua:330);
@@ -486,19 +488,46 @@ function C:OnGroupLeft()
     self:KickViews()
 end
 
+--- The announce cadence, read live: the original's
+--- `FW.Default.HealthstoneInterval` (the "Healthstone draw interval"
+--- option, Forte_Healthstone.lua:610 with SetRange(0.5,5) at :318, def 2
+--- :343) is the spy's re-ask cadence — `FW:Delay(FW.Default.
+--- HealthstoneInterval, FWHS_Update)` (:113-116) — the rate at which the
+--- spy restates itself. This build's spy restates its OWN counts on this
+--- path, so the key paces exactly that: a short interval asks and is
+--- answered more often, a long one lets the roster age. Clamped to the
+--- original's own 0.5..5 (the option's SetRange), with the shipped default
+--- as the floor of a missing store.
+function C:AnnounceGap()
+    local v
+    if FX.Settings and FX.Settings.Get then
+        local ok, got = pcall(FX.Settings.Get, FX.Settings, "Warlock",
+            "HealthstoneInterval")
+        if ok then v = FX.Compat.PlainOrNil(got) end
+    end
+    if type(v) ~= "number" then v = self.ANNOUNCE_MIN_GAP end
+    if v < 0.5 then
+        v = 0.5
+    elseif v > 5 then
+        v = 5
+    end
+    return v
+end
+
 --- Own counts may have moved (Core/Tools.lua calls this after every
 --- ReadItems pass): announce on a CHANGE, per family, at most once per
---- ANNOUNCE_MIN_GAP (the header's rate law).
+--- AnnounceGap (the header's rate law, the user's HealthstoneInterval).
 function C:AnnounceState()
+    local gap = self:AnnounceGap()
     local hs = self:SelfHealthstoneCount()
     if hs ~= nil and hs ~= self._lastSent.hs
-        and self:RateGate("announceHS", self.ANNOUNCE_MIN_GAP) then
+        and self:RateGate("announceHS", gap) then
         self._lastSent.hs = hs
         self:SendCmd("HS", hs)
     end
     local shards = self:SelfShardCount()
     if shards ~= nil and shards ~= self._lastSent.shards
-        and self:RateGate("announceSH", self.ANNOUNCE_MIN_GAP) then
+        and self:RateGate("announceSH", gap) then
         self._lastSent.shards = shards
         self:SendCmd("SH", shards)
     end

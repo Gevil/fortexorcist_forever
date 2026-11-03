@@ -54,6 +54,19 @@ Sounds.rows = {
     CooldownReady = { name = "CooldownReady", enable = "CooldownReadyEnable",
                       path = "CooldownReadyPath",
                       times = "CooldownReadyTimes" },
+    -- The soulstone pair: the original's SoulstoneFadeSound /
+    -- SoulstoneReadySound (Forte_Soulstone.lua:640-641, defaults :677-678),
+    -- at the tracker's window-end site -- the 2012 panel plays the Fade bell
+    -- at the tracked stone's expiry (:429-445) and the Ready bell at the
+    -- warlock's stone-cooldown end (:461-464); the header of
+    -- Forte_Core/Core/Events.lua carries the seeding law that makes them one
+    -- instant on this self-only port.
+    SoulstoneFade   = { name = "SoulstoneFade", enable = "SoulstoneFadeEnable",
+                        path = "SoulstoneFadePath",
+                        times = "SoulstoneFadeTimes" },
+    SoulstoneReady  = { name = "SoulstoneReady", enable = "SoulstoneReadyEnable",
+                        path = "SoulstoneReadyPath",
+                        times = "SoulstoneReadyTimes" },
 }
 
 Sounds.cfg = nil          -- bound by the module at enable
@@ -110,4 +123,17 @@ end
 --- A cooldown popped ready (NEW, CD-33 -- the original has none).
 function Sounds:CooldownReady()
     return self:playRow(self.rows.CooldownReady)
+end
+
+--- A tracked soulstone's window ran out (the original's `SS` expiry branch
+--- at Forte_Soulstone.lua:429-445, reached through FX_SOULSTONE_EXPIRED).
+function Sounds:SoulstoneFade()
+    return self:playRow(self.rows.SoulstoneFade)
+end
+
+--- The warlock is ready to put a new soulstone up (the original's
+--- `Saved.Cooldowns[warlock]` end at Forte_Soulstone.lua:461-464, reached
+--- through FX_SOULSTONE_READY).
+function Sounds:SoulstoneReady()
+    return self:playRow(self.rows.SoulstoneReady)
 end

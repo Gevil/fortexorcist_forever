@@ -331,7 +331,8 @@ test("the settings are live: geometry, colours, gates, the cap", function()
     -- The defaults come back so the rest of the suite sees the Classic law.
     ST:Set("SpellTimer", "Width", 250)
     ST:Set("SpellTimer", "Height", 14)
-    ST:Set("SpellTimer", "Max", 32)
+    ST:Set("SpellTimer", "Max", 15)   -- the shipped default (wave 4: 32 -> 15,
+                                      -- the Classic law Max={[0]=false,15})
     ST:Set("SpellTimer", "MaxDisplayTime", 30)
     ST:Set("SpellTimer", "NormalAlpha", 0.5)
     ST:Set("SpellTimer", "BarBackgroundAlpha", 0.3)
@@ -645,6 +646,15 @@ function()
         ColourNormal = { "NormalColor" }, ColourExpiry = { "ColourExpiry" },
         ColourFlash = { "Fail", "ColourFlash" },
         ColourExpired = { "ExpiredColor" },
+        -- The wave-4 OptionsTimer rows (the key names are the KEYMAP's;
+        -- inert here until the KEYMAP carries them, and REQUIRED the
+        -- moment it does): every field is read by the laws / the renderer
+        -- during the proxied pass above (BlinkTime/FadeTime on the FADING
+        -- row `c` inside the blink band, TicksNext on Serpent Sting's tick
+        -- schedule, Flip/LabelHeight on the group boxes).
+        Flip = { "flip" }, LabelHeight = { "labelHeight" },
+        BlinkTime = { "blinkAt" }, FadeTime = { "fadeTime" },
+        TicksNext = { "ticksNext" },
         BarColorSelf = { "SelfBuff" }, BarColorTarget = { "TargetDebuff" },
         BarColorFocus = { "FocusDebuff" }, BarColorPet = { "PetBuff" },
         BarColorEnemy = { "TargetDebuff" }, BarColorHostile = { "TargetDebuff" },
@@ -966,22 +976,44 @@ end)
 test("each visible row's fill region carries its kind colour", function()
     local R = FX.Timer.UI and FX.Timer.UI.Rows
     local panel = M.pages and M.pages.Timer and M.pages.Timer.frame
-    if not (R and R.GetRows and R.Invalidate and R.Render and panel
-        and panel.IsShown and panel:IsShown()) then
-        print('[SKIP] the spell timer page is not live in this run')
-        return
-    end
+    local livePage = R and R.GetRows and R.Invalidate and R.Render
+        and panel and panel.IsShown and panel:IsShown()
     local s = FX.Timer.Skin
     installClock(GetTime())
     Rows:Clear()
-    R.Invalidate()
+    if livePage then R.Invalidate() end
     -- The public debug feed seeds the rows; its own draw pass runs at the
     -- seed stamps (inside the arrival flash), so the steady state is reached
     -- through the public cast path at an advanced clock.
     local ok = pcall(FX.slashSubs.timer, "test")
     assertTrue(ok)
     clock[1] = clock[1] + 1.2
-    dispatch("UNIT_SPELLCAST_SENT", 425737, "Serpent Sting", "target-target")
+    -- Code-review-5 M1: the catalog's SENT shape is (unitTarget, target,
+    -- castGUID, spellID) -- the retired 3-slot call this line used handed the
+    -- spellID into the castGUID slot, Module.lua:646 (`C:OnSent(a2, a4)`) saw
+    -- spellID = nil and recorded NOTHING: the line was inert and the row
+    -- count rode on the seed alone. The public cast path rides its own
+    -- catalog pair now, and the dispatch is asserted on its OWN row -- the
+    -- Rows:Count delta, not the seed total. This leg runs headless too: the
+    -- payload law is the data layer, the colour census below needs the page.
+    local seeded = Rows:Count()
+    assertTrue(seeded >= 4, "the feed seeded the palette rows")
+    dispatch("UNIT_SPELLCAST_SENT", "player", "target-target",
+        "G:fill", 425737)
+    dispatch("UNIT_SPELLCAST_SUCCEEDED", "player", "G:fill", 425737, 12)
+    clock[1] = clock[1] + Laws.SETTLE + 0.01
+    M:Logic()
+    assertEquals(seeded + 1, Rows:Count(),
+        "the 4-slot SENT/SUCCEEDED pair adds its row")
+    assertNotNil(Rows:Find("Serpent Sting", "target-target"),
+        "the dispatch's row rides the payload's target string")
+    if not livePage then
+        print('[SKIP] the spell timer page is not live in this run')
+        Rows:Clear()
+        D:RenderIdle()
+        return
+    end
+    M:Kick()                                  -- the new row rides the draw
     local n = 0
     for _, row in ipairs(R.GetRows()) do
         if row.shown and row.bar and row.bar.GetStatusBarColor then

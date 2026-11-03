@@ -59,6 +59,7 @@ Announce.counts = {
     lockedSkipped = 0,   -- SKIPPED because the client says chat is locked
     offSkipped = 0,      -- skipped by the OutputRaid / Output master gates
     noGroup = 0,         -- the no-group local echoes (ToGroup law)
+    noTarget = 0,        -- a whisper row whose target name is unreadable
     sendFailed = 0,      -- the call raised (the pcall caught it)
 }
 Announce.last = nil      -- { text, chatType, result } -- the status line's datum
@@ -98,8 +99,11 @@ function Announce:chatLocked()
 end
 
 --- The one send. chatType is the catalog's string ('SAY', 'YELL', 'PARTY',
---- 'RAID', 'CHANNEL1'..'CHANNEL10' -- ChatInfoDocumentation.lua:573).
-function Announce:send(text, chatType)
+--- 'RAID', 'CHANNEL1'..'CHANNEL10' -- ChatInfoDocumentation.lua:573); `target`
+--- is the WHISPER leg's receiver (the catalog's 4th parameter, the shipped
+--- Blizzard UI's own shape: `C_ChatInfo.SendChatMessage(msg, "WHISPER",
+--- languageID, lastTell)`, Blizzard_ChatBase/SlashCommands.lua:886).
+function Announce:send(text, chatType, target)
     if type(text) ~= "string" or text == "" then return "empty" end
     local send = self.readers.send
         or (C_ChatInfo and C_ChatInfo.SendChatMessage)
@@ -107,7 +111,7 @@ function Announce:send(text, chatType)
         self.counts.sendFailed = self.counts.sendFailed + 1
         return "noSend"
     end
-    local ok = pcall(send, text, chatType)
+    local ok = pcall(send, text, chatType, nil, target)
     self.last = { text = text, chatType = chatType, result = ok and "sent" or "raised" }
     if not ok then
         self.counts.sendFailed = self.counts.sendFailed + 1
@@ -170,10 +174,38 @@ function Announce:Channel(text, gateKey)
     return self:send(text, ch)
 end
 
+--- The whisper leg (the original's `FW:Whisper(msg, to)`,
+--- Forte_Core.lua:2081-2083 -- `SendChatMessage(msg, "WHISPER", nil, to)`).
+--- The MSG widget rows of the original's Warlock page
+--- (Warlock.lua:297-299) are whisper-only rows: they are NOT gated by
+--- `OutputRaid`/`Output` (those gate the group/channel routing the source's
+--- `FW:ToGroup`/`FW:ToChannel` carry, and `FW:Whisper` walks past both), so
+--- this leg is gated by the row's own checkbox, the lockdown gate and a
+--- PLAIN, readable target -- no target name, no send (a whisper with no
+--- receiver is not a message, and a secret one names nobody).
+function Announce:Whisper(text, gateKey, target)
+    local cfg = self.cfg
+    if not cfg or not cfg[gateKey] then
+        self.counts.offSkipped = self.counts.offSkipped + 1
+        return "off"
+    end
+    local who = FX.Compat.PlainOrNil(target)
+    if type(who) ~= "string" or who == "" then
+        self.counts.noTarget = (self.counts.noTarget or 0) + 1
+        return "noTarget"
+    end
+    if self:chatLocked() then
+        self.counts.lockedSkipped = self.counts.lockedSkipped + 1
+        return "locked"
+    end
+    return self:send(text, "WHISPER", who)
+end
+
 --- Status lines for `/fx messages` (the gate-count half of the task).
 function Announce:StatusLines()
     local c = self.counts
     return string.format(
-        "announces: sent %d | locked-skipped %d | off-skipped %d | no-group echoes %d | failed %d",
-        c.sent, c.lockedSkipped, c.offSkipped, c.noGroup, c.sendFailed)
+        "announces: sent %d | locked-skipped %d | off-skipped %d | no-group echoes %d | no-target %d | failed %d",
+        c.sent, c.lockedSkipped, c.offSkipped, c.noGroup, c.noTarget,
+        c.sendFailed)
 end

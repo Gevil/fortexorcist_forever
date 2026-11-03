@@ -50,7 +50,22 @@ local DEFAULTS = {
     Height = 14,
     Space = 2,
     Spacing = 2,
-    Max = 32,
+    -- `Max = {[0]=false,15}` (Forte_Timer.lua:3315): the row cap rides its OWN
+    -- gate, and the shipped gate is OFF with the value 15. The gate is our
+    -- `MaxOn`, the value our `Max` -- both rows are on the page, so the pair
+    -- can not drift from the source's one row (the options survey's
+    -- "Max shown" default drift, docs/research/options-fidelity.md).
+    MaxOn = false,
+    Max = 15,
+    -- `LabelHeight = 18` (:3344, the "Unit label height" row :3242): the strip
+    -- the group's unit header rides inside.
+    LabelHeight = 18,
+    -- The layout direction pair, Basics :3148-3149: `Outwands = true`
+    -- (:3333, "Highest timers outwards" -- the sort runs the longest times
+    -- furthest from the anchor) and `Flip = false` (:3332, "Flip bar
+    -- direction" -- the fill's direction).
+    Outwands = true,
+    Flip = false,
     -- Display rules
     ShowTargetNames = true,
     ShowID = false,
@@ -66,6 +81,16 @@ local DEFAULTS = {
     IconStacks = true,
     ShowStacks = true,
     ShowTicks = true,
+    -- `TicksNext = true` (:3404, the "Next Tick only" row :3182): one mark,
+    -- the next tick of the schedule, not the whole schedule.
+    TicksNext = true,
+    -- The Fading section (:3192-3199): `FadeTime = 1` (:3339, "Standard fade
+    -- delay" -- the ghost time a row rides past its window) and
+    -- `Blink = {[0]=true,3}` (:3335, "Blink expiring bars" -- the source's
+    -- expiry cue is the alpha pulse, :1562-1569, not a colour change).
+    FadeTime = 1,
+    Blink = true,
+    BlinkTime = 3,
     ShowTooltips = true,
     AltTimeFormat = false,
     -- The colour law (§5.4): the text/flash/expired entries ride the Skin's
@@ -80,8 +105,13 @@ local DEFAULTS = {
         or { 0.25, 1.0, 0.25 },
     ColourFlash = (FX.Timer.Skin and FX.Timer.Skin.ColourFlash)
         or { 1.0, 0.25, 0.25 },
-    ColourExpired = (FX.Timer.Skin and FX.Timer.Skin.ColourExpired)
-        or { 1.0, 1.0, 1.0 },
+    -- `ExpiredColor = {[0]=false,0.50,0.50,0.50,1.00}` (:3371): a row past its
+    -- end rides the CATEGORY colour by default; the grey is behind the gate,
+    -- and the gate ships OFF. The triple is the Skin's own `ExpiredColor`, the
+    -- value ColorVal reads (:1560-1561) -- the store default can not drift.
+    ExpiredColor = false,
+    ColourExpired = (FX.Timer.Skin and FX.Timer.Skin.ExpiredColor)
+        or { 0.50, 0.50, 0.50, 1.00 },
     BarColorSelf = (FX.Timer.Skin and FX.Timer.Skin.BarColorSelf)
         or { 0.99, 0.82, 0.34 },
     BarColorTarget = (FX.Timer.Skin and FX.Timer.Skin.BarColorTarget)
@@ -128,8 +158,24 @@ FX.Timer.Pages.WIDGET_TIPS = {
     Space = "Space between the rows inside a group (default 2, :3364). "
         .. "Applied live.",
     Spacing = "Space between two groups (default 2, :3345). Applied live.",
-    Max = "Rows drawn (default 32, :3320). Long rows are always sorted last, "
-        .. "so the cap drops only dead ones (:3449-3452). Applied live.",
+    Max = "Rows drawn while the row cap is on (the Classic default 15, "
+        .. ":3315 -- the value half of the source's one `Max = {[0]=false,15}` "
+        .. "row). Long rows are always sorted last, so the cap drops only "
+        .. "dead ones (:3449-3452). Applied live.",
+    MaxOn = "The `[0]` gate of the source's `Max = {[0]=false,15}` row "
+        .. "(:3315): with it off every row of the stack is drawn. The Classic "
+        .. "build ships it OFF. Applied live.",
+    LabelHeight = "The height of the unit labels between the bars (the "
+        .. "'Unit label height' row :3242, default 18 :3344): the strip the "
+        .. "group header rides inside, so it reserves the room above the "
+        .. "group's topmost bar. Resizes live.",
+    Outwands = "Highest timers outwards (:3148, default true :3333): the "
+        .. "longest remaining times ride furthest from the anchor, so the "
+        .. "rows that expire soonest sit nearest it. Applied live.",
+    Flip = "Flip bar direction (:3149, default false :3332): the fill grows "
+        .. "from the RIGHT and shrinks from the LEFT, and the spark (:2536-"
+        .. "2540) and the tick marks (:1797/:1806) mirror with it. Applied "
+        .. "live.",
     Scale = "Frame scale of this panel (drives the anchor live, "
         .. "Module:SetScale). Applied live.",
     Alpha = "Frame alpha of this panel (drives the anchor live, "
@@ -156,6 +202,22 @@ FX.Timer.Pages.WIDGET_TIPS = {
     ShowTicks = "Mark the data's tick schedule on the bar (:1613-1627). "
         .. "DISPLAY ONLY -- real tick detection is log-only and the log is "
         .. "closed. Applied live.",
+    TicksNext = "Next Tick only (:3182, default true :3404): of the schedule "
+        .. "ShowTicks marks, draw the ONE that fires next -- the step at the "
+        .. "fill's live edge (the source's `TicksNext` branch, :1775-1791) -- "
+        .. "instead of every remaining step. Applied live.",
+    FadeTime = "Standard fade delay (:3193, default 1 :3339), the source's "
+        .. "'ghost time': a row rides its full visibility this long past the "
+        .. "end of its window, then the fade-out ramp runs (the "
+        .. "`Alpha(removeAt + FadeTime, t)` law, :2166). Applied live.",
+    Blink = "Blink expiring bars (:3195, the `[0]` of `Blink = {[0]=true,3}` "
+        .. ":3335 -- the Classic build ships it ON): the rows' backgrounds "
+        .. "pulse as their window runs out (:1562-1569). The source has no "
+        .. "about-to-expire COLOUR -- the pulse is its expiry cue. Applied "
+        .. "live.",
+    BlinkTime = "Blink expiring bars, the seconds half of the same row "
+        .. "(:3335, 3): a row starts its pulse with this much of its window "
+        .. "left. Applied live.",
     ShowTooltips = "The hover tooltip law (:1730-1759, C_TooltipInfo + "
         .. "C_Tooltip on hover) has no panel tooltip yet -- the frozen path "
         .. "of design §5.5. Not wired yet (stored).",
@@ -175,9 +237,15 @@ FX.Timer.Pages.WIDGET_TIPS = {
         .. "the expiry cue is the Blink alpha pulse (:1562-1569) and the "
         .. "past-the-end colour is the Expired colour below. Not wired yet "
         .. "(stored).",
-    ColourFlash = "The flash band -- the last 2 s (:3350). Applied live.",
-    ColourExpired = "A row past its end, greyed and faded over a second "
-        .. "(:3351, :2364; the ExpiredColor[0] gate). Applied live.",
+    ColourFlash = "The flash band -- a failed row, the `Fail` colour "
+        .. "(:3375) over the FailTime seconds (:3338, 2). Applied live.",
+    ColourExpired = "A row past its end, the grey of `ExpiredColor` (:3371) "
+        .. "-- the source's Expired row (:1560-1561), off by default behind "
+        .. "the gate below. Applied live.",
+    ExpiredColor = "Expired (:3197, the `[0]` gate of `ExpiredColor = "
+        .. "{[0]=false,0.5,0.5,0.5,1}` :3371): OFF by the Classic default, a "
+        .. "row past its end keeps its category colour; ON, it takes the "
+        .. "expired colour above. Applied live.",
     BarColorSelf = "The source colours bars PER CATEGORY (ColorVal "
         .. ":1524-1573); a per-caster bar law is the open phase question "
         .. "(design §3.6). Not wired yet (stored).",
@@ -262,7 +330,7 @@ function P.RegisterTimerPage()
                     s.CHK({ module = M, key = "Lock", label = "Lock",
                         tip = TIPS.Lock })
                     s.CHK({ module = M, key = "Label",
-                        label = "Show group labels", tip = TIPS.Label })
+                        label = "Show name tags/headers", tip = TIPS.Label })
                     s.CHK({ module = M, key = "ShowTargetNames",
                         label = "Show target names",
                         tip = TIPS.ShowTargetNames })
@@ -270,11 +338,18 @@ function P.RegisterTimerPage()
                         label = "Show spell names",
                         tip = TIPS.ShowSpellNames })
                     s.CHK({ module = M, key = "ShowID",
-                        label = "Show the buff id", tip = TIPS.ShowID })
+                        label = "Show unit #", tip = TIPS.ShowID })
+                    -- The two layout-direction rows of the source's Basics
+                    -- (:3148-3149), in its order.
+                    s.CHK({ module = M, key = "Outwands",
+                        label = "Highest timers outwards",
+                        tip = TIPS.Outwands })
+                    s.CHK({ module = M, key = "Flip",
+                        label = "Flip bar direction", tip = TIPS.Flip })
                 end, {
                     module = M,
                     keys = { "Enable", "Lock", "Label", "ShowTargetNames",
-                        "ShowSpellNames", "ShowID" },
+                        "ShowSpellNames", "ShowID", "Outwands", "Flip" },
                     tip = "The master switches and the row labels.",
                 })
                 b.Section("Frame Sizing", function(s)
@@ -286,7 +361,16 @@ function P.RegisterTimerPage()
                         min = 0, max = 12, step = 1, tip = TIPS.Space })
                     s.NUM({ module = M, key = "Spacing", label = "Spacing",
                         min = 0, max = 12, step = 1, tip = TIPS.Spacing })
-                    s.NUM({ module = M, key = "Max", label = "Max rows",
+                    -- The source's SIZING rows (:3241-3244): the unit label
+                    -- height, then the `NU2` row "Maximum shown" -- its gate
+                    -- and its value as our two keys.
+                    s.NUM({ module = M, key = "LabelHeight",
+                        label = "Unit label height",
+                        min = 0, max = 48, step = 1,
+                        tip = TIPS.LabelHeight })
+                    s.CHK({ module = M, key = "MaxOn",
+                        label = "Limit rows shown", tip = TIPS.MaxOn })
+                    s.NUM({ module = M, key = "Max", label = "Maximum shown",
                         min = 4, max = 64, step = 1, tip = TIPS.Max })
                     s.NUM({ module = M, key = "Scale", label = "Scale",
                         min = 0.5, max = 2.0, step = 0.05,
@@ -296,8 +380,8 @@ function P.RegisterTimerPage()
                         tip = TIPS.Alpha })
                 end, {
                     module = M,
-                    keys = { "Width", "Height", "Space", "Spacing", "Max",
-                        "Scale", "Alpha" },
+                    keys = { "Width", "Height", "Space", "Spacing",
+                        "LabelHeight", "MaxOn", "Max", "Scale", "Alpha" },
                     tip = "Sizes of the stack. The recycle icon restores the Classic defaults.",
                 })
                 b.Section("Display Rules", function(s)
@@ -328,6 +412,8 @@ function P.RegisterTimerPage()
                         tip = TIPS.ShowStacks })
                     s.CHK({ module = M, key = "ShowTicks",
                         label = "Show tick marks", tip = TIPS.ShowTicks })
+                    s.CHK({ module = M, key = "TicksNext",
+                        label = "Next Tick only", tip = TIPS.TicksNext })
                     s.CHK({ module = M, key = "ShowTooltips",
                         label = "Show tooltips", tip = TIPS.ShowTooltips })
                     s.CHK({ module = M, key = "AltTimeFormat",
@@ -337,15 +423,32 @@ function P.RegisterTimerPage()
                         label = "Announce expiries (chat)",
                         tip = TIPS.AnnounceExpiry })
                     s.CHK({ module = M, key = "ExpandUpwards",
-                        label = "Grow upwards", tip = TIPS.ExpandUpwards })
+                        label = "Expand up", tip = TIPS.ExpandUpwards })
                 end, {
                     module = M,
                     keys = { "MaxDisplayTime", "NormalAlpha",
                         "BarBackgroundAlpha", "EnableSpark", "EnableBackdrop",
                         "SmartSpace", "IconStacks", "ShowStacks", "ShowTicks",
+                        "TicksNext",
                         "ShowTooltips", "AltTimeFormat", "AnnounceExpiry",
                         "ExpandUpwards" },
                     tip = "The display law of the stack.",
+                })
+                -- The source's FADING subcategory (:3192-3199), in its order
+                -- and with its labels: the fade delay, then the Blink pair.
+                b.Section("Fading", function(s)
+                    s.NUM({ module = M, key = "FadeTime",
+                        label = "Standard fade delay (s)",
+                        min = 0, max = 120, step = 1, tip = TIPS.FadeTime })
+                    s.CHK({ module = M, key = "Blink",
+                        label = "Blink expiring bars", tip = TIPS.Blink })
+                    s.NUM({ module = M, key = "BlinkTime",
+                        label = "Blink when under (s)",
+                        min = 0, max = 30, step = 1, tip = TIPS.BlinkTime })
+                end, {
+                    module = M,
+                    keys = { "FadeTime", "Blink", "BlinkTime" },
+                    tip = "How a row leaves: the ghost time, the fade ramp and the Blink pulse (:1557-1569).",
                 })
                 b.Section("Coloring", function(s)
                     s.COL({ module = M, key = "ColourNormal",
@@ -357,6 +460,11 @@ function P.RegisterTimerPage()
                         label = "Flash colour", tip = TIPS.ColourFlash })
                     s.COL({ module = M, key = "ColourExpired",
                         label = "Expired colour", tip = TIPS.ColourExpired })
+                    -- The CO2 row's own gate (:3197, `[0]` of :3371): the
+                    -- Classic build ships the grey EXPIRED colour OFF.
+                    s.CHK({ module = M, key = "ExpiredColor",
+                        label = "Tint expired rows",
+                        tip = TIPS.ExpiredColor })
                     s.COL({ module = M, key = "BarColorSelf",
                         label = "Self rows", tip = TIPS.BarColorSelf })
                     s.COL({ module = M, key = "BarColorTarget",
@@ -370,7 +478,8 @@ function P.RegisterTimerPage()
                 end, {
                     module = M,
                     keys = { "ColourNormal", "ColourExpiry", "ColourFlash",
-                        "ColourExpired", "BarColorSelf", "BarColorTarget",
+                        "ColourExpired", "ExpiredColor",
+                        "BarColorSelf", "BarColorTarget",
                         "BarColorFocus", "BarColorPet", "BarColorEnemy" },
                     tip = "The colour law (docs/design-spell-timer.md §3.6).",
                 })

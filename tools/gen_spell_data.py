@@ -84,6 +84,43 @@ forever-data-gaps.md G6: Seduction 6358, Spell Lock 19244, Devour Magic
 see them) are emitted FROM the overlay and reported as info lines
 "<name> -> <id> (70707-sourced row ...)"; the generated header lists them.
 
+**The Spell Timer's feed columns** (2026-11-03, agent `Feeds`, wave 4; the
+four data fields docs/design-spell-timer.md §3.4 asks for, of which the Timer
+reads three today -- `Registry:Build`):
+
+* `tickEvery` -- SECONDS, the period of the row's periodic effect: the
+  smallest positive `Effects[].PeriodMs` in the base row divided by 1000. A
+  DoT/HoT/channel rows on a periodic aura carries it (Corruption 172 and
+  Serpent Sting 1978: `PeriodMs` 3000 -> `tickEvery = 3`); the Timer's tick
+  marks are spaced by it (`Forte_Timer/UI/Rows.lua`'s `row.tickEvery` branch,
+  delta D6). The smallest, not the first: a row can carry a periodic damage
+  effect and a periodic heal, and the marks show the fastest cadence the
+  player sees.
+* `maxStack` -- the row's own `MaxStack`, emitted only when it is above 1 (a
+  cap of 1 says "no stacking", which the absence already says): Sunder
+  Armor 7386's 5, Deadly Poison 2818's 5, Scorpid Poison 24583's 5, Lacerate
+  414644's 5. The `Stacks` cap the row draws (design §3.4).
+* `noTarget` -- `true` when EVERY effect of the row lands on the caster: the
+  effect `Target` pair's first code is `1` (the client's
+  `SpellEffectTargetingCategory` code of the caster: Fade 586 / Inner Fire
+  588 / Divine Protection 498 / Dash 1850 / Defensive Stance 71 all ride
+  `[1, 0]`, while a window on the used target rides `[6, 0]` (Corruption), a
+  party-wide one `[21, 0]` (Mark of the Wild, Blessing of Might) and a
+  raid/battleground one `[22, 15]`/`[87, 16]`). The original's
+  `Track[spell][1] == 1` column (`notTarget`, Forte_Timer.lua:606-617): such a
+  cast is exactly ONE row (design §3.3's targetKey "none"), so a window with
+  any non-caster effect -- and a row with no captured effect at all -- is
+  never marked (absence is not evidence).
+
+**These three are BASE-DATA-ONLY.** They ride the mythicsim `spells.jsonl`
+rows (`Effects[]`, `MaxStack`); the checked-in 70707 overlay carries NONE of
+them -- `tools/overrides_70707.json` captures per id only
+name/castMs/durationMs/spellLevel/family/category/categoryCooldownMs/
+cooldownMs/gcdMs/subtext/baseLevel/icdMs/maxLevel/procFlag -- so the overlay
+can not add, remove or move a feed: a 70707-sourced row (the Warlock pet kit,
+the Blessing of Light shell) and a store-rank row (Charge Rank 6 27685) carry
+no feeds by construction. The generated header states this per file.
+
 `icdMs` (D2 G2, the strict join per Main's D3 review 2026-11-02): the
 internal cooldown a proc/proc-like spell rides, from mythicsim `ICDMs`
 rows and the store's `AuraOptions.ICDMs` (carried per id). A picked row
@@ -155,6 +192,13 @@ CLASS_FAMILY: dict[str, int | None] = {
     "shaman": 11,
 }
 FAMILY_NAMES = {code: name.capitalize() for name, code in CLASS_FAMILY.items() if code is not None}
+
+# The first number of an effect row's `Target` pair is the client's
+# `SpellEffectTargetingCategory` code of the unit the effect lands on; 1 is
+# THE CASTER (see the docstring: Fade 586, Inner Fire 588, Dash 1850, Defensive
+# Stance 71 all ride `[1, 0]`, a window on the used target `[6, 0]`, a
+# party-wide one `[21, 0]`). Only used for the `noTarget` feed.
+CASTER_TARGET_CODE = 1
 
 # Names known to carry their cooldown on a lower rank row in this build;
 # --dry prints the resolved row for each so the CD-carrier pick is verifiable.
@@ -399,12 +443,65 @@ def pre_shadow_pick(rows: list[dict]) -> dict:
     return max(rows, key=key)
 
 
+def row_effects(row: dict) -> list[dict]:
+    """The row's captured effect rows (base data; the 70707 overlay captures
+    none, and a store row this generator synthesises has no `Effects` key)."""
+    return [e for e in (row.get("Effects") or []) if isinstance(e, dict)]
+
+
+def _num(value) -> float | None:
+    """A JSON number, or None (a string/None/nested value is no number)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value
+
+
+def _seconds(ms: float) -> str:
+    """Milliseconds as seconds for the Lua literal: `3`, not `3.0`; `1.5`,
+    not `1.5000000000000002` (the emitted bytes must be stable)."""
+    sec = ms / 1000
+    if float(sec).is_integer():
+        return str(int(sec))
+    return ("%.4f" % sec).rstrip("0").rstrip(".")
+
+
+def row_feeds(row: dict) -> tuple[int, int, bool]:
+    """The row's (tickMs, maxStack, casterOnly) feed triple, read out of the
+    BASE row only -- see the module docstring's feed-column section.
+
+    tickMs: the smallest positive `Effects[].PeriodMs` (0 = the row has no
+    periodic effect, so no tick schedule). maxStack: `MaxStack` when it is
+    above 1, else 0. casterOnly: every captured effect lands on
+    `CASTER_TARGET_CODE` -- a row with NO captured effect answers False
+    (absence is not evidence, and a 70707-sourced row has none)."""
+    effects = row_effects(row)
+    tick_ms = 0
+    caster_only = bool(effects)
+    for eff in effects:
+        period = _num(eff.get("PeriodMs"))
+        if period is not None and period > 0 and (tick_ms == 0 or period < tick_ms):
+            tick_ms = int(period)
+        target = eff.get("Target")
+        if not (isinstance(target, list) and target
+                and target[0] == CASTER_TARGET_CODE):
+            caster_only = False
+    stacks = _num(row.get("MaxStack"))
+    return tick_ms, (int(stacks) if stacks is not None and stacks > 1 else 0), caster_only
+
+
 def lua_escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def emit_entry(row: dict, icd: int = 0) -> str:
     fields = [f'id = {row["ID"]}', f'name = "{lua_escape(row.get("Name",""))}"']
+    tick_ms, max_stack, caster_only = row_feeds(row)
+    if tick_ms:
+        fields.append(f'tickEvery = {_seconds(tick_ms)}')
+    if max_stack:
+        fields.append(f'maxStack = {max_stack}')
+    if caster_only:
+        fields.append('noTarget = true')
     if row.get("DurationMs"):
         fields.append(f'durationMs = {row["DurationMs"]}')
     cd = row.get("CooldownMs") or row.get("CategoryCooldownMs")
@@ -636,6 +733,32 @@ def main() -> int:
                       f"docs/research/forever-data-gaps.md G6):")
         for s in sourced:
             lines.append(f"--   {s}")
+    all_rows = [(name, row) for entries in groups.values() for name, row, _i in entries]
+    ticked = [(n, r) for n, r in all_rows if row_feeds(r)[0]]
+    stacked = [(n, r) for n, r in all_rows if row_feeds(r)[1]]
+    self_only = [(n, r) for n, r in all_rows if row_feeds(r)[2]]
+    lines.append("-- Feed columns (docs/design-spell-timer.md §3.4; read by "
+                  "Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic "
+                  "effect's period in SECONDS (base row `Effects[].PeriodMs`), `maxStack` "
+                  "= the row's own `MaxStack` when above 1, `noTarget` = every captured "
+                  "effect targets the CASTER (effect `Target[0]` == 1). BASE DATA ONLY: "
+                  "the 70707 overlay captures no Effects/MaxStack/Target (see "
+                  "tools/overrides_70707.json's per-id keys), so it can not add, remove or "
+                  f"move a feed -- a 70707-sourced or store-rank row carries none. "
+                  f"This file: {len(ticked)} tickEvery, {len(stacked)} maxStack, "
+                  f"{len(self_only)} noTarget.")
+    for group, entries in groups.items():
+        for name, row, _icd in entries:
+            t_ms, m_stack, caster = row_feeds(row)
+            tags = []
+            if t_ms:
+                tags.append(f"tickEvery = {_seconds(t_ms)}")
+            if m_stack:
+                tags.append(f"maxStack = {m_stack}")
+            if caster:
+                tags.append("noTarget")
+            if tags:
+                lines.append(f"--   feeds [{row['ID']}] {name}: " + ", ".join(tags))
     if gaps:
         lines.append(f"-- {len(gaps)} name(s) in tools/spell_lists/{klass}.json were unresolved "
                       f"in this build (see generator stderr output):")

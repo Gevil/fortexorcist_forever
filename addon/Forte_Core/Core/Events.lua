@@ -42,8 +42,34 @@
 --                        not a break: the fire is gated on Rows:TargetIsDead
 --                        (the row's stamped identity pair, the source's
 --                        `if not UnitIsDead(unit)` gate of :1208).
+--   "FX_SOULSTONE_EXPIRED" (target, at)                  fired ONCE per
+--                        tracked window at the moment the soulstone
+--                        tracker's predicted window lapses -- the original's
+--                        `PlaySound("SoulstoneFadeSound")` site, the
+--                        flag==FLAG.TIME expiry branch
+--                        (Forte_Soulstone.lua:429-445, the row's window ran
+--                        out). Producer: Forte_Warlock/Core/Tools.lua's
+--                        SoulstoneTracker (the sole state owner of the
+--                        window; the fire rides the same retires-the-row
+--                        branch the Timer's FX_TIMER_EXPIRED rides, so the
+--                        Clear the owner performs at a class change or
+--                        re-login is NOT an expiry and fires nothing).
+--   "FX_SOULSTONE_READY"   (target, at)                  fired at the same
+--                        retire for the OTHER half of the original's pair:
+--                        `PlaySound("SoulstoneReadySound")` at the warlock's
+--                        soulstone cooldown end (Forte_Soulstone.lua:461-464,
+--                        the `Saved.Cooldowns[name][1]-update < 0` branch,
+--                        the row gated on `RaidStatus[name][3]=="WARLOCK"`).
+--                        The 2012 panel seeds a warlock's stone cooldown
+--                        from the stone's own (end, duration) pair
+--                        (SS-05, Forte_Soulstone.lua:253), so on this
+--                        self-only port the two moments coincide: the
+--                        tracker carries one clock and fires the pair.
+--                        Forte_Messages gates the two rows apart (Sound
+--                        page), and the Soulstone plate gates the READY-look
+--                        half by the same signal (the original's ShowReady).
 --
--- The four events above are the whole contract: every one of them has a
+-- The six events above are the whole contract: every one of them has a
 -- producer that fires it itself, at the site of the fact. The bus used to
 -- declare a fifth, "FX_SPLASH", fired only by the SelfMsg page's `SplashKick`
 -- row, which no production code ever listened to (the splash's pops come from
@@ -78,6 +104,13 @@ FX.EVENTS = FX.EVENTS or {
     TIMER_EXPIRED  = "FX_TIMER_EXPIRED",
     TIMER_FADING   = "FX_TIMER_FADING",
     TIMER_BROKEN   = "FX_TIMER_BROKEN",
+    -- The soulstone pair, fired by Forte_Warlock/Core/Tools.lua's tracker at
+    -- the window's retire (see the header: the original's Fade/Ready site
+    -- pair Forte_Soulstone.lua:429-445 / :461-464). Listened by
+    -- Forte_Messages (the Sound page's two rows) and by the Soulstone plate
+    -- (the READY-look gate, the original's ShowReady).
+    SOULSTONE_EXPIRED = "FX_SOULSTONE_EXPIRED",
+    SOULSTONE_READY   = "FX_SOULSTONE_READY",
     -- NO SPLASH (E6, code-review-4): the key, the fire and this declaration
     -- are the half of a seam whose other half is a self-kick -- the splash
     -- has its own page, its own Enable, and Forte_Cooldown pops it directly

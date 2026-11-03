@@ -468,6 +468,105 @@ test("Cooldown page: Lock wiring, colours render, section recycles", function()
     d:SetLocked(true)
 end)
 
+-- Wave 4 (OptionsCD) items 2 + 4 on the Cooldown page: the rows of the
+-- source's SPECIFICS icon block (:1716-1719), its SPLASH block
+-- (:1723-1724) and its TIME RANGE filters (:1729-1732), plus the label
+-- fixes. The labels are the source's strings (Forte_Cooldown/
+-- Localization.lua) and the defaults its InstanceDefault.Cooldown.
+test("Cooldown page: the wave-4 rows ride Specifics with the source's labels",
+function()
+    O:Open("Cooldown")
+    local page = O.pagesBuilt["Cooldown"]
+    local byKey, inSpecifics = {}, {}
+    for si, sec in ipairs(page.sections) do
+        for _, wd in ipairs(sec.widgets) do
+            if wd.spec.key then
+                byKey[wd.spec.key] = wd
+                if si == 3 then inSpecifics[wd.spec.key] = true end
+            end
+        end
+    end
+    -- key, label (the source's wording), default (:1818, :1819, :1835,
+    -- :1837, :1811, :1812, :1826-:1829)
+    local rows = {
+        { "BarAlpha",        "Minimum bar alpha",            0.2 },
+        { "BarAlphaMax",     "Maximum bar alpha",            1.0 },
+        { "IconTime",        "Show Icon text",               true },
+        { "IconTextColorOn", "Use custom icon text color",   false },
+        { "IconTextColor",   "Icon text color",              nil },
+        { "Splash",          "Splash ready cooldowns",       true },
+        { "SplashFactor",    "Splash icon active scale",     4 },
+        { "MinRangeOn",      "Enable minimum duration filter",   false },
+        { "MinRange",        "Minimum duration",             0 },
+        { "MaxRangeOn",      "Enable maximum duration filter",   false },
+        { "MaxRange",        "Maximum duration",             3600 },
+        { "MinRemainingOn",  "Enable minimum remaining filter",  false },
+        { "MinRemaining",    "Minimum remaining",            0 },
+        { "MaxRemainingOn",  "Enable maximum remaining filter",  false },
+        { "MaxRemaining",    "Maximum remaining",            3600 },
+    }
+    for _, row in ipairs(rows) do
+        local key, label, def = row[1], row[2], row[3]
+        local w = byKey[key]
+        assertNotNil(w, key .. " has no row on the page")
+        assertTrue(inSpecifics[key], key .. " rides the Specifics section")
+        assertEquals(label, w.label:GetText())
+        if def ~= nil then
+            assertEquals(def, S:GetDefault("Cooldown", key))
+        end
+    end
+    local col = S:GetDefault("Cooldown", "IconTextColor")
+    assertEquals(1, col[1]); assertEquals(1, col[2]); assertEquals(1, col[3])
+    assertEquals(1, col[4])
+    -- The section recycle covers the new keys (the keys list is the set).
+    local rec = page.sections[3].bar.recycle
+    S:Set("Cooldown", "SplashFactor", 11)
+    S:Set("Cooldown", "MinRemaining", 77)
+    S:Set("Cooldown", "IconTime", false)
+    rec:GetScript("OnClick")(rec)
+    assertEquals(4, S:Get("Cooldown", "SplashFactor"))
+    assertEquals(0, S:Get("Cooldown", "MinRemaining"))
+    assertEquals(true, S:Get("Cooldown", "IconTime"))
+end)
+
+test("Cooldown/Splash/General pages: the labels are the source's words",
+function()
+    -- Item 2: four relabels on the Cooldown page, three on the Splash page,
+    -- one on the General page. Every string is the original's, verbatim.
+    local function labelsOf(id)
+        O:Open(id)
+        local out = {}
+        for _, sec in ipairs(O.pagesBuilt[id].sections) do
+            for _, wd in ipairs(sec.widgets) do
+                if wd.spec.key and wd.label then
+                    out[wd.spec.key] = wd.label:GetText()
+                end
+            end
+        end
+        return out
+    end
+    local cd = labelsOf("Cooldown")
+    assertEquals("Hide when out of combat", cd.HideCombat)   -- FWL.TIMER_HIDE
+    assertEquals("Time scale max (sec)", cd.MaxTime)         -- CD_SPECIFIC6
+    assertEquals("Use power of", cd.PowerScale)              -- USE_POWER_OF
+    assertEquals("Show icon Glow", cd.Spark)                 -- SHOW_GLOW
+    local sp = labelsOf("Splash")
+    assertEquals("Enable Secondary Splash icon", sp.Enable)  -- CD_SPLASH3
+    assertEquals("Splash icon active scale", sp.SecondSplashMax)
+    assertEquals("Show icon Glow", sp.SplashGlow)
+    local ge = labelsOf("General")
+    assertEquals("Show module frame Tooltips", ge.ShowTooltips)  -- FWL.TIPS
+    assertEquals("Alternate time format", ge.AltTimeFormat)      -- GENERAL_MO2
+    assertEquals("Enable frame snapping", ge.FrameSnap)          -- GENERAL_MO3
+    assertEquals("Global Frame Lock", ge.GlobalLock)             -- GLOBAL_LOCK
+    assertEquals("Global Frame Alpha", ge.FrameAlpha)            -- GLOBAL_ALPHA
+    -- Item 3: the source's `TimeFormat` ships ON (Forte_Core.lua:2487), so a
+    -- fresh install prints m:ss; the consumer is the bar's SetTimeFormatAlt
+    -- (Forte_Cooldown/tests/test_timeline.lua proves the text moves).
+    assertEquals(true, S:GetDefault("General", "AltTimeFormat"))
+    assertEquals(true, FX.Cooldown.TimelineSkin.TimeFormatAlt)
+end)
+
 test("m4: /fx lock|unlock publish into Lock AND GlobalLock", function()
     local d = FX.Cooldown.Display
     d:SetLocked(true)

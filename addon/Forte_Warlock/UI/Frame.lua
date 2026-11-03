@@ -486,11 +486,11 @@ function Frame:_Build()
     self.anchor = a
 
     local body = CreateFrame("Frame", nil, self.anchor, tmpl)
-    body:SetPoint("TOPLEFT", self.anchor, "TOPLEFT", 0, 0)
+    self.body = body
+    self:_LayoutBody()
     body:SetSize(s.Width, self:_PlateHeight())
     body:EnableMouse(false)
     body:SetClipsChildren(false)
-    self.body = body
     self:_ApplyBackdrop()
     self.plate = self:_NewPlate()
     self.icon = self:_NewIcon()
@@ -648,6 +648,135 @@ function Frame:SetRowHeight(h)
     self:SizeChanged()
 end
 
+--- The `<Name>Space` key: the row spacing of the bar list
+--- (FWL.BAR_SPACING -> HealthstoneSpace, Forte_Healthstone.lua:300; the
+--- row's own law is `SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -Space)`,
+--- Forte_Healthstone.lua:296-301, so the gap between rows IS this number).
+--- It rides the plate height (`_PlateHeight`'s step) and every row anchor.
+function Frame:SetRowSpace(n)
+    if type(n) ~= "number" then return end
+    if n < 0 then n = 0 end
+    self.skin.RowSpace = n
+    -- Rows built before this keystroke keep the law they were built under
+    -- (ExtraRow: `RowY - i*(RowHeight+RowSpace)`); re-anchor them so the
+    -- spacing applies live (the row's law is the file's, :793/:830).
+    if self.extraRows and self.body then
+        local s = self.skin
+        for i, e in ipairs(self.extraRows) do
+            if e.row then
+                e.row:ClearAllPoints()
+                e.row:SetPoint("TOPLEFT", self.body, "TOPLEFT",
+                    s.RowX, s.RowY - i * (s.RowHeight + s.RowSpace))
+            end
+        end
+    end
+    self:SizeChanged()
+end
+
+--- `<Name>Expand` (FWL.EXPAND_UP, Forte_Core.lua:243: "Determines if the
+--- bar lists should be expanded upwards or downwards"): the bar list grows
+--- UP from the anchor point instead of hanging below it. The 2012 panel
+--- builds the list with `b:SetPoint("TOPLEFT", a, "TOPLEFT", 0,
+--- -(HEADER_H + ROW_H))` growing down (Forte_Soulstone.lua:60-120 law);
+--- expanding up is the same list with its BOTTOM edge pinned to the plate's
+--- top, so the plate's header stays put and the rows stack above it.
+function Frame:SetExpandUp(on)
+    on = not not on
+    if on == self._expandUp then return end
+    self._expandUp = on
+    self:_LayoutBody()
+end
+
+--- The body's one anchor, which is the whole of the expand law: down = the
+--- body's TOPLEFT at the header's TOPLEFT (Forte_Soulstone.xml:202-208),
+--- up = the body's BOTTOMLEFT pinned to the header's TOPLEFT, the list
+--- growing over the space above the plate.
+function Frame:_LayoutBody()
+    if not self.body or not self.anchor then return end
+    self.body:ClearAllPoints()
+    if self._expandUp then
+        self.body:SetPoint("BOTTOMLEFT", self.anchor, "TOPLEFT", 0, 0)
+    else
+        self.body:SetPoint("TOPLEFT", self.anchor, "TOPLEFT", 0, 0)
+    end
+end
+
+--- `<Name>Details` (FWL.SHOW_BARS, Forte_Core.lua:274: "Show the bars. You
+--- can hide them in case you only want to see the information on the
+--- header."): the gate lives with the VIEW that owns the row run (the spy
+--- law is `Settings.HealthstoneDetails and … and i <= hs.rows`,
+--- Forte_Healthstone.lua:143), so the frame only remembers the switch and
+--- answers `BarsWanted()`.
+function Frame:SetShowBars(on)
+    self._showBars = not not on
+end
+
+function Frame:BarsWanted()
+    return self._showBars ~= false
+end
+
+--- `<Name>DetailsAuto` (FWL.AUTO_MINIMIZE, Forte_Core.lua:272: "automatically
+--- hide the bars when not in a party or raid"). The view pairs it with
+--- `BarsGrouped()`: the original's draw law is
+--- `Details and (not DetailsAuto or STATES.GROUPED)`
+--- (Forte_Healthstone.lua:143, Forte_Summon.lua:617).
+function Frame:SetAutoMinimize(on)
+    self._autoMin = not not on
+end
+
+--- The bars' show law, the two switches resolved: the original's
+--- `Details and (not DetailsAuto or GROUPED)` verbatim in shape.
+function Frame:BarsShownFor(grouped)
+    if not self:BarsWanted() then return false end
+    if self._autoMin and not grouped then return false end
+    return true
+end
+
+--- The spy-bar colour ramp: the original's `ColorVal(v, i)`
+--- (Forte_Healthstone.lua:104-111) mixes the row's value between a MIN and a
+--- MAX colour -- `FW:MixColors` (Forte_Core.lua:2080-2084): `v == 0` is the
+--- MIN colour, `v == 1` the MAX. Two ramps per plate: `main` (the Total bar)
+--- and `unknown` (the No-info bar), keyed off the same key pair.
+function Frame:SetColorRamp(which, lo, hi)
+    if type(lo) ~= "table" or type(hi) ~= "table" then return end
+    self._ramps = self._ramps or {}
+    self._ramps[which] = { lo = lo, hi = hi }
+    if which == "main" then self._ramp = self._ramps.main end
+    self:RepaintRamps()
+end
+
+--- `FW:MixColors` verbatim (the clamp, then the per-channel lerp).
+function Frame.MixColor(v, c1, c2)
+    if v < 0 then v = 0 elseif v > 1 then v = 1 end
+    return c1[1] * (1 - v) + c2[1] * v,
+        c1[2] * (1 - v) + c2[2] * v,
+        c1[3] * (1 - v) + c2[3] * v
+end
+
+--- Paint one bar pair (fill + its 0.5 Back, Forte_Healthstone.lua:149-150)
+--- from a ramp at the bar's value. No ramp -> no touch: the plate keeps the
+--- flat BarColor law the shared `BarColor` key drives.
+function Frame:PaintRamp(fill, back, ramp, v)
+    if not ramp or not fill then return end
+    local r, g, b = Frame.MixColor(v or 0, ramp.lo, ramp.hi)
+    fill:SetVertexColor(r, g, b, ramp.lo[4] or 1)
+    if back then back:SetVertexColor(r, g, b, 0.5) end
+end
+
+--- Re-run the ramps over the bars at their current fractions (a colour key
+--- changing must reach the bars that are already drawn).
+function Frame:RepaintRamps()
+    self:PaintRamp(self.fill, self.rowBack, self._ramps and self._ramps.main,
+        self._fillFrac or 0)
+    if self.extraRows then
+        for _, e in ipairs(self.extraRows) do
+            self:PaintRamp(e.fill, e.back,
+                self._ramps and (self._ramps.unknown or self._ramps.main),
+                e.frac or 0)
+        end
+    end
+end
+
 --- Every sized part follows the plate: the header, the body, the plate wash,
 --- the second-line bar and fill (at its current fraction) and the frame's
 --- own hook.
@@ -799,6 +928,8 @@ function Frame:SetExtraRowFraction(e, f)
         or (self.skin.Width - 2 * self.skin.Border)) * f
     e.fillW = w
     e.fill:SetSize(w, self.skin.RowHeight)
+    self:PaintRamp(e.fill, e.back,
+        self._ramps and (self._ramps.unknown or self._ramps.main), f)
 end
 
 --- The fill's width for a fraction (0..1) of the second-line bar.
@@ -811,6 +942,7 @@ function Frame:SetFillFraction(f)
         or (self.skin.Width - 2 * self.skin.Border)) * f
     self._fillW = w
     self.fill:SetSize(w, self.skin.RowHeight)
+    self:PaintRamp(self.fill, self.rowBack, self._ramp, f)
 end
 
 -- ------------------------------------------------------------------ colour --
@@ -870,6 +1002,10 @@ function Frame:ApplyBarColor()
         -- (Forte_Soulstone.lua:216).
         self.rowBack:SetVertexColor(c[1], c[2], c[3], 0.5)
     end
+    -- A plate that runs the spy-bar ramp (the Healthstone plate's
+    -- `<Min|Max|Unknown*>Color` keys, ColorVal Forte_Healthstone.lua:104-111)
+    -- owns its bar colours: the ramp re-paints over the flat answer.
+    self:RepaintRamps()
 end
 
 --- The label colour, with the same own-over-shared law.
@@ -893,6 +1029,21 @@ function Frame:ApplyTextColor()
             fs:SetVertexColor(c[1], c[2], c[3], c[4])
         end
     end
+end
+
+--- One label's colour (the Soulstone plate's ready look rides the Ready
+--- colour, the plate's other labels ride the text colour). The font write
+--- is `SetTextColor` (the Forte_Cooldown/UI/Timeline.lua:531 idiom -- on
+--- this engine that is the FontString colour channel the GetTextColor read
+--- answers, test_module.lua:491).
+function Frame:SetStringColor(fs, c)
+    if not fs or type(c) ~= "table" then return end
+    fs:SetTextColor(c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1)
+end
+
+--- The plate's current label colour (the same answer ApplyTextColor paints).
+function Frame:TextColour()
+    return self._ownText or self._sharedText or self.skin.TextColor
 end
 
 function Frame:SetAlpha(a)
@@ -988,6 +1139,12 @@ function Frame:SetShown(on)
     self._shown = on
     if on then self.anchor:Show() else self.anchor:Hide() end
     self:ApplyTextVisibility()
+end
+
+--- The plate's own show answer (the mirror of SetShown -- the tests' and
+--- `/fx status`' view of the plate, the anchor's Show/Hide is its effect).
+function Frame:IsShown()
+    return self._shown == true
 end
 
 -- ----------------------------------------------------------- the settings --

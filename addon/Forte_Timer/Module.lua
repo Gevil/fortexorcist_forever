@@ -125,6 +125,8 @@ local function defaultOptions()
         colorOverride = nil,                           -- :3309 (off by default)
         spark = true, sparkAlpha = Skin.SparkAlpha,    -- :3409
         ticks = true,                                   -- :3403
+        ticksNext = true,      -- :3404 TicksNext (the :3182 row's "Next Tick
+                                -- only": one mark, the next one to fire)
         smooth = Laws.SMOOTH,                           -- :3293
         fadeTime = Laws.FADE, failTime = Laws.FAIL,     -- :3339/:3338
         normalAlpha = Skin.NormalAlpha,                 -- :3366
@@ -191,10 +193,15 @@ local KEYMAP = {
     HideTime = "SetHideTime",
     MaxOn = "SetMaxOn",
     Outwands = "SetOutwands",
+    Flip = "SetFlip",
+    LabelHeight = "SetLabelHeight",
+    BlinkTime = "SetBlinkTime",
+    FadeTime = "SetFadeTime",
+    TicksNext = "SetTicksNext",
     GroupID = "SetGroupID",
     AnnounceExpiry = "SetAnnounceExpiry",
     -- The colour law (§5.4). The four `Colour*` keys land on the skin entries
-    -- ColorVal reads; Fail (:3350) = ColourFlash[0] and ExpiredColor (:3351) =
+    -- ColorVal reads; Fail (:3375) = ColourFlash[0] and ExpiredColor (:3371) =
     -- ColourExpired[0] per design §1.4; the five `BarColor*` keys land on the
     -- per-unit bar colours (:3387-3391).
     ColourNormal = "SetColour_Normal",
@@ -227,6 +234,7 @@ local STORED = {
         "AltTimeFormat", "IconOffset", "OffsetSelf", "OffsetTarget",
         "MarkPredicted", "Smooth", "OneMax", "Blink", "ExpiredColor",
         "HideLonger", "HideTime", "MaxOn", "Outwands", "GroupID",
+        "Flip", "LabelHeight", "BlinkTime", "FadeTime", "TicksNext",
         "AnnounceExpiry", "ColourNormal", "ColourExpiry", "ColourFlash",
         "ColourExpired", "BarColorSelf", "BarColorTarget", "BarColorFocus",
         "BarColorPet", "BarColorEnemy" },
@@ -317,6 +325,14 @@ function M:SetShowID(on) self.options.showID = not not on end
 function M:SetSpellName(on) self.options.spell = not not on end
 function M:SetExpand(on) self.options.expand = not not on end
 function M:SetOutwands(on) self.options.outwands = not not on end
+--- The bar direction (`Flip`, :3332, the "Flip bar direction" row :3149): the
+--- source mirrors its bar's fill (NewStatusBar's `SetFlipped` :1647-1655 —
+--- the fill texture rides the RIGHT edge and crops `TexCoord(1-v,1,0,1)`,
+--- :1660-1662), and with it the spark (:2536-2540) and the tick marks
+--- (:1797/:1806). The renderer carries all three; the engine StatusBar can
+--- only fill in the source's default direction, so the mirrored fill rides
+--- UI/Rows.lua's own fill texture.
+function M:SetFlip(on) self.options.flip = not not on end
 function M:SetGroupID(on) self.options.groupID = not not on end
 function M:SetIconStacks(on) self.options.iconStacks = not not on end
 function M:SetMarkPredicted(on) self.options.markPredicted = not not on end
@@ -423,6 +439,33 @@ end
 function M:SetSpacing(v)
     if type(v) ~= "number" or v < 0 then return end
     self.options.spacingHeight = v
+end
+--- The unit label height (:3242 row, def 18 `:3344`): the strip the group's
+--- header rides inside. The renderer's group box height and the header's
+--- `headerY` both derive from it, so a change is a layout change (UI/Rows.lua
+--- `o.labelHeight`).
+function M:SetLabelHeight(v)
+    if type(v) ~= "number" or v < 0 then return end
+    self.options.labelHeight = v
+end
+--- `Ticks = {[0]=true,0.3}` + `TicksNext` (:3403/:3404): the "Next Tick only"
+--- half of the :3182 row. The renderer's tick pass draws the one mark of the
+--- schedule that fires next (the source's :1775-1791 branch).
+function M:SetTicksNext(on) self.options.ticksNext = not not on end
+--- `Blink = {[0]=true,3}` (:3335, the :3195 row): the seconds under which the
+--- row's background starts its pulse. `Laws.ColorVal` reads `blink`/`blinkAt`
+--- (:1562-1569) — the source's expiry cue, no colour change.
+function M:SetBlinkTime(v)
+    if type(v) ~= "number" or v < 0 then return end
+    self.options.blinkAt = v
+end
+--- `FadeTime` (:3339, the "Standard fade delay" row :3193, def 1): the ghost
+--- time a row rides past its window before the fade-out ramp has run. It is
+--- the `Alpha(removeAt + s.FadeTime, t)` of the source's visibility law
+--- (:2166) — `Laws.GateAlpha` reads it.
+function M:SetFadeTime(v)
+    if type(v) ~= "number" or v < 0 then return end
+    self.options.fadeTime = v
 end
 function M:SetBackdropOn(on)
     self.options.backdrop = not not on

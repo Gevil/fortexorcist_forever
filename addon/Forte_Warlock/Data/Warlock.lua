@@ -2,16 +2,17 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T17:29:01+00:00
--- 70707 overlay changes in this file (8):
---   Immolate: { id = 25309, name = "Immolate", durationMs = 15000, gcdMs = 1500, castMs = 2000, rank = "Rank 8" } -> { id = 11668, name = "Immolate", durationMs = 15000, gcdMs = 1500, castMs = 2000, rank = "Rank 7" }
---   Shadowflame: { id = 426325, name = "Shadowflame", durationMs = 8000 } -> { id = 426320, name = "Shadowflame", durationMs = 15000, gcdMs = 1500, castMs = 2000 }
---   Healthstone: { id = 5720, name = "Healthstone" } -> { id = 23473, name = "Healthstone", cooldownCategory = 30 }
---   Minor Healthstone: { id = 6262, name = "Minor Healthstone" } -> { id = 23469, name = "Minor Healthstone", cooldownCategory = 30 }
---   Lesser Healthstone: { id = 6263, name = "Lesser Healthstone" } -> { id = 23471, name = "Lesser Healthstone", cooldownCategory = 30 }
---   Greater Healthstone: { id = 5723, name = "Greater Healthstone" } -> { id = 23475, name = "Greater Healthstone", cooldownCategory = 30 }
---   Major Healthstone: { id = 11732, name = "Major Healthstone" } -> { id = 23477, name = "Major Healthstone", cooldownCategory = 30 }
---   Immolation Aura: { id = 427726, name = "Immolation Aura", durationMs = -1, gcdMs = 1500 } -> { id = 427726, name = "Immolation Aura", durationMs = -1, gcdMs = 1500, icdMs = 1000 }
+-- Regenerated: 2026-11-02T23:57:13+00:00
+-- 70707 overlay changes in this file (9):
+--   Immolate: { id = 25309, name = "Immolate", tickEvery = 3, durationMs = 15000, gcdMs = 1500, castMs = 2000, rank = "Rank 8" } -> { id = 11668, name = "Immolate", tickEvery = 3, durationMs = 15000, gcdMs = 1500, castMs = 2000, rank = "Rank 7" }
+--   Soul Harvest: { id = 1242853, name = "Soul Harvest", noTarget = true, durationMs = 10000 } -> { id = 1242853, name = "Soul Harvest", durationMs = 10000 }
+--   Shadowflame: { id = 426325, name = "Shadowflame", tickEvery = 2, durationMs = 8000 } -> { id = 426320, name = "Shadowflame", tickEvery = 3, durationMs = 15000, gcdMs = 1500, castMs = 2000 }
+--   Healthstone: { id = 5720, name = "Healthstone", noTarget = true } -> { id = 23473, name = "Healthstone", cooldownCategory = 30 }
+--   Minor Healthstone: { id = 6262, name = "Minor Healthstone", noTarget = true } -> { id = 23469, name = "Minor Healthstone", cooldownCategory = 30 }
+--   Lesser Healthstone: { id = 6263, name = "Lesser Healthstone", noTarget = true } -> { id = 23471, name = "Lesser Healthstone", cooldownCategory = 30 }
+--   Greater Healthstone: { id = 5723, name = "Greater Healthstone", noTarget = true } -> { id = 23475, name = "Greater Healthstone", cooldownCategory = 30 }
+--   Major Healthstone: { id = 11732, name = "Major Healthstone", noTarget = true } -> { id = 23477, name = "Major Healthstone", cooldownCategory = 30 }
+--   Immolation Aura: { id = 427726, name = "Immolation Aura", noTarget = true, durationMs = -1, gcdMs = 1500 } -> { id = 427726, name = "Immolation Aura", noTarget = true, durationMs = -1, gcdMs = 1500, icdMs = 1000 }
 -- 70707-sourced rows: no row in the 1.60.1.70425 pull, the row is the 70707 store's capture of the name (20; Warlock pet kit, docs/research/forever-data-gaps.md G6):
 --   Seduction (6358)
 --   Mesmerize (24594)
@@ -33,68 +34,106 @@
 --   Summon Succubus (712)
 --   Summon Incubus (713)
 --   Summon Felhunter (691)
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (base row `Effects[].PeriodMs`), `maxStack` = the row's own `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). BASE DATA ONLY: the 70707 overlay captures no Effects/MaxStack/Target (see tools/overrides_70707.json's per-id keys), so it can not add, remove or move a feed -- a 70707-sourced or store-rank row carries none. This file: 14 tickEvery, 3 maxStack, 24 noTarget.
+--   feeds [18288] Amplify Curse: noTarget
+--   feeds [603] Bane of Doom: tickEvery = 60
+--   feeds [18708] Fel Domination: noTarget
+--   feeds [440882] Infernal Armor: noTarget
+--   feeds [403789] Metamorphosis: noTarget
+--   feeds [426195] Vengeance: noTarget
+--   feeds [11713] Bane of Agony: tickEvery = 2
+--   feeds [1223963] Corruption: tickEvery = 3
+--   feeds [1010] Curse of Idiocy: tickEvery = 3, maxStack = 15
+--   feeds [440873] Decimation: noTarget
+--   feeds [403689] Drain Life: tickEvery = 1
+--   feeds [11704] Drain Mana: tickEvery = 1
+--   feeds [11675] Drain Soul: tickEvery = 3
+--   feeds [11695] Health Funnel: tickEvery = 1
+--   feeds [11684] Hellfire: tickEvery = 1, noTarget
+--   feeds [11668] Immolate: tickEvery = 3
+--   feeds [1214088] Infernalist: maxStack = 2, noTarget
+--   feeds [1233988] Infernalist Armor: noTarget
+--   feeds [24543] Massive Destruction: noTarget
+--   feeds [460700] Rain of Fire: tickEvery = 2
+--   feeds [450013] Shadow Spark: maxStack = 2, noTarget
+--   feeds [17941] Shadow Trance: noTarget
+--   feeds [18881] Siphon Life: tickEvery = 3
+--   feeds [457643] Soul Fire!: noTarget
+--   feeds [1214156] Spreading Pain: noTarget
+--   feeds [1227200] Wickedness: noTarget
+--   feeds [1316697] Wrack: tickEvery = 1
+--   feeds [427714] Backdraft: noTarget
+--   feeds [426320] Shadowflame: tickEvery = 3
+--   feeds [412800] Dance of the Wicked: noTarget
+--   feeds [17953] Create Firestone: noTarget
+--   feeds [11730] Create Healthstone: noTarget
+--   feeds [20757] Create Soulstone: noTarget
+--   feeds [17728] Create Spellstone: noTarget
+--   feeds [11735] Demon Armor: noTarget
+--   feeds [696] Demon Skin: noTarget
+--   feeds [427726] Immolation Aura: noTarget
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
 ForteXorcist.Data.Warlock = {
   -- cooldowns
-  [18288] = { id = 18288, name = "Amplify Curse", durationMs = 30000, cooldownMs = 180000 },
-  [603] = { id = 603, name = "Bane of Doom", durationMs = 60000, cooldownMs = 60000, gcdMs = 1500 },
+  [18288] = { id = 18288, name = "Amplify Curse", noTarget = true, durationMs = 30000, cooldownMs = 180000 },
+  [603] = { id = 603, name = "Bane of Doom", tickEvery = 60, durationMs = 60000, cooldownMs = 60000, gcdMs = 1500 },
   [403629] = { id = 403629, name = "Chaos Bolt", cooldownMs = 12000, gcdMs = 1500, castMs = 2500 },
   [18932] = { id = 18932, name = "Conflagrate", cooldownMs = 10000, cooldownCategory = 672, gcdMs = 1500, rank = "Rank 6" },
   [17926] = { id = 17926, name = "Death Coil", durationMs = 3000, cooldownMs = 120000, cooldownCategory = 633, gcdMs = 1500, rank = "Rank 3" },
   [412788] = { id = 412788, name = "Demon Charge", cooldownMs = 15000, cooldownCategory = 44 },
   [425463] = { id = 425463, name = "Demonic Grace", durationMs = 6000, cooldownMs = 20000 },
   [412789] = { id = 412789, name = "Demonic Howl", durationMs = 6000, cooldownMs = 600000, gcdMs = 1500 },
-  [18708] = { id = 18708, name = "Fel Domination", durationMs = 15000, cooldownMs = 300000 },
+  [18708] = { id = 18708, name = "Fel Domination", noTarget = true, durationMs = 15000, cooldownMs = 300000 },
   [403501] = { id = 403501, name = "Haunt", durationMs = 12000, cooldownMs = 15000, gcdMs = 1500, castMs = 1500, rank = "Rank 1" },
   [17928] = { id = 17928, name = "Howl of Terror", durationMs = 15000, cooldownMs = 40000, cooldownCategory = 634, gcdMs = 1500, castMs = 2000, rank = "Rank 2" },
-  [440882] = { id = 440882, name = "Infernal Armor", durationMs = 10000, cooldownMs = 60000 },
-  [403789] = { id = 403789, name = "Metamorphosis", durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
+  [440882] = { id = 440882, name = "Infernal Armor", noTarget = true, durationMs = 10000, cooldownMs = 60000 },
+  [403789] = { id = 403789, name = "Metamorphosis", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Shapeshift" },
   [403852] = { id = 403852, name = "Shadow Cleave", cooldownMs = 6000, cooldownCategory = 2129, gcdMs = 1500, rank = "Rank 10" },
   [18871] = { id = 18871, name = "Shadowburn", durationMs = 8000, cooldownMs = 15000, cooldownCategory = 651, gcdMs = 1500, rank = "Rank 6" },
   [17924] = { id = 17924, name = "Soul Fire", cooldownMs = 60000, cooldownCategory = 631, gcdMs = 1500, castMs = 6000, rank = "Rank 2" },
-  [426195] = { id = 426195, name = "Vengeance", durationMs = 20000, cooldownMs = 180000 },
+  [426195] = { id = 426195, name = "Vengeance", noTarget = true, durationMs = 20000, cooldownMs = 180000 },
   -- buffs
-  [11713] = { id = 11713, name = "Bane of Agony", durationMs = 24000, gcdMs = 1500, rank = "Rank 6" },
+  [11713] = { id = 11713, name = "Bane of Agony", tickEvery = 2, durationMs = 24000, gcdMs = 1500, rank = "Rank 6" },
   [1225228] = { id = 1225228, name = "Bane of Havoc", durationMs = 300000 },
-  [1223963] = { id = 1223963, name = "Corruption", durationMs = 12000, rank = "Rank 7" },
+  [1223963] = { id = 1223963, name = "Corruption", tickEvery = 3, durationMs = 12000, rank = "Rank 7" },
   [18223] = { id = 18223, name = "Curse of Exhaustion", durationMs = 12000, gcdMs = 1500 },
-  [1010] = { id = 1010, name = "Curse of Idiocy", durationMs = 120000, gcdMs = 1500, rank = "Rank 1" },
+  [1010] = { id = 1010, name = "Curse of Idiocy", tickEvery = 3, maxStack = 15, durationMs = 120000, gcdMs = 1500, rank = "Rank 1" },
   [11717] = { id = 11717, name = "Curse of Recklessness", durationMs = 120000, gcdMs = 1500, rank = "Rank 4" },
   [1311680] = { id = 1311680, name = "Curse of the Elements", durationMs = 300000, gcdMs = 1500, rank = "Rank 4" },
   [11719] = { id = 11719, name = "Curse of Tongues", durationMs = 30000, gcdMs = 1500, rank = "Rank 2" },
   [11708] = { id = 11708, name = "Curse of Weakness", durationMs = 120000, gcdMs = 1500, rank = "Rank 6" },
-  [440873] = { id = 440873, name = "Decimation", durationMs = 10000 },
+  [440873] = { id = 440873, name = "Decimation", noTarget = true, durationMs = 10000 },
   [1293696] = { id = 1293696, name = "Demonic Brand", durationMs = 10000 },
-  [403689] = { id = 403689, name = "Drain Life", durationMs = 15000, cooldownMs = 15000, cooldownCategory = 2127, gcdMs = 1500, rank = "Rank 6" },
-  [11704] = { id = 11704, name = "Drain Mana", durationMs = 5000, gcdMs = 1500, rank = "Rank 4" },
-  [11675] = { id = 11675, name = "Drain Soul", durationMs = 15000, gcdMs = 1500, rank = "Rank 4" },
-  [11695] = { id = 11695, name = "Health Funnel", durationMs = 10000, gcdMs = 1500, rank = "Rank 7" },
-  [11684] = { id = 11684, name = "Hellfire", durationMs = 15000, gcdMs = 1500, rank = "Rank 3" },
-  [11668] = { id = 11668, name = "Immolate", durationMs = 15000, gcdMs = 1500, castMs = 2000, rank = "Rank 7" },
-  [1214088] = { id = 1214088, name = "Infernalist", durationMs = 20000 },
-  [1233988] = { id = 1233988, name = "Infernalist Armor", durationMs = 20000 },
-  [24543] = { id = 24543, name = "Massive Destruction", durationMs = 20000 },
-  [460700] = { id = 460700, name = "Rain of Fire", durationMs = 8000, cooldownMs = 8000, cooldownCategory = 2312, gcdMs = 1500, rank = "Rank 4" },
-  [450013] = { id = 450013, name = "Shadow Spark", durationMs = 12000 },
-  [17941] = { id = 17941, name = "Shadow Trance", durationMs = 10000 },
+  [403689] = { id = 403689, name = "Drain Life", tickEvery = 1, durationMs = 15000, cooldownMs = 15000, cooldownCategory = 2127, gcdMs = 1500, rank = "Rank 6" },
+  [11704] = { id = 11704, name = "Drain Mana", tickEvery = 1, durationMs = 5000, gcdMs = 1500, rank = "Rank 4" },
+  [11675] = { id = 11675, name = "Drain Soul", tickEvery = 3, durationMs = 15000, gcdMs = 1500, rank = "Rank 4" },
+  [11695] = { id = 11695, name = "Health Funnel", tickEvery = 1, durationMs = 10000, gcdMs = 1500, rank = "Rank 7" },
+  [11684] = { id = 11684, name = "Hellfire", tickEvery = 1, noTarget = true, durationMs = 15000, gcdMs = 1500, rank = "Rank 3" },
+  [11668] = { id = 11668, name = "Immolate", tickEvery = 3, durationMs = 15000, gcdMs = 1500, castMs = 2000, rank = "Rank 7" },
+  [1214088] = { id = 1214088, name = "Infernalist", maxStack = 2, noTarget = true, durationMs = 20000 },
+  [1233988] = { id = 1233988, name = "Infernalist Armor", noTarget = true, durationMs = 20000 },
+  [24543] = { id = 24543, name = "Massive Destruction", noTarget = true, durationMs = 20000 },
+  [460700] = { id = 460700, name = "Rain of Fire", tickEvery = 2, durationMs = 8000, cooldownMs = 8000, cooldownCategory = 2312, gcdMs = 1500, rank = "Rank 4" },
+  [450013] = { id = 450013, name = "Shadow Spark", maxStack = 2, noTarget = true, durationMs = 12000 },
+  [17941] = { id = 17941, name = "Shadow Trance", noTarget = true, durationMs = 10000 },
   [17794] = { id = 17794, name = "Shadow Vulnerability", durationMs = 12000 },
-  [18881] = { id = 18881, name = "Siphon Life", durationMs = 30000, gcdMs = 1500, rank = "Rank 4" },
-  [457643] = { id = 457643, name = "Soul Fire!", durationMs = 10000 },
-  [1214156] = { id = 1214156, name = "Spreading Pain", durationMs = 6000 },
+  [18881] = { id = 18881, name = "Siphon Life", tickEvery = 3, durationMs = 30000, gcdMs = 1500, rank = "Rank 4" },
+  [457643] = { id = 457643, name = "Soul Fire!", noTarget = true, durationMs = 10000 },
+  [1214156] = { id = 1214156, name = "Spreading Pain", noTarget = true, durationMs = 6000 },
   [427719] = { id = 427719, name = "Unstable Affliction", durationMs = 5000 },
-  [1227200] = { id = 1227200, name = "Wickedness", durationMs = 15000 },
-  [1316697] = { id = 1316697, name = "Wrack", durationMs = 6000, gcdMs = 1500, rank = "Rank 1" },
-  [427714] = { id = 427714, name = "Backdraft", durationMs = 15000 },
+  [1227200] = { id = 1227200, name = "Wickedness", noTarget = true, durationMs = 15000 },
+  [1316697] = { id = 1316697, name = "Wrack", tickEvery = 1, durationMs = 6000, gcdMs = 1500, rank = "Rank 1" },
+  [427714] = { id = 427714, name = "Backdraft", noTarget = true, durationMs = 15000 },
   [1242853] = { id = 1242853, name = "Soul Harvest", durationMs = 10000 },
-  [426320] = { id = 426320, name = "Shadowflame", durationMs = 15000, gcdMs = 1500, castMs = 2000 },
-  [412800] = { id = 412800, name = "Dance of the Wicked", durationMs = 15000 },
+  [426320] = { id = 426320, name = "Shadowflame", tickEvery = 3, durationMs = 15000, gcdMs = 1500, castMs = 2000 },
+  [412800] = { id = 412800, name = "Dance of the Wicked", noTarget = true, durationMs = 15000 },
   -- shards-and-stones
-  [17953] = { id = 17953, name = "Create Firestone", gcdMs = 1500, castMs = 3000, rank = "Rank 4" },
-  [11730] = { id = 11730, name = "Create Healthstone", gcdMs = 1500, castMs = 3000, rank = "Rank 5" },
-  [20757] = { id = 20757, name = "Create Soulstone", gcdMs = 1500, castMs = 3000, rank = "Rank 5" },
-  [17728] = { id = 17728, name = "Create Spellstone", gcdMs = 1500, castMs = 5000, rank = "Rank 3" },
+  [17953] = { id = 17953, name = "Create Firestone", noTarget = true, gcdMs = 1500, castMs = 3000, rank = "Rank 4" },
+  [11730] = { id = 11730, name = "Create Healthstone", noTarget = true, gcdMs = 1500, castMs = 3000, rank = "Rank 5" },
+  [20757] = { id = 20757, name = "Create Soulstone", noTarget = true, gcdMs = 1500, castMs = 3000, rank = "Rank 5" },
+  [17728] = { id = 17728, name = "Create Spellstone", noTarget = true, gcdMs = 1500, castMs = 5000, rank = "Rank 3" },
   [23473] = { id = 23473, name = "Healthstone", cooldownCategory = 30 },
   [23469] = { id = 23469, name = "Minor Healthstone", cooldownCategory = 30 },
   [23471] = { id = 23471, name = "Lesser Healthstone", cooldownCategory = 30 },
@@ -105,15 +144,15 @@ ForteXorcist.Data.Warlock = {
   [1237159] = { id = 1237159, name = "Spellstone", castMs = 3000, rank = "Rank 3" },
   [426301] = { id = 426301, name = "Grimoire of Synergy", durationMs = -1 },
   -- demonic-utility
-  [11735] = { id = 11735, name = "Demon Armor", durationMs = 1800000, gcdMs = 1500, rank = "Rank 5" },
-  [696] = { id = 696, name = "Demon Skin", durationMs = 1800000, gcdMs = 1500, rank = "Rank 2" },
+  [11735] = { id = 11735, name = "Demon Armor", noTarget = true, durationMs = 1800000, gcdMs = 1500, rank = "Rank 5" },
+  [696] = { id = 696, name = "Demon Skin", noTarget = true, durationMs = 1800000, gcdMs = 1500, rank = "Rank 2" },
   [18647] = { id = 18647, name = "Banish", durationMs = 30000, gcdMs = 1500, castMs = 1500, rank = "Rank 2" },
   [6215] = { id = 6215, name = "Fear", durationMs = 20000, gcdMs = 1500, castMs = 1500, rank = "Rank 3" },
   [11726] = { id = 11726, name = "Subjugate Demon", durationMs = 300000, gcdMs = 1500, castMs = 3000, rank = "Rank 3" },
   [442233] = { id = 442233, name = "Menace", durationMs = 3000, cooldownMs = 10000, cooldownCategory = 82 },
   [25112] = { id = 25112, name = "Summon Voidwalker", durationMs = -1, gcdMs = 1500, castMs = 10000, rank = "Summon" },
   [427733] = { id = 427733, name = "Summon Felguard", durationMs = -1, gcdMs = 1500, castMs = 10000, rank = "Summon" },
-  [427726] = { id = 427726, name = "Immolation Aura", durationMs = -1, gcdMs = 1500, icdMs = 1000 },
+  [427726] = { id = 427726, name = "Immolation Aura", noTarget = true, durationMs = -1, gcdMs = 1500, icdMs = 1000 },
   [698] = { id = 698, name = "Ritual of Summoning", durationMs = 600000, gcdMs = 1500, castMs = 5000 },
   [18540] = { id = 18540, name = "Ritual of Doom", durationMs = 60000, cooldownMs = 3600000, gcdMs = 1500, castMs = 10000 },
   [437169] = { id = 437169, name = "Portal of Summoning", durationMs = 120000, cooldownMs = 3600000, gcdMs = 1500 },

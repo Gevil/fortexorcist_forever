@@ -20,11 +20,19 @@
 -- C_Spell.GetSpellTexture at draw time), and the 2012 glyph/talent/set
 -- modifiers (`C_Glyph`: ZERO symbols on this client; talents are C_Traits).
 -- `group`/`isShared`/`isUnique` (the shared-debuff eviction tables) are the
--- `mechanic`/`maxStack`/`dispel`/`isBuff` data fields docs/design-spell-timer.md
--- §3.4 asks the generator to emit; they are NOT in the data yet (owner open
--- question 5), so v1 registers one row per spell, keyed by name + target
--- (§3.3), with no shared-group eviction. When the fields land, `kind` and
--- `maxStack` are read here and nothing else moves.
+-- `mechanic`/`dispel`/`isBuff` data fields docs/design-spell-timer.md §3.4
+-- asks the generator to emit; they are NOT in the data yet, so v1 registers
+-- one row per spell, keyed by name + target (§3.3), with no shared-group
+-- eviction. When they land, `kind` is read here and nothing else moves.
+--
+-- The three §3.4 fields that ARE in the data now (2026-11-03, wave 4 `Feeds`)
+-- are read by `Build` onto every entry: `tickEvery` (seconds -- the periodic
+-- effect's period, base `Effects[].PeriodMs`), `maxStack` (the aura's stack
+-- cap, base `MaxStack` > 1) and `noTarget` (the original's column-1
+-- `notTarget`: every effect of the generated row targets the caster). All
+-- three are BASE DATA ONLY -- the 70707 overlay carries no `Effects`/
+-- `MaxStack`/`Target` capture -- and are absent, never zero, when the data
+-- says nothing about that shape.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -420,12 +428,32 @@ function Registry:Build(classFile, filter)
         -- and a 0/absent duration has no row to draw.
         if type(name) == "string" and type(dur) == "number" and dur > 0
             and (not filter or filter(name)) then
+            -- The three base-data feed columns of the generated row
+            -- (wave 4 `Feeds`; docs/design-spell-timer.md §3.4, the
+            -- generator's `tickEvery`/`maxStack`/`noTarget`). Read, never
+            -- inferred: an absent column is "the data says nothing", which
+            -- is the same answer as "the spell does not tick / does not
+            -- stack / is not self-only" -- so they land as nil (the row's
+            -- `tickEvery` branch and the `stacks` tag both test for a
+            -- number) and never as a 0 that a renderer would draw.
+            local tick = spell.tickEvery
+            local cap = spell.maxStack
             self.entries[name] = {
                 name = name,
                 dataId = id,
                 duration = dur / 1000,
                 kind = kindFor(name),
-                noTarget = false,
+                -- Seconds, the periodic effect's period: the tick-mark
+                -- spacing the renderer draws (`UI/Rows.lua`'s
+                -- `row.tickEvery` branch, delta D6).
+                tickEvery = (type(tick) == "number" and tick > 0) and tick or nil,
+                -- The stack cap the row's `stacks` tag is bounded by
+                -- (delta D8). nil = not a stacking aura.
+                maxStack = (type(cap) == "number" and cap > 1) and cap or nil,
+                -- The original's `Track[spell][1]` `notTarget` column: every
+                -- effect of the row targets the caster, so the window is
+                -- exactly ONE row (the "none" targetKey, §3.3).
+                noTarget = spell.noTarget == true,
             }
             n = n + 1
         end

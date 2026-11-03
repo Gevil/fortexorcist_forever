@@ -167,33 +167,33 @@ P.FADE_SPELL_KEYS = {
 -- Druid announce rows is form-paired.
 P.CAST_ROWS = {
     { prefix = "Barkskin", spell = "Barkskin", bits = 1, key = "BSStart",
-        src = "Druid.lua:213", group = "Self Damage Reduction",
+        src = "Druid.lua:211", group = "Self Damage Reduction",
         text = "+++ Barkskin (10 sec) +++",
         note = "The source ships this ON (party bits 1) - tick to restore." },
     { prefix = "SurvivalInstincts", spell = "Survival Instincts", bits = 1,
-        key = "SIStart", src = "Druid.lua:216",
+        key = "SIStart", src = "Druid.lua:214",
         group = "Self Damage Reduction",
         text = "+++ Survival Instincts (12 sec) +++",
         note = "The source ships this ON (party bits 1) - tick to restore." },
     { prefix = "FrenziedRegeneration", spell = "Frenzied Regeneration",
-        bits = 1, key = "FRStart", src = "Druid.lua:219",
+        bits = 1, key = "FRStart", src = "Druid.lua:217",
         group = "Self Damage Reduction",
         text = "+++ Frenzied Regeneration (20 sec) +++",
         note = "The source ships this ON (party bits 1) - tick to restore." },
     { prefix = "Rebirth", spell = "Rebirth", bits = 1, key = "RebirthStart",
-        src = "Druid.lua:223", group = "Other", target = true,
+        src = "Druid.lua:221", group = "Other", target = true,
         text = ">>> Rebirth on %s <<<",
         note = "The source hands the target to this row (CastShow(t), "
-            .. "Druid.lua:200). The source ships it ON (party bits 1)." },
+            .. "Druid.lua:199). The source ships it ON (party bits 1)." },
     { prefix = "Innervate", spell = "Innervate", bits = 1,
-        key = "InnervateStart", src = "Druid.lua:226", group = "Other",
+        key = "InnervateStart", src = "Druid.lua:224", group = "Other",
         target = true, text = ">>> Innervate on %s <<<",
-        note = "The source hands the target (Druid.lua:202). The source "
+        note = "The source hands the target (Druid.lua:201). The source "
             .. "ships this ON (party bits 1)." },
     { prefix = "Tranquility", spell = "Tranquility", bits = 1,
-        key = "TranquilityStart", src = "Druid.lua:229", group = "Other",
+        key = "TranquilityStart", src = "Druid.lua:227", group = "Other",
         text = ">>> Tranquility up <<<",
-        note = "No target in the source's text (Druid.lua:204). The source "
+        note = "No target in the source's text (Druid.lua:203). The source "
             .. "ships this ON (party bits 1)." },
     { prefix = "AuraMastery", spell = "Aura Mastery", bits = 1,
         key = "AMStart", src = "Paladin.lua:151",
@@ -240,7 +240,6 @@ P.CAST_ROWS = {
         key = "GOTAKStart", src = "Paladin.lua:164", spec = 2,
         group = "Self Damage Reduction",
         text = "+++ Guardian of Ancient Kings (12sec) +++",
-        spec = 2,
         note = "The 2012 Guardian of Ancient Kings (86659/86669) has no "
             .. "row on either build; Forever's Paladin DR of that family "
             .. "is Avenging Wrath (407788/409934), which is the key, the "
@@ -308,6 +307,85 @@ do
     P.CAST_SPELL_KEYS["Blessing of Sacrifice"] = "Sacrifice"
 end
 
+-- THE WARLOCK CAST ANNOUNCE ROWS (Wave 4, Options WL+Msg item 6): the nine
+-- `CA:CastShow` rows of the source's Warlock page -- the Seduce trio
+-- (Warlock.lua:307-309), the Spell Lock trio (:316,:317,:320) and the Devour
+-- Magic trio (:323,:324,:327) -- plus the two soulstone cast rows, Start and
+-- Cancel (:294-295). The source's tenth and eleventh soulstone rows
+-- (SoulstoneSuccess :296 and the whisper trio :297-299) are the same
+-- family's rows this page already carries (`SoulstoneAnnounce`, the
+-- Success half) and the whisper pair added below. NO Death Knight row
+-- exists on Forever (the class is absent), so no DK row is ported.
+--
+-- The keys are the FOREVER data names, and the pet half keys on what the
+-- PET casts: `Seduction` (6358, the Succubus CC, with `Mesmerize` 24594 as
+-- its alias -- the fade rows' law above, the 70707 store carries both),
+-- `Spell Lock` (19647) and `Devour Magic` (19736) are the felguard's kit,
+-- all three rows of the live generated Warlock data
+-- (`addon/Forte_Warlock/Data/Warlock.lua:160,:163,:164`). The consumer is
+-- the PET unit's own cast events -- the same pet spine Forte_Timer
+-- registers (wave 2b "PetRows v2") -- and for the two Ready rows the
+-- cooldown the data row itself carries (`cooldownMs` 30000 / 8000), armed
+-- off the pet's own cast.
+--
+-- Every one of the 18 group/channel boxes ships OFF (the shipped-default
+-- law, the manager ruling of 2026-11-02 on review 4 E2). The source ships
+-- all nine pet rows at bits 0 -- SILENT (`FW.Default.SeduceStart =
+-- {[0]=0,…}`, Warlock.lua:355-364), so here the shipped default and the
+-- source's own bits agree row for row; the two soulstone cast rows ship at
+-- bits 1 (party) in the source (`FW.Default.SoulstoneStart = {[0]=1,
+-- "Soulstoning >> %s << Now"}`, :352-354) and their section tip says so.
+P.PET_ROWS = {
+    { key = "SeduceStart", spell = "Seduction", bits = 0,
+        src = "Warlock.lua:307", group = "Pet", target = true,
+        text = "Seducing >> %s << Now" },
+    { key = "SeduceSuccess", spell = "Seduction", bits = 0,
+        src = "Warlock.lua:308", group = "Pet", target = true,
+        text = "Seduced >> %s << Don't hit it!" },
+    { key = "SeduceFailed", spell = "Seduction", bits = 0,
+        src = "Warlock.lua:309", group = "Pet",
+        text = ">> Seduction Failed! <<" },
+    { key = "SpellLockSuccess", spell = "Spell Lock", bits = 0,
+        src = "Warlock.lua:316", group = "Pet",
+        text = ">> Spell Lock Used <<" },
+    { key = "SpellLockFailed", spell = "Spell Lock", bits = 0,
+        src = "Warlock.lua:317", group = "Pet",
+        text = ">> Spell Lock Failed! <<" },
+    { key = "SpellLockReady", spell = "Spell Lock", bits = 0,
+        src = "Warlock.lua:320", group = "Pet", ready = true,
+        text = ">> Spell Lock ready <<" },
+    { key = "DevourMagicSuccess", spell = "Devour Magic", bits = 0,
+        src = "Warlock.lua:323", group = "Pet",
+        text = ">> Devour Magic Used <<" },
+    { key = "DevourMagicFailed", spell = "Devour Magic", bits = 0,
+        src = "Warlock.lua:324", group = "Pet",
+        text = ">> Devour Magic Failed! <<" },
+    { key = "DevourMagicReady", spell = "Devour Magic", bits = 0,
+        src = "Warlock.lua:327", group = "Pet", ready = true,
+        text = ">> Devour Magic ready <<" },
+}
+--- The pet cast-name gate: the FOREVER name the pet's cast event resolves
+--- to (canonicalized first, the `castPrefixFor` law) -> the row key's stem.
+--- `Mesmerize` shares the Seduce rows exactly as the fade half shares them
+--- (`ST:RegisterOnTimerFade(mesmerize, "SeduceFade")`, Warlock.lua:250).
+P.PET_SPELL_KEYS = {
+    ["Seduction"] = "Seduce",
+    ["Mesmerize"] = "Seduce",
+    ["Spell Lock"] = "SpellLock",
+    ["Devour Magic"] = "DevourMagic",
+}
+--- The event half of each stem: which of the pet's cast events lights which
+--- row, and which row the data's `cooldownMs` window arms.
+P.PET_ROW_KINDS = {
+    Seduce = { start = "SeduceStart", success = "SeduceSuccess",
+               failed = "SeduceFailed" },
+    SpellLock = { success = "SpellLockSuccess", failed = "SpellLockFailed",
+                  ready = "SpellLockReady" },
+    DevourMagic = { success = "DevourMagicSuccess",
+                    failed = "DevourMagicFailed",
+                    ready = "DevourMagicReady" },
+}
+
 -- The class each row's source spell belongs to - the survey's split (docs/
 -- class-port.md S17: 6 Druid, 8 Paladin, 6 Warrior), the census' count. The
 -- announce itself is name-keyed and class-blind (a Warrior who somehow
@@ -352,6 +430,29 @@ P.DEFAULTS[M] = {
     SoulstoneAnnounce = false,
     SoulstoneChannel = false,
     SoulstoneAnnounceText = "Soulstoned >> %s << Use it well!",
+    -- The two cast-phase rows of the same source section (Warlock.lua:294
+    -- and :295): "Soulstone cast Start" and "Soulstone cast Cancel"
+    -- (Localization.lua:37-38). The source's own bits are 1 (party) at
+    -- :352-354; the shipped default is OFF (E2) and the row's tip says so.
+    SoulstoneStartParty = false,
+    SoulstoneStartChannel = false,
+    SoulstoneStartText = "Soulstoning >> %s << Now",
+    SoulstoneCancelParty = false,
+    SoulstoneCancelChannel = false,
+    SoulstoneCancelText = "Soulstoning >> %s << Cancelled",
+    -- The whisper trio of the same section (the MSG rows, Warlock.lua:297
+    -- -299, the texts at :357-359): the source's Success whisper is the one
+    -- row of the three it ships ON (`{[0]=true, ">> You are now soulstoned!
+    -- <<"}`), and the shipped-default law puts it where its two siblings
+    -- are: OFF. A whisper is not the group routing the master switches gate
+    -- (the source's `FW:Whisper`, Forte_Core.lua:2081-2083, walks past
+    -- them), so the row's own box is its gate.
+    SoulstoneStartWhisper = false,
+    SoulstoneStartWhisperText = ">> Soulstoning you now <<",
+    SoulstoneCancelWhisper = false,
+    SoulstoneCancelWhisperText = "<< Soulstoning cancelled >>",
+    SoulstoneSuccessWhisper = false,
+    SoulstoneSuccessWhisperText = ">> You are now soulstoned! <<",
 }
 do
     for _ = 1, #P.FADE_ROWS do
@@ -377,6 +478,16 @@ do
         P.DEFAULTS[M][row.prefix .. "CastText"] = row.text
         P.DEFAULTS[M][row.prefix .. "CastParty"] = false
         P.DEFAULTS[M][row.prefix .. "CastChannel"] = false
+    end
+    -- The nine Warlock pet rows, the same law: the TEXTS are the source's
+    -- verbatim words (Warlock.lua:355-364), the SENDS ship OFF -- and these
+    -- nine rows need no tick-to-restore note, because the source's own bits
+    -- for every one of them are 0 (silent).
+    for _ = 1, #P.PET_ROWS do
+        local row = P.PET_ROWS[_]
+        P.DEFAULTS[M][row.key .. "Text"] = row.text
+        P.DEFAULTS[M][row.key .. "Party"] = false
+        P.DEFAULTS[M][row.key .. "Channel"] = false
     end
 end
 
@@ -412,6 +523,40 @@ TIPS.SoulstoneAnnounce = "Announce to your party/raid when YOU create a "
 TIPS.SoulstoneChannel = "The SAY/YELL/channel twin. Applied live."
 TIPS.SoulstoneAnnounceText = "The original's text, verbatim: Soulstoned >> "
     .. "%%s << Use it well! (Warlock.lua:365). Applied live."
+TIPS.SoulstoneStartParty = "Announce to your party/raid when YOU START the "
+    .. "soulstone cast on someone (the source's SoulstoneStart row, "
+    .. "Warlock.lua:294, the text verbatim from :352). The source ships this "
+    .. "ON (party bits 1) - tick to restore; the shipped default is OFF. "
+    .. "Applied live."
+TIPS.SoulstoneStartChannel = "The SAY/YELL/channel twin. Applied live."
+TIPS.SoulstoneStartText = "Template; %%s is the cast's target (the original's "
+    .. "\"Soulstoning >> %s << Now\", Warlock.lua:352). Applied live."
+TIPS.SoulstoneCancelParty = "Announce it when that cast ENDS WITHOUT "
+    .. "SUCCEEDING - interrupted or stopped (the source's SoulstoneCancel "
+    .. "row, Warlock.lua:295, the text verbatim from :353). The source ships "
+    .. "this ON (party bits 1) - tick to restore; the shipped default is "
+    .. "OFF. Applied live."
+TIPS.SoulstoneCancelChannel = "The SAY/YELL/channel twin. Applied live."
+TIPS.SoulstoneCancelText = "Template; %%s is the cast's target (the original's "
+    .. "\"Soulstoning >> %s << Cancelled\", Warlock.lua:353). Applied live."
+TIPS.SoulstoneStartWhisper = "Whisper the target when you start soulstoning "
+    .. "them (the source's SoulstoneStartWhisper, Warlock.lua:297, text "
+    .. ":357 -- the source ships it OFF; opt-in here too). No readable "
+    .. "target name on the cast, no whisper. Applied live."
+TIPS.SoulstoneStartWhisperText = "The whisper text (\">> Soulstoning you now "
+    .. "<<\", Warlock.lua:357). Applied live."
+TIPS.SoulstoneCancelWhisper = "Whisper the target when the cast is cancelled "
+    .. "(SoulstoneCancelWhisper, Warlock.lua:298, text :358; the source ships "
+    .. "it OFF). Applied live."
+TIPS.SoulstoneCancelWhisperText = "The whisper text (\"<< Soulstoning "
+    .. "cancelled >>\", Warlock.lua:358). Applied live."
+TIPS.SoulstoneSuccessWhisper = "Whisper the target when the stone goes up on "
+    .. "them (SoulstoneSuccessWhisper, Warlock.lua:299, text :359). THE ONE "
+    .. "row of this page the source ships ON ({[0]=true}) - the "
+    .. "shipped-default law puts it OFF with its siblings, tick to restore. "
+    .. "Applied live."
+TIPS.SoulstoneSuccessWhisperText = "The whisper text (\">> You are now "
+    .. "soulstoned! <<\", Warlock.lua:359). Applied live."
 
 -- The cast rows' tips, generated from the table (the fade rows' tips are
 -- generated the same way, in the section meta).
@@ -430,6 +575,27 @@ do
     end
 end
 
+-- The Warlock pet rows' tips, generated from the table the same way.
+do
+    for _ = 1, #P.PET_ROWS do
+        local row = P.PET_ROWS[_]
+        local src = "The source's " .. row.key .. " row (" .. row.src
+            .. "), the text verbatim."
+        local who = "your felguard casts " .. row.spell
+        if row.ready then
+            who = "the pet spell's cooldown (the data row's cooldownMs) "
+                .. "runs out after your felguard's cast of " .. row.spell
+        end
+        TIPS[row.key .. "Party"] = "Announce to your party/raid when "
+            .. who .. " (opt-in; the source ships this row silent, bits 0). "
+            .. src .. " Applied live."
+        TIPS[row.key .. "Channel"] = "The SAY/YELL/channel twin of the "
+            .. "switch above. Applied live."
+        TIPS[row.key .. "Text"] = "Template; %%s is the cast's target"
+            .. " (the no-%s rows ignore it). " .. src .. " Applied live."
+    end
+end
+
 function P.RegisterRaidMsgPage()
     local O = FX.Options
     if not O or not O.pages or not FX.Settings then return false end
@@ -444,7 +610,7 @@ function P.RegisterRaidMsgPage()
                 b.Tips({
                     "Announcements go to your RAID in a raid and to your PARTY in a party (the ToGroup law), to SAY/YELL/a channel on the channel half (the ToChannel law).",
                     "Inside instances the client locks addon chat (chat-messaging-lockdown): the gate then skips the send, counts it, and /fx messages shows the count -- nothing pretends a swallowed line went.",
-                    "Every announce row is opt-in: EVERY group and channel checkbox on this page ships OFF (the three announce rows, the twelve fade/break boxes, the 40 cast-announce boxes), so a default install sends nothing to anyone. The original's own bits ride each row's tip (Banish/Enslave/Seduction ship party-ON, Warlock.lua:372-391; the 20 Druid/Paladin/Warrior cast rows ship party-ON too, and Warrior Vigilance is the one row the source ships silent) - tick to restore.",
+                    "Every announce row is opt-in: EVERY group, channel and whisper checkbox on this page ships OFF (the three announce rows, the twelve fade/break boxes, the 40 cast-announce boxes, the 18 Warlock pet-cast boxes and the Warlock soulstone row's eight group/channel boxes and three whisper boxes), so a default install sends nothing to anyone. The original's own bits ride each row's tip (Banish/Enslave/Seduction ship party-ON, Warlock.lua:372-391; the 20 Druid/Paladin/Warrior cast rows ship party-ON too, and Warrior Vigilance is the one row the source ships silent; all nine Warlock pet rows ship silent, :355-364; the soulstone Start/Cancel rows ship party-ON and its Success whisper is the one row of the page the source ships ON, :359) - tick to restore.",
                     "No raid-target data is read anywhere in this module (the target is your own cast's, the names your own events carry).",
                 })
                 b.Section("Master switches", function(s)
@@ -566,12 +732,107 @@ function P.RegisterRaidMsgPage()
                         tip = TIPS.SoulstoneChannel })
                     s.STR({ module = M, key = "SoulstoneAnnounceText",
                         label = "Text", tip = TIPS.SoulstoneAnnounceText })
+                    -- The cast-phase pair + the whisper trio of the same
+                    -- source section (Warlock.lua:294-299).
+                    s.CHK({ module = M, key = "SoulstoneStartParty",
+                        label = "Cast start: announce to group (opt-in)",
+                        tip = TIPS.SoulstoneStartParty })
+                    s.CHK({ module = M, key = "SoulstoneStartChannel",
+                        label = "Cast start: announce to channel (opt-in)",
+                        tip = TIPS.SoulstoneStartChannel })
+                    s.STR({ module = M, key = "SoulstoneStartText",
+                        label = "Cast start: text",
+                        tip = TIPS.SoulstoneStartText })
+                    s.CHK({ module = M, key = "SoulstoneCancelParty",
+                        label = "Cast cancel: announce to group (opt-in)",
+                        tip = TIPS.SoulstoneCancelParty })
+                    s.CHK({ module = M, key = "SoulstoneCancelChannel",
+                        label = "Cast cancel: announce to channel (opt-in)",
+                        tip = TIPS.SoulstoneCancelChannel })
+                    s.STR({ module = M, key = "SoulstoneCancelText",
+                        label = "Cast cancel: text",
+                        tip = TIPS.SoulstoneCancelText })
+                    s.CHK({ module = M, key = "SoulstoneStartWhisper",
+                        label = "Cast start: whisper the target (opt-in)",
+                        tip = TIPS.SoulstoneStartWhisper })
+                    s.STR({ module = M, key = "SoulstoneStartWhisperText",
+                        label = "Cast start: whisper text",
+                        tip = TIPS.SoulstoneStartWhisperText })
+                    s.CHK({ module = M, key = "SoulstoneCancelWhisper",
+                        label = "Cast cancel: whisper the target (opt-in)",
+                        tip = TIPS.SoulstoneCancelWhisper })
+                    s.STR({ module = M, key = "SoulstoneCancelWhisperText",
+                        label = "Cast cancel: whisper text",
+                        tip = TIPS.SoulstoneCancelWhisperText })
+                    s.CHK({ module = M, key = "SoulstoneSuccessWhisper",
+                        label = "Stone goes up: whisper the target (opt-in)",
+                        tip = TIPS.SoulstoneSuccessWhisper })
+                    s.STR({ module = M, key = "SoulstoneSuccessWhisperText",
+                        label = "Stone goes up: whisper text",
+                        tip = TIPS.SoulstoneSuccessWhisperText })
                 end, {
                     module = M,
                     keys = { "SoulstoneAnnounce", "SoulstoneChannel",
-                        "SoulstoneAnnounceText" },
-                    tip = "The SoulstoneSuccess announce half.",
+                        "SoulstoneAnnounceText",
+                        "SoulstoneStartParty", "SoulstoneStartChannel",
+                        "SoulstoneStartText",
+                        "SoulstoneCancelParty", "SoulstoneCancelChannel",
+                        "SoulstoneCancelText",
+                        "SoulstoneStartWhisper", "SoulstoneStartWhisperText",
+                        "SoulstoneCancelWhisper",
+                        "SoulstoneCancelWhisperText",
+                        "SoulstoneSuccessWhisper",
+                        "SoulstoneSuccessWhisperText" },
+                    tip = "The SoulstoneSuccess announce half (the source's "
+                        .. "SoulstoneSuccess, Warlock.lua:296) plus the cast "
+                        .. "pair SoulstoneStart / SoulstoneCancel "
+                        .. "(:294-295) and the whisper trio (:297-299). The "
+                        .. "source ships Start/Cancel party-ON (bits 1) and "
+                        .. "the Success whisper ON; every box here ships OFF "
+                        .. "(the shipped-default law) and the texts are the "
+                        .. "source's verbatim words (:352-359).",
                 })
+                -- The nine Warlock pet rows (Wave 4 item 6): the source's
+                -- Pet sub-category rows (Warlock.lua:305-328) -- the Seduce
+                -- trio, the Spell Lock trio, the Devour Magic trio. The
+                -- consumer is the FELGUARD's own cast events (the pet cast
+                -- spine Forte_Timer registers, wave 2b "PetRows v2") and,
+                -- for the two Ready rows, the cooldown the generated data
+                -- row carries (Spell Lock 30 000 ms, Devour Magic 8 000 ms,
+                -- Data/Warlock.lua:163-164), armed off the pet's cast. The
+                -- source ships all nine silent (bits 0, :355-364), so the
+                -- shipped default and the source agree row for row.
+                for _ = 1, #P.PET_ROWS do
+                    local row = P.PET_ROWS[_]
+                    b.Section(row.spell .. " (pet cast)", function(s)
+                        s.STR({ module = M, key = row.key .. "Text",
+                            label = "Text", tip = TIPS[row.key .. "Text"] })
+                        s.CHK({ module = M, key = row.key .. "Party",
+                            label = "Announce to group (opt-in)",
+                            tip = TIPS[row.key .. "Party"] })
+                        s.CHK({ module = M, key = row.key .. "Channel",
+                            label = "Announce to channel (opt-in)",
+                            tip = TIPS[row.key .. "Channel"] })
+                    end, {
+                        module = M,
+                        keys = { row.key .. "Text", row.key .. "Party",
+                            row.key .. "Channel" },
+                        tip = (row.ready
+                                and "Announces when " .. row.spell
+                                    .. "'s cooldown (the generated data "
+                                    .. "row's cooldownMs) runs out after "
+                                    .. "your pet cast it"
+                                or "Announces when YOUR PET casts "
+                                    .. row.spell)
+                            .. " (the " .. row.key .. " row, " .. row.src
+                            .. "), the " .. row.group .. " sub-category of "
+                            .. "the source's layout. Every send ships OFF "
+                            .. "(the shipped-default law); the source's own "
+                            .. "bits for this row are " .. row.bits
+                            .. " (0 silent, 1 party) -- the source ships "
+                            .. "all nine pet rows at 0.",
+                    })
+                end
             end,
         })
     end

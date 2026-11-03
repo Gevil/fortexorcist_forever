@@ -101,8 +101,13 @@ FX.Cooldown.TimelineSkin = {
     BarTexture = TEX .. "Aluminium",          -- FW.Default.Texture
     BarColor = { 1, 1, 1, 0.20 },             -- BarColor: white a 0.20
     TextColor = { 1, 1, 1, 0.20 },            -- TextColor (tag labels)
-    TimeFormatAlt = false,                    -- General AltTimeFormat:
-                                              -- m:ss for EVERY time
+    TimeFormatAlt = true,                     -- General AltTimeFormat:
+                                              -- m:ss for EVERY time. The
+                                              -- original's default is ON
+                                              -- (`TimeFormat = true`,
+                                              -- Forte_Core.lua:2487), so
+                                              -- a fresh install prints
+                                              -- `0:45`, not `45.0`.
     -- Charge-count text (the icon's BOTTOMRIGHT number): white while the
     -- bar has charges, Blizzard gold when the bar is drained (`charges 0`,
     -- the one state the engine keeps on the bar -- see Engine:Sorted).
@@ -114,6 +119,18 @@ FX.Cooldown.TimelineSkin = {
     SparkScale = 2.2,                         -- glow size / icon size (:1157)
     SparkAlpha = 1.0,                         -- Spark = {[0]=true, 1}
     Alpha = 0.2, AlphaMax = 1.0,              -- icon fade-in endpoints
+                                              -- (`Alpha`/`AlphaMax`,
+                                              -- :1818/:1819; the page keys
+                                              -- are BarAlpha/BarAlphaMax --
+                                              -- see D:SetBarAlpha)
+    -- The icon's own time text (`IconTime`, :1835 default true; the row is
+    -- SPECIFICS :1718 "Show Icon text") and its colour (`IconTextColor` =
+    -- {[0]=false,1,1,1,1}, :1837; the row is :1719 "Icon text color", whose
+    -- [0] gate rides IconTextColorOn). Gate off -> the text rides
+    -- FixIntensity(category) (:1419-1425).
+    IconTime = true,
+    IconTextColorOn = false,
+    IconTextColor = { 1.00, 1.00, 1.00, 1.00 },
     -- The fresh-visibility ramp, 1.0 s by the source law: the focus hand-off
     -- starts a fresh member at visibility 0 (:625 `cd[n][14] = 0; -- set its
     -- visibilty to zero just to make sure`; the "correcting focus" init of a
@@ -127,6 +144,14 @@ FX.Cooldown.TimelineSkin = {
     CrossfadeSeconds = 1.0,                   -- group focus dwell: t14 ramps
                                               -- +1/s, hand-off at >= 1,
                                               -- outgoing -1/s (:619-633)
+    SplashOn = true,                          -- the per-bar splash gate
+                                              -- (`Splash`, :1811 default
+                                              -- true; the row is the SPLASH
+                                              -- block :1723 "Splash ready
+                                              -- cooldowns"): it gates the
+                                              -- t15==-1 expiry visual, both
+                                              -- its casts (:1380 `if
+                                              -- s.Splash and t15==-1`)
     SplashFactor = 4,                         -- splash peak = 4x the icon
                                               -- (size = SplashFactor*ih*
                                               -- (1-t14) :1381; =4 :1812)
@@ -145,6 +170,18 @@ FX.Cooldown.TimelineSkin = {
                                               -- (:1403 is the only alpha
                                               -- law: linear 1->0); 0 = the
                                               -- spark rides a constant alpha
+
+    -- The TIME RANGE block's four filters (`MinRange` :1826, `MaxRange`
+    -- :1827, `MinRemaining` :1828, `MaxRemaining` :1829 -- every one of them
+    -- `{[0]=false, N}`: the value, plus its `[0]` gate on a separate key).
+    -- The rows are :1729-1732; the law is CD_TimeFilterDuration /
+    -- CD_TimeFilterRemaining (:488-495), applied to the draw pass by the
+    -- t17 filter flag (:547, drawn only `t17 == 0`, :1371). All four gates
+    -- ship OFF: a fresh bar shows every cooldown.
+    MinRangeOn = false,      MinRange = 0,
+    MaxRangeOn = false,      MaxRange = 3600,
+    MinRemainingOn = false,  MinRemaining = 0,
+    MaxRemainingOn = false,  MaxRemaining = 3600,
 
     -- CD-35 frame geometry modes (CD-31's Warn rides the same option block).
     -- The axis runs left -> right by default; Vertical turns it into a
@@ -318,6 +355,43 @@ local function timeKey(remaining)
         return math.floor(remaining)
     end
     return math.floor(remaining * 10 + 0.5)
+end
+
+--- Are the TIME RANGE filters on at all? The render pass asks this once;
+--- with every gate off (the shipped default) the pass runs its own entries
+--- array and the filter machinery is not entered.
+local function filtersActive()
+    return S.MinRangeOn or S.MaxRangeOn or S.MinRemainingOn or S.MaxRemainingOn
+end
+
+--- CD_TimeFilterDuration + CD_TimeFilterRemaining, verbatim (:488-495):
+--- `Min <= value` and `Max >= value` for every gate that is on. The duration
+--- half rides the row's TOTAL duration (the source's cd[i][4], the legend at
+--- :466-469), the remaining half the live remaining (cd[i][2]). A row with no
+--- readable duration is a row the duration gate can not vouch for: with a
+--- duration gate on, it stays off the bar.
+local function passesFilter(duration, remaining)
+    if S.MinRangeOn and (type(duration) ~= "number" or duration < S.MinRange) then
+        return false
+    end
+    if S.MaxRangeOn and (type(duration) ~= "number" or duration > S.MaxRange) then
+        return false
+    end
+    if S.MinRemainingOn and remaining < S.MinRemaining then return false end
+    if S.MaxRemainingOn and remaining > S.MaxRemaining then return false end
+    return true
+end
+
+--- The icon text colour: `IconTextColor[0]` picks the custom colour, off
+--- picks the FixIntensity tint of the row's category (:1419-1425 -- the
+--- block is inside `if s.IconTime`, and the colour is the one the spark
+--- rides). `fr, fg, fb` is that FixIntensity result, computed by the caller.
+local function iconTextColor(fr, fg, fb)
+    if S.IconTextColorOn then
+        local c = S.IconTextColor
+        return c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1
+    end
+    return fr, fg, fb
 end
 
 --- The category KEY of a row (its colour identity, the TimelineSkin.Colors
@@ -558,6 +632,7 @@ function D:Init()
     self._byName = {}      -- name -> slot bound to it (names on the bar)
     self._free = {}        -- stack of released slots (release pops, O(1))
     self._islot = {}       -- scratch: per-pass index -> bound slot
+    self._draw = {}        -- scratch: the TIME RANGE filter's compacted view
     self._seen = {}        -- scratch: names present in the current pass
     self.tagFS = {}
     self.splashPool = {}
@@ -794,7 +869,7 @@ function D:SetCategoryColor(key, col)
             slot._col = c
             slot._segCol = c
             slot.spark:SetVertexColor(fr, fg, fb)
-            slot.timeFS:SetTextColor(fr, fg, fb)
+            slot.timeFS:SetTextColor(iconTextColor(fr, fg, fb))
             slot.alert:SetVertexColor(fr, fg, fb)   -- :1412 tint
         end
     end
@@ -841,6 +916,132 @@ function D:SetSparkOn(on)
             sp.spark:Hide()
             sp.tex:SetTexCoord(0, 1, 0, 1)
         end
+    end
+end
+
+--- Bar alpha floor (`Alpha`, the SPECIFICS row :1716 "Minimum bar alpha",
+--- default 0.2 :1818). The pair is the bar's alpha RANGE: the segment fill
+--- rides `AlphaMax - (AlphaMax - Alpha) * t7` (:1404, applied at :1406) and
+--- the icon's alpha rides the fresh-visibility ramp from `Alpha` up to
+--- `AlphaMax` (:1402 with :611-614). Our page keys are `BarAlpha` /
+--- `BarAlphaMax`: this module's `Alpha` key is the HEADER frame's alpha
+--- (OP-06, SetAlpha), which is a different law.
+function D:SetBarAlpha(v)
+    if type(v) ~= "number" then return end
+    S.Alpha = v
+    self:_BustAlpha()
+end
+
+--- Bar alpha ceiling (`AlphaMax`, row :1717 "Maximum bar alpha", default
+--- 1.0 :1819). A settled icon sits exactly here, so this is the live witness
+--- of the pair.
+function D:SetBarAlphaMax(v)
+    if type(v) ~= "number" then return end
+    S.AlphaMax = v
+    self:_BustAlpha()
+end
+
+--- The icon and segment alphas are dirty-checked against `_alpha` /
+--- `_segSetA`; a change of the pair makes those caches stale, so the next
+--- pass re-applies them.
+function D:_BustAlpha()
+    for i = 1, #(self.slots or {}) do
+        local slot = self.slots[i]
+        slot._alpha = nil
+        slot._segSetA = nil
+    end
+end
+
+--- `IconTime` (SPECIFICS row :1718 "Show Icon text", default true :1835):
+--- the time text on the icons themselves. The source runs the whole icon
+--- block behind `if s.IconTime` (:1419), so off takes the string off every
+--- icon on the bar.
+function D:SetIconTime(on)
+    S.IconTime = not not on
+    for i = 1, #(self.slots or {}) do
+        local ts = self.slots[i].timeFS
+        if S.IconTime then ts:Show() else ts:Hide() end
+    end
+end
+
+--- `IconTextColor` = {[0]=false, 1,1,1,1} (:1837; the row :1719 "Icon text
+--- color" -- its `[0]` gate rides the separate `IconTextColorOn` key, the
+--- Forte_Timer `Max`/`MaxOn` convention).
+function D:SetIconTextColor(col)
+    if type(col) ~= "table" then return end
+    S.IconTextColor = { col[1] or 1, col[2] or 1, col[3] or 1, col[4] or 1 }
+    self:_RetintIconText()
+end
+
+function D:SetIconTextColorOn(on)
+    S.IconTextColorOn = not not on
+    self:_RetintIconText()
+end
+
+--- Re-run the icon text colour law (:1419-1425) over the bound slots: the
+--- slot carries its category colour, so FixIntensity is recomputed and
+--- `iconTextColor` picks the custom colour or that tint.
+function D:_RetintIconText()
+    for i = 1, #(self.slots or {}) do
+        local slot = self.slots[i]
+        if slot._name and slot._col then
+            local fr, fg, fb = fixIntensity(slot._col[1], slot._col[2],
+                slot._col[3])
+            slot.timeFS:SetTextColor(iconTextColor(fr, fg, fb))
+        end
+    end
+end
+
+--- `Splash` (the SPLASH block's row :1723 "Splash ready cooldowns", default
+--- true :1811): the gate of the source's t15==-1 expiry visual (:1380 `if
+--- s.Splash and t15 == -1`). This port renders that ONE curve twice -- the
+--- splash on the icon at the cast (SpawnSplash) and the pulse at the bar's
+--- origin when the cooldown comes ready (SpawnPulse) -- so one gate rules
+--- both. Off also clears what is on screen.
+function D:SetSplashOn(on)
+    S.SplashOn = not not on
+    if S.SplashOn then return end
+    for i = 1, #(self.splashPool or {}) do
+        local s = self.splashPool[i]
+        s._endAt = nil
+        s.frame:Hide()
+    end
+    for i = 1, #(self.pulsePool or {}) do
+        local p = self.pulsePool[i]
+        p._endAt = nil
+        p.frame:Hide()
+    end
+end
+
+--- `SplashFactor` (row :1724 "Splash icon active scale", `SetRange(1)`: the
+--- floor is 1, default 4 :1812): the bell's peak multiplier, the splash size
+--- being `SplashFactor * ih * (1 - t14)` (:1381). The running curves re-read
+--- the skin every pass; the pool's static geometry caps move here (the same
+--- split SetSize makes).
+function D:SetSplashFactor(v)
+    if type(v) ~= "number" or v < 1 then return end
+    S.SplashFactor = v
+    for i = 1, #(self.splashPool or {}) do
+        local sp = self.splashPool[i]
+        sp.tex:SetSize(S.Height * S.SplashFactor, S.Height * S.SplashFactor)
+        sp.spark:SetSize(S.Height * S.SplashFactor * S.SparkScale,
+            S.Height * S.SplashFactor * S.SparkScale)
+    end
+end
+
+--- The four TIME RANGE filters (rows :1729-1732): `MinRange`/`MaxRange` gate
+--- a row on its TOTAL duration, `MinRemaining`/`MaxRemaining` on its live
+--- remaining, and every value has its `[0]` gate on a `<Key>On` key (the
+--- defaults :1826-1829 are the value 0 / 3600 / 0 / 3600 with every gate OFF).
+--- The eight keys are one shape, so they are built in a loop; the render pass
+--- re-decides every entry at 10 Hz, so a change needs no cache bust.
+for _, key in ipairs({ "MinRange", "MaxRange", "MinRemaining",
+    "MaxRemaining" }) do
+    D["Set" .. key] = function(self, v)
+        if type(v) == "number" then S[key] = v end
+    end
+    D["Set" .. key .. "On"] = function(self, on)
+        S[key .. "On"] = not not on
     end
 end
 
@@ -1095,6 +1296,22 @@ local KEYMAP = {
     BarColor = "SetBarColor",
     BgColor = "SetBgColor",
     Spark = "SetSparkOn",
+    -- The SPECIFICS icon block (:1716-1719) and the SPLASH block
+    -- (:1723-1724), plus the TIME RANGE filters (:1729-1732) and their
+    -- `[0]` gates.
+    BarAlpha = "SetBarAlpha",
+    BarAlphaMax = "SetBarAlphaMax",
+    IconTime = "SetIconTime",
+    IconTextColor = "SetIconTextColor",
+    IconTextColorOn = "SetIconTextColorOn",
+    Splash = "SetSplashOn",
+    SplashFactor = "SetSplashFactor",
+    MinRange = "SetMinRange", MinRangeOn = "SetMinRangeOn",
+    MaxRange = "SetMaxRange", MaxRangeOn = "SetMaxRangeOn",
+    MinRemaining = "SetMinRemaining",
+    MinRemainingOn = "SetMinRemainingOn",
+    MaxRemaining = "SetMaxRemaining",
+    MaxRemainingOn = "SetMaxRemainingOn",
     Scale = "SetScale",
     Alpha = "SetAlpha",
     GlobalLock = "SetLocked",
@@ -1130,6 +1347,11 @@ local STORED = {
         "Warn", "Width", "Height", "MaxTime",
         "PowerScale", "TimeTags", "IgnoreShort", "BarColor", "BgColor",
         "Spark", "Scale", "Alpha",
+        "BarAlpha", "BarAlphaMax", "IconTime", "IconTextColor",
+        "IconTextColorOn", "Splash", "SplashFactor",
+        "MinRange", "MinRangeOn", "MaxRange", "MaxRangeOn",
+        "MinRemaining", "MinRemainingOn", "MaxRemaining",
+        "MaxRemainingOn",
         "ColorSpell", "ColorPowerup", "ColorItem", "ColorPotion",
         "ColorPet", "ColorInternal", "ColorBuff", "ColorDebuff" },
     General = { "FrameAlpha", "FrameScale", "AltTimeFormat",
@@ -1229,6 +1451,10 @@ function D:AcquireSlot()
     local timeFS = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     applyFont(timeFS, ICON_FONT_SIZE, ICON_FONT_FLAGS)
     timeFS:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+    -- The `IconTime` gate (the row :1718, default on :1835): the source runs
+    -- the icon text behind it (:1419), so a slot built while it is off is
+    -- born hidden (SetIconTime shows the live pool on the way back).
+    if not S.IconTime then timeFS:Hide() end
 
     -- Charge count: the current castable number. v1 sat at the Blizzard
     -- CooldownViewer.xml count corner (BOTTOMRIGHT -2, 2), but the 3-4
@@ -1303,7 +1529,9 @@ function D:BindSlot(slot, e, cx, now)
     slot._segCol = col                      -- segment: raw category (:1403)
     local fr, fg, fb = fixIntensity(col[1], col[2], col[3])
     slot.spark:SetVertexColor(fr, fg, fb)   -- FixIntensity (:1407, :1417)
-    slot.timeFS:SetTextColor(fr, fg, fb)    -- IconTextColor off -> FixIntensity
+    -- The icon text colour (:1419-1425): `IconTextColor[0]` on -> the custom
+    -- colour, off -> the same FixIntensity tint the spark rides.
+    slot.timeFS:SetTextColor(iconTextColor(fr, fg, fb))
     -- The attention spark rides the SAME FixIntensity tint as the running
     -- spark (:1407-1408: r,g,b = FixIntensity(ColorVal(...)) right before the
     -- t20 > 1 branch); it is re-armed by the Warn pass, hidden at rest.
@@ -1344,6 +1572,10 @@ end
 --- FixIntensity(category) (:1083-85, :1407, :1418) and the whole frame
 --- fading alpha 1 -> 0 linear (:1403). Grow-only pool.
 function D:SpawnSplash(cx, texPath, col, now)
+    -- The `Splash` gate (:1380 `if s.Splash and t15 == -1`, row :1723,
+    -- default on :1811): off, the expiry visual is not spawned at all -- the
+    -- pool stays untouched, so a later on needs no repair.
+    if not S.SplashOn then return end
     local pool = self.splashPool
     local s
     for i = 1, #pool do
@@ -1402,6 +1634,10 @@ end
 --- is the only alpha law; PulseCycle 0 switches the wave off), the frame
 --- fading alpha 1 -> 0 linear over PulseSeconds. Grow-only pool.
 function D:SpawnPulse(name, texPath, col, endAt)
+    -- The one source curve this renders is the gated `Splash` visual too
+    -- (:1380), so the same gate keeps the ready pulse off the bar. (Both
+    -- call sites already popped the _ready entry; a stale one prunes itself.)
+    if not S.SplashOn then return end
     -- m8 (CodeReview3): a sealed GetSpellTexture read (the secrecy law's
     -- own case) leaves slot._texPath nil; drawing the ADD-blend spark alone
     -- would fly a lone glow along the bar. A nil-icon pulse therefore runs the
@@ -1612,14 +1848,44 @@ end
 
 --- Render one pass. `entries` is the Engine's reused scratch array, sorted
 --- soonest-ready first -- the only thing we tag onto it is the transient
---- numeric `.x` the grouping consumes; keep no references to it.
+--- numeric `.x` the grouping consumes; keep no references to it (the filter's
+--- `_draw` view is emptied the moment no gate runs, and is trimmed to the
+--- pass's own rows while one does).
 function D:Update(entries, now)
     if not self.anchor then return end
     local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
     local n = #entries
-    -- The feed size is HideZero's witness (CD-35): recorded before the
-    -- visibility pass so the bar shows again on the very pass its first
-    -- entry lands, with nothing but this normal feed driving it.
+    -- The TIME RANGE filters (CD_TimeFilterDuration / CD_TimeFilterRemaining
+    -- :488-495; the source marks the filtered row cd[i][21] = 1 at :547 and
+    -- draws only `t17 == 0` at :1371). Our slots are name-bound and released
+    -- by the "names the feed dropped" pass at the end, so the filter runs
+    -- BEFORE that loop by handing the rest of the pass a COMPACTED VIEW of
+    -- the feed: the Display's own grow-only scratch of references. A filtered
+    -- row then costs no slot, no segment, no group member and no HideZero
+    -- count, and its slot releases exactly like a row the engine dropped.
+    -- With every gate off -- the shipped default -- the feed is used as it
+    -- arrived and the scratch is emptied, so it holds no engine row between
+    -- the passes that filter.
+    if filtersActive() then
+        local draw = self._draw
+        local m = 0
+        for i = 1, n do
+            local e = entries[i]
+            local finishAt = e.rechargeEnd or e.endTime
+            if passesFilter(e.duration, finishAt - now) then
+                m = m + 1
+                draw[m] = e
+            end
+        end
+        for i = m + 1, #draw do draw[i] = nil end
+        entries, n = draw, m
+    elseif self._draw[1] ~= nil then
+        for i = 1, #self._draw do self._draw[i] = nil end
+    end
+    -- The feed size is HideZero's witness (CD-35): the number of rows the
+    -- bar is DRAWING (post-filter), recorded before the visibility pass so
+    -- the bar shows again on the very pass its first entry lands, with
+    -- nothing but this normal feed driving it.
     self._lastCount = n
     -- Enable / Hide-when-out-of-combat / HideZero ride this 10 Hz pass (cheap
     -- and dirty-checked): the bar self-heals on combat transitions. A hidden

@@ -88,6 +88,60 @@ test("locale: item aliases and the cold-cache request path", function()
     Locale.Reset()
 end)
 
+-- Code-review-5 M3: the frame is the ONE place the build pins the
+-- late-arrival contract. The direct `Locale.OnItemNameArrived(itemID)` calls
+-- (the manager-regression test above, Forte_Cooldown's
+-- test_locale_cooldown.lua:138) pass a swapped shape: the catalog hands BOTH
+-- events as (itemID, success) (ItemDocumentation), and the frame's gate --
+-- a `success == false` reply carries no name -- is the contract. Drive the
+-- real frame's OnEvent with the exact client payload.
+test("locale: the item-load events ride the real frame in (itemID, success)",
+function()
+    Locale.Reset()
+    local frame = Locale.WatchItemLoads()
+    assertNotNil(frame, "the watch builds the frame")
+    assertEquals(frame, Locale.WatchItemLoads(), "the watch is idempotent")
+    local handler = frame:GetScript("OnEvent")
+    assertNotNil(handler, "the watch installs the handler")
+    local savedStub, savedSubs = Locale.stubItemName, Locale.onLateNames
+    Locale.onLateNames = {}
+    Locale.stubItemName = function(id)
+        if id == 999001 then return "Testschmuck" end
+        if id == 999002 then return "Testelixier" end
+        if id == 999003 then return "Testtrank" end
+    end
+    Locale.englishByItemID[999001] = "Test Trinket"
+    Locale.englishByItemID[999002] = "Test Elixir"
+    Locale.englishByItemID[999003] = "Test Potion"
+    local woke = {}
+    Locale.SubscribeLateNames(function(id) woke[#woke + 1] = id end)
+    local lateBefore = Locale.state.lateNames
+    -- GET_ITEM_INFO_RECEIVED's success leg resolves the alias.
+    handler(frame, "GET_ITEM_INFO_RECEIVED", 999001, true)
+    assertEquals("Test Trinket", Locale.CanonicalName("Testschmuck"),
+        "the success leg resolved the alias through the frame")
+    assertEquals(1, #woke, "the frame leg woke the subscriber")
+    assertEquals(999001, woke[1], "the subscriber got the payload's itemID")
+    -- The second registered event, the same shape.
+    handler(frame, "ITEM_DATA_LOAD_RESULT", 999002, true)
+    assertEquals("Test Elixir", Locale.CanonicalName("Testelixier"),
+        "ITEM_DATA_LOAD_RESULT resolves through the frame too")
+    assertEquals(lateBefore + 2, Locale.state.lateNames,
+        "the two arrivals counted once each")
+    -- The success == false gate: a failed load carries no name, and the id
+    -- stays unresolved (the stub would resolve it, so the gate is the leg
+    -- that speaks here).
+    handler(frame, "GET_ITEM_INFO_RECEIVED", 999003, false)
+    assertEquals("Testtrank", Locale.CanonicalName("Testtrank"),
+        "a failed load stayed unresolved")
+    assertEquals(2, #woke, "a failed load wakes nobody")
+    -- An event the frame does not know says nothing.
+    handler(frame, "GET_SPELL_AURAS_CHANGED", 999001, true)
+    assertEquals(2, #woke, "an unregistered event wakes nobody")
+    Locale.stubItemName, Locale.onLateNames = savedStub, savedSubs
+    Locale.Reset()
+end)
+
 -- H1b (docs/localization.md, the `Forte_Core/Core/Constants.lua:29` audit
 -- row): the soulstone family is declared as ENGLISH NAME PATTERNS
 -- (`{ "^Create Soulstone", "^Soulstone" }`), and two add-ons match the

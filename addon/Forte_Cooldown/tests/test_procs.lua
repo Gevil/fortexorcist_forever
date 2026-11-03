@@ -328,6 +328,48 @@ test("a secret UNIT_AURA payload says nothing and raises nothing", function()
         { addedAuras = { { spellId = AD_BUFF } } }, 2000))
 end)
 
+-- The frame leg of the same route (code-review-5 M2): the two tests above
+-- call the callee directly. THIS one hands the catalog's exact client
+-- payload -- (unitTarget, UnitAuraUpdateInfo), UnitAuraDocumentation.lua:644
+-- -- through the MODULE's real event frame: the UNIT_AURA("player")
+-- registration (Module.lua:581) and the handoff at Module.lua:624, where the
+-- payload's two slots land in the handler's cast-event-named locals
+-- (`unit`, `castGUID` -- m1's naming drift) and reach
+-- `Engine.Procs:OnUnitAura(unitTarget, updateInfo)`. That handoff is
+-- load-bearing: a slot swap on the call site arms nothing on the client
+-- while every direct-callee test above stays green.
+test("the module frame's UNIT_AURA dispatch arms the window through Procs",
+function()
+    clearProcs()
+    local M = FX.Cooldown.Module
+    assertNotNil(M._eventFrame, "the frame is bound at OnEnable")
+    local handler = M._eventFrame:GetScript("OnEvent")
+    assertEquals("function", type(handler))
+    assertTrue(Procs:IsEnabled(), "the file runs the frame leg enabled")
+    -- The frame is argument 1 (the binding law of PLAN §10.2).
+    handler(M._eventFrame, "UNIT_AURA", "player",
+        { addedAuras = { { spellId = AD_BUFF, instID = 1 } } })
+    local e = Engine.entries[AD_KEY]
+    assertNotNil(e, "the frame's UNIT_AURA leg did not reach Engine.Procs")
+    assertEquals(AD_ICD, e.duration, "the window length stays the data's")
+    assertEquals("proc", e.source)
+    -- The frame leg carries no clock: the callee stamps GetTime(), the
+    -- file's synthetic stamps (1000, 2000, ...) reach only direct calls.
+    local now = GetTime()
+    assertTrue(e.start > 0 and e.start <= now + 1,
+        "the window starts at the event's clock")
+    -- The negative leg: a UNIT_AURA whose second slot is nil opens nothing.
+    clearProcs()
+    handler(M._eventFrame, "UNIT_AURA", "player", nil)
+    assertEquals(0, live(), "a nil payload opened a window")
+    -- The token half rides the payload's slot 1 (the callee's gate; the
+    -- registration is UNIT_AURA("player")).
+    handler(M._eventFrame, "UNIT_AURA", "pet",
+        { addedAuras = { { spellId = AD_BUFF, instID = 2 } } })
+    assertEquals(0, live(), "a pet token opened a window")
+    clearProcs()
+end)
+
 -- ------------------------------------------------------------ the bar ride --
 
 test("the window rides the Engine and retires at its endTime", function()

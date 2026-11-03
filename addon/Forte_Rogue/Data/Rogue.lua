@@ -2,21 +2,47 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T19:08:53+00:00
--- 70707 overlay changes in this file (2):
+-- Regenerated: 2026-11-02T23:57:13+00:00
+-- 70707 overlay changes in this file (3):
 --   Feint: { id = 25302, name = "Feint", cooldownMs = 10000, cooldownCategory = 82, gcdMs = 1000, rank = "Rank 5" } -> { id = 11303, name = "Feint", cooldownMs = 10000, cooldownCategory = 82, gcdMs = 1000, rank = "Rank 4" }
---   Dismantle: { id = 442206, name = "Dismantle" } -> { id = 442206, name = "Dismantle", icdMs = 12000 }
+--   Vigor: { id = 21975, name = "Vigor", noTarget = true, durationMs = -1 } -> { id = 21975, name = "Vigor", durationMs = -1 }
+--   Dismantle: { id = 442206, name = "Dismantle", noTarget = true } -> { id = 442206, name = "Dismantle", noTarget = true, icdMs = 12000 }
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (base row `Effects[].PeriodMs`), `maxStack` = the row's own `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). BASE DATA ONLY: the 70707 overlay captures no Effects/MaxStack/Target (see tools/overrides_70707.json's per-id keys), so it can not add, remove or move a feed -- a 70707-sourced or store-rank row carries none. This file: 7 tickEvery, 6 maxStack, 16 noTarget.
+--   feeds [13750] Adrenaline Rush: noTarget
+--   feeds [13877] Blade Flurry: noTarget
+--   feeds [14177] Cold Blood: noTarget
+--   feeds [5277] Evasion: noTarget
+--   feeds [14185] Preparation: noTarget
+--   feeds [28815] Revealed Flaw: noTarget
+--   feeds [11305] Sprint: noTarget
+--   feeds [442206] Dismantle: noTarget
+--   feeds [457351] Blade Dance: noTarget
+--   feeds [400024] Cheating Death: noTarget
+--   feeds [25349] Deadly Poison V: tickEvery = 3, maxStack = 5
+--   feeds [13224] Wound Poison: maxStack = 5
+--   feeds [14795] Venomhide Poison: tickEvery = 3, maxStack = 3
+--   feeds [1214170] Occult Poison II: tickEvery = 3, maxStack = 5
+--   feeds [11290] Garrote: tickEvery = 3
+--   feeds [11275] Rupture: tickEvery = 2
+--   feeds [1234069] Punch Harder: maxStack = 5, noTarget
+--   feeds [14143] Remorseless: noTarget
+--   feeds [457469] Resilient: noTarget
+--   feeds [412096] Crimson Tempest: tickEvery = 2
+--   feeds [2818] Deadly Poison: tickEvery = 3, maxStack = 5
+--   feeds [399968] Envenom: noTarget
+--   feeds [1787] Stealth: noTarget
+--   feeds [1857] Vanish: noTarget
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
 ForteXorcist.Data.Rogue = {
   -- cooldowns
-  [13750] = { id = 13750, name = "Adrenaline Rush", durationMs = 15000, cooldownMs = 300000, gcdMs = 1000 },
-  [13877] = { id = 13877, name = "Blade Flurry", durationMs = 15000, cooldownMs = 120000, gcdMs = 1000 },
+  [13750] = { id = 13750, name = "Adrenaline Rush", noTarget = true, durationMs = 15000, cooldownMs = 300000, gcdMs = 1000 },
+  [13877] = { id = 13877, name = "Blade Flurry", noTarget = true, durationMs = 15000, cooldownMs = 120000, gcdMs = 1000 },
   [2094] = { id = 2094, name = "Blind", durationMs = 10000, cooldownMs = 300000, gcdMs = 1000 },
-  [14177] = { id = 14177, name = "Cold Blood", durationMs = -1, cooldownMs = 180000 },
+  [14177] = { id = 14177, name = "Cold Blood", noTarget = true, durationMs = -1, cooldownMs = 180000 },
   [1725] = { id = 1725, name = "Distract", durationMs = 10000, cooldownMs = 30000, cooldownCategory = 22, gcdMs = 1500 },
-  [5277] = { id = 5277, name = "Evasion", durationMs = 15000, cooldownMs = 300000, cooldownCategory = 66 },
+  [5277] = { id = 5277, name = "Evasion", noTarget = true, durationMs = 15000, cooldownMs = 300000, cooldownCategory = 66 },
   [11303] = { id = 11303, name = "Feint", cooldownMs = 10000, cooldownCategory = 82, gcdMs = 1000, rank = "Rank 4" },
   [14278] = { id = 14278, name = "Ghostly Strike", durationMs = 7000, cooldownMs = 20000, gcdMs = 1000 },
   [11286] = { id = 11286, name = "Gouge", durationMs = 4000, cooldownMs = 10000, cooldownCategory = 33, gcdMs = 1000, rank = "Rank 5" },
@@ -25,45 +51,45 @@ ForteXorcist.Data.Rogue = {
   [400009] = { id = 400009, name = "Between the Eyes", cooldownMs = 20000, cooldownCategory = 270, gcdMs = 1000, castMs = -1000000 },
   [424919] = { id = 424919, name = "Main Gauche", durationMs = 5000, cooldownMs = 15000, gcdMs = 1000 },
   [14183] = { id = 14183, name = "Premeditation", durationMs = 20000, cooldownMs = 120000 },
-  [14185] = { id = 14185, name = "Preparation", cooldownMs = 600000, gcdMs = 1000 },
+  [14185] = { id = 14185, name = "Preparation", noTarget = true, cooldownMs = 600000, gcdMs = 1000 },
   [425609] = { id = 425609, name = "Rebuke", durationMs = 3000, cooldownMs = 15000, gcdMs = 1000 },
   [438040] = { id = 438040, name = "Redirect", durationMs = 15000, cooldownMs = 10000 },
-  [28815] = { id = 28815, name = "Revealed Flaw", durationMs = -1, cooldownMs = 180000 },
+  [28815] = { id = 28815, name = "Revealed Flaw", noTarget = true, durationMs = -1, cooldownMs = 180000 },
   [14251] = { id = 14251, name = "Riposte", durationMs = 6000, cooldownMs = 6000, cooldownCategory = 133 },
   [400029] = { id = 400029, name = "Shadowstep", cooldownMs = 30000 },
-  [11305] = { id = 11305, name = "Sprint", durationMs = 15000, cooldownMs = 300000, cooldownCategory = 44, rank = "Rank 3" },
+  [11305] = { id = 11305, name = "Sprint", noTarget = true, durationMs = 15000, cooldownMs = 300000, cooldownCategory = 44, rank = "Rank 3" },
   [410412] = { id = 410412, name = "Tease", durationMs = 3000, cooldownMs = 10000, cooldownCategory = 82 },
   [21975] = { id = 21975, name = "Vigor", durationMs = -1 },
-  [442206] = { id = 442206, name = "Dismantle", icdMs = 12000 },
+  [442206] = { id = 442206, name = "Dismantle", noTarget = true, icdMs = 12000 },
   -- buffs
-  [457351] = { id = 457351, name = "Blade Dance", durationMs = 30000 },
-  [400024] = { id = 400024, name = "Cheating Death", durationMs = 3000 },
-  [25349] = { id = 25349, name = "Deadly Poison V", durationMs = 12000, rank = "Rank 5" },
+  [457351] = { id = 457351, name = "Blade Dance", noTarget = true, durationMs = 30000 },
+  [400024] = { id = 400024, name = "Cheating Death", noTarget = true, durationMs = 3000 },
+  [25349] = { id = 25349, name = "Deadly Poison V", tickEvery = 3, maxStack = 5, durationMs = 12000, rank = "Rank 5" },
   [11201] = { id = 11201, name = "Crippling Poison", durationMs = 12000, rank = "Rank 2" },
   [11398] = { id = 11398, name = "Mind-numbing Poison III", durationMs = 14000, rank = "Rank 3" },
   [439472] = { id = 439472, name = "Numbing Poison", durationMs = 15000 },
-  [13224] = { id = 13224, name = "Wound Poison", durationMs = 15000, rank = "Rank 4" },
+  [13224] = { id = 13224, name = "Wound Poison", maxStack = 5, durationMs = 15000, rank = "Rank 4" },
   [439473] = { id = 439473, name = "Atrophic Poison", durationMs = 15000 },
   [439471] = { id = 439471, name = "Sebacious Poison", durationMs = 15000 },
-  [14795] = { id = 14795, name = "Venomhide Poison", durationMs = 12000 },
-  [1214170] = { id = 1214170, name = "Occult Poison II", durationMs = 12000, rank = "Rank 2" },
+  [14795] = { id = 14795, name = "Venomhide Poison", tickEvery = 3, maxStack = 3, durationMs = 12000 },
+  [1214170] = { id = 1214170, name = "Occult Poison II", tickEvery = 3, maxStack = 5, durationMs = 12000, rank = "Rank 2" },
   [11198] = { id = 11198, name = "Expose Armor", durationMs = 30000, gcdMs = 1000, rank = "Rank 5" },
-  [11290] = { id = 11290, name = "Garrote", durationMs = 18000, gcdMs = 1000, rank = "Rank 6" },
+  [11290] = { id = 11290, name = "Garrote", tickEvery = 3, durationMs = 18000, gcdMs = 1000, rank = "Rank 6" },
   [16511] = { id = 16511, name = "Hemorrhage", durationMs = 15000, gcdMs = 1000 },
-  [11275] = { id = 11275, name = "Rupture", durationMs = 6000, gcdMs = 1000, rank = "Rank 6" },
+  [11275] = { id = 11275, name = "Rupture", tickEvery = 2, durationMs = 6000, gcdMs = 1000, rank = "Rank 6" },
   [6774] = { id = 6774, name = "Slice and Dice", durationMs = 6000, gcdMs = 1000, rank = "Rank 2" },
-  [1234069] = { id = 1234069, name = "Punch Harder", durationMs = 30000 },
+  [1234069] = { id = 1234069, name = "Punch Harder", maxStack = 5, noTarget = true, durationMs = 30000 },
   [26108] = { id = 26108, name = "Glimpse of Madness", durationMs = 3000 },
-  [14143] = { id = 14143, name = "Remorseless", durationMs = 20000 },
-  [457469] = { id = 457469, name = "Resilient", durationMs = 10000 },
+  [14143] = { id = 14143, name = "Remorseless", noTarget = true, durationMs = 20000 },
+  [457469] = { id = 457469, name = "Resilient", noTarget = true, durationMs = 10000 },
   [449927] = { id = 449927, name = "Blood Corruption", durationMs = 15000 },
-  [412096] = { id = 412096, name = "Crimson Tempest", durationMs = 2000, gcdMs = 1000 },
+  [412096] = { id = 412096, name = "Crimson Tempest", tickEvery = 2, durationMs = 2000, gcdMs = 1000 },
   [5760] = { id = 5760, name = "Mind-numbing Poison", durationMs = 10000, rank = "Rank 1" },
-  [2818] = { id = 2818, name = "Deadly Poison", durationMs = 12000, rank = "Rank 1" },
-  [399968] = { id = 399968, name = "Envenom" },
+  [2818] = { id = 2818, name = "Deadly Poison", tickEvery = 3, maxStack = 5, durationMs = 12000, rank = "Rank 1" },
+  [399968] = { id = 399968, name = "Envenom", noTarget = true },
   -- stealth_utilities
-  [1787] = { id = 1787, name = "Stealth", durationMs = -1, cooldownMs = 10000, cooldownCategory = 38, rank = "Rank 4" },
-  [1857] = { id = 1857, name = "Vanish", cooldownMs = 300000, cooldownCategory = 39, rank = "Rank 2" },
+  [1787] = { id = 1787, name = "Stealth", noTarget = true, durationMs = -1, cooldownMs = 10000, cooldownCategory = 38, rank = "Rank 4" },
+  [1857] = { id = 1857, name = "Vanish", noTarget = true, cooldownMs = 300000, cooldownCategory = 39, rank = "Rank 2" },
   [11297] = { id = 11297, name = "Sap", durationMs = 45000, gcdMs = 1000, rank = "Rank 3" },
   [1833] = { id = 1833, name = "Cheap Shot", durationMs = 4000, gcdMs = 1000 },
   [921] = { id = 921, name = "Pick Pocket" },

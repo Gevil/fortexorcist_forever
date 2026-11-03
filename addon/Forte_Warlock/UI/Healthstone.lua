@@ -51,7 +51,11 @@ local HS = Frame:new({
     sharedModule = "General",
     lockKey = "Lock",
     keys = { "HealthstoneSize", "HealthstoneColor",
-             "HealthstoneStrikethrough" },
+             "HealthstoneStrikethrough", "HealthstoneExpand",
+             "HealthstoneAuto", "HealthstoneDetails",
+             "HealthstoneDetailsAuto", "HealthstoneSpace",
+             "HealthstoneMinColor", "HealthstoneMaxColor",
+             "HealthstoneUnknownMinColor", "HealthstoneUnknownMaxColor" },
     keymap = {
         HealthstoneEnable = "SetEnabled",
         HealthstoneSize = "SetWidth",            -- the plate width
@@ -66,6 +70,31 @@ local HS = Frame:new({
         -- shared rule, the key arg rides it).
         HealthstoneColor = "SetTextColor",
         HealthstoneStrikethrough = "SetStrikethrough",
+        -- FWL.EXPAND_UP (the original's HealthstoneExpand,
+        -- Forte_Healthstone.lua:292, def false :345): the bar list grows up
+        -- from the plate (the Frame's `_LayoutBody` law).
+        HealthstoneExpand = "SetExpandUp",
+        -- FWL.AUTO_HIDE "Auto-hide outside party/raid" (:289, def false
+        -- :342) -- the original's panel-show law `not HealthstoneAuto or
+        -- STATES.GROUPED` (Forte_Healthstone.lua:13).
+        HealthstoneAuto = "SetAutoHide",
+        -- FWL.SHOW_BARS "Show bars" (:291, def true :340) and FWL.
+        -- AUTO_MINIMIZE "Auto-minimize outside party/raid" (:290, def false
+        -- :341): the draw law is `Details and (not DetailsAuto or
+        -- GROUPED)` (Forte_Healthstone.lua:143).
+        HealthstoneDetails = "SetShowBars",
+        HealthstoneDetailsAuto = "SetAutoMinimize",
+        -- FWL.BAR_SPACING (the original's HealthstoneSpace, :300, def 1
+        -- :344): the gap of the bar run, the plate height's step.
+        HealthstoneSpace = "SetRowSpace",
+        -- FWL.LITTLE_HS / MANY_HS / LITTLE_UNKNOWN / MANY_UNKNOWN
+        -- (Forte_Healthstone.lua:303-306, defaults :328-331): the spy bars'
+        -- colour ramp, `ColorVal` mixing MIN into MAX by the bar's value
+        -- (:104-111, FW:MixColors Forte_Core.lua:2080-2084).
+        HealthstoneMinColor = "SetBarColorMin",
+        HealthstoneMaxColor = "SetBarColorMax",
+        HealthstoneUnknownMinColor = "SetUnknownColorMin",
+        HealthstoneUnknownMaxColor = "SetUnknownColorMax",
     },
 })
 FX.Warlock.Healthstone = HS
@@ -106,10 +135,49 @@ HS.TOTAL = "Total"
 HS.NO_INFO = "No info"
 
 --- The Group model seam (Core/Group.lua instance; Core/Comms.lua owns the
---- live one, tests inject their own — the SetTracker convention).
+--- live one, tests inject their own — the SetSpy convention).
 function HS:SetSpy(group)
     self.Spy = group
     self._spyKey, self._unknownKey = nil, nil
+end
+
+--- `HealthstoneAuto` (FWL.AUTO_HIDE "Auto-hide outside party/raid", the
+--- original's Forte_Healthstone.lua:289, def false :342). The 2012 show law
+--- is `not HealthstoneAuto or STATES.GROUPED` (:13 of the module's own
+--- show gate); this plate has no unit API in it (the pure-renderer law), so
+--- its GROUPED is the half it is allowed to know: the comms roster has
+--- members (a scanned raid/party). No roster, no claim of a group.
+function HS:SetAutoHide(on)
+    self._autoHide = not not on
+end
+
+--- The colour pair of the Total bar: the original's `ColorVal` mixes
+--- `HealthstoneMinColor` into `HealthstoneMaxColor` by the bar's value
+--- (Forte_Healthstone.lua:104-111).
+function HS:SetBarColorMin(col) self._minC = col; self:_ArmRamps() end
+function HS:SetBarColorMax(col) self._maxC = col; self:_ArmRamps() end
+--- The pair of the "No info" bar (HealthstoneUnknownMinColor /
+--- HealthstoneUnknownMaxColor, Forte_Healthstone.lua:305-306, :330-331 --
+--- the same ColorVal with `i ~= 1`).
+function HS:SetUnknownColorMin(col)
+    self._unkMinC = col
+    self:_ArmRamps()
+end
+function HS:SetUnknownColorMax(col)
+    self._unkMaxC = col
+    self:_ArmRamps()
+end
+
+--- Both halves of a pair in hand -> the Frame's ramp is armed (and the bars
+--- repaint at their current fractions). A half arriving out of a Reset
+--- order arms as soon as its pair is complete.
+function HS:_ArmRamps()
+    if self._minC and self._maxC then
+        self:SetColorRamp("main", self._minC, self._maxC)
+    end
+    if self._unkMinC and self._unkMaxC then
+        self:SetColorRamp("unknown", self._unkMinC, self._unkMaxC)
+    end
 end
 
 -- ----------------------------------------------------------------- the art --
@@ -155,11 +223,22 @@ function HS:Update(now)
         if summary ~= nil
             and (summary.active + summary.unknown) > 0 then show = true end
     end
-    self:SetShown(show)
-    if not show then
+    self:SetShown(show and (not self._autoHide
+        -- GROUPED, the plate's legal answer: the comms roster has members
+        -- (the original's show gate is `not HealthstoneAuto or
+        -- STATES.GROUPED`, Forte_Healthstone.lua:13).
+        or (summary ~= nil and (summary.active + summary.unknown) > 0)))
+    if not self._shown then
         self:SetExtraRowsShown(0)
         return false
     end
+    -- `<Name>Details` + `<Name>DetailsAuto`: the bars' own show law,
+    -- `Details and (not DetailsAuto or GROUPED)` (Forte_Healthstone.lua:143
+    -- -- "you can hide them in case you only want to see the information on
+    -- the header", FWL.SHOW_BARS_TT, Forte_Core.lua:275). The header (the
+    -- icon, the count, the clock) rides the plate; the bars ride this.
+    local bars = self:BarsShownFor(
+        summary ~= nil and (summary.active + summary.unknown) > 0)
     self:SetIconForCount(count)
     local n = Frame.FormatAmount((type(count) == "number" and count > 0)
         and count or 0)
@@ -172,7 +251,7 @@ function HS:Update(now)
     -- is the spy's own row 1: stones over active
     -- (`hs:insert(stones, active, FWL.TOTAL, …)`, Forte_Healthstone.lua:199,
     -- the value `t1/t2` at :140).
-    self:SetRowShown(true)
+    self:SetRowShown(bars)
     if self.nameFS:GetText() ~= self.TOTAL then
         self.nameFS:SetText(self.TOTAL)
     end
@@ -195,7 +274,8 @@ function HS:Update(now)
     -- The "No info" bar (`hs:insert(unknown, active+unknown, FWL.NO_INFO,
     -- …)`, Forte_Healthstone.lua:200-202), shown while showUnknown.
     local extraOn = 0
-    if summary ~= nil and self.state.showUnknown and summary.unknown > 0 then
+    if bars and summary ~= nil and self.state.showUnknown
+        and summary.unknown > 0 then
         local e = self:ExtraRow(1)
         if e then
             self:SetExtraRowText(e, self.NO_INFO, tostring(summary.unknown))

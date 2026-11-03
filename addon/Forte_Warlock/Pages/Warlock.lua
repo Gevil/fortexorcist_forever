@@ -82,6 +82,18 @@ local DEFAULTS = {
     SoulstoneHeight = 12,
     SoulstoneColor = skin("SoulstoneSkin", "BarColor",
         { 0.64, 0.21, 0.93, 1 }),                 -- Forte_Soulstone.xml:119
+    -- FWL.EXPAND_UP ("Expand up", Forte_Core.lua:243): the bar list grows up
+    -- from the plate instead of hanging below it. The original's
+    -- SoulstoneExpand, Forte_Soulstone.lua:604, def false :674.
+    SoulstoneExpand = false,
+    -- The READY-look gate (the original's ShowReady, Forte_Soulstone.lua:608,
+    -- def false :667) and its colour (the "Resurrect" row's ReadyColor, def
+    -- {1,1,0} :651): with the gate on, a warlock with no stone up and no
+    -- stone on cooldown prints `ready to res` where the plate otherwise
+    -- prints `no ss up` (Forte_Soulstone.lua:309).
+    SoulstoneShowReady = false,
+    SoulstoneReadyColour = skin("SoulstoneSkin", "ReadyColour",
+        { 1.00, 1.00, 0.00, 1 }),
     -- Healthstone Spy
     HealthstoneEnable = true,
     HealthstoneSize = 106,
@@ -92,12 +104,45 @@ local DEFAULTS = {
     -- The "No info" spy bar (the original's HealthstoneUnknown, default
     -- true, Forte_Healthstone.lua:333).
     HealthstoneUnknown = true,
+    -- FWL.EXPAND_UP / AUTO_HIDE / SHOW_BARS / AUTO_MINIMIZE / BAR_SPACING
+    -- (the original's HealthstoneExpand :609, HealthstoneAuto :606,
+    -- HealthstoneDetails :608, HealthstoneDetailsAuto :607, HealthstoneSpace
+    -- :611 -- the defaults at Forte_Healthstone.lua:340-345).
+    HealthstoneExpand = false,
+    HealthstoneAuto = false,
+    HealthstoneDetails = true,
+    HealthstoneDetailsAuto = false,
+    HealthstoneSpace = 1,
+    -- FWL.HEALTHSTONE_DRAW_INTERVAL ("Healthstone draw interval",
+    -- Forte_Core.lua:283; the original's HealthstoneInterval,
+    -- Forte_Healthstone.lua:318 with SetRange(0.5,5), def 2 at :321). The
+    -- 2012 body of the key is the roster RESAMPLE cadence
+    -- (`FW:Delay(FW.Default.HealthstoneInterval, FWHS_Update)`,
+    -- Forte_Healthstone.lua:113-116): the spy re-asked its members that
+    -- often. The resampler lives in the add-on's Core/Comms.lua (the one
+    -- file that ticks the roster), so that is the key's consumer here; the
+    -- plate draws on the data's arrival, not on a timer.
+    HealthstoneInterval = 2,
+    -- FWL.LITTLE_HS / MANY_HS / LITTLE_UNKNOWN / MANY_UNKNOWN
+    -- (Forte_Healthstone.lua:303-306; the defaults :328-331 verbatim). The
+    -- spy bars' colour ramp: `ColorVal` = MIN mixed toward MAX by the bar's
+    -- value (Forte_Healthstone.lua:104-111, FW:MixColors
+    -- Forte_Core.lua:2080-2084).
+    HealthstoneMinColor = { 0.93, 1.00, 0.00, 1 },
+    HealthstoneMaxColor = { 0.53, 1.00, 0.00, 1 },
+    HealthstoneUnknownMinColor = { 0.53, 1.00, 0.00, 1 },
+    HealthstoneUnknownMaxColor = { 1.00, 0.00, 0.00, 1 },
     -- Summon Assistant
     SummonEnable = true,
     SummonWidth = 106,
     SummonHeight = 12,
     SummonColor = skin("SummonSkin", "BarColor",
         { 0.64, 0.21, 0.93, 1 }),                -- Forte_Summon.lua:597
+    -- FWL.SHOW_BARS / EXPAND_UP (the original's SummonDetails,
+    -- Forte_Summon.lua:562, def true :595; SummonExpand :564, def false
+    -- :598): the summon plate's queue bars and their direction.
+    SummonDetails = true,
+    SummonExpand = false,
     -- Shared appearance (the Classic purple-plate law of ref4.png, the
     -- original's SoulstoneBgColor, Forte_Soulstone.lua:659): the plate wash
     -- and the backdrop are ONE pair for the four frames.
@@ -226,17 +271,36 @@ local PAGES = {
                 s.NUM({ module = M, key = "SoulstoneHeight", label = "Bar height",
                     min = 4, max = 64, step = 1,
                     tip = "Second-line bar height in px (default 12, the original's SoulstoneHeight). Resizes live." })
+                -- FWL.EXPAND_UP ("Expand up", Forte_Core.lua:243; the
+                -- original's SoulstoneExpand, Forte_Soulstone.lua:604).
+                s.CHK({ module = M, key = "SoulstoneExpand",
+                    label = "Expand up",
+                    tip = "The bar run grows UPWARD from the plate instead of hanging below it (the original's Expand up). Relayouts live." })
             end, {
-                module = M, keys = { "SoulstoneWidth", "SoulstoneHeight" },
+                module = M,
+                keys = { "SoulstoneWidth", "SoulstoneHeight",
+                         "SoulstoneExpand" },
                 tip = "Geometry of the soulstone plate and its bar.",
             })
             b.Section("Coloring", function(s)
                 colours(s, "SoulstoneColor", "Bar colour",
                     "The bar fill (default the Soulstone category colour .64/.21/.93). Applied live.")
+                -- FWL.RESURRECT ("Resurrect", Forte_Core.lua:229): the
+                -- colour of the `ready to res` readout -- the original's
+                -- ReadyColor (Forte_Soulstone.lua:609, default {1,1,0}
+                -- :651), applied to the header label whose show gate is the
+                -- box above it.
+                s.CHK({ module = M, key = "SoulstoneShowReady",
+                    label = "Show the ready readout",
+                    tip = "With a window that has run out and no new stone on its way, the plate prints `ready to res` in the colour below where it otherwise prints `no ss up` (the original's ShowReady gate, Forte_Soulstone.lua:608, default off). Applied live." })
+                s.COL({ module = M, key = "SoulstoneReadyColour",
+                    label = "Resurrect",
+                    tip = "The colour of the `ready to res` readout (the original's ReadyColor, default 1/1/0). Applied live." })
             end, {
                 module = M,
-                keys = { "SoulstoneColor", "BarColor", "BgColor" },
-                tip = "Fill and backdrop colours.",
+                keys = { "SoulstoneColor", "BarColor", "BgColor",
+                         "SoulstoneShowReady", "SoulstoneReadyColour" },
+                tip = "Fill, backdrop and the ready-readout colours.",
             })
         end,
     },
@@ -266,25 +330,84 @@ local PAGES = {
                 s.CHK({ module = M, key = "HealthstoneUnknown",
                     label = "Show players with no info",
                     tip = "The second bar counts the members whose addon has not answered (the original's HealthstoneUnknown, default on)." })
+                -- FWL.AUTO_HIDE ("Auto-hide outside party/raid", the
+                -- original's HealthstoneAuto, Forte_Healthstone.lua:289):
+                -- the plate's own show gate.
+                s.CHK({ module = M, key = "HealthstoneAuto",
+                    label = "Auto-hide outside party/raid",
+                    tip = "Hide the plate outside a group (the original's Auto-hide). Applied live." })
+                -- FWL.SHOW_BARS / AUTO_MINIMIZE (HealthstoneDetails +
+                -- HealthstoneDetailsAuto, Forte_Healthstone.lua:287-288):
+                -- the bars' show gate, `Details and (not DetailsAuto or
+                -- GROUPED)` (Forte_Healthstone.lua:143).
+                s.CHK({ module = M, key = "HealthstoneDetails",
+                    label = "Show bars",
+                    tip = "The two spy bars (Total, No-info). Off leaves only the plate's header line (the original's Show bars)." })
+                s.CHK({ module = M, key = "HealthstoneDetailsAuto",
+                    label = "Auto-minimize outside party/raid",
+                    tip = "Hide the bars outside a group (the original's Auto-minimize)." })
             end, {
                 module = M,
-                keys = { "CommsEnable", "HealthstoneUnknown" },
+                keys = { "CommsEnable", "HealthstoneUnknown",
+                         "HealthstoneAuto", "HealthstoneDetails",
+                         "HealthstoneDetailsAuto" },
                 tip = "The raid-wide spy half.",
             })
             b.Section("Frame Sizing", function(s)
                 s.NUM({ module = M, key = "HealthstoneSize",
                     label = "Plate width", min = 60, max = 400, step = 1,
                     tip = "Healthstone plate width in px (default 106 = 100 + 2*3, the original's frame width). Resizes live." })
+                -- FWL.BAR_SPACING (the original's HealthstoneSpace,
+                -- Forte_Healthstone.lua:300): the gap of the bar run.
+                s.NUM({ module = M, key = "HealthstoneSpace",
+                    label = "Bar spacing", min = 0, max = 20, step = 1,
+                    tip = "Gap between the spy bars in px (the original's Bar spacing, default 1). Relayouts live." })
+                -- FWL.EXPAND_UP (the original's HealthstoneExpand,
+                -- Forte_Healthstone.lua:292).
+                s.CHK({ module = M, key = "HealthstoneExpand",
+                    label = "Expand up",
+                    tip = "The bar run grows UPWARD from the plate instead of hanging below it (the original's Expand up). Relayouts live." })
+                -- FWL.HEALTHSTONE_DRAW_INTERVAL ("Healthstone draw
+                -- interval", Forte_Core.lua:283; the original's
+                -- HealthstoneInterval with SetRange(0.5,5),
+                -- Forte_Healthstone.lua:318, def 2 :321).
+                s.NUM({ module = M, key = "HealthstoneInterval",
+                    label = "Healthstone draw interval",
+                    min = 0.5, max = 5, step = 0.1,
+                    tip = "Seconds between the spy's roster resamples (the original's Healthstone draw interval, default 2, range 0.5-5). The plate draws when the data arrives; this paces the asking. " })
             end, {
-                module = M, keys = { "HealthstoneSize" },
-                tip = "Width of the healthstone plate.",
+                module = M,
+                keys = { "HealthstoneSize", "HealthstoneSpace",
+                         "HealthstoneExpand", "HealthstoneInterval" },
+                tip = "Width, spacing, direction and resample interval.",
             })
             b.Section("Coloring", function(s)
                 colours(s, "HealthstoneColor", "Count colour",
                     "The healthstone count text (default white). Applied live.")
+                -- FWL.LITTLE_HS / MANY_HS / LITTLE_UNKNOWN / MANY_UNKNOWN
+                -- (the original's HealthstoneMinColor/MaxColor/
+                -- UnknownMinColor/UnknownMaxColor, Forte_Healthstone.lua:
+                -- 303-306): the spy bars' colour ramp -- a nearly-full bar
+                -- reads the "many" colour, an empty one the "little".
+                s.COL({ module = M, key = "HealthstoneMinColor",
+                    label = "Little Healthstones",
+                    tip = "Low end of the Total bar's colour ramp (the original's default .93/1/0). Applied live." })
+                s.COL({ module = M, key = "HealthstoneMaxColor",
+                    label = "Many Healthstones",
+                    tip = "High end of the Total bar's colour ramp (the original's default .53/1/0). Applied live." })
+                s.COL({ module = M, key = "HealthstoneUnknownMinColor",
+                    label = "Little unknown",
+                    tip = "Low end of the No-info bar's colour ramp (the original's default .53/1/0). Applied live." })
+                s.COL({ module = M, key = "HealthstoneUnknownMaxColor",
+                    label = "Many unknown",
+                    tip = "High end of the No-info bar's colour ramp (the original's default 1/0/0). Applied live." })
             end, {
-                module = M, keys = { "HealthstoneColor", "BarColor", "BgColor" },
-                tip = "Count, plate and backdrop colours.",
+                module = M,
+                keys = { "HealthstoneColor", "BarColor", "BgColor",
+                         "HealthstoneMinColor", "HealthstoneMaxColor",
+                         "HealthstoneUnknownMinColor",
+                         "HealthstoneUnknownMaxColor" },
+                tip = "Count, plate, backdrop and the spy bars' ramps.",
             })
         end,
     },
@@ -314,8 +437,21 @@ local PAGES = {
                 s.NUM({ module = M, key = "SummonHeight", label = "Bar height",
                     min = 4, max = 64, step = 1,
                     tip = "Second-line bar height in px (default 12, the original's SummonHeight). Resizes live." })
+                -- FWL.SHOW_BARS (the original's SummonDetails,
+                -- Forte_Summon.lua:562): the ritual rows -- the plate's
+                -- header line (the count, the clock) stays either way.
+                s.CHK({ module = M, key = "SummonDetails",
+                    label = "Show bars",
+                    tip = "The ritual rows: my channel's bar and one row per ritual of the raid. Off leaves the plate's count and clock (the original's Show bars)." })
+                -- FWL.EXPAND_UP (the original's SummonExpand,
+                -- Forte_Summon.lua:564).
+                s.CHK({ module = M, key = "SummonExpand",
+                    label = "Expand up",
+                    tip = "The bar run grows UPWARD from the plate instead of hanging below it (the original's Expand up). Relayouts live." })
             end, {
-                module = M, keys = { "SummonWidth", "SummonHeight" },
+                module = M,
+                keys = { "SummonWidth", "SummonHeight", "SummonDetails",
+                         "SummonExpand" },
                 tip = "Geometry of the summon plate and its bar.",
             })
             b.Section("Coloring", function(s)

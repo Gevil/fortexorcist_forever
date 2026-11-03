@@ -329,17 +329,24 @@ test("E2: the SHIPPED defaults census -- every group and channel announce "
         end
     end
     -- 24 fade/break checkboxes (6 spells x Fade/Break x Party/Channel) +
-    -- ReadyAnnounce/ReadyChannel + ExpireAnnounce/ExpireChannel +
+    -- ReadyAnnounce/ReadyChannel + ExpireAnnounce/ExpireAnnounce +
     -- SoulstoneAnnounce/SoulstoneChannel + the 20 cast rows x Party/Channel
     -- (40, wave 2b T2 - the Druid/Paladin/Warrior raid warnings, docs/
-    -- class-port.md S17): every one of them OFF.
-    assertEquals(70, sends, "the census walked every send row")
+    -- class-port.md S17) + the 9 Warlock pet rows x Party/Channel (18) +
+    -- the SoulstoneStart/Cancel pair x Party/Channel (4) -- Wave 4's Warlock
+    -- rows of the Party/Raid page, every one shipped OFF by the same law:
+    -- every one of them OFF.
+    assertEquals(92, sends, "the census walked every send row")
     -- 6 fade + 6 break CC texts, plus the announce rows' own texts
     -- (ReadyAnnounceText, ExpireAnnounceText, ExpireAnnounceNoTargetText,
-    -- SoulstoneAnnounceText) and the 20 cast rows' verbatim texts: the
-    -- texts are the verbatim half and stay.
-    assertEquals(36, texts, "twelve CC texts + four announce texts + "
-        .. "twenty cast texts")
+    -- SoulstoneAnnounceText) and the 20 cast rows' verbatim texts, plus
+    -- Wave 4's Warlock half: the 9 pet rows' texts (the source's verbatim
+    -- word, Warlock.lua:355-364), the 2 soulstone cast texts (:352-353) and
+    -- the 3 whisper texts (:357-359) -- the texts are the verbatim half and
+    -- stay.
+    assertEquals(50, texts, "twelve CC texts + four announce texts + "
+        .. "twenty cast texts + nine pet texts + two soulstone cast texts "
+        .. "+ three whisper texts")
     -- The two master switches are the original's rows (Forte_Core.lua:2518
     -- -2519) and stay verbatim: with every row off they gate nothing alone.
     assertEquals(true, D.OutputRaid)

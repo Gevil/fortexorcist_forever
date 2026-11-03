@@ -19,6 +19,14 @@
 -- /fx lock|unlock moves the frame through the Cooldown.Lock /
 -- GlobalLock mirror built into UI/Splash.lua -- so the checkbox, the
 -- header lock icon and the slash all agree.
+--
+-- OptionsCD (2026-11-03, wave 4 item 2): the three rows the source's SPLASH2
+-- block (:1776-1780) carries are now the source's own strings -- "Enable
+-- Secondary Splash icon" (FWL.CD_SPLASH3, Localization.lua:126), "Splash icon
+-- active scale" (FWL.CD_SPLASH2, :124), "Show icon Glow" (FWL.SHOW_GLOW,
+-- :145). "Lock" (the m4 header law) and "Max simultaneous" (spec CD-28) are
+-- the project's own rows; the source has no key of the SPLASH2 block this
+-- page does not already carry.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -92,8 +100,8 @@ O:RegisterPage({
             "The recycle icon on a section restores that section's defaults.",
         })
         b.Section("Basics", function(s)
-            s.CHK({ module = M, key = "Enable", label = "Enable",
-                tip = "Show the Secondary Splash. Off hides the window and drops live pops (the original's default is off, Forte_Cooldown.lua :1869). Live." })
+            s.CHK({ module = M, key = "Enable", label = "Enable Secondary Splash icon",
+                tip = "This splash icon can be moved to anywhere in your interface. Unlock it to position it (FWL.CD_SPLASH3, Forte_Cooldown/Localization.lua:126; the SPLASH2 row :1776). Off hides the window and drops live pops (the original's default is off, Forte_Cooldown.lua :1869). Live." })
             s.CHK({ module = M, key = "Lock", label = "Lock",
                 tip = "Lock the splash window against dragging (moves with /fx lock|unlock and Global Frame Lock)." })
         end, {
@@ -101,14 +109,14 @@ O:RegisterPage({
             tip = "Master switch and position lock.",
         })
         b.Section("Splash Curve", function(s)
-            s.NUM({ module = M, key = "SecondSplashMax", label = "Peak size",
+            s.NUM({ module = M, key = "SecondSplashMax", label = "Splash icon active scale",
                 min = 0.1, max = 20, step = 0.1,
-                tip = "The bell peaks mid-window at an icon of 32 x this px, then rides back down (default 4, Forte_Cooldown.lua :1870, :1027). Live." })
+                tip = "Set what scale factor to use for the icon splash at the middle of the splash animation (FWL.CD_SPLASH2, Forte_Cooldown/Localization.lua:124; the SPLASH2 row :1779, SetRange(0.1) so the floor is 0.1): the bell peaks mid-window at an icon of 32 x this px, then rides back down (default 4, Forte_Cooldown.lua :1870, :1027). Live." })
             s.NUM({ module = M, key = "SplashMax", label = "Max simultaneous",
                 min = 1, max = 16, step = 1,
                 tip = "At most this many splashes at once; a pop over the cap is dropped (default 8, spec CD-28). Live." })
-            s.CHK({ module = M, key = "SplashGlow", label = "Glow",
-                tip = "Crop the icon to 0.133..0.867 and add the Spark2 glow at 2.2x (Forte_Cooldown.lua :978-988, :1031-1034). Live." })
+            s.CHK({ module = M, key = "SplashGlow", label = "Show icon Glow",
+                tip = "Show a glow around the icons that matches the bar color (FWL.SHOW_GLOW, Forte_Cooldown/Localization.lua:145; the SPLASH2 row :1780): crop the icon to 0.133..0.867 and add the Spark2 glow at 2.2x (Forte_Cooldown.lua :978-988, :1031-1034). Live." })
         end, {
             module = M,
             keys = { "SecondSplashMax", "SplashMax", "SplashGlow" },

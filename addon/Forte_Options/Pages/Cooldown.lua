@@ -23,7 +23,27 @@
 -- listener is the consumer (the module must work with Forte_Options
 -- uninstalled), which is why the key is absent from the Display's KEYMAP by
 -- design. Default OFF; the first enable loads the load-on-demand
--- Forte_ItemProcs data add-on.
+--   Forte_ItemProcs data add-on.
+--
+-- OptionsCD (2026-11-03, wave 4 items 2+4): the page now carries the rows of
+-- the source's SPECIFICS icon block (`Alpha` :1716 / `AlphaMax` :1717 ->
+-- `BarAlpha`/`BarAlphaMax`; `IconTime` :1718; `IconTextColor` :1719 with its
+-- [0] gate on `IconTextColorOn`), its SPLASH block (`Splash` :1723,
+-- `SplashFactor` :1724) and its TIME RANGE filters (`MinRange`/`MaxRange`/
+-- `MinRemaining`/`MaxRemaining` :1729-1732, the NU2 gate on a `<Key>On` key;
+-- values 0/3600/0/3600, every gate OFF -- :1826-1829). The labels are the
+-- source's strings verbatim (Forte_Cooldown/Localization.lua :118, :122,
+-- :124, :140, :161, :163, :175, :177, :180, :182, :185; FWL.TIMER_HIDE in
+-- Forte_Core/Localization.lua:526; FWL.SHOW_GLOW :145), and the relabels that
+-- came with them: "Hide when not in combat" -> "Hide when out of combat",
+-- "Max time" -> "Time scale max (sec)", "Power scale (Loga)" -> "Use power
+-- of", "Spark" -> "Show icon Glow". The survey's section ruling stands (the
+-- section names and the 5-section layout are ours, docs/research/
+-- options-fidelity.md), so the new rows ride Specifics. Every key has a live
+-- consumer in Forte_Cooldown/UI/Timeline.lua (SetBarAlpha/SetBarAlphaMax,
+-- SetIconTime, SetIconTextColor(On), SetSplashOn/SetSplashFactor, the eight
+-- Set<Filter>/Set<Filter>On pair, the filter law of CD_TimeFilterDuration /
+-- CD_TimeFilterRemaining :488-495 in D:Update).
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -46,8 +66,32 @@ FX.Settings:Register(M, {
     Warn = true,
     Width = 250,
     Height = 24,
+    -- The bar alpha RANGE (the SPECIFICS rows :1716 "Minimum bar alpha" and
+    -- :1717 "Maximum bar alpha" = the source's `Alpha` :1818 / `AlphaMax`
+    -- :1819). Our keys carry the Bar prefix: this module's `Alpha` key is
+    -- the header frame's alpha (OP-06), a different law.
+    BarAlpha = 0.2,
+    BarAlphaMax = 1.0,
+    -- The icon text block (SPECIFICS :1718 "Show Icon text" -> `IconTime`
+    -- true :1835; :1719 "Icon text color" -> `IconTextColor`
+    -- {[0]=false, 1,1,1,1} :1837, the [0] gate on its own key).
+    IconTime = true,
+    IconTextColorOn = false,
+    IconTextColor = { 1.00, 1.00, 1.00, 1.00 },
+    -- The SPLASH block (:1723 "Splash ready cooldowns" -> `Splash` true
+    -- :1811; :1724 "Splash icon active scale" -> `SplashFactor` 4 :1812, the
+    -- row's SetRange(1) floor).
+    Splash = true,
+    SplashFactor = 4,
     MaxTime = 300,
     PowerScale = 0.33,                 -- Loga
+    -- The TIME RANGE filters (:1729-1732, the NU2 rows = a value plus its
+    -- `[0]` gate): the values are 0 / 3600 / 0 / 3600 (:1826-1829) and every
+    -- gate ships OFF, so a fresh bar shows every cooldown.
+    MinRangeOn = false,      MinRange = 0,
+    MaxRangeOn = false,      MaxRange = 3600,
+    MinRemainingOn = false,  MinRemaining = 0,
+    MaxRemainingOn = false,  MaxRemaining = 3600,
     TimeTags = "0 1 10 30 60 120 300 600",
     IgnoreShort = 2.99,                -- Engine.MIN_COOLDOWN
     -- The item/weapon proc ICD windows (Core/Procs.lua). The key is
@@ -161,8 +205,8 @@ O:RegisterPage({
                 tip = "Flip the timer bar direction: the icons run right -> left (top -> bottom when vertical) with the time tags and the fills mirrored (Forte_Cooldown.lua :1440-1443). Live." })
             s.CHK({ module = M, key = "HideZero", label = "Auto-hide when no cooldowns",
                 tip = "Hide the cooldown timer scale and background when you have no visible cooldowns; the bar returns with the first one (Forte_Cooldown.lua :1348). Live." })
-            s.CHK({ module = M, key = "HideCombat", label = "Hide when not in combat",
-                tip = "Auto-hide the bar out of combat (live with the combat state)." })
+            s.CHK({ module = M, key = "HideCombat", label = "Hide when out of combat",
+                tip = "Hide the frame when you get out of combat (FWL.TIMER_HIDE, Forte_Core/Localization.lua:526; the source's BASICS row :1708). Auto-hides the bar out of combat, live with the combat state." })
         end, {
             module = M,
             keys = { "Enable", "Lock", "Vertical", "Flip", "HideZero",
@@ -180,12 +224,64 @@ O:RegisterPage({
             s.NUM({ module = M, key = "Height", label = "Height",
                 min = 12, max = 128, step = 1,
                 tip = "Bar height in px (default 24). Icon size rides it; resizes live." })
-            s.NUM({ module = M, key = "MaxTime", label = "Max time",
-                min = 10, max = 3600, step = 10,
-                tip = "Longest cooldown drawn on the axis (default 300 s). Curve updates live." })
-            s.NUM({ module = M, key = "PowerScale", label = "Power scale (Loga)",
-                min = 0.05, max = 2.0, step = 0.01,
-                tip = "Power exponent of the time axis (default 0.33). Curve updates live." })
+            -- The SPECIFICS icon block of the source, in its row order
+            -- (:1716-1719), its labels verbatim (Forte_Cooldown/
+            -- Localization.lua :118, :161, :140, :185). `Alpha`/`AlphaMax`
+            -- ride the `BarAlpha`/`BarAlphaMax` keys: this module's `Alpha`
+            -- key is the header frame's alpha (OP-06), a different law.
+            s.NUM({ module = M, key = "BarAlpha", label = "Minimum bar alpha",
+                min = 0, max = 1, step = 0.05,
+                tip = "This is the visibility (alpha) for a bar at its maximum cooldown duration. In other words, the minimum visibility a bar can get (Forte_Cooldown.lua:1716, default 0.2 :1818). The segment fill runs AlphaMax-(AlphaMax-Alpha)*t7 (:1404) and a fresh icon fades in from here (:1402). Live." })
+            s.NUM({ module = M, key = "BarAlphaMax", label = "Maximum bar alpha",
+                min = 0, max = 1, step = 0.05,
+                tip = "This is the visibility (alpha) for a bar at its minimum cooldown duration. In other words, the maximum visibility a bar can get (Forte_Cooldown.lua:1717, default 1.0 :1819). A settled icon rides exactly this. Live." })
+            s.CHK({ module = M, key = "IconTime", label = "Show Icon text",
+                tip = "Enable to show the time text on the cooldown icons themselves (Forte_Cooldown.lua:1718, default on :1835). Shown/hidden live on every icon." })
+            s.CHK({ module = M, key = "IconTextColorOn",
+                label = "Use custom icon text color",
+                tip = "The checkbox of the source's \"Icon text color\" row (:1719, the CO2 type: a colour plus its [0] gate, default OFF :1837). On, the icon text takes the colour below; off, it takes the colour of its icon (Forte_Cooldown.lua:1419-1425). Live." })
+            s.COL({ module = M, key = "IconTextColor", label = "Icon text color",
+                tip = "Use a custom icon text color. If unchecked, the text will take the color of the icon (Forte_Cooldown.lua:1719, default white :1837). Retints every icon on the bar live." })
+            -- The SPLASH block (:1723-1724), labels verbatim (:122, :124).
+            s.CHK({ module = M, key = "Splash", label = "Splash ready cooldowns",
+                tip = "This will show an icon 'splash' at the origin of the cooldown timer each time a cooldown is ready (Forte_Cooldown.lua:1723, default on :1811; the draw gate is s.Splash at :1380). Live: off also clears the splash on screen." })
+            s.NUM({ module = M, key = "SplashFactor", label = "Splash icon active scale",
+                min = 1, max = 20, step = 0.5,
+                tip = "Set what scale factor to use for the icon splash at the middle of the splash animation (Forte_Cooldown.lua:1724, default 4 :1812, the row's floor is 1). The splash grows to this many times the icon. Live." })
+            s.NUM({ module = M, key = "MaxTime", label = "Time scale max (sec)",
+                min = 5, max = 3600, step = 10,
+                tip = "Set the scale of the cooldown bar, by giving the biggest cooldown time in seconds(!) that the bar should display. Cooldowns outside your scale will still show at the end of the bar (Forte_Cooldown.lua:1727, default 300). Curve updates live." })
+            s.NUM({ module = M, key = "PowerScale", label = "Use power of",
+                min = 0.1, max = 1.0, step = 0.01,
+                tip = "Setting this to a lower value means the Cooldown icons will speed up toward the end faster. Setting this to 1.0 means the Cooldown icons will have a constant speed (Forte_Cooldown.lua:1728, default 0.33, the row's range is 0.1-1). Curve updates live." })
+            -- The TIME RANGE filters (:1729-1732). The source renders each
+            -- one as an NU2 = one value editbox plus its [0] gate checkbox;
+            -- the page has one row per key, so the gate gets its own
+            -- labelled box and the value row keeps the source's label.
+            s.CHK({ module = M, key = "MinRangeOn",
+                label = "Enable minimum duration filter",
+                tip = "The checkbox of the source's \"Minimum duration\" row (the NU2 type at Forte_Cooldown.lua:1729: a value plus its [0] gate, gate default OFF :1826). Off, the filter is inert. Live." })
+            s.NUM({ module = M, key = "MinRange", label = "Minimum duration",
+                min = 0, max = 3600, step = 1,
+                tip = "Minimum total duration cooldowns must have to be displayed in this cooldown timer instance (Forte_Cooldown.lua:1729, default 0 :1826). Behind its Enable box; the filter runs the pass, live." })
+            s.CHK({ module = M, key = "MaxRangeOn",
+                label = "Enable maximum duration filter",
+                tip = "The checkbox of the source's \"Maximum duration\" row (NU2, Forte_Cooldown.lua:1730, gate default OFF :1827). Live." })
+            s.NUM({ module = M, key = "MaxRange", label = "Maximum duration",
+                min = 0, max = 3600, step = 1,
+                tip = "Maximum total duration cooldowns must have to be displayed in this cooldown timer instance (Forte_Cooldown.lua:1730, default 3600 :1827). Behind its Enable box; live." })
+            s.CHK({ module = M, key = "MinRemainingOn",
+                label = "Enable minimum remaining filter",
+                tip = "The checkbox of the source's \"Minimum remaining\" row (NU2, Forte_Cooldown.lua:1731, gate default OFF :1828). Live." })
+            s.NUM({ module = M, key = "MinRemaining", label = "Minimum remaining",
+                min = 0, max = 3600, step = 1,
+                tip = "Minimum remaining time cooldowns must have to be displayed in this cooldown timer instance (Forte_Cooldown.lua:1731, default 0 :1828). Behind its Enable box; live." })
+            s.CHK({ module = M, key = "MaxRemainingOn",
+                label = "Enable maximum remaining filter",
+                tip = "The checkbox of the source's \"Maximum remaining\" row (NU2, Forte_Cooldown.lua:1732, gate default OFF :1829). Live." })
+            s.NUM({ module = M, key = "MaxRemaining", label = "Maximum remaining",
+                min = 0, max = 3600, step = 1,
+                tip = "Maximum remaining time cooldowns must have to be displayed in this cooldown timer instance (Forte_Cooldown.lua:1732, default 3600 :1829). Behind its Enable box; live." })
             s.STR({ module = M, key = "TimeTags", label = "Custom time tags",
                 maxLetters = 64,
                 tip = "Space-separated tag seconds (default 0 1 10 30 60 120 300 600). Tags rebuild live." })
@@ -208,9 +304,14 @@ O:RegisterPage({
                 tip = "EXPERIMENTAL, off by default. Puts an item or weapon proc's internal cooldown on the bar: when one of the proc's auras is SEEN on you, a window runs the data's ICD (docs/design-combat-procs.md P-A/P-B). The proc data add-on loads with this box, which is why it is off. Out of combat the read net sees the aura directly; IN-COMBAT proc detection is a LAUNCH-DAY PROBE - the client seals aura reads in combat, so the two seen-routes (the out-of-combat sweep, the UNIT_AURA events) are only proven on the live client (PLAN §11.1 Q3 ruling, docs/launch-day.md). Live: the change is applied the moment you tick it." })
         end, {
             module = M,
-            keys = { "Warn", "Width", "Height", "MaxTime", "PowerScale", "TimeTags",
-                "IgnoreShort", "Procs" },
-            tip = "The spell-on-cooldown warning, the power-scale timeline geometry (PLAN §3.5) and the experimental item proc timers.",
+            keys = { "Warn", "Width", "Height", "BarAlpha", "BarAlphaMax",
+                "IconTime", "IconTextColorOn", "IconTextColor",
+                "Splash", "SplashFactor", "MaxTime", "PowerScale",
+                "MinRangeOn", "MinRange", "MaxRangeOn", "MaxRange",
+                "MinRemainingOn", "MinRemaining", "MaxRemainingOn",
+                "MaxRemaining",
+                "TimeTags", "IgnoreShort", "Procs" },
+            tip = "The spell-on-cooldown warning, the power-scale timeline geometry (PLAN §3.5), the icon alpha range, the icon text, the splash icons, the time range filters and the experimental item proc timers.",
         })
         b.Section("Coloring", function(s)
             local rows = {
@@ -238,8 +339,8 @@ O:RegisterPage({
                 tip = "Aluminium bar fill (default white a 0.20). Applied live." })
             s.COL({ module = M, key = "BgColor", label = "Background colour",
                 tip = "Bar backdrop (default black a 0.50). Applied live." })
-            s.CHK({ module = M, key = "Spark", label = "Spark",
-                tip = "Running glow on cooling icons (default on). Shown/hidden live." })
+            s.CHK({ module = M, key = "Spark", label = "Show icon Glow",
+                tip = "Show a glow around the icons that matches the bar color (Forte_Cooldown.lua:1713, the NU2 row: the [0] gate drives the glow and Spark[1] = 1 is its alpha, :1820). The gate also picks the splash's centre crop versus the full texture (:1385). Shown/hidden live on the icons, the splashes and the ready pulses." })
         end, {
             module = M, keys = { "BarColor", "BgColor", "Spark" },
             tip = "Bar fill, backdrop and spark.",

@@ -20,7 +20,14 @@
 --     where the expiry happens, so no enable order can lose it; the seam the
 --     wrap used to guard is the producer's own, and `M:_SubscribeToBus()` is
 --     the seam the tests use to play an enable order.);
---   * the soulstone announce: no FX_SOULSTONE event exists and Forte_Warlock
+--   * FX_SOULSTONE_EXPIRED / FX_SOULSTONE_READY: fired by FORTE_WARLOCK
+--     ITSELF, at its soulstone tracker's window-end site
+--     (Forte_Warlock/Core/Tools.lua's `SoulstoneTracker:Expire`, the
+--     nil-guarded `FX.Fire`), with (target, at). Pure subscriber here: this
+--     module plays the original's two bells (Forte_Soulstone.lua:640-641) and
+--     requires no class addon -- a session with no Forte_Warlock loaded has
+--     no firer, plays nothing, and the rows sit silent.
+--   * the soulstone announce: no FX_SOULSTONE *cast* event exists and Forte_Warlock
 --     is a LoadOnDemand class addon (the dependency law: an always-loaded
 --     addon never lists one), so this module listens to the PLAYER's own
 --     UNIT_SPELLCAST_SENT / UNIT_SPELLCAST_SUCCEEDED on its own frame
@@ -191,6 +198,8 @@ function M:_SubscribeToBus()
     if self.hExpire then FX.Off(self.hExpire) end
     if self.hFading then FX.Off(self.hFading) end
     if self.hBroken then FX.Off(self.hBroken) end
+    if self.hSoulFade then FX.Off(self.hSoulFade) end
+    if self.hSoulReady then FX.Off(self.hSoulReady) end
     self.hReady = FX.On(FX.EVENTS.COOLDOWN_READY,
         function(name, now, texPath, category)
             module:OnCooldownReady(name, now, texPath, category)
@@ -207,6 +216,32 @@ function M:_SubscribeToBus()
         function(spell, target, kind)
             module:OnTimerBroken(spell, target, kind)
         end)
+    self.hSoulFade = FX.On(FX.EVENTS.SOULSTONE_EXPIRED,
+        function(target, at)
+            module:OnSoulstoneExpired(target, at)
+        end)
+    self.hSoulReady = FX.On(FX.EVENTS.SOULSTONE_READY,
+        function(target, at)
+            module:OnSoulstoneReady(target, at)
+        end)
+end
+
+--- The FX_SOULSTONE_EXPIRED listener (target, at): the original's
+--- `FW:PlaySound("SoulstoneFadeSound")` at its tracked stone's expiry
+--- (Forte_Soulstone.lua:445). The chat/banner half of that site is the
+--- SelfMsg page's Soulstone rows, which ride the cast events; this listener
+--- is the bell, so it plays and counts and nothing else.
+function M:OnSoulstoneExpired(target, at)
+    self.counts.soulstoneFade = self.counts.soulstoneFade + 1
+    Sounds:SoulstoneFade()
+end
+
+--- The FX_SOULSTONE_READY listener (target, at): the original's
+--- `FW:PlaySound("SoulstoneReadySound")` at the warlock's stone-cooldown end
+--- (Forte_Soulstone.lua:463).
+function M:OnSoulstoneReady(target, at)
+    self.counts.soulstoneReady = self.counts.soulstoneReady + 1
+    Sounds:SoulstoneReady()
 end
 
 --- The banner's pump clock (m5, review 4). The hidden-frame law forbids the
@@ -407,16 +442,33 @@ end
 --- (unit, targetName, castGUID, spellID) and stamps the target; SUCCEEDED
 --- carries (unit, castGUID, spellID) -- the spellID is resolved by name
 --- there, and the target name is only ever the stamped plain string.
+--- INTERRUPTED (unit, castGUID, spellID, interruptedBy, castBarID) is the
+--- cast ending WITHOUT succeeding: the source's `SoulstoneCancel` half
+--- (`CA:RegisterOnSelfCastCancel`, Warlock.lua:295) -- the 2012 combat log's
+--- cancel is the modern cast bar's interrupt, the one legal event that
+--- means it.
 function M:OnCastForSoulstone(event, unit, a, b, c)
     local cfg = self.cfg
-    if not cfg.SoulstoneAnnounce and not cfg.SoulstoneChannel then
+    -- The cheap gate: with every soulstone row off the watch is inert, and
+    -- no spell name is resolved for a stone nobody asked to be told about.
+    if not cfg.SoulstoneAnnounce and not cfg.SoulstoneChannel
+        and not cfg.SoulstoneStartParty and not cfg.SoulstoneStartChannel
+        and not cfg.SoulstoneCancelParty and not cfg.SoulstoneCancelChannel
+        and not cfg.SoulstoneStartWhisper
+        and not cfg.SoulstoneCancelWhisper
+        and not cfg.SoulstoneSuccessWhisper then
         self._ssPending = nil
         return
     end
     if event == "UNIT_SPELLCAST_SENT" then
         local name = spellNameFor(c)   -- (unit, target, castGUID, spellID)
-        self._ssPending = (name and isSoulstoneName(name))
-            and FX.Compat.PlainOrNil(a) or nil
+        local family = name and isSoulstoneName(name)
+        self._ssPending = family and FX.Compat.PlainOrNil(a) or nil
+        -- The start leg rides the SAME stamp the SUCCEEDED leg consumes:
+        -- the SENT payload's target name is the row's `%s` and the
+        -- whisper's receiver (no stamp, no whisper -- the Announce:Whisper
+        -- law, no name, the "?" text word).
+        if family then self:AnnounceSoulstone("Start", self._ssPending) end
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         local name = spellNameFor(b)   -- (unit, castGUID, spellID)
         local pending = self._ssPending
@@ -431,8 +483,43 @@ function M:OnCastForSoulstone(event, unit, a, b, c)
             if cfg.SoulstoneChannel then
                 Announce:Channel(text, "SoulstoneChannel")
             end
+            Announce:Whisper(cfg.SoulstoneSuccessWhisperText,
+                "SoulstoneSuccessWhisper", pending)
         end
+    elseif event == "UNIT_SPELLCAST_INTERRUPTED" then
+        local name = spellNameFor(b)   -- (unit, guid, spellID, by, barID)
+        if not (name and isSoulstoneName(name)) then return end
+        local pending = self._ssPending
+        self._ssPending = nil
+        self:AnnounceSoulstone("Cancel", pending)
     end
+end
+
+--- The `Start` / `Cancel` half of the source's soulstone rows
+--- (Warlock.lua:294-295, the texts at :352-353): the party/channel pair, the
+--- channel twin and the whisper to the cast's target. `kind` is the row's
+--- name in the source's key space, so the gate keys are the page's keys.
+--- THE OWN-BOX GATE (the shipped-default law, review 5 hazard): this leg is
+--- gated by its own `Soulstone<Kind>Party/Channel/Whisper` boxes ONLY -- it
+--- rides NONE of the pre-existing `SoulstoneAnnounce`/`SoulstoneChannel`
+--- boxes (those gate the Success half) -- and with all three of its boxes
+--- OFF (every one ships OFF, E2) the leg is inert: no count, no send, no
+--- off-skip bookkeeping. A default install stands mute on the whole cast.
+function M:AnnounceSoulstone(kind, target)
+    local cfg = self.cfg
+    local partyKey, channelKey = "Soulstone" .. kind .. "Party",
+        "Soulstone" .. kind .. "Channel"
+    local whisperKey = "Soulstone" .. kind .. "Whisper"
+    if not (cfg[partyKey] or cfg[channelKey] or cfg[whisperKey]) then
+        return nil
+    end
+    local text = Channel.format(cfg["Soulstone" .. kind .. "Text"],
+        targetWord(FX.Compat.PlainOrNil(target)))
+    self.counts.soulstone = self.counts.soulstone + 1
+    if cfg[partyKey] then Announce:Group(text, partyKey) end
+    if cfg[channelKey] then Announce:Channel(text, channelKey) end
+    Announce:Whisper(cfg["Soulstone" .. kind .. "WhisperText"],
+        whisperKey, target)
 end
 
 -- ------------------------------------------------------ own-cast announce --
@@ -528,13 +615,192 @@ function M:OnCastForAnnounce(event, unit, a, b, c)
     end
 end
 
+-- ------------------------------------------------------- pet-cast announce --
+-- THE WARLOCK PET ANNOUNCE HOOK (Wave 4, Options WL+Msg item 6). The
+-- `OnCastForAnnounce` hook above, widened from the player's own casts to the
+-- FELGUARD's: the same pair of cast events, the same `spellNameFor` resolve,
+-- the same SENT-stamps / SUCCEEDED-sends target law, the same gate keys --
+-- the rows being the nine `P.PET_ROWS` of the source's Warlock Pet
+-- sub-category (Warlock.lua:305-328). The pet spine is the one Forte_Timer
+-- already proves live (its `Module.lua` pet registration, wave 2b "PetRows
+-- v2"): a pet Seduction is a real event stream on this client.
+--
+-- The target law is the SAME and no timer is needed for it: the source read
+-- `UnitName("pettarget")` behind a half-second settle (`PetTargetDelay`,
+-- Warlock.lua:366-369) because the 2012 combat log named no target; on this
+-- interface the target name rides the SENT payload itself (the field
+-- Forte_Timer's pet feed reads), so the row gets the name off the event and
+-- `"?"` when the field is secret -- no unit read, no delay, no invented
+-- name.
+--
+-- THE READY PAIR (`SpellLockReady` / `DevourMagicReady`, the source's two
+-- `CD:RegisterOnCooldownReady` rows, Warlock.lua:271-276) rides the pet's
+-- cast plus the cooldown the GENERATED DATA carries for the spell (Spell
+-- Lock 30 000 ms, Devour Magic 8 000 ms, Data/Warlock.lua:163-164) -- the
+-- numbers are never typed by hand, and with Forte_Warlock's data not loaded
+-- (it is a LoadOnDemand class addon) the window can not be measured, so the
+-- Ready rows do not fire: a row with no number behind it says so on the
+-- page, and no constant is invented to fill it.
+local PET_ROWS, PET_KEYS, PET_KINDS = P.PET_ROWS, P.PET_SPELL_KEYS,
+    P.PET_ROW_KINDS
+
+--- The pet row stem of a cast name: the data key first, the canonical form
+--- second (the `castPrefixFor` law -- the client's localized name resolves
+--- through `FX.Locale.CanonicalName` onto the English data name), and a
+--- case/space-insensitive pass over the table's own keys third, so a
+--- two-word spell ("Spell Lock", "Devour Magic") matches in every name
+--- form the client hands out. The table's keys are the DATA's names, so the
+--- third pass adds no new fact -- only a looser spelling of the same one.
+local function petPrefixFor(name)
+    if type(name) ~= "string" then return nil end
+    local keys = PET_KEYS
+    if not keys then return nil end
+    if keys[name] then return keys[name] end
+    local Locale = FX.Locale
+    if Locale and Locale.CanonicalName then
+        local key = Locale.CanonicalName(name)
+        if type(key) == "string" and keys[key] then return keys[key] end
+    end
+    local needle = name:lower():gsub("[^%w]", "")
+    for k, v in pairs(keys) do
+        if k:lower():gsub("[^%w]", "") == needle then return v end
+    end
+    return nil
+end
+
+--- The plain numeric spellID of a cast payload field (a secret id is not a
+--- data key, and no arithmetic runs on a value that is not a plain number).
+local function plainSpellID(id)
+    local plain = FX.Compat.PlainOrNil(id)
+    if type(plain) == "number" then return plain end
+    return nil
+end
+
+--- The generated data row of a pet cast: the English data NAME (the key
+--- space `P.PET_SPELL_KEYS` is written in -- locale-free by construction)
+--- and its `cooldownMs`. Nil with no data loaded: Forte_Warlock is a
+--- LoadOnDemand class addon and the data table is its file's; this add-on
+--- must not require it (the dependency law).
+local function petDataRow(spellID)
+    local data = FX.Data and FX.Data.Warlock
+    if type(data) ~= "table" then return nil end
+    local row = data[spellID]
+    if type(row) ~= "table" then return nil end
+    if type(row.name) ~= "string" then return nil end
+    return row
+end
+
+--- Any of the 18 pet group/channel boxes ticked? The cheap gate (the
+--- `CastRowArmed` law).
+function M:PetRowArmed(cfg)
+    for _ = 1, #PET_ROWS do
+        local key = PET_ROWS[_].key
+        if cfg[key .. "Party"] or cfg[key .. "Channel"] then return true end
+    end
+    return false
+end
+
+--- The source's `CA:CastShow("<Stem><Kind>")` for one pet row: the
+--- party/channel pair, both behind their own box and the legality gate.
+function M:AnnouncePet(stem, kind, target)
+    local kinds = PET_KINDS and PET_KINDS[stem]
+    local key = kinds and kinds[kind]
+    if not key then return nil end
+    local cfg = self.cfg
+    local text = Channel.format(cfg[key .. "Text"],
+        targetWord(FX.Compat.PlainOrNil(target)))
+    self.counts.pet = self.counts.pet + 1
+    local sent = 0
+    if cfg[key .. "Party"] then
+        Announce:Group(text, key .. "Party")
+        sent = sent + 1
+    end
+    if cfg[key .. "Channel"] then
+        Announce:Channel(text, key .. "Channel")
+        sent = sent + 1
+    end
+    return sent
+end
+
+--- One PET cast event. The payload orders are the catalog's, identical to
+--- the player's (the field positions Forte_Timer's pet feed reads):
+---   UNIT_SPELLCAST_SENT      (unit, target, castGUID, spellID)
+---   UNIT_SPELLCAST_SUCCEEDED (unit, castGUID, spellID, castBarID)
+---   UNIT_SPELLCAST_FAILED    (unit, castGUID, spellID, failReason, …)
+--- so the spellID is the 4th field on SENT and the 3rd on the rest.
+function M:OnPetCastForAnnounce(event, unit, a, b, c)
+    local cfg = self.cfg
+    if not self:PetRowArmed(cfg) then
+        self._petPending = nil
+        return
+    end
+    if event == "UNIT_SPELLCAST_SENT" then
+        local stem = petPrefixFor(spellNameFor(c))  -- (u, tgt, guid, id)
+        self._petPending = stem
+            and { stem = stem, target = FX.Compat.PlainOrNil(a) } or nil
+        if stem then
+            self:AnnouncePet(stem, "start", self._petPending.target)
+        end
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+        local stem = petPrefixFor(spellNameFor(b))  -- (u, guid, id)
+        local pending = self._petPending
+        self._petPending = nil
+        if not stem then return end
+        local target = (pending
+            and type(pending.target) == "string" and pending.target) or "?"
+        self:AnnouncePet(stem, "success", target)
+        self:ArmPetReady(plainSpellID(b))
+    elseif event == "UNIT_SPELLCAST_FAILED" then
+        local stem = petPrefixFor(spellNameFor(b))  -- (u, guid, id, reason)
+        self._petPending = nil
+        if not stem then return end
+        self:AnnouncePet(stem, "failed", "?")
+    end
+end
+
+--- Arm the `Ready` half of a pet spell: the data row's own `cooldownMs`
+--- from this cast. The one-shot timer is the banner pump's idiom (a
+--- self-terminating `C_Timer.After`, pinned catalog
+--- @TimerDocumentation.lua `C_Timer.After(seconds, callback)`) -- one
+--- closure per pet cast, none while the pet is idle. `M.afterFn` is the
+--- suite's seam (a 30-second real wait is not a test); production reads
+--- C_Timer.
+function M:ArmPetReady(spellID)
+    if spellID == nil then return nil end
+    local row = petDataRow(spellID)
+    if not row or type(row.cooldownMs) ~= "number" then return nil end
+    local seconds = row.cooldownMs / 1000
+    if seconds <= 0 then return nil end
+    local after = self.afterFn
+    if not after and C_Timer and C_Timer.After then
+        after = function(s, fn) return C_Timer.After(s, fn) end
+    end
+    if type(after) ~= "function" then return nil end
+    local ok = pcall(after, seconds, function() M:OnPetReady(spellID) end)
+    return ok and "armed" or "failed"
+end
+
+--- The `Ready` moment itself: the window armed by the pet's cast ran out.
+--- Public to the suite -- the tests drive this step directly, exactly as
+--- they drive `_BannerPumpStep`, never a real 30 s wait.
+function M:OnPetReady(spellID)
+    local row = petDataRow(plainSpellID(spellID) or spellID)
+    if not row then return nil end
+    local keys = PET_KEYS
+    local stem = keys and keys[row.name]
+    if not stem then return nil end
+    self.counts.petReady = self.counts.petReady + 1
+    return self:AnnouncePet(stem, "ready", "?")
+end
+
 -- ------------------------------------------------------------------ enable --
 function M:OnEnable()
     if not TYPES then buildTypes() end
     CFG = freshCfg()
     self.cfg = CFG
     self.counts = { ready = 0, expired = 0, soulstone = 0, cast = 0,
-        fading = 0, broken = 0 }
+        fading = 0, broken = 0, soulstoneFade = 0, soulstoneReady = 0,
+        pet = 0, petReady = 0 }
     self.enabled = true
 
     -- The layers get the SAME live table: a settings Set is seen by all.
@@ -581,17 +847,33 @@ function M:OnEnable()
     local module = self
     self:_SubscribeToBus()
 
-    -- The cast watches (the soulstone family and the 20 cast announce
-    -- rows): one frame, created HERE (the frame law), on the player's own
-    -- cast events -- both names verified in the pinned Forever
-    -- catalog (UnitDocumentation, the cast events the Cooldown module also
-    -- registers) before registration.
+    -- The cast watches (the soulstone family, the 20 cast announce rows and
+    -- the nine Warlock pet rows): one frame, created HERE (the frame law),
+    -- on the player's own cast events -- both names verified in the pinned
+    -- Forever catalog (UnitDocumentation, the cast events the Cooldown
+    -- module also registers) before registration. The INTERRUPTED leg is the
+    -- source's `CA:RegisterOnSelfCastCancel` half (Warlock.lua:295 -- the
+    -- soulstone cast that ends WITHOUT succeeding), the same registration
+    -- Forte_Timer/Module.lua:607 makes for the player. The PET legs are the
+    -- pet cast spine Forte_Timer registers for the pet unit (its
+    -- Module.lua:616-617, wave 2b "PetRows v2"), widened by FAILED because
+    -- the source's pet rows include a Failed half (Warlock.lua:309,:317,
+    -- :324) that the Timer's row feed has no use for.
     local f = CreateFrame("Frame")
     self._eventFrame = f   -- the tests' handle
     f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
     f:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+    f:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
+    f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "pet")
+    f:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "pet")
+    f:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "pet")
     f:SetScript("OnEvent", function(_, event, unit, a, b, c)
         local plainUnit = FX.Compat.PlainOrNil(unit)
+        -- The unit token is what routes the two feeds (the Timer's law).
+        if plainUnit == "pet" then
+            module:OnPetCastForAnnounce(event, unit, a, b, c)
+            return
+        end
         if type(plainUnit) == "string" and plainUnit ~= "player" then return end
         module:OnCastForSoulstone(event, unit, a, b, c)
         module:OnCastForAnnounce(event, unit, a, b, c)
@@ -627,12 +909,16 @@ end)
 function M:Status()
     local c = self.counts
     FX.Print(string.format(
-        "messages: ready %d | expired %d | fading %d | broken %d | soulstones %d | casts %d | chat %d | printed %d | banner %d | fade %d | break %d | sounds %d",
+        "messages: ready %d | expired %d | fading %d | broken %d | soulstones %d | casts %d | pet %d | petReady %d | chat %d | printed %d | banner %d | fade %d | break %d | ssExpired %d | ssReady %d | sounds %d",
         c.ready, c.expired, c.fading, c.broken, c.soulstone, c.cast,
+        c.pet, c.petReady,
         Channel.counts.chat,
         Channel.counts.printed, Banner.counts.shown,
         Sounds.counts.rows.TimerFade or 0,
-        Sounds.counts.rows.TimerBreak or 0, Sounds.counts.played))
+        Sounds.counts.rows.TimerBreak or 0,
+        Sounds.counts.rows.SoulstoneFade or 0,
+        Sounds.counts.rows.SoulstoneReady or 0,
+        Sounds.counts.played))
     FX.Print(Announce:StatusLines())
     FX.Print(string.format(
         "pages %d/%d | banner %s | %d FX_TIMER_EXPIRED listener(s)",

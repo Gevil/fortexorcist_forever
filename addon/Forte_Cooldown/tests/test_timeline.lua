@@ -154,9 +154,11 @@ test("Icons are 24x24 and sit at TimelineMath.pos on the time axis", function()
     end
 
     -- t < 0 clamps to the left end (Disengage at -30 s); 60 s sits on the
-    -- curve; the 1:00/4.0 texts ride on the icons (IconTime).
+    -- curve; the 1:00/0:02 texts ride on the icons (IconTime). The tenths
+    -- print is off: the shipped General AltTimeFormat is ON (the original's
+    -- TimeFormat = true, Forte_Core.lua:2487), so every time is m:ss.
     assertEquals("1:00", slotOf("Bestial Wrath").timeFS:GetText())
-    assertEquals("2.0", slotOf("Concussive Shot").timeFS:GetText())
+    assertEquals("0:02", slotOf("Concussive Shot").timeFS:GetText())
 
     -- Just-bound icons start their fade-in at Alpha (0.2).
     near3(slotOf("Disengage").frame:GetAlpha(), S.Alpha)
@@ -842,7 +844,8 @@ test("The charge count at the icon's top-right is clear of the time text", funct
     local now = 23000
     -- The v3 collision: a 4-character time string printed at the 24 px
     -- icon's BOTTOMLEFT and the charge count at its BOTTOMRIGHT overprint
-    -- ("40." over "0", 3-4 chars).
+    -- ("0:40" over "0", 3-4 chars). The string is m:ss because the shipped
+    -- General AltTimeFormat is ON (Forte_Core.lua:2487).
     Display:Update({
         { name = "GeomCharge", start = 0, duration = 60, endTime = now + 40.0,
           charges = 0, maxCharges = 3, rechargeEnd = now + 40.0 },
@@ -850,7 +853,7 @@ test("The charge count at the icon's top-right is clear of the time text", funct
     local slot = slotOf("GeomCharge")
     assertNotNil(slot)
     assertTrue(slot.chargeFS:IsShown())
-    assertEquals("40.0", slot.timeFS:GetText())   -- the wide 4-char string
+    assertEquals("0:40", slot.timeFS:GetText())   -- the wide 4-char string
     assertEquals("0", slot.chargeFS:GetText())
     local _, cSize = slot.chargeFS:GetFont()
     local _, tSize = slot.timeFS:GetFont()
@@ -1085,17 +1088,42 @@ test("Settings IgnoreShort writes Engine.MIN_COOLDOWN (public field)", function(
     near(Engine.MIN_COOLDOWN, 2.99)
 end)
 
-test("Settings AltTimeFormat switches the icon time text to m:ss", function()
+test("Settings AltTimeFormat: the shipped default IS m:ss; off gives the tenths",
+function()
+    -- Wave 4 item 3: the original ships `TimeFormat = true`
+    -- (Forte_Core.lua:2487), so a fresh install prints m:ss for EVERY time
+    -- and the key's live consumer is SetTimeFormatAlt. The test walks the
+    -- default first -- a page default the consumer ignores is exactly the
+    -- defect this row exists to catch.
     local now = 33000
     local feed = { { name = "AltFmt", start = 0, duration = 60, endTime = now + 45 } }
-    Display:Update(feed, now)
-    assertEquals("45.0", slotOf("AltFmt").timeFS:GetText())
-    Settings:Set("General", "AltTimeFormat", true)
-    Display:Update(feed, now)
-    assertEquals("0:45", slotOf("AltFmt").timeFS:GetText())
+    assertEquals(true, Settings:GetDefault("General", "AltTimeFormat"))
     Settings:Reset("General", "AltTimeFormat")
     Display:Update(feed, now)
+    assertEquals("0:45", slotOf("AltFmt").timeFS:GetText())
+    -- The m:ss branch keys on the WHOLE SECOND: a half-second step that
+    -- leaves the printed second alone costs no repaint...
+    feed = { { name = "AltFmt", start = 0, duration = 60, endTime = now + 45.45 } }
+    local slot = slotOf("AltFmt")
+    local n = 0
+    local orig = slot.timeFS.SetText
+    slot.timeFS.SetText = function(fs, txt) n = n + 1; return orig(fs, txt) end
+    Display:Update(feed, now + 0.15)
+    assertEquals(0, n)
+    -- ...and the step that crosses it costs exactly one.
+    Display:Update(feed, now + 0.6)
+    assertEquals(1, n)
+    slot.timeFS.SetText = orig
+    assertEquals("0:44", slot.timeFS:GetText())
+    -- Off: the %0.1f branch of FW:SecToTimeD (Forte_Core.lua:1746-1761).
+    local exact = { { name = "AltFmt", start = 0, duration = 60,
+                      endTime = now + 45 } }
+    Settings:Set("General", "AltTimeFormat", false)
+    Display:Update(exact, now)
     assertEquals("45.0", slotOf("AltFmt").timeFS:GetText())
+    Settings:Reset("General", "AltTimeFormat")
+    Display:Update(exact, now)
+    assertEquals("0:45", slotOf("AltFmt").timeFS:GetText())
     Display:Update({}, now + 1)
 end)
 
@@ -1148,10 +1176,228 @@ test("Not-used-yet keys (FrameSnap, ShowTooltips) are inert and safe", function(
     Settings:Reset("General", "ShowTooltips")
 end)
 
+-- ------------------------------------------------- wave 4 (OptionsCD) rows --
+-- The Cooldown page's SPECIFICS icon block (Forte_Cooldown.lua :1716-1719),
+-- its SPLASH block (:1723-1724) and its TIME RANGE filters (:1729-1732),
+-- driven through the same FX.Settings seam the options window uses.
+
+test("Settings BarAlpha/BarAlphaMax move the icon and segment alpha range live",
+function()
+    -- The pair (`Alpha` :1818 / `AlphaMax` :1819, labels "Minimum/Maximum bar
+    -- alpha" :1716-1717): a fresh icon starts at Alpha on the
+    -- FRESH-VISIBILITY ramp (:1402 with :611-614), a settled one rides
+    -- AlphaMax, and the segment fill rides AlphaMax-(AlphaMax-Alpha)*t7
+    -- (:1404). Without the _alpha/_segSetA bust the applied value of an
+    -- already-drawn slot is stale and the new numbers never reach frames.
+    Display:Init()
+    local now = 48000
+    local feed = { { name = "AlphaPair", start = 0, duration = 999,
+                     endTime = now + 200 } }
+    Settings:Reset("Cooldown", "BarAlpha")
+    Settings:Reset("Cooldown", "BarAlphaMax")
+    Display:Update(feed, now)
+    local slot = slotOf("AlphaPair")
+    assertNotNil(slot)
+    near3(slot.frame:GetAlpha(), 0.2)
+    near3(slot.seg:GetAlpha(), 0.2)
+    Settings:Set("Cooldown", "BarAlpha", 0.6)
+    Display:Update(feed, now)                    -- the same instant, p = 0
+    near3(slot.frame:GetAlpha(), 0.6)
+    near3(slot.seg:GetAlpha(), 0.6)
+    -- The ceiling is what a settled icon rides.
+    Display:Update(feed, now + S.FadeSeconds)
+    near3(slot.frame:GetAlpha(), 1.0)
+    Settings:Set("Cooldown", "BarAlphaMax", 0.4)
+    Display:Update(feed, now + S.FadeSeconds)
+    near3(slot.frame:GetAlpha(), 0.4)
+    near3(slot.seg:GetAlpha(), 0.4)
+    Settings:Reset("Cooldown", "BarAlpha")
+    Settings:Reset("Cooldown", "BarAlphaMax")
+    Display:Update({}, now + S.FadeSeconds + 1)
+end)
+
+test("Settings IconTime shows/hides the icon text; IconTextColor rides its gate",
+function()
+    -- `IconTime` (:1718, default on :1835) and the CO2 `IconTextColor`
+    -- = {[0]=false,1,1,1,1} (:1719, :1837): the source picks the custom
+    -- colour on the [0] gate and the FixIntensity(category) tint off it
+    -- (:1419-1425).
+    Display:Init()
+    local now = 48500
+    local feed = { { name = "IconTxt", start = 0, duration = 60,
+                     endTime = now + 45 } }
+    Display:Update(feed, now)
+    local slot = slotOf("IconTxt")
+    assertNotNil(slot)
+    assertTrue(slot.timeFS:IsShown(), "IconTime ships on (:1835)")
+    local br, bg, bb = slot.timeFS:GetTextColor()   -- the category tint
+    Settings:Set("Cooldown", "IconTextColor", { 0.25, 0.90, 0.10, 1 })
+    local ar, ag, ab = slot.timeFS:GetTextColor()
+    assertTrue(br == ar and bg == ag and bb == ab,
+        "the [0] gate is off, so a custom colour alone is inert (:1837)")
+    Settings:Set("Cooldown", "IconTextColorOn", true)
+    local cr, cg, cb = slot.timeFS:GetTextColor()
+    near3(cr, 0.25); near3(cg, 0.90); near3(cb, 0.10)
+    -- The re-tint reaches a slot that was bound BEFORE the gate went on.
+    Settings:Set("Cooldown", "IconTextColor", { 0.10, 0.20, 0.80, 1 })
+    local dr, dg, db = slot.timeFS:GetTextColor()
+    near3(dr, 0.10); near3(dg, 0.20); near3(db, 0.80)
+    Settings:Set("Cooldown", "IconTextColorOn", false)
+    local er, eg, eb = slot.timeFS:GetTextColor()
+    assertTrue(er == br and eg == bg and eb == bb,
+        "off rides the FixIntensity(category) tint again")
+    -- The text gate: off takes the string off the live icons AND off a slot
+    -- bound later (it is born hidden).
+    Settings:Set("Cooldown", "IconTime", false)
+    assertFalse(slot.timeFS:IsShown())
+    Display:Update({ { name = "IconTxt2", start = 0, duration = 60,
+                       endTime = now + 90 } }, now)
+    assertFalse(slotOf("IconTxt2").timeFS:IsShown(),
+        "a slot bound while the gate is off is born hidden")
+    Settings:Reset("Cooldown", "IconTime")
+    assertTrue(slot.timeFS:IsShown())
+    assertTrue(slotOf("IconTxt2").timeFS:IsShown())
+    Settings:Reset("Cooldown", "IconTextColor")
+    Display:Update({}, now + 1)
+end)
+
+test("Settings Time Range filters drop rows off the bar, gates off by default",
+function()
+    -- The four NU2 rows :1729-1732: CD_TimeFilterDuration rides the row's
+    -- TOTAL duration (the source's cd[i][4]) and CD_TimeFilterRemaining its
+    -- live remaining (cd[i][2]), each behind its own [0] gate, defaults
+    -- 0/3600/0/3600 with every gate OFF (:1826-1829).
+    Display:Init()
+    local now = 49000
+    local feed = {
+        { name = "RangeShort", start = 0, duration = 30, endTime = now + 30 },
+        { name = "RangeLong", start = 0, duration = 600, endTime = now + 600 },
+    }
+    Display:Update(feed, now)
+    assertNotNil(slotOf("RangeShort"), "every gate ships off")
+    assertNotNil(slotOf("RangeLong"))
+    Display:Update({}, now + 0.5)
+
+    local function gateOn(key, value)
+        Settings:Set("Cooldown", key .. "On", true)
+        Settings:Set("Cooldown", key, value)
+        Display:Update(feed, now)
+    end
+    local function gateOff(key)
+        Settings:Reset("Cooldown", key .. "On")
+        Settings:Reset("Cooldown", key)
+        Display:Update({}, now + 0.5)
+    end
+    -- Minimum duration: the 30 s row is under a 120 s floor.
+    gateOn("MinRange", 120)
+    assertNil(slotOf("RangeShort"), "a 30 s row fails a 120 s floor")
+    assertNotNil(slotOf("RangeLong"))
+    gateOff("MinRange")
+    -- Maximum duration: the 600 s row is over a 120 s ceiling.
+    gateOn("MaxRange", 120)
+    assertNil(slotOf("RangeLong"), "a 600 s row fails a 120 s ceiling")
+    assertNotNil(slotOf("RangeShort"))
+    gateOff("MaxRange")
+    -- Minimum remaining / maximum remaining ride the LIVE remaining (30
+    -- and 600 here), not the row's length.
+    gateOn("MinRemaining", 100)
+    assertNil(slotOf("RangeShort"), "30 s left is under a 100 s floor")
+    assertNotNil(slotOf("RangeLong"))
+    gateOff("MinRemaining")
+    gateOn("MaxRemaining", 100)
+    assertNil(slotOf("RangeLong"), "600 s left is over a 100 s ceiling")
+    assertNotNil(slotOf("RangeShort"))
+    gateOff("MaxRemaining")
+    -- Both rows draw again with the gates off.
+    Display:Update(feed, now)
+    assertNotNil(slotOf("RangeShort"))
+    assertNotNil(slotOf("RangeLong"))
+    Display:Update({}, now + 0.5)
+end)
+
+test("Settings HideZero sees the filtered bar as empty (the filter is a view)",
+function()
+    -- `_lastCount` is the number of rows the bar DRAWS, so a bar whose every
+    -- row the Time Range filter drops is, for the auto-hide law (:1348), a
+    -- bar with no visible cooldown.
+    Display:Init()
+    local now = 49500
+    local feed = {
+        { name = "ZeroShort", start = 0, duration = 30, endTime = now + 30 },
+    }
+    Settings:Set("Cooldown", "HideZero", true)
+    Settings:Set("Cooldown", "MinRangeOn", true)
+    Settings:Set("Cooldown", "MinRange", 120)
+    Display:Update(feed, now)
+    assertNil(slotOf("ZeroShort"))
+    assertFalse(Display.anchor:IsShown(),
+        "the filter leaves the bar nothing to draw")
+    Settings:Reset("Cooldown", "MinRangeOn")
+    Settings:Reset("Cooldown", "MinRange")
+    Display:Update(feed, now)
+    assertTrue(Display.anchor:IsShown())
+    Display:Update({}, now + 0.5)
+    Settings:Reset("Cooldown", "HideZero")
+end)
+
+test("Settings Splash gates the expiry visual; SplashFactor scales it",
+function()
+    -- `Splash` (:1723, default on :1811) is the gate of the source's
+    -- t15==-1 curve (`if s.Splash and t15 == -1`, :1380); this port renders
+    -- that one curve as the cast splash AND the ready pulse, so the gate
+    -- rules both. `SplashFactor` (:1724, default 4 :1812) is the bell's peak
+    -- multiplier: size = SplashFactor * ih * (1 - t14) (:1381).
+    Display:Init()
+    local function liveSplashes()
+        local n = 0
+        for _, s in ipairs(Display.splashPool) do
+            if s.frame:IsShown() then n = n + 1 end
+        end
+        return n
+    end
+    local function livePulses()
+        local n = 0
+        for _, p in ipairs(Display.pulsePool) do
+            if p.frame:IsShown() then n = n + 1 end
+        end
+        return n
+    end
+    local now = 50000
+    Display:Update({}, now)
+    Settings:Set("Cooldown", "Splash", false)
+    local pool0 = #Display.splashPool
+    local feed = { { name = "SplashGate", start = 0, duration = 60,
+                     endTime = now + 60 } }
+    Display:Update(feed, now)
+    assertNotNil(slotOf("SplashGate"))
+    assertEquals(0, liveSplashes(), "the gate is off (:1380)")
+    assertEquals(pool0, #Display.splashPool, "the pool is not even touched")
+    Display:OnReady("SplashGate", now + 0.1)
+    Display:Update(feed, now + 0.1)
+    assertEquals(0, livePulses(), "the ready pulse is the same gated curve")
+    Settings:Reset("Cooldown", "Splash")
+    Display:Update({}, now + 1)
+    -- Back on: a fresh name splashes, and the peak scale is the factor's.
+    local feed2 = { { name = "SplashScale", start = 0, duration = 60,
+                      endTime = now + 160 } }
+    Settings:Set("Cooldown", "SplashFactor", 8)
+    Display:Update(feed2, now + 2)
+    local s = liveSplash()
+    assertNotNil(s, "the gate is back on")
+    Display:Update(feed2, now + 2 + S.SplashSeconds * 0.5)
+    near3(s.tex:GetWidth(), 8 * S.Height * 0.5)
+    Settings:Reset("Cooldown", "SplashFactor")
+    Display:Update({}, now + 2 + S.SplashSeconds + 0.01)
+end)
+
 -- ================================================================= m5 perf --
 
 test("m5: two passes with unchanged state do not touch SetText at all", function()
     Display:Init()
+    -- This is the %0.1f branch's tenth-granularity key, so pin the branch:
+    -- the shipped General AltTimeFormat is ON (Forte_Core.lua:2487) and its
+    -- whole-second key is proven in the AltTimeFormat settings test.
+    Settings:Set("General", "AltTimeFormat", false)
     local now = 34000
     local feed = {
         { name = "QuietA", start = 0, duration = 120, endTime = now + 120.5 },
@@ -1189,6 +1435,7 @@ test("m5: two passes with unchanged state do not touch SetText at all", function
 
     a.timeFS.SetText = origA
     b.timeFS.SetText = origB
+    Settings:Reset("General", "AltTimeFormat")
     Display:Update({}, now + 2)
 end)
 

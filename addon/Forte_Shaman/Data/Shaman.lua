@@ -2,63 +2,87 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T19:08:53+00:00
+-- Regenerated: 2026-11-02T23:57:13+00:00
 -- 70707 overlay changes in this file (10):
---   Flame Shock: { id = 29228, name = "Flame Shock", durationMs = 12000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 6" } -> { id = 10448, name = "Flame Shock", durationMs = 12000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 5" }
---   Lightning Shield: { id = 28821, name = "Lightning Shield", durationMs = -1 } -> { id = 28821, name = "Lightning Shield", durationMs = -1, icdMs = 3500 }
+--   Flame Shock: { id = 29228, name = "Flame Shock", tickEvery = 3, durationMs = 12000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 6" } -> { id = 10448, name = "Flame Shock", tickEvery = 3, durationMs = 12000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 5" }
+--   Lightning Shield: { id = 28821, name = "Lightning Shield", noTarget = true, durationMs = -1 } -> { id = 28821, name = "Lightning Shield", noTarget = true, durationMs = -1, icdMs = 3500 }
 --   Earth Shield: { id = 408514, name = "Earth Shield", durationMs = 600000, gcdMs = 1500 } -> { id = 408514, name = "Earth Shield", durationMs = 600000, gcdMs = 1500, icdMs = 3500 }
---   Water Shield: { id = 408510, name = "Water Shield", durationMs = 600000, gcdMs = 1500 } -> { id = 408510, name = "Water Shield", durationMs = 600000, gcdMs = 1500, icdMs = 3500 }
---   Flurry: { id = 16257, name = "Flurry", durationMs = 15000 } -> { id = 16257, name = "Flurry", durationMs = 15000, icdMs = 500 }
---   Shield Mastery: { id = 408525, name = "Shield Mastery", durationMs = 15000 } -> { id = 426981, name = "Shield Mastery", durationMs = 3000 }
---   Windfury Weapon: { id = 16361, name = "Windfury Weapon", durationMs = 1500, rank = "Rank 4" } -> { id = 16361, name = "Windfury Weapon", durationMs = 1500, icdMs = 1500, rank = "Rank 4" }
---   Flametongue Weapon: { id = 436519, name = "Flametongue Weapon" } -> { id = 16342, name = "Flametongue Weapon", gcdMs = 1500, rank = "Rank 6" }
+--   Water Shield: { id = 408510, name = "Water Shield", noTarget = true, durationMs = 600000, gcdMs = 1500 } -> { id = 408510, name = "Water Shield", noTarget = true, durationMs = 600000, gcdMs = 1500, icdMs = 3500 }
+--   Flurry: { id = 16257, name = "Flurry", noTarget = true, durationMs = 15000 } -> { id = 16257, name = "Flurry", noTarget = true, durationMs = 15000, icdMs = 500 }
+--   Shield Mastery: { id = 408525, name = "Shield Mastery", maxStack = 7, noTarget = true, durationMs = 15000 } -> { id = 426981, name = "Shield Mastery", durationMs = 3000 }
+--   Windfury Weapon: { id = 16361, name = "Windfury Weapon", noTarget = true, durationMs = 1500, rank = "Rank 4" } -> { id = 16361, name = "Windfury Weapon", noTarget = true, durationMs = 1500, icdMs = 1500, rank = "Rank 4" }
+--   Flametongue Weapon: { id = 436519, name = "Flametongue Weapon", noTarget = true } -> { id = 16342, name = "Flametongue Weapon", gcdMs = 1500, rank = "Rank 6" }
 --   Strength of Earth Totem: { id = 25361, name = "Strength of Earth Totem", durationMs = 300000, gcdMs = 1000, rank = "Rank 5" } -> { id = 10442, name = "Strength of Earth Totem", durationMs = 300000, gcdMs = 1000, rank = "Rank 4" }
 --   Grace of Air Totem: { id = 25359, name = "Grace of Air Totem", durationMs = 300000, gcdMs = 1000, rank = "Rank 3" } -> { id = 10627, name = "Grace of Air Totem", durationMs = 300000, gcdMs = 1000, rank = "Rank 2" }
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (base row `Effects[].PeriodMs`), `maxStack` = the row's own `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). BASE DATA ONLY: the 70707 overlay captures no Effects/MaxStack/Target (see tools/overrides_70707.json's per-id keys), so it can not add, remove or move a feed -- a 70707-sourced or store-rank row carries none. This file: 3 tickEvery, 0 maxStack, 20 noTarget.
+--   feeds [10448] Flame Shock: tickEvery = 3
+--   feeds [1239243] Riptide: tickEvery = 3
+--   feeds [408345] Fire Nova: noTarget
+--   feeds [415236] Healing Rain: tickEvery = 1
+--   feeds [16166] Elemental Mastery: noTarget
+--   feeds [16188] Nature's Swiftness: noTarget
+--   feeds [425336] Rage of the Farseer: noTarget
+--   feeds [409944] Ancestral Guidance: noTarget
+--   feeds [23689] Heroism: noTarget
+--   feeds [28821] Lightning Shield: noTarget
+--   feeds [408510] Water Shield: noTarget
+--   feeds [16257] Flurry: noTarget
+--   feeds [16246] Clearcasting: noTarget
+--   feeds [30165] Elemental Devastation: noTarget
+--   feeds [468526] Power Surge: noTarget
+--   feeds [24499] Energized Shield: noTarget
+--   feeds [432041] Tidal Waves: noTarget
+--   feeds [408680] Way of Earth: noTarget
+--   feeds [16361] Windfury Weapon: noTarget
+--   feeds [16313] Rockbiter Weapon (Passive): noTarget
+--   feeds [1238640] Ghost Wolf: noTarget
+--   feeds [16038] Call of Flame: noTarget
+--   feeds [16120] Call of Thunder: noTarget
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
 ForteXorcist.Data.Shaman = {
   -- cooldowns
   [408690] = { id = 408690, name = "Earth Shock", durationMs = 2000, cooldownMs = 6000, cooldownCategory = 2171, gcdMs = 1500, rank = "Rank 7" },
-  [10448] = { id = 10448, name = "Flame Shock", durationMs = 12000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 5" },
+  [10448] = { id = 10448, name = "Flame Shock", tickEvery = 3, durationMs = 12000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 5" },
   [10473] = { id = 10473, name = "Frost Shock", durationMs = 8000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 4" },
-  [1239243] = { id = 1239243, name = "Riptide", durationMs = 15000, cooldownMs = 6000, cooldownCategory = 1228, gcdMs = 1500, rank = "Rank 3" },
+  [1239243] = { id = 1239243, name = "Riptide", tickEvery = 3, durationMs = 15000, cooldownMs = 6000, cooldownCategory = 1228, gcdMs = 1500, rank = "Rank 3" },
   [10605] = { id = 10605, name = "Chain Lightning", cooldownMs = 6000, cooldownCategory = 85, gcdMs = 1500, castMs = 2000, rank = "Rank 4" },
   [425339] = { id = 425339, name = "Molten Blast", cooldownMs = 6000, gcdMs = 1500 },
   [408507] = { id = 408507, name = "Lava Lash", cooldownMs = 6000, gcdMs = 1500 },
-  [408345] = { id = 408345, name = "Fire Nova", cooldownMs = 10000, cooldownCategory = 35, gcdMs = 1500, rank = "Rank 5" },
-  [415236] = { id = 415236, name = "Healing Rain", durationMs = 10000, cooldownMs = 10000, gcdMs = 1500, castMs = 2000 },
+  [408345] = { id = 408345, name = "Fire Nova", noTarget = true, cooldownMs = 10000, cooldownCategory = 35, gcdMs = 1500, rank = "Rank 5" },
+  [415236] = { id = 415236, name = "Healing Rain", tickEvery = 1, durationMs = 10000, cooldownMs = 10000, gcdMs = 1500, castMs = 2000 },
   [425874] = { id = 425874, name = "Decoy Totem", durationMs = 10000, cooldownMs = 20000, gcdMs = 1500 },
   [8177] = { id = 8177, name = "Grounding Totem", durationMs = 45000, cooldownMs = 15000, cooldownCategory = 230, gcdMs = 1000 },
   [10428] = { id = 10428, name = "Stoneclaw Totem", durationMs = 15000, cooldownMs = 30000, cooldownCategory = 45, gcdMs = 1000, rank = "Rank 6" },
   [2484] = { id = 2484, name = "Earthbind Totem", durationMs = 45000, cooldownMs = 15000, gcdMs = 1000 },
   [1325256] = { id = 1325256, name = "Mana Tide Totem", durationMs = 13000, cooldownMs = 300000, cooldownCategory = 591, gcdMs = 1000, rank = "Rank 4" },
   [440580] = { id = 440580, name = "Feral Spirit", durationMs = 45000, cooldownMs = 180000, gcdMs = 1500 },
-  [16166] = { id = 16166, name = "Elemental Mastery", durationMs = 15000, cooldownMs = 180000 },
-  [16188] = { id = 16188, name = "Nature's Swiftness", durationMs = -1, cooldownMs = 180000 },
-  [425336] = { id = 425336, name = "Rage of the Farseer", durationMs = 25000, cooldownMs = 180000 },
+  [16166] = { id = 16166, name = "Elemental Mastery", noTarget = true, durationMs = 15000, cooldownMs = 180000 },
+  [16188] = { id = 16188, name = "Nature's Swiftness", noTarget = true, durationMs = -1, cooldownMs = 180000 },
+  [425336] = { id = 425336, name = "Rage of the Farseer", noTarget = true, durationMs = 25000, cooldownMs = 180000 },
   [437009] = { id = 437009, name = "Totemic Projection", durationMs = 1000, cooldownMs = 60000, gcdMs = 1500 },
   [21169] = { id = 21169, name = "Reincarnation", cooldownMs = 3600000, cooldownCategory = 1161 },
   [17364] = { id = 17364, name = "Stormstrike", durationMs = 12000, cooldownMs = 8000, gcdMs = 1500 },
   [1326047] = { id = 1326047, name = "Lava Burst", cooldownMs = 10000, cooldownCategory = 1224, gcdMs = 1500, castMs = 2500, rank = "Rank 4" },
-  [409944] = { id = 409944, name = "Ancestral Guidance" },
-  [23689] = { id = 23689, name = "Heroism", durationMs = -1 },
+  [409944] = { id = 409944, name = "Ancestral Guidance", noTarget = true },
+  [23689] = { id = 23689, name = "Heroism", noTarget = true, durationMs = -1 },
   -- buffs
-  [28821] = { id = 28821, name = "Lightning Shield", durationMs = -1, icdMs = 3500 },
+  [28821] = { id = 28821, name = "Lightning Shield", noTarget = true, durationMs = -1, icdMs = 3500 },
   [408514] = { id = 408514, name = "Earth Shield", durationMs = 600000, gcdMs = 1500, icdMs = 3500 },
-  [408510] = { id = 408510, name = "Water Shield", durationMs = 600000, gcdMs = 1500, icdMs = 3500 },
-  [16257] = { id = 16257, name = "Flurry", durationMs = 15000, icdMs = 500 },
-  [16246] = { id = 16246, name = "Clearcasting", durationMs = 15000 },
-  [30165] = { id = 30165, name = "Elemental Devastation", durationMs = 10000 },
-  [468526] = { id = 468526, name = "Power Surge", durationMs = 10000 },
-  [24499] = { id = 24499, name = "Energized Shield", durationMs = 20000 },
+  [408510] = { id = 408510, name = "Water Shield", noTarget = true, durationMs = 600000, gcdMs = 1500, icdMs = 3500 },
+  [16257] = { id = 16257, name = "Flurry", noTarget = true, durationMs = 15000, icdMs = 500 },
+  [16246] = { id = 16246, name = "Clearcasting", noTarget = true, durationMs = 15000 },
+  [30165] = { id = 30165, name = "Elemental Devastation", noTarget = true, durationMs = 10000 },
+  [468526] = { id = 468526, name = "Power Surge", noTarget = true, durationMs = 10000 },
+  [24499] = { id = 24499, name = "Energized Shield", noTarget = true, durationMs = 20000 },
   [426981] = { id = 426981, name = "Shield Mastery", durationMs = 3000 },
-  [432041] = { id = 432041, name = "Tidal Waves", durationMs = 20000 },
-  [408680] = { id = 408680, name = "Way of Earth", durationMs = 10000 },
+  [432041] = { id = 432041, name = "Tidal Waves", noTarget = true, durationMs = 20000 },
+  [408680] = { id = 408680, name = "Way of Earth", noTarget = true, durationMs = 10000 },
   -- stamps
-  [16361] = { id = 16361, name = "Windfury Weapon", durationMs = 1500, icdMs = 1500, rank = "Rank 4" },
+  [16361] = { id = 16361, name = "Windfury Weapon", noTarget = true, durationMs = 1500, icdMs = 1500, rank = "Rank 4" },
   [16342] = { id = 16342, name = "Flametongue Weapon", gcdMs = 1500, rank = "Rank 6" },
-  [16313] = { id = 16313, name = "Rockbiter Weapon (Passive)", rank = "Rank 7" },
+  [16313] = { id = 16313, name = "Rockbiter Weapon (Passive)", noTarget = true, rank = "Rank 7" },
   [16353] = { id = 16353, name = "Frostbrand Attack", durationMs = 8000, rank = "Rank 5" },
   -- totems
   [10408] = { id = 10408, name = "Stoneskin Totem", durationMs = 300000, gcdMs = 1000, rank = "Rank 6" },
@@ -77,11 +101,11 @@ ForteXorcist.Data.Shaman = {
   [8143] = { id = 8143, name = "Tremor Totem", durationMs = 300000, gcdMs = 1000 },
   [15112] = { id = 15112, name = "Windwall Totem", durationMs = 300000, gcdMs = 1000, rank = "Rank 3" },
   -- utility
-  [1238640] = { id = 1238640, name = "Ghost Wolf", durationMs = -1, gcdMs = 1500, castMs = 3000 },
+  [1238640] = { id = 1238640, name = "Ghost Wolf", noTarget = true, durationMs = -1, gcdMs = 1500, castMs = 3000 },
   [20777] = { id = 20777, name = "Ancestral Spirit", gcdMs = 1500, castMs = 10000, rank = "Rank 5" },
   [6196] = { id = 6196, name = "Far Sight", durationMs = 60000, gcdMs = 1500, castMs = 2000 },
-  [16038] = { id = 16038, name = "Call of Flame" },
-  [16120] = { id = 16120, name = "Call of Thunder" },
+  [16038] = { id = 16038, name = "Call of Flame", noTarget = true },
+  [16120] = { id = 16120, name = "Call of Thunder", noTarget = true },
   [66842] = { id = 66842, name = "Call of the Elements", gcdMs = 1500, castMs = 3000 },
   [66844] = { id = 66844, name = "Call of the Spirits", gcdMs = 1500, castMs = 3000 },
   [66843] = { id = 66843, name = "Call of the Ancestors", gcdMs = 1500, castMs = 3000 },

@@ -324,19 +324,54 @@ function SoulstoneTracker:OnCast(name, targetName)
     self.name = name
     self.casts = self.casts + 1
     self.active, self.start = true, self:Clock()
+    -- A fresh stone is up: the READY_TO_RES look retires with the old
+    -- window (`Ready` reads true only after a window has run out).
+    self.readyAt = nil
     return true
 end
 
 --- Live-now predicate; observing the window end retires it (the next call
---- reports inactive), so no ticker is needed.
+--- reports inactive), so no ticker is needed. Observing the end is also
+--- the one site that knows the moment happened, so it is where the bus
+--- pair fires (see `Expire`).
 function SoulstoneTracker:Active(now)
     if not self.active then return false end
     now = now or self:Clock()
     if self.duration ~= nil and (now - self.start) >= self.duration then
-        self:Clear()
+        self:Expire(now)
         return false
     end
     return true
+end
+
+--- The window's end, observed. Clears the window and fires the pair the
+--- 2012 panel plays here -- `SoulstoneFadeSound` at the tracked stone's
+--- expiry (Forte_Soulstone.lua:429-445, the `FLAG.TIME` branch) and
+--- `SoulstoneReadySound` at the warlock's stone cooldown end (:461-464).
+--- That panel seeds the caster's stone cooldown from the stone's own
+--- (end, duration) pair (SS-05, :253), so on this self-only port the two
+--- windows are the one window and the two sounds share this instant.
+---
+--- Fired at most once per window (the Clear below retires the guard with
+--- the state), and NOT by the owner's `Clear` at a class change, a re-login
+--- or a disabled module -- a window the owner put away is not a stone that
+--- ran out. `onExpire` is the test seam (nil-guarded production = FX.Fire).
+function SoulstoneTracker:Expire(now)
+    local target = self.target
+    self:Clear()
+    self.readyAt = now
+    local fire = self.onExpire
+    if type(fire) == "function" then
+        pcall(fire, target, now)
+    end
+end
+
+--- Ready to put a new stone up: a window ran out at `readyAt` and no newer
+--- stone has gone up since (the original's `Saved.Cooldowns[me] == nil`
+--- branch behind the READY_TO_RES label, Forte_Soulstone.lua:309, and the
+--- gate its `SoulstoneReadySound` rides at :461).
+function SoulstoneTracker:Ready()
+    return self.readyAt ~= nil
 end
 
 --- Seconds left of the stone window, nil when there is none (or the window
@@ -354,6 +389,9 @@ end
 
 function SoulstoneTracker:Clear()
     self.active, self.start, self.target = false, nil, nil
+    -- The owner's Clear (class change, re-login, disable) also puts the
+    -- READY_TO_RES look away; `Expire` sets `readyAt` after this call.
+    self.readyAt = nil
 end
 
 function SoulstoneTracker:Snapshot()
@@ -373,10 +411,12 @@ function WK.NewSoulstoneTracker(opts)
         now = opts.now,                       -- injectable clock
         duration = opts.duration,             -- window seconds, nil = unknown
         patterns = opts.patterns or WK.SoulstonePatterns,
+        onExpire = opts.onExpire,             -- the bus fire (nil = silent)
         active = false,
         start = nil,
         target = nil,   -- who carries the stone (nil = not read from SENT)
         pending = nil,  -- target claimed by SENT, consumed by SUCCEEDED
+        readyAt = nil,  -- the window ran out at this time: ready to re-cast
         name = nil,
         casts = 0,      -- adopted casts, for /fx status
     }, SoulstoneTracker)
@@ -692,7 +732,25 @@ M.Shards = WK.NewShardCounter({
     countReader = WK.DefaultShardCountReader,
     powerReader = WK.DefaultShardPowerReader,
 })
-M.Soulstone = WK.NewSoulstoneTracker({ duration = WK.DeriveSoulstoneSeconds() })
+M.Soulstone = WK.NewSoulstoneTracker({
+    duration = WK.DeriveSoulstoneSeconds(),
+    -- The bus pair at the window's end (Forte_Core/Core/Events.lua: the
+    -- original's SoulstoneFadeSound site Forte_Soulstone.lua:429-445 and
+    -- its SoulstoneReadySound site :461-464; the header there carries the
+    -- seeding law that makes them one instant on this self-only port).
+    -- Nil-guarded per the bus contract: a build without the event bus
+    -- simply has no listener, and the tracker keeps its own state.
+    onExpire = function(target, at)
+        if FX.Fire and FX.EVENTS then
+            if FX.EVENTS.SOULSTONE_EXPIRED then
+                FX.Fire(FX.EVENTS.SOULSTONE_EXPIRED, target, at)
+            end
+            if FX.EVENTS.SOULSTONE_READY then
+                FX.Fire(FX.EVENTS.SOULSTONE_READY, target, at)
+            end
+        end
+    end,
+})
 M.Healthstone = WK.NewHealthstoneTracker({
     countReader = WK.DefaultHealthstoneCountReader,
     cooldownReader = WK.DefaultHealthstoneCooldownReader,

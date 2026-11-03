@@ -68,13 +68,21 @@ local Summon = Frame:new({
     sharedModule = "General",
     lockKey = "Lock",
     keys = { "SummonWidth", "SummonHeight", "SummonColor",
-             "SummonStrikethrough" },
+             "SummonStrikethrough", "SummonDetails", "SummonExpand" },
     keymap = {
         SummonEnable = "SetEnabled",
         SummonWidth = "SetWidth",                -- the plate width
         SummonHeight = "SetRowHeight",           -- the bar height, :587
         SummonColor = "SetBarColor",             -- Forte_Summon.lua:597
         SummonStrikethrough = "SetStrikethrough",
+        -- FWL.SHOW_BARS (the original's SummonDetails, Forte_Summon.lua:562
+        -- -- "you can hide them in case you only want to see the
+        -- information on the header", FWL.SHOW_BARS_TT, Forte_Core.lua:275;
+        -- def true :595): the plate's ritual rows.
+        SummonDetails = "SetShowBars",
+        -- FWL.EXPAND_UP (the original's SummonExpand, Forte_Summon.lua:564,
+        -- def false :598): the row run grows up from the plate.
+        SummonExpand = "SetExpandUp",
     },
 })
 FX.Warlock.Summon = Summon
@@ -171,8 +179,10 @@ function Summon:Update(_now)
         return false
     end
     -- The plate's own channeling row keeps the first row (the plate's
-    -- second line); it lives exactly as long as the channel (SU-09).
-    self:SetRowShown(live)
+    -- second line); it lives exactly as long as the channel (SU-09), and
+    -- rides `SummonDetails` (FWL.SHOW_BARS -- "the information on the
+    -- header", the count/clock, stays, Forte_Summon.lua:562).
+    self:SetRowShown(live and self:BarsWanted())
     if live then
         if frac ~= self._frac then
             self._frac = frac
@@ -201,7 +211,11 @@ function Summon:Update(_now)
         self.timeFS:SetText(clock)
         self.infoFS:SetText(clock)
     end
-    self:RenderQueueRows(rows)
+    if self:BarsWanted() then
+        self:RenderQueueRows(rows)
+    else
+        self:SetExtraRowsShown(0)
+    end
     self:ApplyTextVisibility()
     return live
 end

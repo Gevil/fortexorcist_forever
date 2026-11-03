@@ -2,12 +2,41 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T17:29:01+00:00
--- 70707 overlay changes in this file (4):
+-- Regenerated: 2026-11-02T23:57:12+00:00
+-- 70707 overlay changes in this file (6):
 --   Intimidation: { id = 19577, name = "Intimidation", durationMs = 15000, cooldownMs = 60000, gcdMs = 1500 } -> { id = 19577, name = "Intimidation", durationMs = 15000, cooldownMs = 60000, cooldownCategory = 1132, gcdMs = 1500 }
---   Aspect of the Hawk: { id = 25296, name = "Aspect of the Hawk", durationMs = -1, gcdMs = 1500, rank = "Rank 7" } -> { id = 14322, name = "Aspect of the Hawk", durationMs = -1, gcdMs = 1500, rank = "Rank 6" }
+--   Black Arrow: { id = 14296, name = "Black Arrow", tickEvery = 2, durationMs = 30000, gcdMs = 1500, rank = "Rank 2" } -> { id = 14296, name = "Black Arrow", durationMs = 30000, gcdMs = 1500, rank = "Rank 2" }
+--   Aspect of the Hawk: { id = 25296, name = "Aspect of the Hawk", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Rank 7" } -> { id = 14322, name = "Aspect of the Hawk", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Rank 6" }
 --   Freezing Trap: { id = 14311, name = "Freezing Trap", durationMs = 60000, cooldownMs = 30000, cooldownCategory = 2183, gcdMs = 1500, rank = "Rank 3" } -> { id = 14311, name = "Freezing Trap", durationMs = 60000, cooldownMs = 30000, cooldownCategory = 411, gcdMs = 1500, rank = "Rank 3" }
 --   Frost Trap: { id = 13809, name = "Frost Trap", durationMs = 60000, cooldownMs = 30000, cooldownCategory = 2183, gcdMs = 1500 } -> { id = 13809, name = "Frost Trap", durationMs = 60000, cooldownMs = 30000, cooldownCategory = 411, gcdMs = 1500 }
+--   Tame Beast: { id = 1515, name = "Tame Beast", tickEvery = 20, durationMs = 20000, gcdMs = 1500 } -> { id = 1515, name = "Tame Beast", durationMs = 20000, gcdMs = 1500 }
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (base row `Effects[].PeriodMs`), `maxStack` = the row's own `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). BASE DATA ONLY: the 70707 overlay captures no Effects/MaxStack/Target (see tools/overrides_70707.json's per-id keys), so it can not add, remove or move a feed -- a 70707-sourced or store-rank row carries none. This file: 8 tickEvery, 3 maxStack, 18 noTarget.
+--   feeds [19263] Deterrence: noTarget
+--   feeds [415320] Flanking Strike: maxStack = 3
+--   feeds [3045] Rapid Fire: noTarget
+--   feeds [14280] Viper Sting: tickEvery = 2
+--   feeds [458482] Wyvern Strike: tickEvery = 1
+--   feeds [425737] Serpent Sting: tickEvery = 3
+--   feeds [23721] Arcane Infused: noTarget
+--   feeds [467331] Clever Strikes: noTarget
+--   feeds [456382] Precision: noTarget
+--   feeds [1242512] Rapid Recuperation: noTarget
+--   feeds [1233451] Trick Shots: maxStack = 4, noTarget
+--   feeds [28758] Stalker's Ally: noTarget
+--   feeds [1299447] Aspect of the Beast: noTarget
+--   feeds [5118] Aspect of the Cheetah: noTarget
+--   feeds [469145] Aspect of the Falcon: noTarget
+--   feeds [14322] Aspect of the Hawk: noTarget
+--   feeds [13163] Aspect of the Monkey: noTarget
+--   feeds [13159] Aspect of the Pack: noTarget
+--   feeds [415423] Aspect of the Viper: tickEvery = 3, noTarget
+--   feeds [20190] Aspect of the Wild: noTarget
+--   feeds [20906] Trueshot Aura: noTarget
+--   feeds [5384] Feign Death: noTarget
+--   feeds [13544] Mend Pet: tickEvery = 1
+--   feeds [24587] Scorpid Poison: tickEvery = 2, maxStack = 5
+--   feeds [1265042] Tendon Rip: tickEvery = 3
+--   feeds [1265883] Web: tickEvery = 1
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
@@ -19,56 +48,56 @@ ForteXorcist.Data.Hunter = {
   [409433] = { id = 409433, name = "Chimera Shot", cooldownMs = 6000, gcdMs = 1500, castMs = -1000000 },
   [5116] = { id = 5116, name = "Concussive Shot", durationMs = 4000, cooldownMs = 12000, gcdMs = 1500, castMs = -1000000 },
   [20910] = { id = 20910, name = "Counterattack", durationMs = 5000, cooldownMs = 5000, cooldownCategory = 1135, gcdMs = 1500, rank = "Rank 4" },
-  [19263] = { id = 19263, name = "Deterrence", durationMs = 10000, cooldownMs = 300000 },
+  [19263] = { id = 19263, name = "Deterrence", noTarget = true, durationMs = 10000, cooldownMs = 300000 },
   [14273] = { id = 14273, name = "Disengage", cooldownMs = 5000, cooldownCategory = 82, gcdMs = 1500, rank = "Rank 3" },
   [15632] = { id = 15632, name = "Distracting Shot", cooldownMs = 8000, cooldownCategory = 911, gcdMs = 1500, castMs = -1000000, rank = "Rank 6" },
   [1221404] = { id = 1221404, name = "Enchanted Flare", durationMs = 30000, cooldownMs = 30000, cooldownCategory = 2368, gcdMs = 1500 },
   [1543] = { id = 1543, name = "Flare", durationMs = 30000, cooldownMs = 15000, cooldownCategory = 2368, gcdMs = 1500 },
-  [415320] = { id = 415320, name = "Flanking Strike", durationMs = 10000, cooldownMs = 30000, gcdMs = 1500 },
+  [415320] = { id = 415320, name = "Flanking Strike", maxStack = 3, durationMs = 10000, cooldownMs = 30000, gcdMs = 1500 },
   [19577] = { id = 19577, name = "Intimidation", durationMs = 15000, cooldownMs = 60000, cooldownCategory = 1132, gcdMs = 1500 },
   [409593] = { id = 409593, name = "Kill Shot", cooldownMs = 12000, gcdMs = 1500, castMs = -1000000 },
   [14271] = { id = 14271, name = "Mongoose Bite", cooldownMs = 5000, cooldownCategory = 65, gcdMs = 1500, rank = "Rank 4" },
   [2643] = { id = 2643, name = "Multi-Shot", cooldownMs = 6000, cooldownCategory = 2, gcdMs = 1500 },
-  [3045] = { id = 3045, name = "Rapid Fire", durationMs = 15000, cooldownMs = 300000, cooldownCategory = 55 },
+  [3045] = { id = 3045, name = "Rapid Fire", noTarget = true, durationMs = 15000, cooldownMs = 300000, cooldownCategory = 55 },
   [415343] = { id = 415343, name = "Raptor Strike", cooldownMs = 6000, cooldownCategory = 40, gcdMs = 1500, rank = "Rank 8" },
   [19503] = { id = 19503, name = "Scatter Shot", durationMs = 4000, cooldownMs = 30000, gcdMs = 1500, castMs = -1000000 },
   [1310786] = { id = 1310786, name = "Sniper Shot", durationMs = 10000, cooldownMs = 15000, gcdMs = 1500, castMs = 4000, rank = "Rank 3" },
   [19801] = { id = 19801, name = "Tranquilizing Shot", cooldownMs = 20000, gcdMs = 1500, castMs = -1000000 },
-  [14280] = { id = 14280, name = "Viper Sting", durationMs = 8000, cooldownMs = 15000, gcdMs = 1500, castMs = -1000000, rank = "Rank 3" },
-  [458482] = { id = 458482, name = "Wyvern Strike", durationMs = 8000, cooldownMs = 8000, cooldownCategory = 1111, gcdMs = 1500, rank = "Rank 3" },
+  [14280] = { id = 14280, name = "Viper Sting", tickEvery = 2, durationMs = 8000, cooldownMs = 15000, gcdMs = 1500, castMs = -1000000, rank = "Rank 3" },
+  [458482] = { id = 458482, name = "Wyvern Strike", tickEvery = 1, durationMs = 8000, cooldownMs = 8000, cooldownCategory = 1111, gcdMs = 1500, rank = "Rank 3" },
   -- buffs
   [14325] = { id = 14325, name = "Hunter's Mark", durationMs = 120000, gcdMs = 1500, rank = "Rank 4" },
-  [425737] = { id = 425737, name = "Serpent Sting", durationMs = 12000, castMs = -1000000, rank = "Rank 9" },
+  [425737] = { id = 425737, name = "Serpent Sting", tickEvery = 3, durationMs = 12000, castMs = -1000000, rank = "Rank 9" },
   [3043] = { id = 3043, name = "Scorpid Sting", durationMs = 20000, gcdMs = 1500, castMs = -1000000 },
-  [23721] = { id = 23721, name = "Arcane Infused", durationMs = 10000 },
+  [23721] = { id = 23721, name = "Arcane Infused", noTarget = true, durationMs = 10000 },
   [29233] = { id = 29233, name = "Beast of the Unseen Path", durationMs = 4000 },
-  [467331] = { id = 467331, name = "Clever Strikes", durationMs = 5000 },
+  [467331] = { id = 467331, name = "Clever Strikes", noTarget = true, durationMs = 5000 },
   [409583] = { id = 409583, name = "Heart of the Lion", durationMs = 15000 },
-  [456382] = { id = 456382, name = "Precision", durationMs = 12000 },
+  [456382] = { id = 456382, name = "Precision", noTarget = true, durationMs = 12000 },
   [1218358] = { id = 1218358, name = "Rabid Frenzy", durationMs = 120000 },
-  [1242512] = { id = 1242512, name = "Rapid Recuperation", durationMs = 15000 },
-  [1233451] = { id = 1233451, name = "Trick Shots", durationMs = 12000 },
-  [28758] = { id = 28758, name = "Stalker's Ally", durationMs = 4000 },
+  [1242512] = { id = 1242512, name = "Rapid Recuperation", noTarget = true, durationMs = 15000 },
+  [1233451] = { id = 1233451, name = "Trick Shots", maxStack = 4, noTarget = true, durationMs = 12000 },
+  [28758] = { id = 28758, name = "Stalker's Ally", noTarget = true, durationMs = 4000 },
   [14296] = { id = 14296, name = "Black Arrow", durationMs = 30000, gcdMs = 1500, rank = "Rank 2" },
   -- aspects
-  [1299447] = { id = 1299447, name = "Aspect of the Beast", durationMs = -1, gcdMs = 1500, rank = "Rank 4" },
-  [5118] = { id = 5118, name = "Aspect of the Cheetah", durationMs = -1, gcdMs = 1500 },
-  [469145] = { id = 469145, name = "Aspect of the Falcon", durationMs = -1, gcdMs = 1500 },
-  [14322] = { id = 14322, name = "Aspect of the Hawk", durationMs = -1, gcdMs = 1500, rank = "Rank 6" },
-  [13163] = { id = 13163, name = "Aspect of the Monkey", durationMs = -1, gcdMs = 1500 },
-  [13159] = { id = 13159, name = "Aspect of the Pack", durationMs = -1, gcdMs = 1500 },
-  [415423] = { id = 415423, name = "Aspect of the Viper", durationMs = -1, gcdMs = 1500 },
-  [20190] = { id = 20190, name = "Aspect of the Wild", durationMs = -1, gcdMs = 1500, rank = "Rank 2" },
-  [20906] = { id = 20906, name = "Trueshot Aura", durationMs = 1800000, gcdMs = 1500, rank = "Rank 5" },
+  [1299447] = { id = 1299447, name = "Aspect of the Beast", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Rank 4" },
+  [5118] = { id = 5118, name = "Aspect of the Cheetah", noTarget = true, durationMs = -1, gcdMs = 1500 },
+  [469145] = { id = 469145, name = "Aspect of the Falcon", noTarget = true, durationMs = -1, gcdMs = 1500 },
+  [14322] = { id = 14322, name = "Aspect of the Hawk", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Rank 6" },
+  [13163] = { id = 13163, name = "Aspect of the Monkey", noTarget = true, durationMs = -1, gcdMs = 1500 },
+  [13159] = { id = 13159, name = "Aspect of the Pack", noTarget = true, durationMs = -1, gcdMs = 1500 },
+  [415423] = { id = 415423, name = "Aspect of the Viper", tickEvery = 3, noTarget = true, durationMs = -1, gcdMs = 1500 },
+  [20190] = { id = 20190, name = "Aspect of the Wild", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Rank 2" },
+  [20906] = { id = 20906, name = "Trueshot Aura", noTarget = true, durationMs = 1800000, gcdMs = 1500, rank = "Rank 5" },
   -- traps
   [14311] = { id = 14311, name = "Freezing Trap", durationMs = 60000, cooldownMs = 30000, cooldownCategory = 411, gcdMs = 1500, rank = "Rank 3" },
   [13809] = { id = 13809, name = "Frost Trap", durationMs = 60000, cooldownMs = 30000, cooldownCategory = 411, gcdMs = 1500 },
   [14305] = { id = 14305, name = "Immolation Trap", durationMs = 60000, cooldownMs = 30000, cooldownCategory = 411, gcdMs = 1500, rank = "Rank 5" },
   [14317] = { id = 14317, name = "Explosive Trap", durationMs = 60000, cooldownMs = 30000, cooldownCategory = 411, gcdMs = 1500, rank = "Rank 3" },
   -- pet_and_utility
-  [5384] = { id = 5384, name = "Feign Death", durationMs = 360000, cooldownMs = 30000 },
+  [5384] = { id = 5384, name = "Feign Death", noTarget = true, durationMs = 360000, cooldownMs = 30000 },
   [1002] = { id = 1002, name = "Eyes of the Beast", durationMs = 120000, gcdMs = 1500, castMs = 2000 },
-  [13544] = { id = 13544, name = "Mend Pet", durationMs = 5000, gcdMs = 1500, rank = "Rank 7" },
+  [13544] = { id = 13544, name = "Mend Pet", tickEvery = 1, durationMs = 5000, gcdMs = 1500, rank = "Rank 7" },
   [982] = { id = 982, name = "Revive Pet", gcdMs = 1500, castMs = 10000 },
   [14921] = { id = 14921, name = "Growl", cooldownMs = 5000, cooldownCategory = 82, rank = "Rank 7" },
   [14268] = { id = 14268, name = "Wing Clip", durationMs = 10000, gcdMs = 1500, rank = "Rank 3" },
@@ -77,12 +106,12 @@ ForteXorcist.Data.Hunter = {
   [1264933] = { id = 1264933, name = "Dismember", durationMs = 6000, cooldownMs = 15000, cooldownCategory = 971, gcdMs = 1500, rank = "Rank 5" },
   [1265058] = { id = 1265058, name = "Mine!", durationMs = 3000, cooldownMs = 90000, cooldownCategory = 109, gcdMs = 1500, rank = "Rank 5" },
   [1264742] = { id = 1264742, name = "Pinch", durationMs = 9000, cooldownMs = 30000, cooldownCategory = 63, gcdMs = 1500, rank = "Rank 5" },
-  [24587] = { id = 24587, name = "Scorpid Poison", durationMs = 10000, cooldownMs = 4000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 4" },
+  [24587] = { id = 24587, name = "Scorpid Poison", tickEvery = 2, maxStack = 5, durationMs = 10000, cooldownMs = 4000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 4" },
   [1317257] = { id = 1317257, name = "Strider Kick", durationMs = 3000, cooldownMs = 8000, gcdMs = 1500 },
   [1264502] = { id = 1264502, name = "Swipe", cooldownMs = 5000, cooldownCategory = 85, gcdMs = 1500, rank = "Rank 5" },
-  [1265042] = { id = 1265042, name = "Tendon Rip", durationMs = 9000, cooldownMs = 30000, cooldownCategory = 63, gcdMs = 1500, rank = "Rank 5" },
+  [1265042] = { id = 1265042, name = "Tendon Rip", tickEvery = 3, durationMs = 9000, cooldownMs = 30000, cooldownCategory = 63, gcdMs = 1500, rank = "Rank 5" },
   [1264455] = { id = 1264455, name = "Thunderstomp", cooldownMs = 60000, cooldownCategory = 49, gcdMs = 1500, rank = "Rank 4" },
-  [1265883] = { id = 1265883, name = "Web", durationMs = 4000, cooldownMs = 40000, cooldownCategory = 63, gcdMs = 1500, rank = "Rank 5" },
+  [1265883] = { id = 1265883, name = "Web", tickEvery = 1, durationMs = 4000, cooldownMs = 40000, cooldownCategory = 63, gcdMs = 1500, rank = "Rank 5" },
   [1265904] = { id = 1265904, name = "Dust Cloud", durationMs = 30000, gcdMs = 1500, rank = "Rank 5" },
   [6197] = { id = 6197, name = "Eagle Eye", durationMs = 60000, gcdMs = 1500 },
   [14327] = { id = 14327, name = "Scare Beast", durationMs = 20000, cooldownMs = 30000, cooldownCategory = 33, gcdMs = 1500, castMs = 1500, rank = "Rank 3" },

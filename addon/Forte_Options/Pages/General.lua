@@ -10,6 +10,14 @@
 -- setters (see Forte_Cooldown/UI/Timeline.lua, "live settings").
 -- FrameSnap (snap grid) and ShowTooltips (module-frame tooltips) have no
 -- consumer YET -- they stay stored-only and their tips say 'not used yet'.
+--
+-- Labels are the original's strings, verbatim (Forte_Core/Localization.lua):
+-- "Global Frame Lock" :361, "Global Frame Alpha" :415, "Enable frame
+-- snapping" :318 (FWL.GENERAL_MO3), "Alternate time format" :316
+-- (FWL.GENERAL_MO2), "Show module frame Tooltips" :423 (FWL.TIPS, capital
+-- T), "Bar Font" :267, "Bar Texture" :268; the section names are
+-- FWL.GENERAL_MO :313 / FWL.GENERAL_MA :325. The time-format default rides
+-- the source's `TimeFormat = true` (Forte_Core.lua:2487).
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -24,7 +32,12 @@ FX.Settings:Register(M, {
     FrameAlpha = 1.0,
     FrameScale = 1.0,
     FrameSnap = false,
-    AltTimeFormat = false,
+    -- The original's `TimeFormat` ships ON (`Forte_Core.lua:2487`), so a
+    -- fresh install prints `m:ss` on every module time (`0:45`, not `45.0`).
+    -- The consumer is the Cooldown bar's SetTimeFormatAlt (its
+    -- formatRemaining's TimeFormat branch, Forte_Core.lua:1746-1761), and
+    -- Forte_Timer's own AltTimeFormat key is its page's.
+    AltTimeFormat = true,
     ShowTooltips = true,
     BarFont = FONT,
     BarTexture = TEX .. "Aluminium",
@@ -110,7 +123,7 @@ O:RegisterPage({
         b.Section("General Module Appearance", function(s)
             s.CHK({
                 module = M, key = "ShowTooltips",
-                label = "Show module frame tooltips",
+                label = "Show module frame Tooltips",
                 tip = "Show game tooltips when the mouse rests on module frames. Not used yet (module frames have no tooltips to gate).",
             })
             s.INFO({

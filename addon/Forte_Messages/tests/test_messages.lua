@@ -238,6 +238,94 @@ function()
     ST:Set("Sound", "TimerExpireEnable", false)
 end)
 
+-- The soulstone pair (Forte_Soulstone.lua:640-641, the SND rows of the
+-- Soulstone Tracker's Bar Coloring sub, defaults :677-678). The producer is
+-- Forte_Warlock's own tracker (`SoulstoneTracker:Expire`, tested in
+-- Forte_Warlock/tests/test_warlock.lua at its real site); the public path
+-- here is the contract event, the same shape as the COOLDOWN_READY test
+-- above: the UI-test law says no test calls a render function.
+
+test("the soulstone pair is on the bus, registered and listened", function()
+    enable()
+    assertEquals(1, FX.ListenerCount(FX.EVENTS.SOULSTONE_EXPIRED))
+    assertEquals(1, FX.ListenerCount(FX.EVENTS.SOULSTONE_READY))
+end)
+
+test("the soulstone pair: the rows are the original's, defaults verbatim",
+function()
+    enable()
+    -- The Sound page's shipped defaults (Forte_Soulstone.lua:677-678: both
+    -- rows `{[0]=true, path, 1}`), asserted on the live view the layers read
+    -- and on the page table that seeds it.
+    local def = FX.Messages.Pages.DEFAULTS.Sound
+    assertEquals(true, def.SoulstoneFadeEnable)
+    assertEquals(true, def.SoulstoneReadyEnable)
+    assertEquals(true, M.cfg.SoulstoneFadeEnable)
+    assertEquals("Interface\\AddOns\\Forte_Core\\Sounds\\SoulstoneExpire.mp3",
+        M.cfg.SoulstoneFadePath)
+    assertEquals(1, M.cfg.SoulstoneFadeTimes)
+    assertEquals(true, M.cfg.SoulstoneReadyEnable)
+    assertEquals("Sound\\Spells\\SimonGame_Visual_GameTick.wav",
+        M.cfg.SoulstoneReadyPath)
+    assertEquals(1, M.cfg.SoulstoneReadyTimes)
+    assertNotNil(Sounds.rows.SoulstoneFade)
+    assertNotNil(Sounds.rows.SoulstoneReady)
+end)
+
+test("the soulstone pair rings on the public path, with the row's repeat count",
+function()
+    enable()
+    local got = {}
+    Sounds.playFn = function(path) got[#got + 1] = path end
+    local fade0 = M.counts.soulstoneFade
+    local ready0 = M.counts.soulstoneReady
+    FX.Fire(FX.EVENTS.SOULSTONE_EXPIRED, "Gvil", 1000.5)
+    FX.Fire(FX.EVENTS.SOULSTONE_READY, "Gvil", 1000.5)
+    Sounds.playFn = nil
+    assertEquals(fade0 + 1, M.counts.soulstoneFade, "the expiry counted")
+    assertEquals(ready0 + 1, M.counts.soulstoneReady, "the ready counted")
+    assertEquals(2, #got, "both bells rang, once each (the rows' x1)")
+    assertEquals("Interface\\AddOns\\Forte_Core\\Sounds\\SoulstoneExpire.mp3",
+        got[1])
+    assertEquals("Sound\\Spells\\SimonGame_Visual_GameTick.wav", got[2])
+end)
+
+test("the soulstone pair: switching a row off silences that bell only",
+function()
+    enable()
+    local got = {}
+    Sounds.playFn = function(path) got[#got + 1] = path end
+    ST:Set("Sound", "SoulstoneFadeEnable", false)
+    FX.Fire(FX.EVENTS.SOULSTONE_EXPIRED, "Gvil", 1001)
+    FX.Fire(FX.EVENTS.SOULSTONE_READY, "Gvil", 1001)
+    ST:Set("Sound", "SoulstoneFadeEnable", true)
+    ST:Set("Sound", "SoulstoneReadyEnable", false)
+    FX.Fire(FX.EVENTS.SOULSTONE_EXPIRED, "Gvil", 1002)
+    FX.Fire(FX.EVENTS.SOULSTONE_READY, "Gvil", 1002)
+    ST:Set("Sound", "SoulstoneReadyEnable", true)
+    Sounds.playFn = nil
+    -- The sequence rings exactly the two bells that were ON at their event:
+    -- the Ready bell at 1001 (Fade off) and the Fade bell at 1002 (Ready
+    -- off). Each off row is silent on its own event -- that is the law.
+    assertEquals(2, #got, "the off row is silent, the on row rings")
+    assertEquals("Sound\\Spells\\SimonGame_Visual_GameTick.wav", got[1],
+        "the Ready bell rang at 1001 (its row was on)")
+    assertEquals("Interface\\AddOns\\Forte_Core\\Sounds\\SoulstoneExpire.mp3",
+        got[2], "the Fade bell rang at 1002 (its row was back on)")
+end)
+
+test("the soulstone pair: the repeat count is the row's third slot",
+function()
+    enable()
+    local got = {}
+    Sounds.playFn = function(path) got[#got + 1] = path end
+    ST:Set("Sound", "SoulstoneReadyTimes", 3)
+    FX.Fire(FX.EVENTS.SOULSTONE_READY, "Gvil", 1003)
+    ST:Set("Sound", "SoulstoneReadyTimes", 1)
+    Sounds.playFn = nil
+    assertEquals(3, #got)
+end)
+
 -- ------------------------------------------------------- the expiry chain --
 -- E3 (code-review-4): the wrapper this suite used to drive (`M:WrapTimerExpire`
 -- plus a hand-called `wrapped({name=...})`) is GONE, and with it the shortcut

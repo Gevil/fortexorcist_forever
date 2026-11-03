@@ -111,17 +111,22 @@ test("On refuses bad calls without touching the bus", function()
 end)
 
 test("the contract names are the wire strings, and the contract is exactly "
-.. "those four (E6: no SPLASH seam)", function()
+.. "those six (E6: no SPLASH seam)", function()
     assertEquals("FX_COOLDOWN_READY", FX.EVENTS.COOLDOWN_READY)
     assertEquals("FX_TIMER_EXPIRED", FX.EVENTS.TIMER_EXPIRED)
     assertEquals("FX_TIMER_FADING", FX.EVENTS.TIMER_FADING)
     assertEquals("FX_TIMER_BROKEN", FX.EVENTS.TIMER_BROKEN)
+    -- The soulstone pair (Wave 4, Options WL+Msg item 1): producer
+    -- Forte_Warlock/Core/Tools.lua's tracker, listeners Forte_Messages'
+    -- Sound rows and the Soulstone plate's Ready-look gate.
+    assertEquals("FX_SOULSTONE_EXPIRED", FX.EVENTS.SOULSTONE_EXPIRED)
+    assertEquals("FX_SOULSTONE_READY", FX.EVENTS.SOULSTONE_READY)
     assertNil(FX.EVENTS.SPLASH,
         "E6: the SplashKick seam is gone -- every declared event has a"
         .. " production producer and a production listener")
     local declared = 0
     for _ in pairs(FX.EVENTS) do declared = declared + 1 end
-    assertEquals(4, declared)
+    assertEquals(6, declared)
 end)
 
 test("a ready-event round trip: the payload contract reaches the listener",

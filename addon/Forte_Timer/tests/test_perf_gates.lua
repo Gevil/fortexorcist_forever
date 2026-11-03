@@ -497,8 +497,13 @@ end)
 test("the tick marks are laid out on a layout change, not every tick",
 function()
     local o = ensureEnabled()
-    local saved = { maxOn = o.maxOn, ticks = o.ticks }
+    local saved = { maxOn = o.maxOn, ticks = o.ticks,
+        ticksNext = o.ticksNext }
+    -- This test measures the mark LAYOUT, which is the whole-schedule mode;
+    -- `TicksNext` (:3404, the shipped default true) shows one mark at a time,
+    -- which would read "zero marks on row 1" here and measure nothing.
     o.maxOn, o.ticks = false, true
+    o.ticksNext = false
     local base = epoch()
     withFixedClock(base, function()
         installClock(base)

@@ -2,26 +2,59 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T19:08:52+00:00
+-- Regenerated: 2026-11-02T23:57:12+00:00
 -- 70707 overlay changes in this file (1):
 --   Arcane Wrath: { id = 1326082, name = "Arcane Wrath", cooldownMs = 6000, gcdMs = 1500, castMs = 3500, rank = "Rank 4" } -> { id = 1326082, name = "Arcane Wrath", cooldownMs = 6000, cooldownCategory = 2601, gcdMs = 1500, castMs = 3500, rank = "Rank 4" }
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (base row `Effects[].PeriodMs`), `maxStack` = the row's own `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). BASE DATA ONLY: the 70707 overlay captures no Effects/MaxStack/Target (see tools/overrides_70707.json's per-id keys), so it can not add, remove or move a feed -- a 70707-sourced or store-rank row carries none. This file: 10 tickEvery, 1 maxStack, 23 noTarget.
+--   feeds [12472] Cold Snap: noTarget
+--   feeds [12051] Evocation: tickEvery = 1, noTarget
+--   feeds [12042] Arcane Power: noTarget
+--   feeds [425121] Icy Veins: noTarget
+--   feeds [401556] Living Flame: tickEvery = 0.4
+--   feeds [428861] Displacement: noTarget
+--   feeds [412510] Mass Regeneration: tickEvery = 1
+--   feeds [22007] Netherwind Focus: noTarget
+--   feeds [11129] Combustion: noTarget
+--   feeds [130] Slow Fall: noTarget
+--   feeds [13033] Ice Barrier: noTarget
+--   feeds [11958] Ice Block: noTarget
+--   feeds [1326891] Frigid Power: noTarget
+--   feeds [1218701] Evoker: maxStack = 12
+--   feeds [401417] Regeneration: tickEvery = 1
+--   feeds [10187] Blizzard: tickEvery = 1
+--   feeds [400613] Living Bomb: tickEvery = 3
+--   feeds [18809] Pyroblast: tickEvery = 3
+--   feeds [10216] Flamestrike: tickEvery = 2
+--   feeds [1237313] Frostfire Bolt: tickEvery = 3
+--   feeds [22783] Mage Armor: noTarget
+--   feeds [7301] Frost Armor: noTarget
+--   feeds [10220] Ice Armor: noTarget
+--   feeds [428741] Molten Armor: tickEvery = 6, noTarget
+--   feeds [1953] Blink: noTarget
+--   feeds [1297659] Teleport: Dalaran: noTarget
+--   feeds [3561] Teleport: Stormwind: noTarget
+--   feeds [3566] Teleport: Thunder Bluff: noTarget
+--   feeds [3562] Teleport: Ironforge: noTarget
+--   feeds [3563] Teleport: Undercity: noTarget
+--   feeds [3567] Teleport: Orgrimmar: noTarget
+--   feeds [3565] Teleport: Darnassus: noTarget
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
 ForteXorcist.Data.Mage = {
   -- cooldowns
-  [12472] = { id = 12472, name = "Cold Snap", cooldownMs = 600000 },
-  [12051] = { id = 12051, name = "Evocation", durationMs = 8000, cooldownMs = 480000, gcdMs = 1500 },
-  [12042] = { id = 12042, name = "Arcane Power", durationMs = 15000, cooldownMs = 180000 },
-  [425121] = { id = 425121, name = "Icy Veins", durationMs = 20000, cooldownMs = 180000 },
+  [12472] = { id = 12472, name = "Cold Snap", noTarget = true, cooldownMs = 600000 },
+  [12051] = { id = 12051, name = "Evocation", tickEvery = 1, noTarget = true, durationMs = 8000, cooldownMs = 480000, gcdMs = 1500 },
+  [12042] = { id = 12042, name = "Arcane Power", noTarget = true, durationMs = 15000, cooldownMs = 180000 },
+  [425121] = { id = 425121, name = "Icy Veins", noTarget = true, durationMs = 20000, cooldownMs = 180000 },
   [425124] = { id = 425124, name = "Arcane Surge", durationMs = 8000, cooldownMs = 120000, gcdMs = 1500 },
   [440802] = { id = 440802, name = "Frozen Orb", durationMs = 16000, cooldownMs = 60000, gcdMs = 1500 },
   [401462] = { id = 401462, name = "Rewind Time", cooldownMs = 30000 },
-  [401556] = { id = 401556, name = "Living Flame", durationMs = 10000, cooldownMs = 30000, gcdMs = 1500 },
-  [428861] = { id = 428861, name = "Displacement", cooldownMs = 30000, gcdMs = 1500 },
+  [401556] = { id = 401556, name = "Living Flame", tickEvery = 0.4, durationMs = 10000, cooldownMs = 30000, gcdMs = 1500 },
+  [428861] = { id = 428861, name = "Displacement", noTarget = true, cooldownMs = 30000, gcdMs = 1500 },
   [428885] = { id = 428885, name = "Temporal Anomaly", durationMs = 16000, cooldownMs = 30000, gcdMs = 1500 },
-  [412510] = { id = 412510, name = "Mass Regeneration", durationMs = 3000, cooldownMs = 12000, gcdMs = 1500 },
-  [22007] = { id = 22007, name = "Netherwind Focus", durationMs = -1, cooldownMs = 10000 },
+  [412510] = { id = 412510, name = "Mass Regeneration", tickEvery = 1, durationMs = 3000, cooldownMs = 12000, gcdMs = 1500 },
+  [22007] = { id = 22007, name = "Netherwind Focus", noTarget = true, durationMs = -1, cooldownMs = 10000 },
   [1326082] = { id = 1326082, name = "Arcane Wrath", cooldownMs = 6000, cooldownCategory = 2601, gcdMs = 1500, castMs = 3500, rank = "Rank 4" },
   [400610] = { id = 400610, name = "Arcane Barrage", cooldownMs = 3000, gcdMs = 1500 },
   [10059] = { id = 10059, name = "Portal: Stormwind", durationMs = 60000, cooldownMs = 60000, gcdMs = 1500, castMs = 10000 },
@@ -31,7 +64,7 @@ ForteXorcist.Data.Mage = {
   [11419] = { id = 11419, name = "Portal: Darnassus", durationMs = 60000, cooldownMs = 60000, gcdMs = 1500, castMs = 10000 },
   [11420] = { id = 11420, name = "Portal: Thunder Bluff", durationMs = 60000, cooldownMs = 60000, gcdMs = 1500, castMs = 10000 },
   [28148] = { id = 28148, name = "Portal: Karazhan", durationMs = 60000, cooldownMs = 60000, gcdMs = 1500, castMs = 10000 },
-  [11129] = { id = 11129, name = "Combustion", durationMs = -1, cooldownMs = 180000, cooldownCategory = 1151 },
+  [11129] = { id = 11129, name = "Combustion", noTarget = true, durationMs = -1, cooldownMs = 180000, cooldownCategory = 1151 },
   [10161] = { id = 10161, name = "Cone of Cold", durationMs = 6000, cooldownMs = 10000, cooldownCategory = 50, gcdMs = 1500, rank = "Rank 5" },
   [10230] = { id = 10230, name = "Frost Nova", durationMs = 8000, cooldownMs = 25000, cooldownCategory = 35, gcdMs = 1500, rank = "Rank 4" },
   [428739] = { id = 428739, name = "Deep Freeze", durationMs = 5000, cooldownMs = 30000, cooldownCategory = 1221, gcdMs = 1500 },
@@ -46,37 +79,37 @@ ForteXorcist.Data.Mage = {
   [412123] = { id = 412123, name = "Mana Shield", durationMs = 60000, gcdMs = 1500, rank = "Rank 6" },
   [10170] = { id = 10170, name = "Amplify Magic", durationMs = 600000, gcdMs = 1500, rank = "Rank 4" },
   [10174] = { id = 10174, name = "Dampen Magic", durationMs = 600000, gcdMs = 1500, rank = "Rank 5" },
-  [130] = { id = 130, name = "Slow Fall", durationMs = 30000, gcdMs = 1500 },
-  [13033] = { id = 13033, name = "Ice Barrier", durationMs = 60000, cooldownMs = 30000, cooldownCategory = 471, gcdMs = 1500, rank = "Rank 4" },
-  [11958] = { id = 11958, name = "Ice Block", durationMs = 10000, cooldownMs = 300000, cooldownCategory = 37, gcdMs = 1500 },
+  [130] = { id = 130, name = "Slow Fall", noTarget = true, durationMs = 30000, gcdMs = 1500 },
+  [13033] = { id = 13033, name = "Ice Barrier", noTarget = true, durationMs = 60000, cooldownMs = 30000, cooldownCategory = 471, gcdMs = 1500, rank = "Rank 4" },
+  [11958] = { id = 11958, name = "Ice Block", noTarget = true, durationMs = 10000, cooldownMs = 300000, cooldownCategory = 37, gcdMs = 1500 },
   [16454] = { id = 16454, name = "Searing Blast", durationMs = 30000 },
-  [1326891] = { id = 1326891, name = "Frigid Power", durationMs = 60000 },
-  [1218701] = { id = 1218701, name = "Evoker", durationMs = 45000 },
+  [1326891] = { id = 1326891, name = "Frigid Power", noTarget = true, durationMs = 60000 },
+  [1218701] = { id = 1218701, name = "Evoker", maxStack = 12, durationMs = 45000 },
   [436516] = { id = 436516, name = "Chronostatic Preservation", durationMs = 20000, gcdMs = 1500, castMs = 2000 },
-  [401417] = { id = 401417, name = "Regeneration", durationMs = 3000, gcdMs = 1500 },
-  [10187] = { id = 10187, name = "Blizzard", durationMs = 8000, gcdMs = 1500, rank = "Rank 6" },
-  [400613] = { id = 400613, name = "Living Bomb", durationMs = 12000, gcdMs = 1500 },
-  [18809] = { id = 18809, name = "Pyroblast", durationMs = 12000, gcdMs = 1500, castMs = 6000, rank = "Rank 8" },
-  [10216] = { id = 10216, name = "Flamestrike", durationMs = 8000, gcdMs = 1500, castMs = 3000, rank = "Rank 6" },
-  [1237313] = { id = 1237313, name = "Frostfire Bolt", durationMs = 9000, gcdMs = 1500, castMs = 3000, rank = "Rank 3" },
+  [401417] = { id = 401417, name = "Regeneration", tickEvery = 1, durationMs = 3000, gcdMs = 1500 },
+  [10187] = { id = 10187, name = "Blizzard", tickEvery = 1, durationMs = 8000, gcdMs = 1500, rank = "Rank 6" },
+  [400613] = { id = 400613, name = "Living Bomb", tickEvery = 3, durationMs = 12000, gcdMs = 1500 },
+  [18809] = { id = 18809, name = "Pyroblast", tickEvery = 3, durationMs = 12000, gcdMs = 1500, castMs = 6000, rank = "Rank 8" },
+  [10216] = { id = 10216, name = "Flamestrike", tickEvery = 2, durationMs = 8000, gcdMs = 1500, castMs = 3000, rank = "Rank 6" },
+  [1237313] = { id = 1237313, name = "Frostfire Bolt", tickEvery = 3, durationMs = 9000, gcdMs = 1500, castMs = 3000, rank = "Rank 3" },
   [27868] = { id = 27868, name = "Freeze", durationMs = 3000 },
   -- utility
-  [22783] = { id = 22783, name = "Mage Armor", durationMs = 1800000, gcdMs = 1500, rank = "Rank 3" },
-  [7301] = { id = 7301, name = "Frost Armor", durationMs = 1800000, gcdMs = 1500, rank = "Rank 3" },
-  [10220] = { id = 10220, name = "Ice Armor", durationMs = 1800000, gcdMs = 1500, rank = "Rank 4" },
-  [428741] = { id = 428741, name = "Molten Armor", durationMs = 1800000, gcdMs = 1500 },
-  [1953] = { id = 1953, name = "Blink", durationMs = 1000, cooldownMs = 15000, cooldownCategory = 44, gcdMs = 1500 },
+  [22783] = { id = 22783, name = "Mage Armor", noTarget = true, durationMs = 1800000, gcdMs = 1500, rank = "Rank 3" },
+  [7301] = { id = 7301, name = "Frost Armor", noTarget = true, durationMs = 1800000, gcdMs = 1500, rank = "Rank 3" },
+  [10220] = { id = 10220, name = "Ice Armor", noTarget = true, durationMs = 1800000, gcdMs = 1500, rank = "Rank 4" },
+  [428741] = { id = 428741, name = "Molten Armor", tickEvery = 6, noTarget = true, durationMs = 1800000, gcdMs = 1500 },
+  [1953] = { id = 1953, name = "Blink", noTarget = true, durationMs = 1000, cooldownMs = 15000, cooldownCategory = 44, gcdMs = 1500 },
   [2139] = { id = 2139, name = "Counterspell", durationMs = 10000, cooldownMs = 30000, cooldownCategory = 88 },
   [12826] = { id = 12826, name = "Polymorph", durationMs = 50000, gcdMs = 1500, castMs = 1500, rank = "Rank 4" },
   [475] = { id = 475, name = "Remove Lesser Curse", gcdMs = 1500 },
   [412113] = { id = 412113, name = "Remove Greater Curse", gcdMs = 1500 },
-  [1297659] = { id = 1297659, name = "Teleport: Dalaran", gcdMs = 1500, castMs = 10000 },
-  [3561] = { id = 3561, name = "Teleport: Stormwind", gcdMs = 1500, castMs = 10000 },
-  [3566] = { id = 3566, name = "Teleport: Thunder Bluff", gcdMs = 1500, castMs = 10000 },
-  [3562] = { id = 3562, name = "Teleport: Ironforge", gcdMs = 1500, castMs = 10000 },
-  [3563] = { id = 3563, name = "Teleport: Undercity", gcdMs = 1500, castMs = 10000 },
-  [3567] = { id = 3567, name = "Teleport: Orgrimmar", gcdMs = 1500, castMs = 10000 },
-  [3565] = { id = 3565, name = "Teleport: Darnassus", gcdMs = 1500, castMs = 10000 },
+  [1297659] = { id = 1297659, name = "Teleport: Dalaran", noTarget = true, gcdMs = 1500, castMs = 10000 },
+  [3561] = { id = 3561, name = "Teleport: Stormwind", noTarget = true, gcdMs = 1500, castMs = 10000 },
+  [3566] = { id = 3566, name = "Teleport: Thunder Bluff", noTarget = true, gcdMs = 1500, castMs = 10000 },
+  [3562] = { id = 3562, name = "Teleport: Ironforge", noTarget = true, gcdMs = 1500, castMs = 10000 },
+  [3563] = { id = 3563, name = "Teleport: Undercity", noTarget = true, gcdMs = 1500, castMs = 10000 },
+  [3567] = { id = 3567, name = "Teleport: Orgrimmar", noTarget = true, gcdMs = 1500, castMs = 10000 },
+  [3565] = { id = 3565, name = "Teleport: Darnassus", noTarget = true, gcdMs = 1500, castMs = 10000 },
 }
 
 ForteXorcist.Data.MageByName = {

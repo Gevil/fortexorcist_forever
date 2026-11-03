@@ -222,6 +222,15 @@ local function place(self, row)
     return row
 end
 
+--- The registry entry a NAME has (the source of the row's DATA FEEDS, the
+--- same seam `kind` is read from below). The registry is keyed by name and is
+--- built from the generated data, so a feed is never hand-typed here; nil when
+--- the spell is not registered, which leaves every feed off the row.
+local function feedFor(spell)
+    local entries = FX.Timer.Registry and FX.Timer.Registry.entries
+    return entries and entries[spell]
+end
+
 -- ---------------------------------------------------------------- insert --
 --- The insert of a settled own cast (§3.5's `insertFromCast`, the
 --- `ST:AddNewTimer` law :888-940 with §3.3's (spell, target) keying).
@@ -247,6 +256,13 @@ function Rows:InsertFromCast(spell, targetKey, duration, now, castTime,
     hasteFactor = (type(hasteFactor) == "number" and hasteFactor > 0)
         and hasteFactor or 1
     kind = kind or FX.Timer.Registry.KindFor(spell)
+    -- The DATA FEED of the registry entry rides the row: the renderer's
+    -- tick-mark branch (`UI/Rows.lua`, delta D6) reads `row.tickEvery`, and the
+    -- entry -- built from the generated data, keyed by name -- is the only
+    -- lawful source of an interval (no spell data is hand-typed in this file).
+    -- nil in, nil out: a row of a spell the data gives no period for carries
+    -- none, which is what keeps the branch's `every and every > 0` gate closed.
+    local entry = feedFor(spell)
     local total = duration * hasteFactor
     local expire = now + total
 
@@ -289,6 +305,7 @@ function Rows:InsertFromCast(spell, targetKey, duration, now, castTime,
     row.alpha = 1
     row.hiddenSince = 0
     row.raidMark = 0
+    row.tickEvery = entry and entry.tickEvery
     row.fadeWarn = self:FadeWarnFor(spell)
     row.id = self.nextId
     self.nextId = self.nextId + 1
@@ -322,9 +339,11 @@ function Rows:InsertFromAura(spell, targetKey, expire, total, stacks,
         return existing, verdict
     end
     local row = newRow()
+    local entry = feedFor(spell)
     row.name = spell
     row.targetKey = targetKey
     row.kind = FX.Timer.Registry.KindFor(spell)
+    row.tickEvery = entry and entry.tickEvery
     row.total = total
     row.expireAt = expire
     row.drawExpireAt = expire
@@ -411,6 +430,11 @@ function Rows:OnAuraFact(row, factExpire, factTotal, stacks, now,
     fresh.predicted = false
     fresh.stacks = (type(stacks) == "number" and stacks) or 0
     fresh.hasteFactor = row.hasteFactor
+    -- The data feed rides the (spell, target) pair like the kind and the haste
+    -- factor: the refreshed row is the same window on the same unit, so its
+    -- tick-mark schedule (the renderer's `row.tickEvery`, delta D6) is the old
+    -- row's -- and the row's is the registry entry's, read at its insert.
+    fresh.tickEvery = row.tickEvery
     fresh.expireMsgAt = 0
     -- "the row is removed and re-inserted: new icon, new fade" (ST-25, the
     -- law this refresh site quotes): a re-applied CC gets a fresh

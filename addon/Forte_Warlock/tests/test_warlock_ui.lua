@@ -1046,13 +1046,19 @@ test("the four index cells have pages and build in the options window", function
         assertEquals(0, counts[1])               -- Some Tips is text lines
         assertEquals(4, counts[2])               -- the shared Basics row
         if raidSpy == 1 then
-            assertEquals(2, counts[3])           -- the Raid Spy section
+            -- Wave 4 added Auto/Details/DetailsAuto to the Raid Spy half.
+            assertEquals(5, counts[3])           -- the Raid Spy section
             assertTrue(counts[4] >= 1)           -- Frame Sizing
-            assertEquals(3, counts[5])           -- Coloring
         else
             assertTrue(counts[3] >= 1)           -- Frame Sizing
-            assertEquals(3, counts[4])           -- Coloring
         end
+        -- The Coloring half's wave-4 growth: the Soulstone page carries the
+        -- ShowReady gate + the Resurrect picker (2012 ShowReady/ReadyColor,
+        -- Forte_Soulstone.lua:608-609), the Healthstone page the four spy-
+        -- bar ramp pickers (:303-306 LITTLE/MANY x hs/unknown).
+        local colouring = { ShardManager = 3, Soulstone = 5,
+            Healthstone = 7, Summon = 3 }
+        assertEquals(colouring[id], counts[4 + raidSpy])
         assertNotNil(page.sections[1].lines[1])
         assertNotNil(FX.Options.header)
         assertNotNil(FX.Options.header.bar)
@@ -1139,4 +1145,296 @@ test("the clock format is the original's compact m:ss", function()
     assertEquals("(target unread)", Frame.FormatTarget(nil))
     assertEquals("(target unread)", Frame.FormatTarget(""))
     assertEquals("Meinhertz", Frame.FormatTarget("Meinhertz"))
+end)
+
+-- ==================================================================== Wave 4 --
+-- The Warlock-page rows Options WL+Msg wired to live consumers (PLAN §11.1
+-- row 3: the Soulstone Expand/Ready pair, the Healthstone colour pair +
+-- Details/Auto/Space, the Summon Details/Expand pair). Each of these tests
+-- CANNOT pass on the pre-Wave-4 files -- the keymap entries, the plate
+-- features and the page rows are all of this slice -- and each drives the
+-- setting through the REAL store (`ST:Set`), the way the player changes it:
+-- the frames' own `_HookSettings` relay is what must answer, never a call of
+-- a setter. Geometry is asserted on the real anchors' points.
+
+--- The plate BODY's one anchor -- the expand law's observable: the body is
+--- the bar run's frame and its single point is the whole of the law (down:
+--- its TOPLEFT at the plate's TOPLEFT; up: its BOTTOMLEFT pinned to the
+--- plate's TOPLEFT). The no-arg GetPoint() is the tree's read (the position
+--- rows all read it, Frame.lua:586, Swing.lua:330): it answers
+--- point, relativeTo, relativePoint, x, y.
+local function bodyPoint(f)
+    local ok, point, _, relPoint, x, y = pcall(function()
+        return f.body:GetPoint()
+    end)
+    assertTrue(ok, "the plate's body answers GetPoint")
+    return point, relPoint, x, y
+end
+
+test("SoulstoneExpand moves the bar run above the plate (the 2012 ExpandUp)",
+function()
+    ensureBuilt()
+    local p0, r0, x0, y0 = bodyPoint(Stone)
+    assertEquals("TOPLEFT", p0, "the body hangs below the plate by default")
+    assertEquals("TOPLEFT", r0)
+    assertEquals(0, y0)
+    ST:Set("Warlock", "SoulstoneExpand", true)
+    local p1, r1 = bodyPoint(Stone)
+    assertEquals("BOTTOMLEFT", p1, "the body's BOTTOM is pinned to the "
+        .. "plate's TOP: the run grows UPWARD (Forte_Soulstone.lua:121)")
+    assertEquals("TOPLEFT", r1, "the pin is the plate's top")
+    ST:Set("Warlock", "SoulstoneExpand", false)
+    local p2, _, _, y2 = bodyPoint(Stone)
+    assertEquals("TOPLEFT", p2, "off is the default layout back")
+    assertEquals(y0, y2)
+end)
+
+test("the soulstone ready readout is gated: off prints `no ss up`, on prints "
+.. "`ready to res` in the Resurrect colour", function()
+    ensureBuilt()
+    local box = { 1000 }
+    local clock = fakeClock(box)
+    Stone.clock = clock
+    local t = WK.NewSoulstoneTracker({ now = clock, duration = 60000,
+        onExpire = function() end })
+    Stone:SetTracker(t)
+    -- A window that has run out: the tracker's Ready() is the fact, and the
+    -- plate's readout is the gate's answer. Driven the Core suite's way
+    -- (test_warlock.lua:363-367): OnCastSent/OnCast on the box clock, then
+    -- the observed Expire. The readout rides the plate's RIGHT label
+    -- (infoFS, the `no ss up` slot -- Forte_Soulstone.lua:291).
+    t:OnCastSent("Create Soulstone", "Gvil")
+    t:OnCast("Create Soulstone")
+    t:Expire(1000 + 60000)
+    assertTrue(t:Ready(), "the tracker knows the window ran out")
+    ST:Set("Warlock", "SoulstoneShowReady", false)
+    Stone:Update(1000 + 60000)
+    assertEquals("no ss up", Stone.infoFS:GetText(),
+        "gate off: the plate prints the plain idle line (the 2012 ShowReady "
+        .. "gate, Forte_Soulstone.lua:608, default false :667)")
+    ST:Set("Warlock", "SoulstoneShowReady", true)
+    Stone:Update(1000 + 60000)
+    assertEquals("ready to res", Stone.infoFS:GetText(),
+        "gate on: the FWL ready line (Forte_Soulstone.lua:309)")
+    local r, g, b = Stone.infoFS:GetTextColor()
+    near3(r, StS.ReadyColour[1])
+    near3(g, StS.ReadyColour[2])
+    near3(b, StS.ReadyColour[3])
+    -- A fresh stone on its way closes the readout (the tracker's law).
+    box[1] = 1000 + 60000
+    t:OnCastSent("Create Soulstone", "Gvil")
+    t:OnCast("Create Soulstone")
+    Stone:Update(1000 + 60000 + 1000)
+    assertNotEquals("ready to res", Stone.infoFS:GetText())
+    ST:Set("Warlock", "SoulstoneShowReady", false)
+    Stone:SetTracker(nil)
+    Stone.clock = nil
+end)
+
+test("the Resurrect colour picker paints the readout live", function()
+    ensureBuilt()
+    local box = { 1000 }
+    Stone.clock = fakeClock(box)
+    local t = WK.NewSoulstoneTracker({ now = fakeClock(box),
+        duration = 60000, onExpire = function() end })
+    Stone:SetTracker(t)
+    t:OnCastSent("Create Soulstone", "Gvil")
+    t:OnCast("Create Soulstone")
+    t:Expire(61000)
+    ST:Set("Warlock", "SoulstoneShowReady", true)
+    Stone:Update(61000)
+    ST:Set("Warlock", "SoulstoneReadyColour", { 1.00, 0.00, 0.00, 1 })
+    Stone:Update(61000)
+    local r, g, b = Stone.infoFS:GetTextColor()
+    near3(r, 1.0); near3(g, 0.0); near3(b, 0.0)
+    ST:Set("Warlock", "SoulstoneShowReady", false)
+    ST:Reset("Warlock", "SoulstoneReadyColour")
+    Stone:SetTracker(nil)
+    Stone.clock = nil
+end)
+
+test("HealthstoneAuto hides the plate outside a group; the bars gate "
+.. "independently (Details / DetailsAuto)", function()
+    ensureBuilt()
+    local box = { 1000 }
+    HS.clock = fakeClock(box)
+    -- The tree's injected-tracker idiom (this file's own :187-190,
+    -- test_warlock.lua:377-379): countReader answers the bags.
+    local t = WK.NewHealthstoneTracker({
+        now = fakeClock(box),
+        countReader = function() return 3 end,
+        cooldownReader = function() return nil end,
+    })
+    HS:SetTracker(t)
+    t:ReadCounts()
+    HS:SetSpy(nil)
+    HS:Update(1000)
+    assertTrue(HS:IsShown(), "stones in the bags, no group: the plate shows")
+    ST:Set("Warlock", "HealthstoneAuto", true)
+    HS:Update(1000)
+    assertFalse(HS:IsShown(), "auto-hide with no roster: the plate is away "
+        .. "(the 2012 `not HealthstoneAuto or GROUPED`, :13)")
+    ST:Set("Warlock", "HealthstoneAuto", false)
+    HS:Update(1000)
+    assertTrue(HS:IsShown())
+    -- The bars' half: with the spy live and DetailsAuto on, the header
+    -- stays and the bars go outside a group.
+    local group = {
+        HealthstoneSummary = function()
+            return { stones = 2, active = 2, unknown = 1, missing = 0 }
+        end,
+    }
+    HS:SetSpy(group)
+    ST:Set("Warlock", "HealthstoneDetailsAuto", true)
+    HS:Update(1000)
+    assertTrue(HS.row:IsShown(), "with a roster the bars ride AUTO_MINIMIZE "
+        .. "open (the GROUPED side)")
+    HS:SetSpy(nil)
+    HS:Update(1000)
+    assertFalse(HS.row:IsShown(), "no roster: DetailsAuto hides the bars "
+        .. "while the plate's own count keeps the header (Forte_Healthstone"
+        .. ".lua:143)")
+    ST:Set("Warlock", "HealthstoneDetails", false)
+    ST:Set("Warlock", "HealthstoneDetailsAuto", false)
+    HS:Update(1000)
+    assertFalse(HS.row:IsShown(), "Show bars off hides them in a group too")
+    assertTrue(HS:IsShown(), "the header line stays (FWL.SHOW_BARS_TT)")
+    ST:Set("Warlock", "HealthstoneDetails", true)
+    HS:SetTracker(nil)
+    HS:SetSpy(nil)
+    HS.clock = nil
+end)
+
+test("the Healthstone colour pickers drive the spy bars' ramp", function()
+    ensureBuilt()
+    HS:SetSpy({
+        HealthstoneSummary = function()
+            -- stones == active: the Total bar is FULL, so ColorVal(1) is
+            -- exactly HealthstoneMaxColor (Forte_Healthstone.lua:140,:105).
+            return { stones = 3, active = 3, unknown = 0, missing = 0 }
+        end,
+    })
+    HS.clock = fakeClock({ 1000 })
+    HS:SetTracker(nil)
+    ST:Set("Warlock", "HealthstoneMaxColor", { 0.10, 0.20, 0.30, 1 })
+    ST:Set("Warlock", "HealthstoneMinColor", { 0.90, 0.80, 0.70, 1 })
+    HS:Update(1000)
+    local r, g, b = HS.fill:GetVertexColor()
+    near3(r, 0.10); near3(g, 0.20); near3(b, 0.30)
+    -- And the mix: an EMPTY Total bar reads the Min colour (ColorVal(0)).
+    HS._spyKey = nil
+    HS:SetSpy({
+        HealthstoneSummary = function()
+            return { stones = 0, active = 4, unknown = 0, missing = 4 }
+        end,
+    })
+    HS:Update(1000)
+    local r2, g2, b2 = HS.fill:GetVertexColor()
+    near3(r2, 0.90); near3(g2, 0.80); near3(b2, 0.70)
+    ST:Reset("Warlock", "HealthstoneMaxColor")
+    ST:Reset("Warlock", "HealthstoneMinColor")
+    HS:SetSpy(nil)
+    HS.clock = nil
+end)
+
+test("HealthstoneSpace relayouts the bar run (the 2012 BAR_SPACING)",
+function()
+    ensureBuilt()
+    -- The spacing's observable is the spy run's row anchor: a row rides
+    -- `RowY - i*(RowHeight+RowSpace)` (ExtraRow's law, Frame.lua:830 --
+    -- Forte_Healthstone.lua:296-301), so the No-info bar's y offset IS the
+    -- key. The run is built by the real spy path (unknown > 0 rides the
+    -- default HealthstoneUnknown on).
+    HS.clock = fakeClock({ 1000 })
+    HS:SetTracker(nil)
+    HS:SetSpy({
+        HealthstoneSummary = function()
+            return { stones = 3, active = 2, unknown = 1, missing = 0 }
+        end,
+    })
+    HS:Update(1000)
+    local e = HS.extraRows and HS.extraRows[1]
+    assertNotNil(e, "the No-info bar rode the default spacing")
+    local _, _, _, _, y0 = e.row:GetPoint()
+    ST:Set("Warlock", "HealthstoneSpace", 7)
+    local _, _, _, _, y1 = HS.extraRows[1].row:GetPoint()
+    assertTrue(y1 < y0 - 0.5, "the row steps move by the spacing ("
+        .. tostring(y0) .. " -> " .. tostring(y1) .. ")")
+    ST:Reset("Warlock", "HealthstoneSpace")
+    local _, _, _, _, y2 = HS.extraRows[1].row:GetPoint()
+    assertEquals(y0, y2, "the default spacing is the old layout")
+    HS:SetSpy(nil)
+    HS.clock = nil
+end)
+
+test("SummonExpand and SummonDetails move and hide the ritual rows",
+function()
+    ensureBuilt()
+    local p0 = bodyPoint(Summon)
+    assertEquals("TOPLEFT", p0)
+    ST:Set("Warlock", "SummonExpand", true)
+    assertEquals("BOTTOMLEFT", (bodyPoint(Summon)))
+    ST:Set("Warlock", "SummonExpand", false)
+    assertEquals("TOPLEFT", (bodyPoint(Summon)))
+    -- Details off: a live channel keeps the plate and its clock, the bars
+    -- go (the 2012 SummonDetails law, Forte_Summon.lua:562).
+    local box = { 20000 }
+    Summon.clock = fakeClock(box)
+    local t = WK.NewSummonTracker({ now = fakeClock(box),
+        channelSeconds = 5 })
+    Summon:SetTracker(t)
+    t:OnCastSent("Ritual of Summoning", "Gvil")
+    Summon:Update(21000)
+    assertTrue(Summon:IsShown() and Summon.row:IsShown(),
+        "the channel's bar rides the plate")
+    ST:Set("Warlock", "SummonDetails", false)
+    Summon:Update(21000)
+    assertTrue(Summon:IsShown(), "the header stays")
+    assertFalse(Summon.row:IsShown(), "the bar does not")
+    ST:Set("Warlock", "SummonDetails", true)
+    Summon:Update(21000)
+    assertTrue(Summon.row:IsShown())
+    Summon:SetTracker(nil)
+    Summon.clock = nil
+end)
+
+test("every Wave 4 key on the four pages lands on a real plate seam",
+function()
+    ensureBuilt()
+    local pairs = {
+        { Stone, "SoulstoneExpand" }, { Stone, "SoulstoneShowReady" },
+        { Stone, "SoulstoneReadyColour" },
+        { HS, "HealthstoneExpand" }, { HS, "HealthstoneAuto" },
+        { HS, "HealthstoneDetails" }, { HS, "HealthstoneDetailsAuto" },
+        { HS, "HealthstoneSpace" }, { HS, "HealthstoneMinColor" },
+        { HS, "HealthstoneMaxColor" }, { HS, "HealthstoneUnknownMinColor" },
+        { HS, "HealthstoneUnknownMaxColor" },
+        { Summon, "SummonDetails" }, { Summon, "SummonExpand" },
+    }
+    for _ = 1, #pairs do
+        local view, key = pairs[_][1], pairs[_][2]
+        -- The frames keep their page keymap in `KEYMAP` (Frame:new,
+        -- Frame.lua:260) -- the relay's resolved copy is `_keymap`.
+        local method = view.KEYMAP and view.KEYMAP[key]
+        assertNotNil(method, key .. ": the frame's keymap names it")
+        assertEquals("function", type(view[method]),
+            key .. " -> " .. tostring(method) .. ": a real seam")
+    end
+    -- The interval key's consumer is the comms module, not a plate.
+    assertContains(FX.Warlock.Comms:AnnounceGap() >= 0.5 and "cadence" or "",
+        "cadence", "HealthstoneInterval paces Core/Comms.lua")
+    local real = FX.Settings.Get
+    local store = {}
+    FX.Settings.Get = function(s, m, k)
+        if k == "HealthstoneInterval" then return store.v end
+        return real(s, m, k)
+    end
+    store.v = 5
+    assertEquals(5, FX.Warlock.Comms:AnnounceGap(),
+        "the key paces the spy's restatement")
+    store.v = 0.1
+    assertEquals(0.5, FX.Warlock.Comms:AnnounceGap(),
+        "clamped to the option's own SetRange(0.5,5)")
+    store.v = nil
+    FX.Settings.Get = real
 end)

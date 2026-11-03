@@ -285,6 +285,90 @@ test("soulstone: an explicit window length expires it", function()
     assertNil(t:Remaining())
 end)
 
+-- 9b. The window's end is the moment the 2012 panel rings its two soulstone
+-- bells (Forte_Soulstone.lua:429-445 the tracked stone's expiry,
+-- :461-464 the warlock's stone-cooldown end; the seeding law that makes the
+-- two one instant on this self-only port is documented in
+-- Forte_Core/Core/Events.lua). The fire is the tracker's `onExpire` seam,
+-- and the PRODUCTION tracker carries the closure that fires the bus pair --
+-- this drives that production closure, not a test's own.
+test("soulstone: the window's end fires the bus pair once, and Ready opens",
+function()
+    local fired = {}
+    local realFire = FX.Fire
+    FX.Fire = function(event, target, at)
+        fired[#fired + 1] = { event = event, target = target, at = at }
+    end
+    local keep = {
+        onExpire = Tools.Soulstone.onExpire, active = Tools.Soulstone.active,
+        start = Tools.Soulstone.start, target = Tools.Soulstone.target,
+        duration = Tools.Soulstone.duration, now = Tools.Soulstone.now,
+        readyAt = Tools.Soulstone.readyAt,
+    }
+    local box = { 1000 }
+    Tools.Soulstone.now = fakeClock(box)
+    Tools.Soulstone.duration = 60
+    Tools.Soulstone:Clear()
+    Tools.Soulstone:OnCast("Create Soulstone", "Gvil")
+    box[1] = 1030
+    assertTrue(Tools.Soulstone:Active())
+    assertEquals(0, #fired, "no bell while the stone is up")
+    assertFalse(Tools.Soulstone:Ready())
+    box[1] = 1060
+    assertFalse(Tools.Soulstone:Active(), "the window lapsed")
+    FX.Fire = realFire
+    assertEquals(2, #fired, "the pair, one fire each")
+    assertEquals("FX_SOULSTONE_EXPIRED", fired[1] and fired[1].event)
+    assertEquals("FX_SOULSTONE_READY", fired[2] and fired[2].event)
+    assertEquals("Gvil", fired[1] and fired[1].target)
+    assertEquals(1060, fired[1] and fired[1].at)
+    -- The ready half stays open (the plate's READY_TO_RES look rides it) and
+    -- re-observing the lapsed window rings nothing a second time.
+    assertTrue(Tools.Soulstone:Ready(), "ready to put a new stone up")
+    assertEquals(2, #fired)
+    fired = {}
+    FX.Fire = function(event) fired[#fired + 1] = event end
+    box[1] = 1099
+    assertFalse(Tools.Soulstone:Active())
+    FX.Fire = realFire
+    assertEquals(0, #fired, "one window, one ring")
+    Tools.Soulstone.active, Tools.Soulstone.start, Tools.Soulstone.target,
+        Tools.Soulstone.duration, Tools.Soulstone.now,
+        Tools.Soulstone.readyAt =
+        keep.active, keep.start, keep.target, keep.duration, keep.now,
+        keep.readyAt
+end)
+
+-- 9c. The owner's Clear is NOT an expiry: a class change, a re-login or a
+-- disable puts the window away and rings nothing (the 2012 panel drops the
+-- row in the same branch that plays the bell, so the pair needs a window
+-- that RAN, not one that was taken away).
+test("soulstone: the owner's Clear fires nothing and closes the ready look",
+function()
+    local fired = 0
+    local t = WK.NewSoulstoneTracker({
+        now = fakeClock({ 500 }), duration = 60,
+        onExpire = function() fired = fired + 1 end,
+    })
+    t:OnCast("Create Soulstone", "Gvil")
+    t:Clear()
+    assertEquals(0, fired, "an owner's Clear is not an expiry")
+    assertFalse(t:Ready(), "and it leaves no ready claim")
+end)
+
+-- 9d. A fresh stone closes the ready look: the plate prints `no ss up` (and
+-- the x1 row) while a window runs, never `ready to res` beside a live stone.
+test("soulstone: a new stone closes the ready look", function()
+    local box = { 100 }
+    local t = WK.NewSoulstoneTracker({ now = fakeClock(box), duration = 30 })
+    t:OnCast("Create Soulstone", "Gvil")
+    box[1] = 130
+    assertFalse(t:Active())
+    assertTrue(t:Ready())
+    t:OnCast("Create Soulstone", "Gvil")
+    assertFalse(t:Ready(), "the new stone owns the slot, not the ready look")
+end)
+
 -- ============================================================ HealthstoneTracker --
 
 -- 10. Bag presence: a plain count is a fact; nil is not.

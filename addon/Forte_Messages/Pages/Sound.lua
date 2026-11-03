@@ -46,6 +46,19 @@ P.DEFAULTS[M] = {
     CooldownReadyEnable = false,
     CooldownReadyPath = "Sound\\Spells\\SimonGame_Visual_GameStart.wav",
     CooldownReadyTimes = 1,
+    -- The soulstone pair: the original's two `SND` rows on the Soulstone
+    -- Tracker's Bar Coloring sub (Forte_Soulstone.lua:640-641), defaults
+    -- verbatim at :677-678 -- `{[0]=true,
+    -- "Interface\\AddOns\\Forte_Core\\Sounds\\SoulstoneExpire.mp3", 1}` and
+    -- `{[0]=true, "Sound\\Spells\\SimonGame_Visual_GameTick.wav", 1}`. The
+    -- labels are the original's FWL.EXPIRED / FWL.READY
+    -- (Forte_Soulstone/Localization.lua:68-69).
+    SoulstoneFadeEnable = true,
+    SoulstoneFadePath = "Interface\\AddOns\\Forte_Core\\Sounds\\SoulstoneExpire.mp3",
+    SoulstoneFadeTimes = 1,
+    SoulstoneReadyEnable = true,
+    SoulstoneReadyPath = "Sound\\Spells\\SimonGame_Visual_GameTick.wav",
+    SoulstoneReadyTimes = 1,
     -- NO resist row (m4, review 4). The original's TimerResistSound
     -- (Forte_Timer.lua:3299, "Sound\\Spells\\SimonGame_Visual_BadPress.wav",
     -- 1) has no legal Forever signal: its site is a resisted aura
@@ -85,6 +98,26 @@ TIPS.CooldownReadyEnable = "NEW (spec CD-33): the original's Cooldown module "
 TIPS.CooldownReadyPath = "The sound file (a path the original itself ships "
     .. "a default for, Forte_Timer.lua:3301). Applied live."
 TIPS.CooldownReadyTimes = "Repeat count (the sound law's third slot). "
+    .. "Applied live."
+TIPS.SoulstoneFadeEnable = "Play the original's Expired sound when a tracked "
+    .. "soulstone's window runs out (the SND row Forte_Soulstone.lua:640, "
+    .. "played at its :429-445 expiry site; the FX_SOULSTONE_EXPIRED site). "
+    .. "Applied live."
+TIPS.SoulstoneFadePath = "The sound file (the original's shipped default, "
+    .. "Forte_Soulstone.lua:677). The file ships with this build as "
+    .. "Forte_Core/Sounds/SoulstoneExpire.mp3 (vendored unmodified, see "
+    .. "Forte_Core/ATTRIBUTION.md), so the stock path resolves; any game "
+    .. "sound path plays. Applied live."
+TIPS.SoulstoneFadeTimes = "Repeat count (the original's third slot: 1). "
+    .. "Applied live."
+TIPS.SoulstoneReadyEnable = "Play the original's Ready sound when the "
+    .. "warlock is ready to put a new soulstone up (the SND row "
+    .. "Forte_Soulstone.lua:641, played at its :461-464 cooldown-end site; "
+    .. "the FX_SOULSTONE_READY site). Applied live."
+TIPS.SoulstoneReadyPath = "The sound file (the original's shipped default: "
+    .. "Sound\\Spells\\SimonGame_Visual_GameTick.wav, Forte_Soulstone.lua:678 "
+    .. "-- a game sound, playable as shipped). Applied live."
+TIPS.SoulstoneReadyTimes = "Repeat count (the original's third slot: 1). "
     .. "Applied live."
 
 function P.RegisterSoundPage()
@@ -165,6 +198,39 @@ function P.RegisterSoundPage()
                         "CooldownReadyTimes" },
                     tip = "NEW (CD-33): the original plays nothing at a "
                         .. "ready pop; opt in here.",
+                })
+                -- The Soulstone Tracker's own pair, the original's FWL.EXPIRED
+                -- and FWL.READY rows (Forte_Soulstone.lua:640-641) and its
+                -- shipped defaults (:677-678), at its two play sites
+                -- (:429-445 the window's expiry, :461-464 the warlock's
+                -- stone-cooldown end -- one instant on this self-only port).
+                b.Section("Soulstone Expired", function(s)
+                    s.CHK({ module = M, key = "SoulstoneFadeEnable",
+                        label = "Expired", tip = TIPS.SoulstoneFadeEnable })
+                    s.STR({ module = M, key = "SoulstoneFadePath",
+                        label = "Sound file", tip = TIPS.SoulstoneFadePath })
+                    s.NUM({ module = M, key = "SoulstoneFadeTimes",
+                        label = "Repeat", min = 1, max = 9, step = 1,
+                        tip = TIPS.SoulstoneFadeTimes })
+                end, {
+                    module = M,
+                    keys = { "SoulstoneFadeEnable", "SoulstoneFadePath",
+                        "SoulstoneFadeTimes" },
+                    tip = "The original's SoulstoneFadeSound, verbatim.",
+                })
+                b.Section("Soulstone Ready", function(s)
+                    s.CHK({ module = M, key = "SoulstoneReadyEnable",
+                        label = "Ready", tip = TIPS.SoulstoneReadyEnable })
+                    s.STR({ module = M, key = "SoulstoneReadyPath",
+                        label = "Sound file", tip = TIPS.SoulstoneReadyPath })
+                    s.NUM({ module = M, key = "SoulstoneReadyTimes",
+                        label = "Repeat", min = 1, max = 9, step = 1,
+                        tip = TIPS.SoulstoneReadyTimes })
+                end, {
+                    module = M,
+                    keys = { "SoulstoneReadyEnable", "SoulstoneReadyPath",
+                        "SoulstoneReadyTimes" },
+                    tip = "The original's SoulstoneReadySound, verbatim.",
                 })
             end,
         })

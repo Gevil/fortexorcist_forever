@@ -2,88 +2,120 @@
 -- Source: mythicsim-forever-engine/data/spells.jsonl, client_build 1.60.1.70425
 -- Overlay: wowsims/forever 164d1cf632c127534f1d536c1aaf08b023a5dc68 build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
--- Regenerated: 2026-11-02T19:08:53+00:00
+-- Regenerated: 2026-11-02T23:57:13+00:00
 -- 70707 overlay changes in this file (9):
---   Swift Judgement: { id = 1310994, name = "Swift Judgement", durationMs = -1, cooldownMs = 60000 } -> { id = 1310994, name = "Swift Judgement", cooldownMs = 60000 }
+--   Swift Judgement: { id = 1310994, name = "Swift Judgement", noTarget = true, durationMs = -1, cooldownMs = 60000 } -> { id = 1310994, name = "Swift Judgement", noTarget = true, cooldownMs = 60000 }
 --   Blessing of Light: { id = 19979, name = "Blessing of Light", durationMs = 3600000, gcdMs = 1500, rank = "Rank 3" } -> { id = 26650, name = "Blessing of Light" }
 --   Blessing of Might: { id = 25291, name = "Blessing of Might", durationMs = 3600000, gcdMs = 1500, rank = "Rank 7" } -> { id = 19838, name = "Blessing of Might", durationMs = 3600000, gcdMs = 1500, rank = "Rank 6" }
---   Blessing of Wisdom: { id = 25290, name = "Blessing of Wisdom", durationMs = 3600000, gcdMs = 1500, rank = "Rank 6" } -> { id = 19854, name = "Blessing of Wisdom", durationMs = 3600000, gcdMs = 1500, rank = "Rank 5" }
+--   Blessing of Wisdom: { id = 25290, name = "Blessing of Wisdom", tickEvery = 5, durationMs = 3600000, gcdMs = 1500, rank = "Rank 6" } -> { id = 19854, name = "Blessing of Wisdom", tickEvery = 5, durationMs = 3600000, gcdMs = 1500, rank = "Rank 5" }
 --   Greater Blessing of Might: { id = 25916, name = "Greater Blessing of Might", durationMs = 3600000, gcdMs = 1500, rank = "Rank 2" } -> { id = 25782, name = "Greater Blessing of Might", durationMs = 3600000, gcdMs = 1500, rank = "Rank 1" }
---   Greater Blessing of Wisdom: { id = 25918, name = "Greater Blessing of Wisdom", durationMs = 3600000, gcdMs = 1500, rank = "Rank 2" } -> { id = 25894, name = "Greater Blessing of Wisdom", durationMs = 3600000, gcdMs = 1500, rank = "Rank 1" }
+--   Greater Blessing of Wisdom: { id = 25918, name = "Greater Blessing of Wisdom", tickEvery = 5, durationMs = 3600000, gcdMs = 1500, rank = "Rank 2" } -> { id = 25894, name = "Greater Blessing of Wisdom", tickEvery = 5, durationMs = 3600000, gcdMs = 1500, rank = "Rank 1" }
 --   Blessing of Sacrifice: { id = 20729, name = "Blessing of Sacrifice", durationMs = 30000, gcdMs = 1500, rank = "Rank 2" } -> { id = 20729, name = "Blessing of Sacrifice", durationMs = 30000, cooldownCategory = 25, gcdMs = 1500, rank = "Rank 2" }
---   Seal of Command: { id = 20920, name = "Seal of Command", durationMs = 30000, gcdMs = 1500, rank = "Rank 5" } -> { id = 20920, name = "Seal of Command", durationMs = 30000, gcdMs = 1500, icdMs = 1000, rank = "Rank 5" }
---   Rebuke: { id = 425616, name = "Rebuke" } -> { id = 1302716, name = "Rebuke", icdMs = 60000 }
+--   Seal of Command: { id = 20920, name = "Seal of Command", noTarget = true, durationMs = 30000, gcdMs = 1500, rank = "Rank 5" } -> { id = 20920, name = "Seal of Command", noTarget = true, durationMs = 30000, gcdMs = 1500, icdMs = 1000, rank = "Rank 5" }
+--   Rebuke: { id = 425616, name = "Rebuke", noTarget = true } -> { id = 1302716, name = "Rebuke", icdMs = 60000 }
 -- Rows dropped on 70707 (5):
 --   Blessing of Light: id(s) 19977, 19978, 19979 removed on 70707 -> re-picked 26650 -- no captured 70707 values, live probe needed
 --   Greater Blessing of Light: id(s) 25890 removed on 70707 -- the name is gone from the build's Names table, row dropped
 --   Salvation: id(s) 1038 removed on 70707 -- the name is gone from the build's Names table, row dropped
 --   Mass Salvation: id(s) 25895 removed on 70707 -- the name is gone from the build's Names table, row dropped
 --   Revoke: id(s) 1325499 removed on 70707 -- the name is gone from the build's Names table, row dropped
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (base row `Effects[].PeriodMs`), `maxStack` = the row's own `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). BASE DATA ONLY: the 70707 overlay captures no Effects/MaxStack/Target (see tools/overrides_70707.json's per-id keys), so it can not add, remove or move a feed -- a 70707-sourced or store-rank row carries none. This file: 4 tickEvery, 1 maxStack, 27 noTarget.
+--   feeds [1311015] Templar's Bulwark: noTarget
+--   feeds [407788] Avenging Wrath: noTarget
+--   feeds [1310897] Voice of Truth: noTarget
+--   feeds [20216] Divine Favor: noTarget
+--   feeds [409324] Ancestral Guidance: noTarget
+--   feeds [1310994] Swift Judgement: noTarget
+--   feeds [20928] Holy Shield: noTarget
+--   feeds [1020] Divine Shield: noTarget
+--   feeds [5573] Divine Protection: noTarget
+--   feeds [19854] Blessing of Wisdom: tickEvery = 5
+--   feeds [25894] Greater Blessing of Wisdom: tickEvery = 5
+--   feeds [409906] Beacon of Light: noTarget
+--   feeds [1326084] Reckoning: maxStack = 4, noTarget
+--   feeds [409932] Aura Mastery: noTarget
+--   feeds [20293] Seal of Righteousness: noTarget
+--   feeds [20920] Seal of Command: noTarget
+--   feeds [20357] Seal of Wisdom: noTarget
+--   feeds [20349] Seal of Light: noTarget
+--   feeds [20164] Seal of Justice: noTarget
+--   feeds [20308] Seal of the Crusader: noTarget
+--   feeds [10293] Devotion Aura: noTarget
+--   feeds [10301] Retribution Aura: noTarget
+--   feeds [19746] Concentration Aura: noTarget
+--   feeds [19896] Shadow Resistance Aura: noTarget
+--   feeds [19898] Frost Resistance Aura: noTarget
+--   feeds [19900] Fire Resistance Aura: noTarget
+--   feeds [25780] Righteous Fury: noTarget
+--   feeds [28787] Cleanse: noTarget
+--   feeds [20924] Consecration: tickEvery = 1
+--   feeds [409914] Crusader Strike: noTarget
+--   feeds [440675] Righteous Judgement: tickEvery = 2
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
 ForteXorcist.Data.Paladin = {
   -- cooldowns
   [19752] = { id = 19752, name = "Divine Intervention", cooldownMs = 3600000, gcdMs = 1500 },
-  [1311015] = { id = 1311015, name = "Templar's Bulwark", durationMs = 8000, cooldownMs = 300000 },
-  [407788] = { id = 407788, name = "Avenging Wrath", durationMs = 20000, cooldownMs = 180000 },
-  [1310897] = { id = 1310897, name = "Voice of Truth", durationMs = 6000, cooldownMs = 180000 },
-  [20216] = { id = 20216, name = "Divine Favor", durationMs = -1, cooldownMs = 120000 },
+  [1311015] = { id = 1311015, name = "Templar's Bulwark", noTarget = true, durationMs = 8000, cooldownMs = 300000 },
+  [407788] = { id = 407788, name = "Avenging Wrath", noTarget = true, durationMs = 20000, cooldownMs = 180000 },
+  [1310897] = { id = 1310897, name = "Voice of Truth", noTarget = true, durationMs = 6000, cooldownMs = 180000 },
+  [20216] = { id = 20216, name = "Divine Favor", noTarget = true, durationMs = -1, cooldownMs = 120000 },
   [462853] = { id = 462853, name = "Hand of Sacrifice", durationMs = 12000, cooldownMs = 120000, gcdMs = 1500 },
   [20066] = { id = 20066, name = "Repentance", durationMs = 6000, cooldownMs = 60000, gcdMs = 1500 },
-  [409324] = { id = 409324, name = "Ancestral Guidance", durationMs = 10000, cooldownMs = 60000 },
-  [1310994] = { id = 1310994, name = "Swift Judgement", cooldownMs = 60000 },
+  [409324] = { id = 409324, name = "Ancestral Guidance", noTarget = true, durationMs = 10000, cooldownMs = 60000 },
+  [1310994] = { id = 1310994, name = "Swift Judgement", noTarget = true, cooldownMs = 60000 },
   [1044] = { id = 1044, name = "Blessing of Freedom", durationMs = 10000, cooldownMs = 20000, gcdMs = 1500 },
   [20271] = { id = 20271, name = "Judgement", cooldownMs = 10000 },
   [407778] = { id = 407778, name = "Divine Storm", cooldownMs = 10000, gcdMs = 1500 },
   [458856] = { id = 458856, name = "Divine Light", cooldownMs = 8000, gcdMs = 1500, castMs = 2500 },
   [440658] = { id = 440658, name = "Shield of Righteousness", cooldownMs = 6000, cooldownCategory = 1209, gcdMs = 1500 },
-  [20928] = { id = 20928, name = "Holy Shield", durationMs = 10000, cooldownMs = 10000, cooldownCategory = 931, gcdMs = 1500, rank = "Rank 3" },
+  [20928] = { id = 20928, name = "Holy Shield", noTarget = true, durationMs = 10000, cooldownMs = 10000, cooldownCategory = 931, gcdMs = 1500, rank = "Rank 3" },
   [1311606] = { id = 1311606, name = "Holy Shock", cooldownMs = 10000, cooldownCategory = 892, gcdMs = 1500, rank = "Rank 1" },
   -- buffs
-  [1020] = { id = 1020, name = "Divine Shield", durationMs = 12000, cooldownMs = 300000, cooldownCategory = 37, gcdMs = 1500, rank = "Rank 2" },
-  [5573] = { id = 5573, name = "Divine Protection", durationMs = 8000, cooldownMs = 300000, cooldownCategory = 37, gcdMs = 1500, rank = "Rank 2" },
+  [1020] = { id = 1020, name = "Divine Shield", noTarget = true, durationMs = 12000, cooldownMs = 300000, cooldownCategory = 37, gcdMs = 1500, rank = "Rank 2" },
+  [5573] = { id = 5573, name = "Divine Protection", noTarget = true, durationMs = 8000, cooldownMs = 300000, cooldownCategory = 37, gcdMs = 1500, rank = "Rank 2" },
   [20217] = { id = 20217, name = "Blessing of Kings", durationMs = 3600000, gcdMs = 1500 },
   [26650] = { id = 26650, name = "Blessing of Light" },
   [19838] = { id = 19838, name = "Blessing of Might", durationMs = 3600000, gcdMs = 1500, rank = "Rank 6" },
-  [19854] = { id = 19854, name = "Blessing of Wisdom", durationMs = 3600000, gcdMs = 1500, rank = "Rank 5" },
+  [19854] = { id = 19854, name = "Blessing of Wisdom", tickEvery = 5, durationMs = 3600000, gcdMs = 1500, rank = "Rank 5" },
   [25898] = { id = 25898, name = "Greater Blessing of Kings", durationMs = 3600000, gcdMs = 1500 },
   [25782] = { id = 25782, name = "Greater Blessing of Might", durationMs = 3600000, gcdMs = 1500, rank = "Rank 1" },
-  [25894] = { id = 25894, name = "Greater Blessing of Wisdom", durationMs = 3600000, gcdMs = 1500, rank = "Rank 1" },
+  [25894] = { id = 25894, name = "Greater Blessing of Wisdom", tickEvery = 5, durationMs = 3600000, gcdMs = 1500, rank = "Rank 1" },
   [20729] = { id = 20729, name = "Blessing of Sacrifice", durationMs = 30000, cooldownCategory = 25, gcdMs = 1500, rank = "Rank 2" },
   [10278] = { id = 10278, name = "Blessing of Protection", durationMs = 10000, cooldownMs = 300000, cooldownCategory = 20, gcdMs = 1500, rank = "Rank 3" },
   [10326] = { id = 10326, name = "Turn Undead", durationMs = 20000, cooldownMs = 30000, cooldownCategory = 33, gcdMs = 1500, castMs = 1500, rank = "Rank 3" },
-  [409906] = { id = 409906, name = "Beacon of Light" },
-  [1326084] = { id = 1326084, name = "Reckoning", durationMs = -1 },
-  [409932] = { id = 409932, name = "Aura Mastery" },
+  [409906] = { id = 409906, name = "Beacon of Light", noTarget = true },
+  [1326084] = { id = 1326084, name = "Reckoning", maxStack = 4, noTarget = true, durationMs = -1 },
+  [409932] = { id = 409932, name = "Aura Mastery", noTarget = true },
   -- auras
   [20423] = { id = 20423, name = "Seal of Fury", durationMs = 30000, gcdMs = 1500, rank = "Rank 7" },
-  [20293] = { id = 20293, name = "Seal of Righteousness", durationMs = 30000, gcdMs = 1500, rank = "Rank 8" },
-  [20920] = { id = 20920, name = "Seal of Command", durationMs = 30000, gcdMs = 1500, icdMs = 1000, rank = "Rank 5" },
-  [20357] = { id = 20357, name = "Seal of Wisdom", durationMs = 30000, gcdMs = 1500, rank = "Rank 3" },
-  [20349] = { id = 20349, name = "Seal of Light", durationMs = 30000, gcdMs = 1500, rank = "Rank 4" },
-  [20164] = { id = 20164, name = "Seal of Justice", durationMs = 30000, gcdMs = 1500 },
-  [20308] = { id = 20308, name = "Seal of the Crusader", durationMs = 30000, gcdMs = 1500, rank = "Rank 6" },
-  [10293] = { id = 10293, name = "Devotion Aura", durationMs = -1, gcdMs = 1500, rank = "Rank 7" },
-  [10301] = { id = 10301, name = "Retribution Aura", durationMs = -1, gcdMs = 1500, rank = "Rank 5" },
-  [19746] = { id = 19746, name = "Concentration Aura", durationMs = -1, gcdMs = 1500 },
-  [19896] = { id = 19896, name = "Shadow Resistance Aura", durationMs = -1, gcdMs = 1500, rank = "Rank 3" },
-  [19898] = { id = 19898, name = "Frost Resistance Aura", durationMs = -1, gcdMs = 1500, rank = "Rank 3" },
-  [19900] = { id = 19900, name = "Fire Resistance Aura", durationMs = -1, gcdMs = 1500, rank = "Rank 3" },
+  [20293] = { id = 20293, name = "Seal of Righteousness", noTarget = true, durationMs = 30000, gcdMs = 1500, rank = "Rank 8" },
+  [20920] = { id = 20920, name = "Seal of Command", noTarget = true, durationMs = 30000, gcdMs = 1500, icdMs = 1000, rank = "Rank 5" },
+  [20357] = { id = 20357, name = "Seal of Wisdom", noTarget = true, durationMs = 30000, gcdMs = 1500, rank = "Rank 3" },
+  [20349] = { id = 20349, name = "Seal of Light", noTarget = true, durationMs = 30000, gcdMs = 1500, rank = "Rank 4" },
+  [20164] = { id = 20164, name = "Seal of Justice", noTarget = true, durationMs = 30000, gcdMs = 1500 },
+  [20308] = { id = 20308, name = "Seal of the Crusader", noTarget = true, durationMs = 30000, gcdMs = 1500, rank = "Rank 6" },
+  [10293] = { id = 10293, name = "Devotion Aura", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Rank 7" },
+  [10301] = { id = 10301, name = "Retribution Aura", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Rank 5" },
+  [19746] = { id = 19746, name = "Concentration Aura", noTarget = true, durationMs = -1, gcdMs = 1500 },
+  [19896] = { id = 19896, name = "Shadow Resistance Aura", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Rank 3" },
+  [19898] = { id = 19898, name = "Frost Resistance Aura", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Rank 3" },
+  [19900] = { id = 19900, name = "Fire Resistance Aura", noTarget = true, durationMs = -1, gcdMs = 1500, rank = "Rank 3" },
   -- utility
-  [25780] = { id = 25780, name = "Righteous Fury", durationMs = 1800000, gcdMs = 1500 },
-  [28787] = { id = 28787, name = "Cleanse", durationMs = -1 },
+  [25780] = { id = 25780, name = "Righteous Fury", noTarget = true, durationMs = 1800000, gcdMs = 1500 },
+  [28787] = { id = 28787, name = "Cleanse", noTarget = true, durationMs = -1 },
   [1152] = { id = 1152, name = "Purify", gcdMs = 1500 },
   [20773] = { id = 20773, name = "Redemption", gcdMs = 1500, castMs = 10000, rank = "Rank 5" },
   [10310] = { id = 10310, name = "Lay on Hands", cooldownMs = 1200000, cooldownCategory = 56, gcdMs = 1500, rank = "Rank 3" },
   [415073] = { id = 415073, name = "Exorcism", cooldownMs = 15000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 6" },
   [1302716] = { id = 1302716, name = "Rebuke", icdMs = 60000 },
-  [20924] = { id = 20924, name = "Consecration", durationMs = 8000, cooldownMs = 8000, cooldownCategory = 932, gcdMs = 1500, rank = "Rank 5" },
-  [409914] = { id = 409914, name = "Crusader Strike" },
+  [20924] = { id = 20924, name = "Consecration", tickEvery = 1, durationMs = 8000, cooldownMs = 8000, cooldownCategory = 932, gcdMs = 1500, rank = "Rank 5" },
+  [409914] = { id = 409914, name = "Crusader Strike", noTarget = true },
   [10308] = { id = 10308, name = "Hammer of Justice", durationMs = 6000, cooldownMs = 60000, cooldownCategory = 32, gcdMs = 1500, rank = "Rank 4" },
   [24239] = { id = 24239, name = "Hammer of Wrath", cooldownMs = 6000, cooldownCategory = 1131, gcdMs = 1000, castMs = 1000, rank = "Rank 3" },
   [407632] = { id = 407632, name = "Hammer of the Righteous", cooldownMs = 6000, cooldownCategory = 2404, gcdMs = 1500 },
-  [440675] = { id = 440675, name = "Righteous Judgement", durationMs = 8000 },
+  [440675] = { id = 440675, name = "Righteous Judgement", tickEvery = 2, durationMs = 8000 },
 }
 
 ForteXorcist.Data.PaladinByName = {

@@ -55,13 +55,25 @@ local Stone = Frame:new({
     sharedModule = "General",
     lockKey = "Lock",
     keys = { "SoulstoneWidth", "SoulstoneHeight", "SoulstoneColor",
-             "SoulstoneStrikethrough" },
+             "SoulstoneStrikethrough", "SoulstoneExpand",
+             "SoulstoneShowReady", "SoulstoneReadyColour" },
     keymap = {
         SoulstoneEnable = "SetEnabled",
         SoulstoneWidth = "SetWidth",             -- the plate width
         SoulstoneHeight = "SetRowHeight",        -- the bar height, :671
         SoulstoneColor = "SetBarColor",          -- Forte_Soulstone.xml:119
         SoulstoneStrikethrough = "SetStrikethrough",
+        -- FWL.EXPAND_UP ("Determines if the bar lists should be expanded
+        -- upwards or downwards", Forte_Core.lua:243-244), the original's
+        -- `SoulstoneExpand` (Forte_Soulstone.lua:604, def false :674).
+        SoulstoneExpand = "SetExpandUp",
+        -- The READY-look gate: the original's `ShowReady`
+        -- (Forte_Soulstone.lua:608, def false :667) over its `ReadyColor`
+        -- (the "Resurrect" row, def {1,1,0} :651). The 2012 right label
+        -- picks `no ss up` vs `ready to res` off exactly this pair
+        -- (:309, FWL.READY_TO_RES Localization.lua:56).
+        SoulstoneShowReady = "SetShowReady",
+        SoulstoneReadyColour = "SetReadyColour",
     },
 })
 FX.Warlock.Soulstone = Stone
@@ -73,6 +85,9 @@ FX.Warlock.SoulstoneSkin = setmetatable({
     RowHeight = 12,                              -- Forte_Soulstone.lua:671
     IconTexture = TEX .. "SS1",                  -- Forte_Soulstone.xml:182
     BarColor = { 0.64, 0.21, 0.93, 1 },           -- Forte_Soulstone.xml:119
+    -- The "Resurrect" colour (the original's ReadyColor, the ready-to-res
+    -- label's tint, Forte_Soulstone.lua:651).
+    ReadyColour = { 1.00, 1.00, 0.00, 1 },
     TextSize = 11,                               -- Forte_Core.lua:2547
 }, { __index = FX.Warlock.FrameSkin })
 Stone.skin = FX.Warlock.SoulstoneSkin
@@ -81,6 +96,26 @@ Stone.sizeDefaults = { Width = 106, Height = 20, Point = "CENTER",
 
 -- The plate's idle right label (Forte_Soulstone.lua:291 + Localization.lua:57).
 Stone.NO_SS_UP = "no ss up"
+-- The ready right label (`FWL.READY_TO_RES`, Localization.lua:56; the 2012
+-- plate prints it in the `else` of its `s2 == s1` stone-count test,
+-- Forte_Soulstone.lua:309 -- with no stone up and nothing ready it prints
+-- `no ss up`).
+Stone.READY_TO_RES = "ready to res"
+
+--- The READY-look gate (the original's `ShowReady`, Forte_Soulstone.lua:608,
+--- def false :667): with it off the idle plate never claims readiness.
+function Stone:SetShowReady(on)
+    self._showReady = not not on
+    self._idleLabel = nil
+end
+
+--- The ready label's colour (the "Resurrect" colour row, def {1,1,0}
+--- Forte_Soulstone.lua:651).
+function Stone:SetReadyColour(col)
+    if type(col) ~= "table" then return end
+    self._readyColour = { col[1] or 1, col[2] or 1, col[3] or 1, col[4] or 1 }
+    self._idleLabel = nil
+end
 
 -- ----------------------------------------------------------------- the art --
 
@@ -123,6 +158,7 @@ function Stone:Update(now)
         self.amountFS:SetText(n)
     end
     if live then
+        self._idleLabel = nil
         -- The fill drains with the window (SS-01: "fills as the timer runs").
         local frac = 1
         if type(duration) == "number" and duration > 0 then
@@ -147,14 +183,35 @@ function Stone:Update(now)
         end
     else
         self._frac, self._timeKey, self._target = nil, nil, nil
-        self.infoFS:SetText(self.NO_SS_UP)
+        self:DrawIdleLabel(t)
     end
     self:ApplyTextVisibility()
     return live
 end
 
+--- The idle right label: `no ss up`, or the READY-look the original prints
+--- when the warlock has no stone up and is ready to put a new one up
+--- (Forte_Soulstone.lua:309, gated by `ShowReady` :608/:667 and tinted by the
+--- "Resurrect" colour :651). The tracker owns the state (`:Ready()`: a
+--- window ran out and no newer stone replaced it).
+function Stone:DrawIdleLabel(t)
+    local ready = self._showReady and t and t.Ready and t:Ready()
+    local label = ready and self.READY_TO_RES or self.NO_SS_UP
+    if label ~= self._idleLabel then
+        self._idleLabel = label
+        self.infoFS:SetText(label)
+        if ready then
+            self:SetStringColor(self.infoFS,
+                self._readyColour or FX.Warlock.SoulstoneSkin.ReadyColour)
+        else
+            self:SetStringColor(self.infoFS, self:TextColour())
+        end
+    end
+end
+
 function Stone:RenderIdle()
     self._frac, self._timeKey, self._target, self._amt = nil, nil, nil, nil
+    self._idleLabel = nil
     self:SetRowShown(false)
     self:SetShown(false)
     self.amountFS:SetText("")
@@ -167,6 +224,7 @@ end
 function Stone:SetTracker(tracker)
     self.Tracker = tracker
     self._frac, self._timeKey, self._target, self._amt = nil, nil, nil, nil
+    self._idleLabel = nil
 end
 
 function Stone:StatusLine()

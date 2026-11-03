@@ -358,6 +358,19 @@ function D:AcquireRow(i)
     dummy:SetJustifyH("LEFT")
     dummy:SetPoint("TOPLEFT", bar, "TOPLEFT", 2, 0)
     dummy:Hide()
+    -- The mirrored fill (the `Flip` row, :3149/def :3332). The source's bar IS
+    -- a frame plus one ARTWORK texture: `SetFlipped` (:1647-1655) anchors that
+    -- texture on the RIGHT edge and `SetValue` (:1656-1668) crops it with
+    -- `SetTexCoord(1-value, 1, 0, 1)` — the fill grows leftwards from the right
+    -- edge. Forever's StatusBar fills in the source's DEFAULT direction only
+    -- (no fill-direction API in the pinned catalog), so the flipped law rides
+    -- this texture and the default path keeps drawing on the engine bar (the
+    -- texture stays hidden). Same mechanism as Forte_Hunter/UI/Swing.lua's fill.
+    local fill = bar:CreateTexture(nil, "ARTWORK")
+    fill:SetTexture(skin.BarTexture)
+    fill:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 0, 0)
+    fill:SetSize(0, o.height)
+    fill:Hide()
     -- The bar spark (:1711-1714, :2536-2540 -- delta D5, the seed has none).
     local spark = bar:CreateTexture(nil, "OVERLAY")
     spark:SetTexture(skin.Spark)
@@ -390,6 +403,7 @@ function D:AcquireRow(i)
     -- built"), so it is deliberately unwired.
     local tick = { bar = bar, back = back, icon = icon, iconSpark = iconSpark,
         tag = tag, nameFS = nameFS, timeFS = timeFS, dummy = dummy,
+        fill = fill,
         spark = spark, castarea = castarea, mark = mark, notch = notch,
         ticks = {}, _name = nil, _tex = nil, _alpha = nil, _timeKey = nil,
         _text = nil, _tag = nil, _notch = nil, _sparkOn = nil,
@@ -397,6 +411,10 @@ function D:AcquireRow(i)
         -- Numeric dirty keys (docs/perf.md §4 fix 2): the colour triples are
         -- compared component-wise, so no per-tick string key is built.
         _fillR = nil, _fillG = nil, _fillB = nil, _bgA = nil,
+        -- The bar direction (`Flip`, :3332) and the width the mirrored fill
+        -- carries: a direction change forces the colour re-write (the fill
+        -- moves between the engine bar and the ARTWORK texture).
+        _flip = nil, _fillW = nil,
         _ncR = nil, _ncG = nil, _ncB = nil, _timeAlt = nil,
         _twWidth = nil, _nwWidth = nil, _tagStacks = nil, _tagOn = nil,
         -- The name text's own inputs (fix 2): the text is rebuilt only when
@@ -407,9 +425,10 @@ function D:AcquireRow(i)
         -- it carries (`_ap` the group frame, `_ax`/`_ay` the offset) -- fix 3.
         _gBarW = nil, _gHeight = nil, _gIcon = nil, _gIconRight = nil,
         _ap = nil, _ax = nil, _ay = nil,
-        -- The tick-mark layout the marks are anchored for (fix 3).
+        -- The tick-mark layout the marks are anchored for (fix 3), plus the
+        -- bar direction the layout was mirrored for (the Flip row, :3332).
         _tkEvery = nil, _tkMax = nil, _tkBarW = nil, _tkHeight = nil,
-        _tkCount = nil }
+        _tkCount = nil, _tkFlip = nil }
     icon:SetScript("OnClick", function(_, button)
         local r = tick._row
         if not r then return end
@@ -472,6 +491,10 @@ function D:ApplyRowGeometry(row, o, skin, vis)
         row.iconSpark:SetSize(o.iconSize, o.height * skin.SparkFlareFactor)
         row.spark:SetSize(o.height, o.height * skin.SparkHeightFactor)
         row.mark:SetSize(o.height, o.height)
+        -- The mirrored fill rides the bar's height (its width is the fill
+        -- law in BindRow); a geometry change drops its cached width.
+        row.fill:SetHeight(o.height)
+        row._fillW = nil
         row.nameFS:SetHeight(o.height)
         for i = 1, #row.ticks do
             row.ticks[i]:SetSize(o.height * skin.TickWidthFactor,
@@ -481,6 +504,8 @@ function D:ApplyRowGeometry(row, o, skin, vis)
     if not nearEq(row._height, o.height * vis) then
         row._height = o.height * vis
         row.bar:SetHeight(o.height * vis)
+        row.fill:SetHeight(o.height * vis)
+        row._fillW = nil
     end
     if row._width ~= o.barWidth then
         row._width = o.barWidth
@@ -749,11 +774,22 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth)
     local remaining = (row.drawExpireAt or row.expireAt) - now
     local fillR, fillG, fillB, bgA = Laws.ColorVal(remaining, total,
         row.state, row.kind, s, o)
+    -- The bar direction (`Flip`, :3149/def :3332): a direction change IS a
+    -- colour change, because the fill moves between the engine StatusBar and
+    -- the mirrored ARTWORK texture.
+    local flipOn = o.flip and true or false
     local fillChanged = r._fillR ~= fillR or r._fillG ~= fillG
-        or r._fillB ~= fillB
+        or r._fillB ~= fillB or r._flip ~= flipOn
     if fillChanged then
         r._fillR, r._fillG, r._fillB = fillR, fillG, fillB
-        r.bar:SetStatusBarColor(fillR, fillG, fillB, 1)
+        r._flip = flipOn
+        r._fillW = nil
+        if flipOn then
+            r.bar:SetStatusBarColor(0, 0, 0, 0)
+            r.fill:SetVertexColor(fillR, fillG, fillB, 1)
+        else
+            r.bar:SetStatusBarColor(fillR, fillG, fillB, 1)
+        end
     end
     if fillChanged or r._bgA ~= bgA then
         r._bgA = bgA
@@ -771,7 +807,20 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth)
     -- SetValue(v) on the bar crops its LEFT-anchored fill to v, so the fill
     -- shrinks from the RIGHT: the direction law of §5.3, not a fix.
     local barval = Laws.BarVal(row.drawExpireAt, now, row.maxTime)
-    r.bar:SetValue(barval)
+    if flipOn then
+        -- Flipped (the source's flipped SetValue, :1656-1668): the fill rides
+        -- the bar's RIGHT edge and crops its own left, `TexCoord(1-v,1,0,1)`.
+        local fw = barval * o.barWidth
+        if not r.fill:IsShown() then r.fill:Show() end
+        if r._fillW ~= fw then
+            r._fillW = fw
+            r.fill:SetSize(fw, r._height or o.height)
+            r.fill:SetTexCoord(1 - barval, 1, 0, 1)
+        end
+    else
+        if r.fill:IsShown() then r.fill:Hide() end
+        r.bar:SetValue(barval)
+    end
 
     -- widths from the smart space (:2391, :2510).
     if r._twWidth ~= usewidth then
@@ -821,7 +870,10 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth)
     if sparkOn then
         counts.spark = counts.spark + 1
         r.spark:ClearAllPoints()
-        r.spark:SetPoint("CENTER", r.bar, "LEFT", barval * o.barWidth, 0)
+        -- The spark rides the fill's live edge; a flipped bar's edge is the
+        -- mirrored one (:2536-2540: `(1-barval)*width` when `bar.flipped`).
+        r.spark:SetPoint("CENTER", r.bar, "LEFT",
+            (flipOn and (1 - barval) or barval) * o.barWidth, 0)
     end
 
     -- the predicted marking (§5.5): a 1 px dark notch at the bar's RIGHT end
@@ -872,28 +924,46 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth)
         -- The marks are STATIC for a row: their spacing is the data's
         -- schedule over the row's scale, the size is the row's geometry. The
         -- layout is rebuilt when one of those changes, not every tick; the
-        -- show/hide pass below is what keeps them visible (fix 3).
+        -- show/hide pass below is what keeps them visible (fix 3). The bar
+        -- direction joins the layout key: a flipped bar mirrors every mark
+        -- (`w - dist`, the source's :1797/:1806).
         if r._tkEvery ~= every or r._tkMax ~= row.maxTime
             or r._tkBarW ~= o.barWidth or r._tkHeight ~= o.height
-            or r._tkCount ~= count then
+            or r._tkCount ~= count or r._tkFlip ~= flipOn then
             r._tkEvery, r._tkMax = every, row.maxTime
             r._tkBarW, r._tkHeight, r._tkCount = o.barWidth, o.height, count
+            r._tkFlip = flipOn
             counts.anchorTicks = counts.anchorTicks + count
             for t = 1, count do
                 local tk = self:AcquireTick(r, t)
                 tk:SetSize(o.height * s.TickWidthFactor,
                     o.height * s.TickHeightFactor)
                 tk:ClearAllPoints()
+                local frac = t * every / row.maxTime
                 tk:SetPoint("CENTER", r.bar, "LEFT",
-                    (t * every / row.maxTime) * o.barWidth, 0)
+                    (flipOn and (1 - frac) or frac) * o.barWidth, 0)
             end
         end
-        for t = 1, count do
+        -- `TicksNext` (:3182, def true :3404) shows ONE mark: the next tick
+        -- of the schedule that is still inside the remaining fill -- the
+        -- source's `dist = (ceil(barval/interval) - 1) * interval` (:1775-1791),
+        -- i.e. the schedule step closest to the fill's live edge. Off, every
+        -- mark of the row's schedule rides the bar (the port's D6 law).
+        local first, last = 1, count
+        if o.ticksNext then
+            local nextT = (barval > 0) and math.floor(barval * row.maxTime
+                / every) or 0
+            if nextT > count then nextT = count end
+            first, last = nextT, nextT
+        end
+        for t = first, last do
             local tk = r.ticks[t]
             if tk and not tk:IsShown() then tk:Show() end
         end
-        for t = count + 1, #r.ticks do
-            if r.ticks[t]:IsShown() then r.ticks[t]:Hide() end
+        for t = 1, #r.ticks do
+            if (t < first or t > last) and r.ticks[t]:IsShown() then
+                r.ticks[t]:Hide()
+            end
         end
     else
         for t = 1, #r.ticks do
@@ -931,8 +1001,9 @@ function D:StatusLine()
     end
     local o = self.options
     return string.format(
-        "Spell Timers: %dx%d bar %d icon %d inset %d | %s | %s",
+        "Spell Timers: %dx%d bar %d icon %d inset %d | %s | %s | %s",
         o.groupWidth, o.height, o.barWidth, o.iconSize, o.barInset,
         o.label and "labels on" or "labels off",
+        o.flip and "flipped" or "left-to-right",
         (self.cfg and self.cfg.locked) and "locked" or "unlocked")
 end
