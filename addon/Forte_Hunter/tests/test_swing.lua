@@ -38,6 +38,16 @@ local function fakeTracker(nowBox)
     })
 end
 
+-- The whole file is the geometry-LAW suite: it reads the drawn fill width,
+-- which is the v2 10 Hz SetSize law. Wave I-3 added the engine-armed fill
+-- beside it (UI/Swing.lua's Fill law; its default posture is this same lua
+-- path, and the flip of that default is a launch-day probe), so the mode is
+-- pinned here explicitly: this file keeps pinning the law no matter which
+-- path the module defaults to. The engine path, its arms and its parity
+-- with this law are tests/test_swing3.lua's subject.
+Swing:SetFillEngineMode("lua")
+assertFalse(Swing:UsesEngineFill())
+
 -- ---------------------------------------------------------------- Swing bar --
 
 test("Init builds the 200x12 swing bar, idempotent, hidden while idle", function()

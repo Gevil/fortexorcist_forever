@@ -30,6 +30,15 @@ local function nearpx(actual, expected)
     return assertTrue(math.abs(actual - expected) <= 0.5)
 end
 
+-- The file's bar tests read the DRAWN fill width (the v2 geometry law), so
+-- the fill mode is pinned to the lua path here -- which is also Wave I-3's
+-- default posture (UI/Swing.lua's Fill law: the engine-armed fill is built,
+-- feature-detected, tested and selectable, and its default flip is a
+-- launch-day probe). The engine path, its arms and the parity of the two
+-- paths are tests/test_swing3.lua's subject.
+Swing:SetFillEngineMode("lua")
+assertFalse(Swing:UsesEngineFill())
+
 --- Probe a client spell id by name (the sim resolves its own spell book
 --- through C_Spell.GetSpellInfo -- the same seam the production event
 --- frame runs). nil = this build has no such row: the tests that ride it

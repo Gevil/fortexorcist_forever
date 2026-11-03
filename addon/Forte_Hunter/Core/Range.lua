@@ -140,8 +140,14 @@ end
 
 local function unitBool(fn, a, b)
     if type(fn) ~= "function" then return nil end
-    local ok, v = (b == nil) and pcall(fn, a) or pcall(fn, a, b)
-    return ok and v or nil
+    -- The pcall's ok flag and the API's value are SEPARATE: inside
+    -- `x and pcall(...) or pcall(...)` Lua truncates the call to its first
+    -- return, so that idiom hands out the call-succeeded flag and the
+    -- ladder never hears a "no" (UnitExists false, UnitCanAttack false).
+    local ok, v
+    if b == nil then ok, v = pcall(fn, a) else ok, v = pcall(fn, a, b) end
+    if not ok then return nil end
+    return v
 end
 
 --- The native ranged rung: C_SwingTimer.IsTargetWithinSwingRange(Ranged)
@@ -157,9 +163,14 @@ local function nativeRangedInRange()
     if ok and type(t) == "number" and _G.C_SwingTimer
         and _G.C_SwingTimer.IsTargetWithinSwingRange then
         local ok2, v = pcall(_G.C_SwingTimer.IsTargetWithinSwingRange, t)
-        v = ok2 and FX.Compat.PlainOrNil(v) or nil
-        local b = plainBool(v)
-        if b ~= nil then return b end
+        if ok2 then
+            -- A plain `false` is knowledge (out of range = the dead zone /
+            -- the OUT band): `ok2 and PlainOrNil(v) or nil` would map it to
+            -- nil through Lua's `or` and leave this rung unable to speak
+            -- the negative. nil = "no check possible", not out of range.
+            local b = plainBool(FX.Compat.PlainOrNil(v))
+            if b ~= nil then return b end
+        end
     end
     return spellBookInRange("Auto Shot")
 end
@@ -182,9 +193,11 @@ FX.Hunter.RangeMeter = FX.Hunter.NewRangeMeter({
     closeReader = function()
         if type(_G.CheckInteractDistance) ~= "function" then return nil end
         local ok, v = pcall(_G.CheckInteractDistance, "target", 4)
-        local b = ok and plainBool(FX.Compat.PlainOrNil(v)) or nil
-        if b ~= nil then return b end
+        -- The 4-yd probe's "no" is the 1-yd probe's question, so this leg
+        -- deliberately falls through on anything that is not a yes.
+        if ok and plainBool(FX.Compat.PlainOrNil(v)) == true then return true end
         ok, v = pcall(_G.CheckInteractDistance, "target", 1)
-        return ok and plainBool(FX.Compat.PlainOrNil(v)) or nil
+        if not ok then return nil end
+        return plainBool(FX.Compat.PlainOrNil(v))
     end,
 })

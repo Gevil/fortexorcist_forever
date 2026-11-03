@@ -15,12 +15,22 @@
 --      PLAYER_SWING_RANGE_UPDATE  payload (swingType, isInRange, checksRange) -- TYPE LEADS
 --    Two separate handlers, never one unpack order (PLAN §8). The
 --    Enum.PlayerSwingType is MainHand=0, OffHand=1, Ranged=2; this tracker
---    models the Ranged swing only. Speed: the event duration is the anchor;
---    UnitRangedDamage / UnitAttackSpeed (both SecretWhenUnitStatsRestricted,
---    routed through PlainOrNil) are consulted only when it is unusable, and
---    the last observed duration is the final fallback. "Auto Shot" cast
---    events are the event-based fallback start when no swing events arrive
---    (live probe item, docs/hunter-tools.md).
+--    models the Ranged swing only. The range edge's law
+--    (upstream-addons-2026-11-03 §3): `isInRange = nil` is "no check
+--    possible", NOT out of range, and a `checksRange` that is not plain-true
+--    means the edge carries no knowledge at all; the edges themselves only
+--    arrive after the C_SwingTimer.EnableRangeCheck opt-in, which
+--    M.RequestRangeCheck owns (the swing tracker + the range light each
+--    request it; every leg is feature-detected).
+--    Speed: the event duration is the anchor; UnitRangedDamage and the
+--    PER-SLOT UnitAttackSpeed read (SlotSpeed: the declared
+--    (main, offhand, ranged) trio, the leg picked by the modelled slot --
+--    the shipped row law reads the slot's own speed) -- both
+--    SecretWhenUnitStatsRestricted, routed through PlainOrNil -- are
+--    consulted only when it is unusable, and the last observed duration is
+--    the final fallback. "Auto Shot" cast events are the event-based
+--    fallback start when no swing events arrive (live probe item,
+--    docs/hunter-tools.md).
 --
 -- 3. Swing v2 (docs/research/weaponswingtimer.md gap table, agent
 --    HunterSwing2): the Auto Shot cycle is TWO phases -- the reload span
@@ -229,14 +239,40 @@ function SwingTracker:Clock()
     return GetTime()
 end
 
+--- Which `UnitAttackSpeed` return belongs to which swing slot: the
+--- declared trio (attackSpeed, offhandAttackSpeed, rangedAttackSpeed)
+--- (UnitDocumentation.lua:681) keyed by Enum.PlayerSwingType
+--- (MainHand=0, OffHand=1, Ranged=2). The shipped swing-timer family reads
+--- the speed PER SLOT ("a row exists while UnitAttackSpeed reports a speed
+--- for its slot", upstream-addons-2026-11-03 §3 row law, re-derived here
+--- from the declared return list -- the shape only, no code taken).
+--- nil = a slot we do not model.
+local ATTACK_SPEED_LEG = { [0] = 1, [1] = 2, [2] = 3 }
+
+--- The slot speed read: this tracker models ONE slot, the Ranged one, so
+--- its leg is ATTACK_SPEED_LEG[self.rangedType] -- an OffHand/MH twin ever
+--- rides the same read with its own type. Plain seconds, nil = the slot
+--- reports no speed (measured in the sim: UnitAttackSpeed("player") =
+--- 2, 2, nil with no ranged weapon -- the "no row" statement of the row
+--- law). SecretWhenUnitStatsRestricted: every return passes PlainOrNil.
+function SwingTracker:SlotSpeed()
+    if type(_G.UnitAttackSpeed) ~= "function" then return nil end
+    local leg = ATTACK_SPEED_LEG[self.rangedType]
+    if leg == nil then return nil end
+    local ok, a, b, c = pcall(_G.UnitAttackSpeed, "player")
+    if not ok then return nil end
+    local plain = FX.Compat.PlainOrNil(( { a, b, c } )[leg])
+    if type(plain) == "number" and plain > 0 then return plain end
+    return nil
+end
+
 --- Ranged weapon speed as a plain seconds-per-shot number, or nil.
 --- An injected speedReader (tests, later gear models) replaces the live
 --- reads. Live path: UnitRangedDamage(unit) -> speed is the FIRST return
---- (UnitDocumentation.lua:2961), UnitAttackSpeed(unit) ->
---- (attackSpeed, offhandAttackSpeed, rangedAttackSpeed)
---- (UnitDocumentation.lua:681); both are SecretWhenUnitStatsRestricted, so
---- every return passes through PlainOrNil and a secret/absent read yields
---- nil.
+--- (UnitDocumentation.lua:2961) as the event-duration anchor's twin, then
+--- the per-slot UnitAttackSpeed read (SlotSpeed above); both are
+--- SecretWhenUnitStatsRestricted, so every return passes through
+--- PlainOrNil and a secret/absent read yields nil.
 function SwingTracker:SpeedFromUnit()
     local reader = self.speedReader
     if reader then
@@ -249,12 +285,7 @@ function SwingTracker:SpeedFromUnit()
         local plain = ok and FX.Compat.PlainOrNil(speed)
         if plain and plain > 0 then return plain end
     end
-    if type(UnitAttackSpeed) == "function" then
-        local ok, _, _, ranged = pcall(UnitAttackSpeed, "player")
-        local plain = ok and FX.Compat.PlainOrNil(ranged)
-        if plain and plain > 0 then return plain end
-    end
-    return nil
+    return self:SlotSpeed()
 end
 
 --- PLAYER_SWING handler -- payload order (swingDuration, swingType),
@@ -291,14 +322,34 @@ function SwingTracker:OnSwingStart(duration, swingType)
     end
 end
 
---- PLAYER_SWING_RANGE_UPDATE handler -- payload order
---- (swingType, isInRange, checksRange), swingType LEADS (verified contract,
---- file header). isInRange is meaningless while checksRange is false. Out of
---- range the ranged swing stops: the timer goes idle and the next
---- PLAYER_SWING restarts it.
+--- PLAYER_SWING_RANGE_UPDATE handler -- the payload has THREE returns,
+--- (swingType, isInRange, checksRange), swingType LEADS (the shipped
+--- SwingTimerDocumentation shape our survey recorded as two --
+--- upstream-addons-2026-11-03 §3). The edges only exist after the
+--- C_SwingTimer.EnableRangeCheck opt-in (RequestRangeCheck, module below).
+---
+--- The law: `nil` means "no check possible" (no target / untargetable / no
+--- weapon), NOT out of range -- the shipped family's own words: "so it is
+--- not a reason to stop the bar". A `checksRange` that is not plain-true
+--- means the edge carries no range knowledge at all (isInRange is
+--- meaningless then), and a plain `false` is the one stop: the timer goes
+--- idle and the next PLAYER_SWING restarts it. A plain `true`/`false`
+--- stamps the range fact the readiness gate reads (the same fact a
+--- completed shot stamps).
 function SwingTracker:OnSwingRange(swingType, isInRange, checksRange)
     if swingType ~= self.rangedType then return end
-    if checksRange and isInRange == false then
+    checksRange = FX.Compat.PlainOrNil(checksRange)
+    isInRange = FX.Compat.PlainOrNil(isInRange)
+    local checked = (checksRange == true or checksRange == 1)
+    if not checked then
+        self.rangeEdges = false
+        return
+    end
+    self.rangeEdges = true
+    if isInRange == nil then return end       -- no check possible: permissive
+    local inRange = (isInRange == true or isInRange == 1) and true or false
+    self.factsInRange = inRange
+    if not inRange then
         self.active, self.start, self.duration = false, nil, nil
     end
 end
@@ -766,7 +817,10 @@ function FX.Hunter.NewSwingTracker(opts)
         movePulseAt = nil,          -- PLAYER_STARTED_MOVING pulse stamp
         feignPending = nil,         -- Feign Death awaiting its movement
         lastShotTime = nil,         -- Clock() at the last cycle/shot event
-        factsInRange = nil,         -- learned range fact (SUCCEEDED stamp)
+        factsInRange = nil,         -- learned range fact (a completed shot
+                                    -- or a plain-true range edge stamps it)
+        rangeEdges = nil,           -- the last edge's checksRange state:
+                                    -- did the range check speak at all?
         _evtSeal = nil,             -- the seal of the event being handled
         -- Injectable gate/seam readers (tests; the live defaults are the
         -- pcall-guarded unit reads wired by the module below).
@@ -891,8 +945,15 @@ SW.speedSampler = function()
     return ok and FX.Compat.PlainOrNil(v) or nil
 end
 --- The range rungs: C_SwingTimer.IsTargetWithinSwingRange(Ranged) first
---- (CAT-declared; third-party runtime reachability = launch probe, the
---- nil-permissive gate law), the spellbook Auto Shot rung as its fallback.
+--- (CAT-declared; nil = "no check possible", NOT out of range, so only a
+--- plain true/false is knowledge; the third-party runtime reachability is a
+--- launch probe, the nil-permissive gate law), the spellbook Auto Shot
+--- rung as its fallback.
+---
+--- A plain `false` is a real answer and must not be eaten: the idiom
+--- `v = ok and PlainOrNil(v) or nil` maps it to nil (Lua's `or`), which
+--- would leave this rung unable to ever say out of range -- so the ok test
+--- and the PlainOrNil pass are separate statements.
 local function spellBookInRange(englishName)
     local ns = _G.C_SpellBook
     if not (ns and ns.FindSpellBookSlotForSpell
@@ -912,9 +973,11 @@ SW.rangeReader = function()
     if t ~= nil and _G.C_SwingTimer
         and _G.C_SwingTimer.IsTargetWithinSwingRange then
         local ok, v = pcall(_G.C_SwingTimer.IsTargetWithinSwingRange, t)
-        v = ok and FX.Compat.PlainOrNil(v) or nil
-        if v == true or v == 1 then return true end
-        if v == false or v == 0 then return false end
+        if ok then
+            v = FX.Compat.PlainOrNil(v)
+            if v == true or v == 1 then return true end
+            if v == false or v == 0 then return false end
+        end
     end
     return spellBookInRange("Auto Shot")
 end
@@ -1091,6 +1154,39 @@ local function onToolEvent(self, event, a1, a2, a3, a4)
     end
 end
 
+-- ------------------------------------------------- the swing range check --
+--- `C_SwingTimer.EnableRangeCheck(swingType, bool)` is the OPT-IN that
+--- makes PLAYER_SWING_RANGE_UPDATE carry a `checksRange` that is ever true
+--- (upstream-addons-2026-11-03 §3: "opt in to range edges"), so a consumer
+--- of those edges has to ask for them. One owner of the switch, a request
+--- table, the check riding the union of the requests: the swing tracker
+--- (this file, for the readiness gate's second range signal) and the range
+--- light (UI/Range.lua, whose "showing the light enables the check" law is
+--- unchanged by the routing). Feature-detected on every leg: the symbol is
+--- catalog-declared and absent from the simulator (C_SwingTimer = nil,
+--- measured 2026-11-03), so the arm is a no-op there.
+local function armRangeCheck(on)
+    local t = rangedTypePlain()
+    if t == nil then return end
+    local CST = _G.C_SwingTimer
+    if not (CST and CST.EnableRangeCheck) then return end
+    pcall(CST.EnableRangeCheck, t, on and true or false)
+end
+
+M._rangeCheckRequests = {}
+
+function M.RequestRangeCheck(key, on)
+    local wants = M._rangeCheckRequests
+    if type(key) ~= "string" then return end
+    on = not not on
+    if wants[key] == on then return end
+    if on then wants[key] = true else wants[key] = nil end
+    local any = next(wants) ~= nil
+    if M._rangeCheckOn == any then return end
+    M._rangeCheckOn = any
+    armRangeCheck(any)
+end
+
 --- Register the tools' events (idempotent while enabled). The frame is
 --- created inside an OnEnable/OnClassChanged handler -- never at file
 --- load (Init.lua's taint rule).
@@ -1123,6 +1219,9 @@ function M:EnableEvents()
     f:SetScript("OnEvent", function(_, event, a1, a2, a3, a4)
         onToolEvent(M, event, a1, a2, a3, a4)
     end)
+    -- The gate's second range signal rides the range edges, and those
+    -- edges need the opt-in (no-op where C_SwingTimer is absent).
+    M.RequestRangeCheck("swing", true)
     self._eventsEnabled = true
 end
 
@@ -1156,6 +1255,7 @@ function M:DisableEvents()
         end
         f:SetScript("OnEvent", nil)
     end
+    M.RequestRangeCheck("swing", false)
     self._eventsEnabled = false
 end
 

@@ -185,6 +185,15 @@ end
 --- proof is launch-day check F17 in docs/launch-day.md, which measures the
 --- effect on the client's own Auto Shot cycle in both directions.
 local function enableRangeCheck(on)
+    -- One owner of the client switch (Core/Tools.lua's request table): the
+    -- swing tracker holds the "swing" request from EnableEvents, the light
+    -- holds this one, and the check rides the union -- the light's law
+    -- (shown = checked, hidden = unchecked) is unchanged by the routing.
+    local T = FX.Hunter.Tools
+    if T and T.RequestRangeCheck then
+        T.RequestRangeCheck("light", on)
+        return
+    end
     local ok, t = pcall(function()
         local e = _G.Enum and _G.Enum.PlayerSwingType
         return FX.Compat.PlainOrNil(e and e.Ranged)

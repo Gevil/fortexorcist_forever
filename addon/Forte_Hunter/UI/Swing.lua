@@ -34,6 +34,37 @@
 -- costs no per-frame work. The script accumulates elapsed time and renders
 -- at 10 Hz, never every frame.
 --
+-- Fill law (Wave I-3, upstream-addons-2026-11-03 §3 / ranked 2 -- the
+-- shipped swing-timer family's own capability gate, re-derived from the
+-- declared APIs; numbers and shape only): where `StatusBar
+-- :SetTimerDuration` + `C_DurationUtil.CreateDuration` + the
+-- Status-bar Interpolation/TimerDirection enums exist, the reload/aim fill
+-- can be ARMED, not animated -- one call per state edge (a cycle re-arm, the
+-- aim-floor move, the flight, the cast interlock, the idle transition) and
+-- the client interpolates the bar in between, with no Lua fill maths
+-- running per frame.
+--
+-- DEFAULT POSTURE: the v2 Lua path ("lua"). The engine path is built,
+-- feature-detected, tested and selectable (`SetFillEngineMode`), and it is
+-- NOT the default, measured 2026-11-03 on wow-ui-sim v0.1.39: the call, the
+-- enums and the duration object (its own GetRemainingDuration counts down)
+-- all exist, and the widget's `SetValue` arms DO render (the white
+-- projectile-left bar and the interlock's frozen fraction draw exactly the
+-- v2 pixels, and so does a degraded bar) -- but the widget never CONSUMES
+-- an armed duration: its value sits at its min after `SetTimerDuration`, so
+-- the two arms that need the client's animation (the safe-window span, the
+-- single-phase elapsed fill) render EMPTY in the harness the v2 bar was
+-- frame-by-frame verified in (test_swing3.lua pins that reading). On the
+-- client the same call is docs/launch-day.md probe 5 /
+-- docs/design-combat-procs.md item 5 -- "does a duration object WE built
+-- animate our own widgets", i.e. not yet a proven fact. A live-verified bar
+-- does not go dark behind an unproven capability the night before launch:
+-- the flip of this file's default from "lua" to "auto" is that probe's
+-- result, and it is one word. Everything the v2 cycle needs -- phases,
+-- slices, spark, text, alpha -- runs identically on both paths, the gate
+-- runs once, in Init, and the OnUpdate script (never on a hidden frame) is
+-- the shared edge pass that carries them.
+--
 -- Settings (module "Hunter", defaults registered by
 -- Forte_Hunter/Pages/Hunter.lua when Forte_Options is loaded; every setter
 -- here is legal BEFORE the store exists -- the module keeps its own skin
@@ -121,7 +152,64 @@ D.state = { enabled = true, showTime = true,
 }
 local ST = D.state
 
--- ------------------------------------------------------------------- font --
+--- The default fill path (the header's DEFAULT POSTURE): the v2 Lua law.
+--- "auto" = the capability gate, "engine" = force the armed widget; both
+--- are live seams (`SetFillEngineMode`), and the launch-day duration-object
+--- probe is what flips this line.
+D._fillMode = "lua"
+
+-- ---------------------------------------------------------- fill engines --
+--- The capability gate of the header's Fill law: the engine path needs the
+--- duration factory (C_DurationUtil.CreateDuration
+--- @DurationUtilDocumentation.lua:10), the widget timer
+--- (SimpleStatusBarAPI:SetTimerDuration
+--- @SimpleStatusBarAPIDocumentation.lua:333 -- checked on the fill object
+--- itself, in _BuildFill) and both enums (StatusBarInterpolation
+--- @SimpleStatusBarConstantsDocumentation.lua:19, StatusBarTimerDirection
+--- @:43). Runs ONCE, in Init. The shipped family's own gate also demands
+--- C_SwingTimer + Enum.PlayerSwingType: those are the swing-RANGE surface
+--- (Core/Tools.lua's second range signal), not the fill's, and the fill
+--- arms without them.
+local function engineFillCapable()
+    local CDU = _G.C_DurationUtil
+    local E = _G.Enum
+    return type(CDU) == "table"
+        and type(CDU.CreateDuration) == "function"
+        and type(E) == "table"
+        and E.StatusBarTimerDirection ~= nil
+        and E.StatusBarInterpolation ~= nil
+end
+
+--- An Enum member as a plain number, the declared value as the fallback
+--- (Core/Tools.lua's pcall-guarded Enum idiom: a secret table can never
+--- raise here). Declared: StatusBarTimerDirection.ElapsedTime = 0,
+--- .RemainingTime = 1, StatusBarInterpolation.Immediate = 0 (measured
+--- identical in the simulator 2026-11-03).
+local function enumNum(ns, name, fallback)
+    local ok, v = pcall(function()
+        return FX.Compat.PlainOrNil(ns and ns[name])
+    end)
+    if ok and type(v) == "number" then return v end
+    return fallback
+end
+
+local function timerDirections()
+    local E = _G.Enum
+    return {
+        elapsed = enumNum(E and E.StatusBarTimerDirection, "ElapsedTime", 0),
+        remaining = enumNum(E and E.StatusBarTimerDirection, "RemainingTime", 1),
+        immediate = enumNum(E and E.StatusBarInterpolation, "Immediate", 0),
+    }
+end
+
+--- Two decimals are enough to name an arm: the widths and windows of the
+--- v2 cycle are tenths-of-a-pixel / tenths-of-a-second affairs.
+local function armNum(v)
+    if type(v) ~= "number" then return "-" end
+    return string.format("%.2f", v)
+end
+
+-- ---------------------------------------------------------------- font --
 --- The shipped-file validator (the Timeline's / the Widgets' round trip:
 --- CreateFont + SetFont on a throwaway string, accepted only when GetFont
 --- returns the file back). Rejection keeps every string on the
@@ -264,15 +352,13 @@ function D:Init()
     f:SetScript("OnMouseUp",
         function(_, button, upInside) self:OnMouseUp(button, upInside) end)
 
-    -- The Aluminium progress fill: TOPLEFT-anchored with an explicit size,
+    -- The fill (the engine/lua choice of the header's Fill law, decided
+    -- once here): TOPLEFT-anchored with an explicit size on the lua path,
     -- so `fill:GetWidth()` IS the rendered fraction (the acceptance's
     -- geometry check) and the fill grows left -> right.
-    local fill = f:CreateTexture(nil, "ARTWORK")
-    fill:SetTexture(S.BarTexture)
-    fill:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-    fill:SetSize(0, S.Height)
-    local bc = S.BarColor
-    fill:SetVertexColor(bc[1], bc[2], bc[3], bc[4])
+    self._fillEngine = engineFillCapable()
+    self._dirs = timerDirections()
+    self:_BuildFill(f)
 
     -- The swing v2 slices, all RIGHT-anchored at the bar's right edge with
     -- explicit widths (the WST slice geometry, WeaponSwingTimer_Hunter.lua
@@ -329,7 +415,7 @@ function D:Init()
     title:SetTextColor(1, 1, 1, 1)
     title:SetPoint("BOTTOM", f, "TOP", 0, 2)
 
-    self.anchor, self.fill, self.text, self.title = f, fill, text, title
+    self.anchor, self.text, self.title = f, text, title
     self.aim, self.retry, self.cast = aim, retry, cast
     self._fillW, self._timeKey, self._shown = nil, nil, false
     self._phase, self._aimW, self._retryW, self._castW, self._sparkAt
@@ -347,7 +433,206 @@ end
 --- The injected-tracker seam (tests, later speed models).
 function D:SetTracker(tracker)
     self.Tracker = tracker
-    self._fillW, self._timeKey = nil, nil
+    self._fillW, self._timeKey, self._armKey = nil, nil, nil
+end
+
+-- ---------------------------------------------------------------- the fill --
+--- Which path draws: the file's default is "lua" (the header's DEFAULT
+--- POSTURE); "auto" runs the capability gate and "engine" asks for the
+--- armed widget -- both of them degrade to the v2 path on a client without
+--- the API, never to a blank bar.
+function D:_FillEngineWanted()
+    if self._fillMode == "lua" then return false end
+    if self._fillEngine == nil then self._fillEngine = engineFillCapable() end
+    return self._fillEngine and true or false
+end
+
+--- True while the engine path owns the fill's animation.
+function D:UsesEngineFill()
+    return self._engineFill and true or false
+end
+
+--- Build the fill for the mode the gate decided (Init) or a seam forced.
+--- The engine path needs a StatusBar -- SetTimerDuration is a widget
+--- method -- whose value range (min..max = 0..1) IS the bar's width
+--- fraction, so both paths agree on geometry: the engine fill spans a
+--- width set at its edge and the value animates inside it, the lua fill is
+--- sized every pass. No StatusBar (or no timer method) = the v2 texture
+--- path, gate off: the pre-I-3 bar, unchanged.
+function D:_BuildFill(parent)
+    local engine = self:_FillEngineWanted()
+    local fill
+    if engine then
+        local ok, sb = pcall(CreateFrame, "StatusBar",
+            "ForteXorcistHunterSwingFill", parent)
+        if ok and sb and type(sb.SetTimerDuration) == "function" then
+            fill = sb
+            pcall(fill.SetStatusBarTexture, fill, S.BarTexture)
+            pcall(fill.SetMinMaxValues, fill, 0, 1)
+            fill:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+            fill:SetSize(0, S.Height)
+        else
+            engine = false
+        end
+    end
+    if fill == nil then
+        fill = parent:CreateTexture(nil, "ARTWORK")
+        fill:SetTexture(S.BarTexture)
+        fill:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+        fill:SetSize(0, S.Height)
+    end
+    self.fill, self._engineFill = fill, engine
+    self._fillW, self._armKey, self._fillSpanW = nil, nil, nil
+    self:_SetFillColor(fill, S.BarColor)
+    return fill
+end
+
+--- The fill tint, per path (the widget has its own colour setter; the
+--- texture's is SetVertexColor).
+function D:_SetFillColor(fill, c)
+    if self._engineFill and fill.SetStatusBarColor then
+        pcall(fill.SetStatusBarColor, fill, c[1], c[2], c[3], c[4])
+    else
+        fill:SetVertexColor(c[1], c[2], c[3], c[4])
+    end
+end
+
+--- The tests'/demo's seam over the two fill paths. Rebuilds the fill; the
+--- state edges, the slices, the spark and the text are shared code, so one
+--- cycle draws the same sequence on both (the parity test proves it).
+function D:SetFillEngineMode(mode)
+    if mode ~= "engine" and mode ~= "lua" then mode = "auto" end
+    if self._fillMode == mode then return end
+    self._fillMode = mode
+    if not self.anchor then return end
+    local old = self.fill
+    self.fill = nil
+    if old ~= nil then
+        if old.Hide then pcall(old.Hide, old) end
+        if old.SetParent then pcall(old.SetParent, old, nil) end
+    end
+    self:_BuildFill(self.anchor)
+    self:RenderIdle()
+    local t = self.Tracker
+    if t and t.active then self:StartTicking() end
+end
+
+--- The one duration object of this bar -- the shipped law re-SETS the
+--- row's object at every edge instead of building one per frame.
+function D:_DurationObject()
+    local d = self._dur
+    if d ~= nil then return d end
+    local CDU = _G.C_DurationUtil
+    if not (CDU and CDU.CreateDuration) then return nil end
+    local ok, created = pcall(CDU.CreateDuration)
+    if not ok or created == nil then return nil end
+    if type(created.SetTimeFromStart) ~= "function" then return nil end
+    self._dur = created
+    return created
+end
+
+--- Arm the engine fill for the current state. The three arms and why each
+--- is algebraically the v2 law (W = the bar's width):
+---   * span (the safe window): the frame is sized to the law's CURRENT
+---     width w = (remaining - floor)/duration x W and the timer drains it
+---     to empty over exactly the span that is left (remaining - floor
+---     seconds, RemainingTime). Both curves are linear and agree at the
+---     arm instant and at the floor instant, so they agree everywhere --
+---     the fill reaches 0 at the aim window's first instant;
+---   * elapsed (the single-phase law): the full width, ElapsedTime from the
+---     cycle's own start, so a bar that starts mid-shot picks the cycle up
+---     at its true fraction;
+---   * value: a static fraction -- the whole-width white flight, the
+---     interlock's frozen clip fraction -- an expired duration plus an
+---     explicit value, the static state the engine paints for a finished
+---     timer.
+--- Immediate on every arm: the shipped "a restart mid-swing must not ease
+--- back from the old fill". One pcall over the widget touches: a raise
+--- degrades THIS bar to the v2 SetSize law (one way, never back).
+function D:_EngineFillPass(now, tracker, phase, castLeft, w, floor, remaining)
+    local W = S.Width
+    local kind, key, dir, start, dur, target
+    if castLeft or (ST.showSafeWindow and phase == "flying") then
+        kind = "value"
+        target = (W > 0) and (w / W) or 0
+        dir, start, dur = self._dirs.remaining, now, 0
+        key = "v|" .. armNum(target)
+    elseif ST.showSafeWindow then
+        kind = "span"
+        dir = self._dirs.remaining
+        start = now
+        dur = math.max(0, remaining - floor)
+        key = "s|" .. armNum(tracker.start) .. "|" .. armNum(tracker.duration)
+            .. "|" .. armNum(floor)
+    else
+        kind = "elapsed"
+        dir = self._dirs.elapsed
+        start, dur = tracker.start, tracker.duration
+        key = "e|" .. armNum(tracker.start) .. "|" .. armNum(tracker.duration)
+    end
+    if key == self._armKey then return end
+    local d = self:_DurationObject()
+    if d == nil then
+        self:_DegradeEngineFill()
+        return
+    end
+    local spanW = (kind == "span") and w or W
+    local dirs = self._dirs
+    local ok = pcall(function()
+        d:SetTimeFromStart(start, dur, 1)
+        self.fill:SetSize(spanW, S.Height)
+        self.fill:SetTimerDuration(d, dirs.immediate, dir)
+        if target ~= nil then self.fill:SetValue(target) end
+    end)
+    if not ok then
+        self:_DegradeEngineFill()
+        return
+    end
+    self._armKey = key
+    self._fillSpanW = spanW
+    local log = self._engineLog
+    if log ~= nil then
+        log[#log + 1] = { kind = kind, key = key, span = spanW, dur = dur,
+            dir = dir, target = target, at = now }
+        if #log > 64 then table.remove(log, 1) end
+    end
+end
+
+--- The idle state of an engine fill: an expired duration parked at empty,
+--- so a hidden bar costs the client nothing (the shipped "an idle row
+--- costs nothing" law).
+function D:_EnginePark(now)
+    self._armKey, self._fillSpanW = nil, 0
+    local d = self:_DurationObject()
+    if d == nil then return end
+    local dirs = self._dirs
+    pcall(function()
+        d:SetTimeFromStart(now, 0, 1)
+        self.fill:SetSize(0, S.Height)
+        self.fill:SetTimerDuration(d, dirs.immediate, dirs.remaining)
+        self.fill:SetValue(0)
+    end)
+end
+
+--- The one-way degrade: the widget path raised, so this bar's fill is
+--- driven by the v2 SetSize law from here on. A StatusBar whose value sits
+--- at its max fills its own frame, which is exactly what that law expects.
+function D:_DegradeEngineFill()
+    self._engineFill = false
+    self._fillW, self._armKey, self._fillSpanW = nil, nil, nil
+    local fill = self.fill
+    if fill == nil then return end
+    pcall(function()
+        fill:SetMinMaxValues(0, 1)
+        fill:SetValue(1)
+    end)
+end
+
+--- The tests' view of the engine arms (bounded): entries are
+--- {kind, key, span, dur, dir, target, at}. nil = logging off.
+function D:FillLog(on)
+    self._engineLog = on and {} or nil
+    return self._engineLog
 end
 
 -- -------------------------------------------------------------- position --
@@ -458,8 +743,16 @@ function D:SetSize(w, h)
     if type(h) == "number" and h > 0 then S.Height = h end
     if not self.anchor then return end
     self.anchor:SetSize(S.Width, S.Height)
-    -- The fill keeps its current fraction under the new numbers.
-    self.fill:SetSize(self._fillW or 0, S.Height)
+    -- The fill keeps its current fraction under the new numbers: the v2
+    -- path's own width, the engine path's current span (the arm key is
+    -- dropped, so the next pass re-arms the span and the timer on the new
+    -- geometry).
+    if self._engineFill then
+        self._armKey = nil
+        self.fill:SetSize(self._fillSpanW or 0, S.Height)
+    else
+        self.fill:SetSize(self._fillW or 0, S.Height)
+    end
 end
 
 function D:SetWidth(v) self:SetSize(v, nil) end
@@ -472,7 +765,8 @@ function D:SetBarColor(col)
     S.BarColor = { col[1] or 1, col[2] or 1, col[3] or 1, col[4] or 1 }
     if not self.fill then return end
     local c = S.BarColor
-    self.fill:SetVertexColor(c[1], c[2], c[3], c[4])
+    self:_SetFillColor(self.fill, c)
+    self._fillColor = nil
 end
 
 function D:SetBgColor(col)
@@ -668,7 +962,19 @@ function D:Update(now)
     elseif w > W then
         w = W
     end
-    if self._fillW ~= w then
+    -- The fill intent: this pass' width from the law above, recorded on
+    -- both paths (the v2 path's `_fillW` caches its last SetSize; the
+    -- engine path sizes its span from this number at the arm edge). The
+    -- seam the fill-parity test compares; the spark head rides it too.
+    self._fillIntent = w
+    -- The engine path arms the widget at the state edge and lets the
+    -- client animate it (the header's Fill law); the v2 path sizes it from
+    -- the law above. The engine test is re-read, so a mid-pass degrade is
+    -- drawn the same pass it happens.
+    if self._engineFill then
+        self:_EngineFillPass(now, tracker, phase, castLeft, w, floor, remaining)
+    end
+    if not self._engineFill and self._fillW ~= w then
         self._fillW = w
         self.fill:SetSize(w, S.Height)
     end
@@ -680,7 +986,7 @@ function D:Update(now)
     local fck = fc[1] .. "|" .. fc[2] .. "|" .. fc[3] .. "|" .. fc[4]
     if self._fillColor ~= fck then
         self._fillColor = fck
-        self.fill:SetVertexColor(fc[1], fc[2], fc[3], fc[4])
+        self:_SetFillColor(self.fill, fc)
     end
     if flying and self.spark then
         if self._phase ~= "flying" then
@@ -799,7 +1105,13 @@ function D:RenderIdle()
     -- No stale number on a hidden bar (runs on the state transition only).
     if self.text then self.text:SetText("") end
     self._fillW, self._timeKey = nil, nil
+    self._fillIntent = nil
     self._phase = nil
+    if self._engineFill then
+        -- The engine fill costs the client nothing while the bar is
+        -- hidden: its timer is expired and parked at empty.
+        self:_EnginePark(GetTime())
+    end
     if self.spark then self.spark:SetVertexColor(1, 1, 1, 0) end
     self._sparkAt = nil
     for _, pair in ipairs({ { self.aim, "_aimW" }, { self.retry, "_retryW" },
@@ -976,12 +1288,13 @@ end
 function D:StatusLine()
     local fraction, remaining
     if self.Tracker then fraction, remaining = self.Tracker:Progress() end
-    return string.format("Swing bar: %s | %dx%d | %s | %s",
+    return string.format("Swing bar: %s | %dx%d | %s | %s | fill=%s",
         fraction and string.format("%.0f%% (%.1fs)", fraction * 100, remaining)
             or "idle",
         S.Width, S.Height,
         ST.showTime and "text on" or "text off",
-        (self.cfg and self.cfg.locked) and "locked" or "unlocked")
+        (self.cfg and self.cfg.locked) and "locked" or "unlocked",
+        self._engineFill and "engine" or "lua")
 end
 
 -- ================================================================ UI module --
