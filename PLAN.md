@@ -711,7 +711,19 @@ Cooldown"). Review 5: 0 blockers, every event payload order correct. Gate PASS *
 | Review 5 tests | `fx-worker` `ReviewFix5` | `addon/Forte_Cooldown/tests/test_procs.lua`, `addon/Forte_Core/tests/test_locale.lua`, `addon/Forte_Timer/tests/test_module.lua` + a new Timer test file | real-frame payload tests for `UNIT_AURA`→Procs, Locale's `GET_ITEM_INFO_RECEIVED`/`ITEM_DATA_LOAD_RESULT`, the Timer's `UNIT_DIED`; `test_module.lua:984` SENT in the 4-slot shape; minors outside the other slices' trees (list the rest) | each new test proven to bite (break the handler temporarily) |
 | Feeds | `fx-worker` `Feeds` | `tools/gen_spell_data.py`, `addon/Forte_Timer/Core/Registry.lua`, generated `addon/Forte_*/Data/*.lua`, a new `addon/Forte_Timer/tests/test_data_feeds.lua` | `tickEvery` / `maxStack` / `noTarget` from base data (TimerFollow's notes: `Effects[].PeriodMs`, `MaxStack`, caster-only `TargetUnit`), read by `Registry:Build` | a DoT's tick interval + a stacking aura in the registry (test), full gate incl. determinism |
 
-Later: Advanced page v1 (fix-list item 8), cosmetic backlog (item 9).
+**Wave 4 accepted (`a2fdaf5`, 2026-11-03):** options pages to the original (labels/defaults on General, Cooldown, Splash,
+Spell Timer, Warlock, Messages; 15 Cooldown rows, 6 Timer rows, Warlock spy/expand rows, Soulstone fade/ready sounds with
+the original's mp3 vendored), Warlock pet + soulstone announce rows (default OFF — the first cut leaked one chat line on a
+default install; caught by the locale census, fixed, guarded by a full-default silence test), Spell Timer tick/stack/self
+feeds, review-5 real-frame tests. Gate PASS **667**; live battery 14/15 — the 15th exposed the next item.
+
+**Wave 5 (dispatched 2026-11-03)**
+
+| Slice | Agent | Owns | Deliverable | Acceptance |
+|---|---|---|---|---|
+| Settings defaults | `fx-worker` `StoreDefaults` | `addon/Forte_Options/Core/Settings.lua`, `addon/Forte_Core/Core/Database.lua` (+ a v1→v2 migration), their tests | **live finding:** the profile stores every key incl. defaults (uiforever profile: all 8 General keys, `AltTimeFormat=false` frozen from the old default), so a changed default never reaches an existing install. Store only values that differ from the registered default (writing a value equal to the default deletes the key); find and fix whatever writes defaults (page build / registration / reset); migration v2 drops stored values equal to their current default | a page build + reload leaves no default-valued keys; changing a default in a test registration reaches a profile that never touched it; a user-set value survives; migration test; gate PASS; manager live check on uiforever |
+| Review-5 minors | `fx-worker` `Minors5` | the 12 sites ReviewFix5 listed (`Forte_Hunter` Tools/Pages/Range, `Forte_Cooldown` Module/Procs, `Forte_Core` Locale/Probe, `Forte_Timer/Core/Casts.lua`) | each minor fixed per the review's text (m4 `OutOfCombatAlpha` tip now says default visible) | per-minor test where behaviour changes; gate PASS |
+| Advanced page v1 | `fx-worker` `AdvancedPage` | NEW `addon/Forte_Options/Pages/Advanced.lua` (+ toc twins), consumers only via existing setters/seams | fix-list item 8 feasible subset: startup text toggle, AnimateScroll, ExpandSubcats pair, Core update intervals where a consumer exists, per-module frame strata via `SetFrameStrata`, FrameSnap + distances, RightClickOptions (General) — each row with a live consumer or not added; the index cell lights | page registers + cell lights; each key changes its consumer through the real setter path; gate PASS |
 
 **H10 Data refresh (owner request 2026-11-02, runs beside wave 1)**
 
