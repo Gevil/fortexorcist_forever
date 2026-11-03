@@ -746,6 +746,16 @@ Gate PASS **691**; live battery 15/15 (+ the DB row now follows `DB.SCHEMA_VERSI
 | README swing loop | manager | `docs/demo/`, `README.md` | live uiforever recording of the Hunter shot cycle (orange → red aim → white), addon-only crop | viewed frame by frame; renders on GitHub |
 | PLAN §6 refresh | manager | `PLAN.md` §6 | current state after waves H1–5 | — |
 
+**Wave 6 accepted (`b88c454`, `7e0a96f`, 2026-11-03):** right-click-to-options on every module frame with the original's
+lock law (lock only stops dragging — the port had turned mouse off on lock, so locked frames could never be right-clicked;
+verified live on the locked Hunter swing bar); bar font/texture pickers (the original's 19 bar textures), Cooldown
+IconSize/TextColor; README Hunter swing loop; §6 refreshed. Gate PASS **707**; live battery **16/16**.
+
+**Review 6 (dispatched 2026-11-03):** `fx-scout` `CodeReview6` over `a2fdaf5..HEAD` (waves 4–6: options consumers, sparse
+store + v2 migration, Advanced page, right-click/lock law, pickers, feeds, announces) — payload/secret/hazard audit plus
+settings-store correctness and every new option's consumer. Findings must quote the line; the manager re-verifies each
+before any fix (review 5 contained invented sites).
+
 **H10 Data refresh (owner request 2026-11-02, runs beside wave 1)**
 
 Facts (manager, 2026-11-02): `mythicsim-forever-engine` fast-forwarded 21 commits to `f794f2b` — its `data/` is still pinned
