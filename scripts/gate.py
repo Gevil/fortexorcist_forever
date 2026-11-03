@@ -16,7 +16,8 @@ import filecmp, glob, hashlib, os, re, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ADDONS = os.path.join(ROOT, "addon")
-SIM = os.path.expanduser("$WORK/wow-ui-sim/run.sh")
+# wow-ui-sim checkout: $WOW_UI_SIM (path to run.sh) or a sibling checkout next to this repo.
+SIM = os.environ.get("WOW_UI_SIM") or os.path.join(os.path.dirname(ROOT), "wow-ui-sim", "run.sh")
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 FORTE_ERR = re.compile(r"(Forte_\w+/[\w/\.]+:\d+)")
 

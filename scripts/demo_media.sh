@@ -20,7 +20,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SIM="$HOME/Work/Personal/wow-ui-sim/run.sh"
+SIM="${WOW_UI_SIM:-$(dirname "$ROOT")/wow-ui-sim/run.sh}"
 ADDONS="$ROOT/addon"
 SDIR="$ROOT/scripts/demo"
 OUT="$ROOT/docs/demo"

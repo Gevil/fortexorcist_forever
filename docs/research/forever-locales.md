@@ -4,8 +4,8 @@ Research note for **H1 Localization** (`PLAN.md` §11.1 row "H1r Locale research
 survey of the installed Forever client, the installed third-party addons, the pinned API catalog,
 the wow-ui-sim spec set, and public launch-window sources. Date of survey: 2026-11-02.
 
-Paths: `<install>` = `$HOME/.steam/steam/steamapps/compatdata/2691180173/pfx/drive_c/Program
-Files (x86)/World of Warcraft`; `<_forever_>` = `<install>/_forever_`;
+Paths: `<install>` = the WoW Forever client's `World of Warcraft` folder (a Steam/Proton install on the author's
+machine); `<_forever_>` = `<install>/_forever_`;
 `<addins>` = `<_forever_>/Interface/AddOns`;
 `<agents>` = `docs/api/wow-addon-api-agents`; `<specs>` = `docs/reference/wow-ui-sim-specs`
 (repo-relative to `wow-fortexorcist`).

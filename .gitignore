@@ -4,5 +4,7 @@ __pycache__/
 /scratch/
 /dist/
 docs/media/
+# Third-party reference screenshots of the 2012 original (design references, not ours to publish)
+docs/refs/
 # Century Gothic is Monotype-proprietary ("All Rights Reserved"), NOT GPL — never commit (PLAN §3.5, §9)
 **/GOTHIC*.TTF

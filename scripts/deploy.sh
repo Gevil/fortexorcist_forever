@@ -23,7 +23,8 @@
 # outside its own Forte_* entries.
 set -eu -o pipefail
 
-DEFAULT_DEST='<WoW install>/_forever_/Interface/AddOns'
+# The Forever client's AddOns folder: $FX_WOW_ADDONS, else the Steam (Proton) default.
+DEFAULT_DEST=${FX_WOW_ADDONS:-"$HOME/.steam/steam/steamapps/compatdata/2691180173/pfx/drive_c/Program Files (x86)/World of Warcraft/_forever_/Interface/AddOns"}
 
 # Marker file this script stamps into every --copy deployment, so a later
 # run recognises its OWN copies and replaces only those.
