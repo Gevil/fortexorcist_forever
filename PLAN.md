@@ -249,29 +249,33 @@ passed stubs. UI/API code is only accepted after a wow-ui-sim run.
 
 ---
 
-## 6. Current state (2026-11-02, commit `3e62477`+)
+## 6. Current state (2026-11-03, commit `7e0a96f`+)
 
-Repo `github.com/Gevil/fortexorcist_forever` (private), pushed after every verified step. **Never loaded in the real
-client yet** (first session = launch day, `docs/launch-day.md`, smoke checks F1–F16). All addon paths relative to `addon/`.
-Verification: `python3 scripts/gate.py` = **PASS, 412 sim tests** (Cooldown 143, Core 37, Hunter 38, Messages 33,
-Options 49, Timer 70, Warlock 42), per-class load probes (default/Hunter/Warlock: exactly one class addon loaded),
-toc twins + no always-loaded→LoD dependency, syntax, API/enum/event lint, data determinism. Live on uiforever.com:
-§10.4 T1–T15 + Timer/Hunter/LoD/Splash/Messages checks (§9), 15/15 addons active, no Lua errors.
+Repo `github.com/Gevil/fortexorcist_forever` (private), pushed after every verified step; README has live screenshots.
+**Never loaded in the real client yet** (first session = launch day 2026-11-04, `docs/launch-day.md`: deploy
+`--copy --verify`, `/fx probe` with the copy window, smoke checks F1–F17). All addon paths relative to `addon/`.
+Verification: `python3 scripts/gate.py` = **PASS, 691 sim tests** (Cooldown 184, Core 65, Hunter 73, Messages 73,
+Options 91, Shaman 15, Timer 121, Warlock 69), per-class load probes (exactly one class addon), toc twins + no
+always-loaded→LoD dependency, syntax, API/enum/event lint (payload orders reviewed in review 5), data determinism.
+Live on uiforever.com: `scripts/uif_battery.js` **15/15** (import dialog + live-code marker, class set, modules,
+schema v2, default-silent chat, settings persist across `/reload`, no Lua errors) plus manager-driven live checks of
+every new event path (the Hunter swing bar was verified frame by frame after three live-only defects).
 
 | Addon | What it contains | State |
 |---|---|---|
-| `Forte_Core` | registry, `/fx` slash + per-module status loop, SavedVariables `ForteXorcistDB`, `Compat` (PlainOrNil fail-closed, item/spell seams, `IsPlayerSpell` fallbacks, `FX.SecretState`), event bus (`FX.On/Off/Fire`), class Loader (load-on-demand), `Probe` (`/fx probe` launch-day kit), URW Gothic font, the original's full texture set | done |
-| `Forte_Cooldown` | Engine (cast predict, read tiers, charges, edge fallback), Items, Enchants, Timeline (Classic bar, splash + ready pulse, Warn flash, right-click → options, Vertical/Flip/HideZero), **Secondary Splash** (the original's bell pop) | done |
-| `Forte_Timer` | Spell Timer v1: own-cast predicted rows, the original's reconcile law, kind colours, CC fade/break/expiry events (dead-target muted, fail-open) | done (v1 = own casts; pet casts: no CC pet spells exist on Forever) |
-| `Forte_Messages` | self messages (chat + banner), sounds (the original's CC fade bell / break sound), party/raid announce (legality-gated, **all OFF by default — owner decision pending**) | done |
-| `Forte_Hunter` | data + aspect tracker + Auto Shot swing tracker + swing bar + aspect reminder + page | done |
-| `Forte_Warlock` | data + shard/soulstone/healthstone/ritual trackers + the original's four purple plates (icons render) + pages | done |
-| `Forte_Options` | the original-style window, 16-cell module index lighting registered pages, settings registry, every key wired live | done |
-| `Forte_Items` | generated on-use / proc / consumable data (238 / 405 / 79) | done |
-| other `Forte_<Class>` (Druid, Mage, Paladin, Priest, Rogue, Shaman, Warrior) | generated cooldown + timer data (531 spells over 9 classes), load-on-demand | data only (Mage Polymorph / Rogue Sap fade warnings via Messages) |
+| `Forte_Core` | registry, `/fx`, `ForteXorcistDB` schema v2 (sparse store, per-character/shared profiles, `/fx reset`), `Compat`/`SecretState`, event bus, Loader (class + `LoadAddOnOnDemand`, detects listed-but-not-run), **Locale** (ID-built aliases for 10 client languages, late item names), `Probe` + copy window, URW Gothic, the original's textures + `SoulstoneExpire.mp3` | done |
+| `Forte_Cooldown` | Engine, Items, Enchants, **Procs** (item proc ICDs behind an experimental off switch), Timeline (Classic bar, splash/pulse, Warn, right-click, Vertical/Flip/HideZero, alpha pair, icon text, range filters, per-bar splash), Secondary Splash | done |
+| `Forte_Timer` | Spell Timer: own + pet cast rows, reconcile law, kind colours from the original, CC fade/break/expiry events, tick/stack/self data feeds, Blink/FadeTime/TicksNext/Outwands/Flip, perf pass | done |
+| `Forte_Messages` | self messages + banner, sounds (CC fade bell, break, Soulstone fade/ready), party/raid/whisper announces for CC, 20 class casts, Warlock pet trios, Soulstone start/cancel — **all OFF by default, a default install proven silent**, legality-gated | done (owner decision on defaults pending) |
+| `Forte_Hunter` | aspect tracker + reminder; **swing bar v2** (WeaponSwingTimer SixxFix, GPLv3): orange reload → red aim → white safe window, Aimed/Multi clipping, movement, Feign Death, range light, combat alpha | done |
+| `Forte_Warlock` | shard/soulstone/healthstone/summon trackers + the original's purple plates; Healthstone Spy, Shard Spy, Summon queue over legality-gated addon comms; spy colours/expand/details rows | done (multiplayer = launch probes) |
+| `Forte_Shaman` | totem slots as Spell Timer rows, one row per totem | done |
+| `Forte_Options` | original-style window, profile tabs, every page matched to the original's option tree (labels/defaults), Advanced page v1 | done (cosmetic pickers in wave 6) |
+| `Forte_Items` / `Forte_ItemProcs` | on-use + consumables (always) / item procs with ICDs (load-on-demand) | done |
+| other `Forte_<Class>` | generated data at live build 1.60.1.70707 (~590 spells, trainer ranks, ICDs), load-on-demand | data + class casts/announces |
 
-No Death Knight (WoW Forever has none). Open at launch: launch-day probes + smoke checks, proc gate containers (after
-probes), owner decision on default party announcements, class tools beyond Hunter/Warlock if the owner wants them.
+No Death Knight on Forever. Open at launch: launch-day probes + smoke checks; in-combat proc display + the 22 deferred class
+proc buffs (after the probes); owner decision on default party announcements.
 
 ---
 
