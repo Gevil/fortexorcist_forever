@@ -824,7 +824,16 @@ Riptide/Lava Burst/Totemic Projection not. `upstream-addons` — SVFix premise r
 | **I2e Docs** | `docs/api/**` (re-vendor to `20585807`, `SOURCE.md`, README layer table), new `docs/reference/wow-ui-sim-specs/time-and-capture.md` | upstream-api ranked 3; upstream-sim ranked 3 | api_lint unchanged PASS; provenance pins updated |
 | **I2f Combat round** (after I2a–I2c land) | new `addon/Forte_*/tests/test_combat_*.lua`, `scripts/scenarios/combat/**`; fixes only where a test proves a bug (reported first) | upstream-sim ranked 2: per module an in-combat scenario through real frame scripts — `SetInCombat`, injected `UNIT_SPELLCAST_*` / `PLAYER_SWING`, `SetGCD`/`SetSpellCooldown`, `AddBuff`/`AddDebuff`, `AdvanceTime`; leave combat → reconcile; secret reads via the existing unit-test fakes (the sim cannot produce secrets) | every module has a combat test; gate PASS; bugs listed with repro |
 
-Deferred post-launch (recorded, not dropped): Hunter swing engine-driven fill (`C_DurationUtil`/`SetTimerDuration`,
-upstream-addons ranked 2), throttle-aware comms outbox (ranked 3; comms default OFF), `FX.TestMode` (ranked 6),
-login-order audit (7), ChatBar nameplate protocol (8), SVFix premise rewrite (1), H7 + the 10 resolvable procs
-(upstream-data ranked 3), sim binary bump when a 70707-profile release ships (upstream-sim ranked 5–6).
+**Wave I-3 (owner 2026-11-03: "almost 29 hours left until launch, do all the work") — the former deferred list, run
+after I-2 lands, beside I2f's tests (I2f reports bugs first; its fixes run after I-3 so files never collide):**
+
+| Slice | Owns | Change (source) |
+|---|---|---|
+| I3a Hunter swing fill | `Forte_Hunter/**` | engine-driven fill (`C_DurationUtil` + `SetTimerDuration`, `UnitAttackSpeed` per slot, 0.5 s aim window, 3-return `PLAYER_SWING_RANGE_UPDATE`, nil ≠ out of range) — upstream-addons ranked 2; re-derived from declared APIs, numbers only |
+| I3b Throttle-aware comms | `Forte_Warlock/Core/Comms.lua`, `Forte_Messages/Core/{Announce,Snapshot,Reconcile}.lua`, `tools/selfcheck.lua`, `docs/COMPATIBILITY-MATRIX.md` | result-code classes (throttle → back-off re-queue, lockdown → head re-queue, else drop), bounded outbox, `addonChatRestrictionsForced` gate — ranked 3; defaults stay OFF |
+| I3c Test mode | new `Forte_Core/Core/TestMode.lua` (+ toc), hooks in `Forte_Cooldown`, `Forte_ItemProcs`, `Forte_Timer`, Options toggle | `/fx test` fills every frame with synthetic, secret-proof entries (`_source = "test"`), scrubbed on exit and on combat — ranked 6; also a demo source |
+| I3d Login order + ChatBar + SV | `Forte_Core/Core/{Loader,Init}.lua`, `Forte_ChatBar/**`, `scripts/deploy.sh`, `Forte_Core/*.toc`, `docs/engine-notes.md` | LoD class add-on login-order audit (7), nameplate forbid/release protocol (8), SVFix premise rewrite + SV probe tie-in (1) |
+| I3e Procs (H7) | `tools/spell_lists/*.json`, generated data, `docs/class-port.md` | the 22 deferred procs, 10 resolvable via wowsims names (upstream-data ranked 3), after I2b |
+
+Then: I2f fixes → CodeReview7 (fresh reviewer) → fixes → full gate + live uiforever battery + `release.py` dry run.
+Sim binary bump stays open until a 70707-profile release ships (no toolchain here; upstream-sim ranked 5–6).
