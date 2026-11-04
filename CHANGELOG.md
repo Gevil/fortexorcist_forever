@@ -34,6 +34,11 @@ headless interface simulator and on uiforever.com — not in a live game.
   fact by the Spell Timer's aura sweep: it no longer plants a row that is born
   at zero, and it no longer wipes a live row of the same spell. A permanent
   aura (no end time) is a fact as before.
+- **The Mage's Clearcasting shows on the Spell Timer.** The Arcane
+  Concentration procs (the "your next Arcane/Frost/Fire spell is cheaper"
+  window, 15 s) were measured live on a Mage and drawn no row: the Mage's
+  spell list did not name the aura. It is tracked now (the Druid's and the
+  Shaman's Clearcasting rows are unchanged).
 - A dead range-check telemetry field on the Hunter swing tracker, a dead
   locale id-map and a dispatcher-less locale event hook were removed.
 

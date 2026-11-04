@@ -306,9 +306,12 @@ end)
 -- out-of-combat aura sweep: Forte_Timer/Core/Reconcile.lua Gates() runs ZERO
 -- aura reads in combat, so a sealed read can not fabricate a row -- no row,
 -- not a wrong row, the law this census pins for the proc rows.
+-- The 2026-11-04 follow-up joins the census: the mage's Clearcasting (the
+-- Arcane Concentration proc, id 12536) landed out of the same H7 family,
+-- measured live in the uiforever Mage scenario (docs/class-port.md 6.3).
 local H7_LANDED = {
     DRUID = { "Clearcasting" },
-    MAGE = { "Fingers of Frost", "Ignite" },
+    MAGE = { "Fingers of Frost", "Ignite", "Clearcasting" },
     PALADIN = { "Forbearance", "Infusion of Light", "Vengeance", "Vindication" },
     ROGUE = { "Shank", "Death Mark" },
     SHAMAN = { "Maelstrom Weapon" },
@@ -387,8 +390,53 @@ function()
             key, #(H7_LANDED[cls] or {}), n, #(H7_LANDED[cls] or {}) - n))
     end
     for _, line in ipairs(report) do print("  " .. line) end
-    assertEquals(12, total)
+    -- Wave I-3e landed 12; the 2026-11-04 mage Clearcasting follow-up makes
+    -- the census 13, all 13 windowed (the 3 pinned no-window rows are the
+    -- rogue pair + Deep Wounds).
+    assertEquals(13, total)
     assertEquals(3, pinned)
+end)
+
+test("the four Clearcasting rows stay on their own class (family law)",
+function()
+    -- "Clearcasting" is a FIVE-row name in this build's data: mage 12536
+    -- (fam 3, the Arcane Concentration proc), druid 16870 (fam 7), shaman
+    -- 16246 (fam 11), rogue 457342/467735 (fam 8). The generator resolves the
+    -- NAME per class through the family-scoped rank law, so the mage list
+    -- can not slide onto the druid row (and back). All three carried rows
+    -- ride the same 15 000 ms caster-side window (base DurationMs + the
+    -- 70707 store durationMs agree; the mage row is the one the uiforever
+    -- Mage scenario measured live: spellId 12536, 15 s, applied, readable).
+    -- The classic Holy-Concentration Clearcasting has NO priest row on this
+    -- build (families 3/7/8/11 only, base + store) -- pinned absent so the
+    -- day the data grows a family-6 row is a decision, not a silent drift.
+    local pins = {
+        { token = "DRUID",  id = 16870 },
+        { token = "MAGE",   id = 12536 },
+        { token = "SHAMAN", id = 16246 },
+    }
+    for _, p in ipairs(pins) do
+        local key = dataKey(p.token)
+        local data = FX.Data and FX.Data[key]
+        assertNotNil(data, key .. "'s generated data did not load")
+        local byName = FX.Data[key .. "ByName"]
+        local id = byName and byName["Clearcasting"]
+        assertEquals(p.id, id, key .. ": Clearcasting slid off its family row")
+        local row = data[id]
+        assertNotNil(row, key .. ": Clearcasting row missing at " .. tostring(id))
+        assertEquals(15000, row.durationMs, key .. ": Clearcasting window moved")
+        assertEquals(true, row.noTarget,
+            key .. ": Clearcasting is not a caster-side aura")
+        local reg = tracked(p.token)
+        assertNotNil(reg, "no generated " .. key .. " data to build a registry on")
+        local entry = reg["Clearcasting"]
+        assertNotNil(entry, key .. ": Clearcasting has no Spell Timer row")
+        assertTrue(entry.duration * 1000 == 15000,
+            key .. ": the registry row is not the 15 s window")
+    end
+    assertNil(FX.Data.PriestByName and FX.Data.PriestByName["Clearcasting"],
+        "a PRIEST Clearcasting row landed: the Holy-Concentration proc is on "
+        .. "the client now -- add priest.json's name and re-read the data")
 end)
 
 -- Hand the registry back to the session's own class (the Forte_Timer

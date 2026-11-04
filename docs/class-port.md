@@ -956,6 +956,23 @@ Surge (shaman 11's 23572), Grand Crusader (druid 7's 1231126); **no client
 Names row at all** (the post-9 net-news, ids at opening are the launch probe)
 — Poised, Reckless Swings.
 
+**Follow-up (2026-11-04, the uiforever Mage-scenario probe):** the Mage's
+**Clearcasting → 12536** joins the landed set (census 12 → 13). The scenario
+measured the Arcane Concentration proc live — player aura spellId 12536,
+duration 15 s applied and readable — and the Spell Timer drew no row because
+`tools/spell_lists/mage.json` did not name the spell. The name is a
+**five-row family spread** in this build (mage 12536 fam 3, druid 16870 fam 7,
+shaman 16246 fam 11, rogue 457342/467735 fam 8; every row DurationMs 15 000,
+store procFlag 87376, caster-side effect `[1, 0]` → `noTarget`), and the
+§6.1/§6.2 family-scoped law resolves each class's list to its own row —
+**no per-class id pin needed**; the census test `test_tracked_set.lua` pins
+mage 12536 / druid 16870 / shaman 16246, all 15 000 ms + noTarget, so a family
+slide trips at once. **Priest: no row** — the classic Holy-Concentration
+Clearcasting has no family-6 row in the base pull or the 70707 store, so
+`priest.json` does not name it (the pin asserts the absence; the day a
+family-6 row lands is a decision). The name rides the shipped `^Clearcasting`
+SelfBuff term (`Registry.lua`), `test_kinds.lua` stays `Default = 0`.
+
 **The eight T1 no-window pins, re-read against the `6e69a7f4` store:** none
 gained a positive window — Thrash 21919 (0), Beacon of Light 409906 (0), Aura
 Mastery 409932 (0), Reckoning 1326084 (−1, +1500 icd), Envenom 399968 (0),

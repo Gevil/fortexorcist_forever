@@ -3,13 +3,13 @@
 -- Overlay: wowsims/forever 6e69a7f4f239c591e9dec4124a93fca6329c240f build 1.60.1.70707 (MIT)
 --   (hotfix push 113562; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_70707.py -- 70707 values win; absent fields = the store carries no row, mythicsim stands)
 -- Dev notes: tools/overrides_devnotes_2026-11-03.json (Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update); https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9) -- post-9 values the captured data does not carry, applied AFTER the 70707 layer; delete a row the day a store capture carries the value (hotfix-watch)
--- Regenerated: 2026-11-03T21:01:47+00:00
+-- Regenerated: 2026-11-04T15:38:59+00:00
 -- 70707 overlay changes in this file (4):
 --   Arcane Wrath: { id = 1326082, name = "Arcane Wrath", cooldownMs = 6000, gcdMs = 1500, castMs = 3500, rank = "Rank 4" } -> { id = 1326082, name = "Arcane Wrath", cooldownMs = 6000, cooldownCategory = 2601, gcdMs = 1500, castMs = 3500, rank = "Rank 4" }
 --   Ice Lance: { id = 1240047, name = "Ice Lance", gcdMs = 1500, rank = "Rank 6" } -> { id = 1240047, name = "Ice Lance", cooldownMs = 8000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 6" }
 --   Blizzard: { id = 10187, name = "Blizzard", tickEvery = 1, durationMs = 8000, gcdMs = 1500, rank = "Rank 6" } -> { id = 10187, name = "Blizzard", tickEvery = 1, durationMs = 8000, cooldownCategory = 2518, gcdMs = 1500, rank = "Rank 6" }
 --   Flamestrike: { id = 10216, name = "Flamestrike", tickEvery = 2, durationMs = 8000, gcdMs = 1500, castMs = 3000, rank = "Rank 6" } -> { id = 10216, name = "Flamestrike", tickEvery = 2, durationMs = 8000, cooldownCategory = 2506, gcdMs = 1500, castMs = 3000, rank = "Rank 6" }
--- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects`/`MaxStack` answer first, a 70707-picked row inherits the same-id base row's shape, and the 70707 overlay's own feed captures (per-id `periodMs`/`targetCode`/`maxStack` of tools/overrides_70707.json) fill what neither can speak to. This file: 11 tickEvery, 1 maxStack, 24 noTarget.
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's `MaxStack` when above 1, `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects`/`MaxStack` answer first, a 70707-picked row inherits the same-id base row's shape, and the 70707 overlay's own feed captures (per-id `periodMs`/`targetCode`/`maxStack` of tools/overrides_70707.json) fill what neither can speak to. This file: 11 tickEvery, 1 maxStack, 25 noTarget.
 --   feeds [12472] Cold Snap: noTarget
 --   feeds [12051] Evocation: tickEvery = 1, noTarget
 --   feeds [12042] Arcane Power: noTarget
@@ -32,6 +32,7 @@
 --   feeds [1237313] Frostfire Bolt: tickEvery = 3
 --   feeds [400669] Fingers of Frost: noTarget
 --   feeds [412538] Ignite: tickEvery = 2
+--   feeds [12536] Clearcasting: noTarget
 --   feeds [22783] Mage Armor: noTarget
 --   feeds [7301] Frost Armor: noTarget
 --   feeds [10220] Ice Armor: noTarget
@@ -102,6 +103,7 @@ ForteXorcist.Data.Mage = {
   [27868] = { id = 27868, name = "Freeze", durationMs = 3000 },
   [400669] = { id = 400669, name = "Fingers of Frost", noTarget = true, durationMs = 15000 },
   [412538] = { id = 412538, name = "Ignite", tickEvery = 2, durationMs = 4000 },
+  [12536] = { id = 12536, name = "Clearcasting", noTarget = true, durationMs = 15000 },
   -- utility
   [22783] = { id = 22783, name = "Mage Armor", noTarget = true, durationMs = 1800000, gcdMs = 1500, rank = "Rank 3" },
   [7301] = { id = 7301, name = "Frost Armor", noTarget = true, durationMs = 1800000, gcdMs = 1500, rank = "Rank 3" },
@@ -174,6 +176,7 @@ ForteXorcist.Data.MageByName = {
   ["Freeze"] = 27868,
   ["Fingers of Frost"] = 400669,
   ["Ignite"] = 412538,
+  ["Clearcasting"] = 12536,
   ["Mage Armor"] = 22783,
   ["Frost Armor"] = 7301,
   ["Ice Armor"] = 10220,
