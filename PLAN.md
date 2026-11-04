@@ -868,6 +868,12 @@ functionalities, its options, and anything that helps to weave." Reference: Weap
 `ooc_alpha` / `backplane_alpha`, size + font; plus `WeaponSwingTimer_Castbar.lua` (shot cast bars) and
 `WeaponSwingTimer_Player.lua` (melee main/off-hand swing bars — the melee-weave half).
 
+**Owner guidance (2026-11-04, binding):** keep the bar in ForteXorcist's own design style — no WST `classic_bars` or other
+WST skins; take WST's *functionality* only. What matters is practicality: how fast and easily a Hunter reads the bar mid-
+rotation (can I cast without clipping? when does the next Auto Shot fire? may I move? is there time to melee-weave?).
+Few, clear signals on our existing art over many options; every option earns its place by a concrete rotation use; the
+live-verified orange → red → white cycle stays the baseline.
+
 | Step | Agent | Output | Acceptance |
 |---|---|---|---|
 | J1 Design map | `fx-scout` `WSTDesign` | `docs/research/wst-swing-design.md` | Every WST Hunter/cast-bar/melee-bar feature and option (file:line), how one-bar vs split-bar draws (geometry, what moves, what is static), the clip/delay/latency indicators, the weaving aids (melee swing vs ranged reload windows, cast-bar overlay, safe-to-cast/move markers); our current `Forte_Hunter` behaviour and options for each (file:line); a gap table and a proposed design that keeps ForteXorcist's look; which APIs each needs on Forever (catalog-checked; `PLAYER_SWING`, `UnitAttackSpeed` per slot, `C_SwingTimer`) |
