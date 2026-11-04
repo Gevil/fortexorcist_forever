@@ -12,6 +12,27 @@ headless interface simulator and on uiforever.com — not in a live game.
 
 ---
 
+## Unreleased — 2026-11-04 (Iteration J: the Hunter swing bar reads your rotation)
+
+- **"Can I cast without clipping?" is on the bar.** A dim red mark shows the
+  Aimed Shot length: in the default *Safe window* mode it sits at the bar's
+  left end — start Aimed or Multi-Shot while the orange still reaches past
+  it and the cast won't delay your next Auto Shot. While a shot is casting
+  the mark follows that cast's real length.
+- **The stand-still zone is always visible.** The right end of the bar
+  carries a faint red region all cycle — the moment Auto Shot aims and you
+  must not move — so you see it coming, not only when it starts.
+- **Bar mode picker** (Hunter Tools options): *Safe window* (today's look,
+  the default), *One bar* (the fill grows toward the aim end) or *Single
+  fill* (plain cycle time). In the filling modes the clip mark sits at the
+  right and the fill should stay left of it.
+- **Weave line (opt-in):** a thin cyan line — while the bar is on the safe
+  side of it there is room for one 1.5 s global cooldown (a melee weave or
+  an instant shot) before the next Auto Shot.
+- **Melee rail (opt-in):** your main-hand swing as a slim bar under the
+  swing bar, shown only in melee range during combat; Raptor Strike resets
+  it. Off by default — when off it costs nothing.
+
 ## 0.1.0-dev — 2026-11-04 (Iteration I: launch-day build)
 
 - **Your profile follows your character, not the server label.** On WoW

@@ -74,7 +74,7 @@ ALWAYS_DATA = {"Items"}
 ALWAYS_MODULES = {"Cooldown", "Locale", "Messages", "Probe", "Splash", "TestMode", "Timer"}  # TestMode: wave I-3c
 LOAD_PROBES = {
     None: {"data": {"Paladin"}, "modules": set()},
-    "Hunter": {"data": {"Hunter"}, "modules": {"Hunter", "HunterUI"}},
+    "Hunter": {"data": {"Hunter"}, "modules": {"Hunter", "HunterUI", "HunterMelee", "HunterMeleeUI"}},  # melee rail: Iteration J beta
     "Warlock": {"data": {"Warlock"}, "modules": {"Warlock", "WarlockUI"}},
 }
 PROBE = ('local k={} for n in pairs(ForteXorcist.Data or {}) do if not n:find("ByName") then k[#k+1]=n end end '

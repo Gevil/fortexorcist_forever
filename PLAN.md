@@ -906,3 +906,12 @@ Both markers are right for the growing fills (`one`, `elapsed`). The J2 tests as
 | Fix | Owns | Change | Acceptance |
 |---|---|---|---|
 | J4 Marker meaning per mode | `Forte_Hunter/UI/Swing.lua`, `tests/test_swing_modes.lua`, `Pages/Hunter.lua` (the two tips), `docs/hunter-tools.md` (reading section) | each marker is the threshold the FILL EDGE crosses in that mode: `one`/`elapsed` (fill grows) — unchanged; `safe` (fill shrinks) — clip mark at `castLen × scale` from the left and weave line at `gcd × scale` from the left (orange reaching past the mark ⇒ the cast / the GCD still fits). Tips + docs read correctly in every mode | a PROPERTY test per mode: sampled across a whole cycle (≥ 30 points, with and without a live cast and a retry), `fillEdgeOnSafeSide(marker)` == `castFits(now)` (`remaining − floor ≥ castLen`) and the same for the GCD; existing tests pass; manager re-checks live |
+
+**J4 landed `a20f182`** (11 fail-first; the property law also caught the growing-mode stripe ignoring an open retry).
+**Live re-check (manager, uiforever, 100 % zoom):** default `safe` mode, 3.0 s cycle, Aimed Shot 2.0 s — band 133.3 px
+from the left, weave line at 100 px; at 2.2 s remaining the orange reaches ~57 % (1.7 s before the stand-still) and the
+band shows its last ~10 % beyond the orange — "Aimed Shot does not fit yet", correct; at 1.87 s remaining the orange
+(91.1 px) stops short of both marks — correct. `one` mode read correctly too. The 1 px weave line is lost in the
+downscaled capture → launch check F27. Gate PASS **928 tests** (Hunter load probe now expects `HunterMelee`/
+`HunterMeleeUI`). Driving note: on uiforever the swing must go through BOTH the Tools event frame and the UI kick
+(`D:OnSwingEvent()`), plus `START_AUTOREPEAT_SPELL` after a reload — a tracker-only drive leaves the display idle.
