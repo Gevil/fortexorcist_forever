@@ -197,6 +197,14 @@ FX.Hunter.SwingSkin = {
     AimRegionRetryAlpha = 0.25,
     ClipRegionAlpha = 0.22,
     ClipInterlockColor = { 1, 1, 1, 1 },
+    -- K4B (Iteration K, the colour-blind palette): the three keys that make
+    -- the marker family per-signal paintable. The SHIPPED art rides one red
+    -- at a stepped alpha (§7.3), so these are the same numbers the comment
+    -- above describes -- derived right below, never typed twice -- and a
+    -- palette that names one of them moves exactly that one signal.
+    AimRegionColor = nil,                     -- derived: AimColor
+    ClipColor = nil,                          -- derived: AimColor
+    ClipInterlockAlpha = nil,                 -- derived: ClipRegionAlpha
     WeaveColor = { 0, 0.75, 1, 0.95 },
     WeaveTexture = TEX .. "Border",
     WeaveWidth = 1,
@@ -210,6 +218,116 @@ FX.Hunter.SwingSkin = {
                                               --  row 10)
 }
 local S = FX.Hunter.SwingSkin
+
+-- The shipped marker family is ONE red at a stepped alpha (§7.3), so the
+-- three per-signal keys above are derived from it, not typed a second time:
+-- the shipped pixels can not drift from the aim hue they always rode.
+if S.AimRegionColor == nil then S.AimRegionColor = S.AimColor end
+if S.ClipColor == nil then S.ClipColor = S.AimColor end
+if S.ClipInterlockAlpha == nil then
+    S.ClipInterlockAlpha = S.ClipRegionAlpha
+end
+
+-- ------------------------------------------------------------- palettes --
+--- K4B (Iteration K, `docs/reviews/code-review-8.md` + PLAN §11.4 K4): the
+--- colour-blind palette. A palette is an OVERLAY over `SwingSkin`: a key it
+--- does not name keeps the shipped (and user-picked) value, so `default` --
+--- which names nothing -- is byte-identical to the bar as it has always
+--- drawn. `SetSwingPalette` is the one consumer; `tools/swing_contrast.py`
+--- and `tools/swing_palette_matrix.py` read this block out of this file, so
+--- the measured numbers are the shipped numbers.
+---
+--- `colourblind` is the Okabe-Ito family arranged as a BRIGHTNESS LADDER:
+--- each signal takes its own rung of the luminance scale, so a signal is
+--- told from its neighbour by lightness and by its PLACE on the bar, never
+--- by red-versus-orange alone (the K1 finding: on the shipped art the
+--- load-bearing pairs sit at 1.13-1.43:1, which a protanope cannot read).
+--- Rungs, dark to light: the live aim slice (the near-black plum at full
+--- alpha, the one thing inside the aim region) below the standing aim
+--- region, the retry and the interlock tint in the middle, the clip mark
+--- and the fill above them, the flight white on top. The aim hue and the
+--- clip hue swap roles against the shipped art -- the region goes DARK (a
+--- hole the bright fill runs into) and the clip mark goes vermillion --
+--- which is what lifts fill|clip from 1.13:1 to 1.3:1+ and fill|aim from
+--- 1.26:1 past 2:1.
+FX.Hunter.SwingPalettes = {
+    default = {
+    },
+    colourblind = {
+        -- The fill: Okabe-Ito olive. Light enough to stand off the dark
+        -- markers, far from the vermillion in hue AND in lightness.
+        BarColor = { 0.60, 0.79, 0.00, 1 },
+        -- The live aim slice, full alpha: the darkest rung on the bar.
+        AimColor = { 0.10, 0.08, 0.12, 1 },
+        -- The standing aim region: the same plum at a heavier alpha, so it
+        -- reads as the slice's socket, never as a second slice. The shipped
+        -- law dims it under a live retry so the yellow stays loudest; in
+        -- this ladder the region is the DARK rung and the retry rides above
+        -- it, so yielding the alpha there would collapse the region into
+        -- the fill: it keeps its rung.
+        AimRegionColor = { 0.10, 0.08, 0.12, 1 },
+        AimRegionAlpha = 0.55,
+        AimRegionRetryAlpha = 0.55,
+        -- The clip mark (and the `safe` mode's band): vermillion, the
+        -- bright warning at the bar's end.
+        ClipColor = { 0.835, 0.369, 0.055, 1 },
+        ClipRegionAlpha = 0.45,
+        -- Under a live cast the marker rides Okabe-Ito blue: a light band
+        -- inside the dark frozen bar, i.e. the reason it is frozen.
+        ClipInterlockColor = { 0.00, 0.447, 0.713, 1 },
+        ClipInterlockAlpha = 0.55,
+        -- The weave ruler: bluish green, the off-family line.
+        WeaveColor = { 0.00, 0.62, 0.50, 0.95 },
+        -- The rejected-start penalty: vermillion at full alpha.
+        RetryColor = { 0.835, 0.369, 0.055, 1 },
+        -- The flight stays white: the state, the spark and the bar-wide
+        -- span carry it, and white on the Aluminium art is the art itself
+        -- (a palette can not buy contrast there).
+        FlyingColor = { 1.00, 1.00, 1.00, 1 },
+    },
+}
+
+--- Every skin key a palette speaks. The live skin is ALWAYS this list read
+--- as "the palette's value if it names one, the base value otherwise", so
+--- a palette never clobbers a hand-picked colour and switching back
+--- restores what the player had (BASE is the pick, S is what renders).
+local PALETTE_KEYS = {
+    "BarColor", "AimColor", "AimRegionColor", "AimRegionAlpha",
+    "AimRegionRetryAlpha", "ClipColor", "ClipRegionAlpha",
+    "ClipInterlockColor", "ClipInterlockAlpha", "WeaveColor",
+    "RetryColor", "FlyingColor",
+}
+
+--- The base the palette paints over: the skin as the defaults and the
+--- colour rows chose it. Snapshot at load; `Init` re-reads BarColor (the
+--- shared Spell tint seam) and `SetBarColor` publishes the player's pick.
+local BASE = {}
+
+local function copyColor(v)
+    if type(v) ~= "table" then return v end
+    return { v[1], v[2], v[3], v[4] }
+end
+
+local function snapshotBase()
+    for i = 1, #PALETTE_KEYS do
+        local key = PALETTE_KEYS[i]
+        BASE[key] = copyColor(S[key])
+    end
+end
+snapshotBase()
+
+--- Repaint `S` from BASE plus the named palette (the "live skin" law).
+local function applyPalette(name)
+    local pal = (type(name) == "string") and FX.Hunter.SwingPalettes[name]
+        or nil
+    for i = 1, #PALETTE_KEYS do
+        local key = PALETTE_KEYS[i]
+        local v
+        if type(pal) == "table" and pal[key] ~= nil then v = pal[key]
+        else v = BASE[key] end
+        S[key] = copyColor(v)
+    end
+end
 
 local DEFAULT = { point = "CENTER", relPoint = "CENTER", x = 0, y = -175,
     locked = true }
@@ -274,6 +392,9 @@ D.state = { enabled = true, showTime = true,
     showAimWindow = true,
     showClipRegion = true,
     showWeaveLine = false,
+    -- K4B: the active colour palette (the `SwingPalettes` key). "default" =
+    -- the shipped skin; see `SetSwingPalette`.
+    swingPalette = "default",
 }
 local ST = D.state
 
@@ -417,7 +538,13 @@ function D:Init()
     -- does -- so this is where the shared Spell tint is really read. An
     -- explicit SetBarColor (the options page applying a stored value: the
     -- setters are legal before Init) wins over the skin default.
-    if not self._barColorSet then S.BarColor = spellBarColor() end
+    if not self._barColorSet then
+        BASE.BarColor = spellBarColor()
+        S.BarColor = copyColor(BASE.BarColor)
+    end
+    -- K4B: the frames arrive in the palette the profile chose (the setters
+    -- are legal before Init, so the active palette may already name one).
+    applyPalette(ST.swingPalette)
     self.Tracker = self.Tracker or (FX.Hunter.Tools and FX.Hunter.Tools.Swing)
 
     local f = CreateFrame("Frame", "ForteXorcistHunterSwingAnchor", UIParent,
@@ -587,7 +714,7 @@ function D:_BuildAimRegion(parent)
     reg:SetTexture(S.BarTexture)
     reg:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
     reg:SetSize(0, S.Height)
-    local ac = S.AimColor
+    local ac = S.AimRegionColor
     reg:SetVertexColor(ac[1], ac[2], ac[3], S.AimRegionAlpha)
     reg:Hide()
     self.aimRegion = reg
@@ -608,15 +735,15 @@ function D:_BuildTopMarkers(parent)
     clip:SetTexture(S.BarTexture)
     clip:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
     clip:SetSize(0, S.Height)
-    local ac = S.AimColor
-    clip:SetVertexColor(ac[1], ac[2], ac[3], S.ClipRegionAlpha)
+    local cc = S.ClipColor
+    clip:SetVertexColor(cc[1], cc[2], cc[3], S.ClipRegionAlpha)
     clip:Hide()
 
     local band = parent:CreateTexture(nil, "ARTWORK")
     band:SetTexture(S.BarTexture)
     band:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
     band:SetSize(0, S.Height)
-    band:SetVertexColor(ac[1], ac[2], ac[3], S.ClipRegionAlpha)
+    band:SetVertexColor(cc[1], cc[2], cc[3], S.ClipRegionAlpha)
     band:Hide()
 
     local weave = parent:CreateTexture(nil, "ARTWORK")
@@ -1020,11 +1147,92 @@ function D:SetBarColor(col)
     if type(col) ~= "table" then return end
     -- An explicit choice: Init must not overwrite it with the skin default.
     self._barColorSet = true
-    S.BarColor = { col[1] or 1, col[2] or 1, col[3] or 1, col[4] or 1 }
+    BASE.BarColor = { col[1] or 1, col[2] or 1, col[3] or 1, col[4] or 1 }
+    applyPalette(ST.swingPalette)
     if not self.fill then return end
     local c = S.BarColor
     self:_SetFillColor(self.fill, c)
     self._fillColor = nil
+end
+
+-- ------------------------------------------------------------- palettes --
+--- Every live texture whose colour is a palette key, re-tinted from the
+--- skin. The two fill paths share `_SetFillColor`; the v2 slices (the aim
+--- slice, the retry slice, the interlock's cast slice) and the weave ruler
+--- take their tint once at build time, so they are painted here; the aim
+--- region and the clip marker are re-tinted by the render pass and ride
+--- their own dirty-checked seam -- `_clipA` is the SHARED cache of the
+--- stripe and the band, so the paint lays the standing tint on BOTH and
+--- drops the cache, and the next pass re-applies the interlock tint on the
+--- one the mode draws. The fill is repainted to the bar colour and its
+--- cache dropped: the flight white is the render pass's to own.
+function D:_RepaintPalette()
+    if not self.anchor then return end
+    local aim, rc = S.AimColor, S.RetryColor
+    if self.aim then
+        self.aim:SetVertexColor(aim[1], aim[2], aim[3], aim[4])
+    end
+    -- The interlock's full-width cast slice rides the aim hue: under the
+    -- colour-blind ladder the frozen bar is the darkest thing on screen.
+    if self.cast then
+        self.cast:SetVertexColor(aim[1], aim[2], aim[3], aim[4])
+    end
+    if self.retry then
+        self.retry:SetVertexColor(rc[1], rc[2], rc[3], rc[4])
+    end
+    local wc = S.WeaveColor
+    if self.weave then
+        self.weave:SetVertexColor(wc[1], wc[2], wc[3], wc[4])
+    end
+    self._fillColor = nil
+    if self.fill then self:_SetFillColor(self.fill, S.BarColor) end
+    local reg = S.AimRegionColor
+    self._aimRegionA = nil
+    if self.aimRegion then
+        self.aimRegion:SetVertexColor(reg[1], reg[2], reg[3],
+            S.AimRegionAlpha)
+    end
+    local cc = S.ClipColor
+    self._clipA = nil
+    for _, tex in ipairs({ self.clip, self.clipBand }) do
+        if tex then
+            tex:SetVertexColor(cc[1], cc[2], cc[3], S.ClipRegionAlpha)
+        end
+    end
+end
+
+--- K4B (PLAN §11.4 K4): the colour palette. `default` is the shipped skin;
+--- `colourblind` paints the `SwingPalettes` ladder over it so the signals
+--- separate by BRIGHTNESS and position, not by red-versus-orange. It is an
+--- overlay over the base skin, so a hand-picked BarColor survives a trip
+--- through both palettes, and the live skin is always `BASE ∨ palette`.
+--- Applies every signal colour/alpha the bar draws (fill, aim slice,
+--- standing aim region, clip mark incl. the `safe` band, interlock tint,
+--- retry slice, weave line, flight) and moves the melee rail's fill with
+--- the palette's bar colour. An unknown name is `default`; the bar repaints
+--- in place, no rebuild, no re-anchor.
+function D:SetSwingPalette(name)
+    if type(name) ~= "string"
+        or type(FX.Hunter.SwingPalettes[name]) ~= "table" then
+        name = "default"
+    end
+    if ST.swingPalette == name then return end
+    ST.swingPalette = name
+    applyPalette(name)
+    self:_RepaintPalette()
+    -- The melee rail's fill IS the bar's colour (UI/Melee.lua's one-truth
+    -- law: it reads BarColor, it never owns one), so the palette moves it.
+    -- Pushed from the SETTER, not the repaint: a palette chosen before the
+    -- rail (or the bar) has a frame must still land on it, and
+    -- `Melee:SetBarColor` remembers it for the frame that arrives later.
+    local rail = FX.Hunter.Melee
+    if rail and rail.SetBarColor then rail:SetBarColor(S.BarColor) end
+end
+
+--- The palette in force (the seam the store round trip and `/fx status`
+--- read).
+function D:GetSwingPalette()
+    return ST.swingPalette
 end
 
 function D:SetBgColor(col)
@@ -1419,7 +1627,7 @@ function D:Update(now)
         regionW = math.min(W, aimSec * scale)
     end
     self:_SetSlice(self.aimRegion, "_aimRegionW", regionW, 0)
-    self:_SetMarkerColor(self.aimRegion, "_aimRegionA", S.AimColor,
+    self:_SetMarkerColor(self.aimRegion, "_aimRegionA", S.AimRegionColor,
         (retryW > 0) and S.AimRegionRetryAlpha or S.AimRegionAlpha)
 
     -- P1: the clip marker (J4) -- the threshold the FILL EDGE crosses in
@@ -1457,11 +1665,13 @@ function D:Update(now)
         self:_SetClipBand(0)
         self:_SetSlice(self.clip, "_clipW", clipW, 0)
     end
-    -- Under the interlock the active marker rides the light interlock
-    -- tint, so the frozen red bar shows the *reason* it is red (§7.4's
-    -- last law).
+    -- Under the interlock the active marker rides the interlock tint (the
+    -- colour-blind palette gives it its OWN alpha, so the light band inside
+    -- the frozen bar keeps its rung; on the shipped skin the two alphas are
+    -- the same number and the pixels do not move).
     self:_SetMarkerColor(shrinking and self.clipBand or self.clip, "_clipA",
-        castLeft and S.ClipInterlockColor or S.AimColor, S.ClipRegionAlpha)
+        castLeft and S.ClipInterlockColor or S.ClipColor,
+        castLeft and S.ClipInterlockAlpha or S.ClipRegionAlpha)
 
     -- P4: the melee-weave line (J4) -- the GCD threshold the fill edge
     -- crosses in this mode: `remaining - floor >= gcd` reads as the fill
@@ -1563,23 +1773,34 @@ end
 --- next pass by storing `false`, NEVER nil -- nil IS the hidden state, so a
 --- nil force makes a following hidden pass dirty-return and leave a shown
 --- line on the bar (the law the first run's facts proved: x=nil, node shown,
---- strata untouched).
+--- layer untouched).
+---
+--- LIVE-CLIENT LAW (found on uiforever 2026-11-04, 2 errors with the DEFAULT
+--- settings — the park pass of a plain idle cycle): `tex` is a TEXTURE, and
+--- a Texture has NO `SetFrameStrata` (that is a Frame method; a Texture's
+--- draw layer is set at `CreateTexture` and moved by `SetDrawLayer`). The
+--- wow-ui-sim accepts the Frame call on a Texture, so the whole suite was
+--- green while the client threw on every park. The park is the `_SetSlice`
+--- idiom, which is all idiom this file's markers ever used: zero the size,
+--- Hide. The line's ARTWORK layer is the one it was CREATED with
+--- (`_BuildTopMarkers`), so no layer call belongs here at all — and no
+--- Texture method this pass calls may be a Frame method. The tests pin it:
+--- they nil out the Frame-only methods on every marker texture
+--- (`SetFrameStrata`, `SetFrameLevel`, `EnableMouse`, `SetScript`,
+--- `SetMovable`) before driving the passes, the way the real client is.
 function D:_SetWeaveLine(x)
     local tex = self.weave
     if not tex then return end
     if self._weaveX == x then return end
     self._weaveX = x
     if x == nil then
-        -- The park, in the `_SetSlice` idiom: zero the size and drop the
-        -- strata out of the bar's drawing order before hiding, so a stale
-        -- 1-px ruler can never ride a bar that has nothing to say.
+        -- The park, in the `_SetSlice` idiom: zero the size and hide, so a
+        -- stale 1-px ruler can never ride a bar that has nothing to say.
         tex:SetSize(0, 0)
-        tex:SetFrameStrata("BACKGROUND")
         tex:Hide()
         return
     end
     local h = S.Height + S.MarkerOvershoot
-    tex:SetFrameStrata("ARTWORK")               -- the build-time strata
     tex:SetTexture(S.WeaveTexture)
     tex:SetSize(S.WeaveWidth, h)
     -- WoW's y runs upward: +overshoot/2 puts the line's TOP that far ABOVE
@@ -1752,6 +1973,9 @@ local KEYMAP = {
     ShowAimWindow = "SetShowAimWindow",
     ShowClipRegion = "SetShowClipRegion",
     ShowWeaveLine = "SetShowWeaveLine",
+    -- K4B: the colour palette (FX.Hunter.SwingPalettes), the Colouring
+    -- section's picker. Every signal colour/alpha rides SetSwingPalette.
+    SwingPalette = "SetSwingPalette",
     InCombatAlpha = "SetInCombatAlpha",
     OutOfCombatAlpha = "SetOutOfCombatAlpha",
     BaseSpeed = "SetBaseSpeed",
@@ -1774,7 +1998,9 @@ local STORED = {
         -- Iteration J slice A: the mode picker and the three markers. A key
         -- the store does not have (slice γ registers them) reads nil and is
         -- skipped, so the module defaults stand -- the login law.
-        "BarMode", "ShowAimWindow", "ShowClipRegion", "ShowWeaveLine" },
+        "BarMode", "ShowAimWindow", "ShowClipRegion", "ShowWeaveLine",
+        -- K4B: the colour palette (the Colouring section's picker).
+        "SwingPalette" },
     General = { "BarFont" },
     -- The Advanced page's shared keys (Forte_Options/Pages/Advanced.lua).
     Advanced = { "HunterStrata" },

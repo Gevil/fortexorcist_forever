@@ -229,6 +229,32 @@ combat and, with the range light on, only while the light reads MELEE — Auto
 Shot needs ≥ 8 yd and Raptor/Mongoose need ≤ 5, so outside the melee band the
 rail is noise by design, not an option.
 
+**Colour palette — can I read this bar at all?** (Iteration K `K4B`,
+2026-11-04.) The *Default* set is today's art, byte for byte. **Colour-blind
+friendly (brightness steps)** repaints the same signals from
+`FX.Hunter.SwingPalettes` so each one occupies its own rung of the **lightness**
+scale, on top of the place it already holds: the live aim slice is the darkest
+thing on the bar, the standing aim region is its socket, the retry and the cast
+interlock sit in the middle, the clip mark and the fill above them, the white
+flight state on top — so a signal is read by lightness and position, and colour
+is never the only difference. Measured on the Aluminium art
+(`tools/swing_contrast.py`, `tools/swing_palette_matrix.py`, WCAG contrast of
+every pair that sits next to another): the shipped set puts its load-bearing
+pairs at **1.07–1.43:1** (fill|clip 1.13, fill|aim region 1.26, aim slice|aim
+region 1.14) — the range a protanope cannot separate — and the ladder lifts
+those to **1.31–3.64** (fill|clip 1.31, fill|aim region 2.24, aim slice|aim
+region 1.62, fill|aim slice 3.64), with no two signals closer than 0.013 on the
+lightness scale. Measured over *every* pair of signals on the bar — not only the
+neighbours — the floor moves from **1.03:1 to 1.11:1**, which is the number the
+ladder is built for: the shipped art has three signals packed inside 0.012 of
+lightness of each other, the ladder packs none closer than 0.013. Two pairs
+stay under 1.5 by arithmetic, not by the palette:
+white-on-Aluminium is the art itself (1.00 — the flight state is carried by the
+whole bar turning and the spark, not by contrast), and the 1-px weave line
+against the fill it crosses (1.49). The picker is a *base overlay*: your own
+`Colour` pick survives a trip through both palettes, the melee rail's fill
+follows the palette's bar colour, and the change is live, no reload.
+
 ## Verification (2026-11-01)
 
 - `luajit -e "assert(loadfile(...)))"` — `Core/Tools.lua`, `tests/test_hunter.lua`: clean.

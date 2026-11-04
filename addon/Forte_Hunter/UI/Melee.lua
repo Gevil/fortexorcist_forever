@@ -37,7 +37,9 @@
 --
 -- The fill colour is the swing bar's own BarColor read at Init (one
 -- truth, no drift -- the Pages/Hunter.lua DEFAULTS precedent): the rail
--- is the bar's companion, not a new signal family.
+-- is the bar's companion, not a new signal family. The bar's
+-- `SetSwingPalette` pushes its palette's bar colour through
+-- `SetBarColor`, so the rail rides the palette the player picked.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -150,6 +152,8 @@ function D:Init()
     fill:SetSize(0, S.Height)
     local c = self._color or barFillColor()
     self._color = c
+    self._colorKey = tostring(c[1]) .. "|" .. tostring(c[2]) .. "|"
+        .. tostring(c[3]) .. "|" .. tostring(c[4] or 1)
     fill:SetVertexColor(c[1], c[2], c[3], c[4])
 
     -- The remaining-seconds text, right-aligned at the rail's right end.
@@ -380,6 +384,27 @@ function D:SetWidth(w)
         self._fillW = nil
         self.fill:SetSize(0, S.Height)
         if self._shown then self:Refresh() end
+    end
+end
+
+--- The rail's fill colour, pushed by the swing bar (the header's one-truth
+--- law: the rail rides the bar's BarColor and never owns one, so the bar's
+--- `SetSwingPalette` is what moves it). Legal before Init like every Hunter
+--- setter: a push that arrives before the frame exists is remembered and
+--- the frame arrives in it.
+function D:SetBarColor(col)
+    if type(col) ~= "table"
+        or type(col[1]) ~= "number" or type(col[2]) ~= "number"
+        or type(col[3]) ~= "number" then
+        return
+    end
+    local c = { col[1], col[2], col[3], col[4] or 1 }
+    local key = c[1] .. "|" .. c[2] .. "|" .. c[3] .. "|" .. c[4]
+    if self._colorKey == key then return end
+    self._colorKey = key
+    self._color = c
+    if self.fill then
+        self.fill:SetVertexColor(c[1], c[2], c[3], c[4])
     end
 end
 

@@ -622,7 +622,8 @@ test("the Hunter page builds in the options window", function()
                                     -- four v2 Show* keys + BaseSpeed
                                     -- (ShowSafeWindow's CHK rode here)
     assertEquals(3, counts[4])      -- Width, Height, ReminderSize
-    assertEquals(3, counts[5])      -- BarColor, BgColor, ReminderColor
+    assertEquals(4, counts[5])      -- SwingPalette (K4B), BarColor, BgColor,
+                                    -- ReminderColor
     assertEquals(1, counts[6])      -- ShowRangeLight
     assertEquals(2, counts[7])      -- InCombatAlpha, OutOfCombatAlpha
     assertEquals(7, #page.sections[1].lines)

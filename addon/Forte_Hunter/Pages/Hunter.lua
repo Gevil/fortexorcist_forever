@@ -77,6 +77,10 @@ local DEFAULTS = {
         or { 1, 0.5, 0, 1 },
     BgColor = { 0, 0, 0, 0.50 },
     ReminderColor = { 1, 1, 1, 1 },
+    -- K4B (PLAN §11.4 K4): the signal palette. "default" is today's art;
+    -- "colourblind" is the brightness-laddered set in UI/Swing.lua's
+    -- SwingPalettes. Registered ONCE here; the bar's KEYMAP/STORED ride it.
+    SwingPalette = "default",
 }
 
 local function swing()
@@ -221,6 +225,15 @@ function P.RegisterHunterPage()
                     tip = "Sizes of the two Hunter frames.",
                 })
                 b.Section("Coloring", function(s)
+                    s.SEL({ module = M, key = "SwingPalette",
+                        label = "Colour palette",
+                        items = {
+                            { value = "default", label = "Default" },
+                            { value = "colourblind",
+                                label =
+                                    "Colour-blind friendly (brightness steps)" },
+                        },
+                        tip = "Tells the signals apart by brightness and position instead of only red and orange. Every signal (the fill, the aim window, the clip mark, the cast interlock, the retry, the weave line, the white flight state, the melee rail) moves together. Live." })
                     s.COL({ module = M, key = "BarColor", label = "Colour",
                         tip = "Aluminium bar fill (default the Cooldown Spell tint at full alpha). Applied live." })
                     s.COL({ module = M, key = "BgColor", label = "Background colour",
@@ -229,8 +242,9 @@ function P.RegisterHunterPage()
                         tip = "Aspect icon tint (default white). Applied live." })
                 end, {
                     module = M,
-                    keys = { "BarColor", "BgColor", "ReminderColor" },
-                    tip = "Fill, backdrop and icon colours.",
+                    keys = { "SwingPalette", "BarColor", "BgColor",
+                        "ReminderColor" },
+                    tip = "The signal palette, the fill, backdrop and icon colours.",
                 })
                 b.Section("Range Light", function(s)
                     s.CHK({ module = M, key = "ShowRangeLight",
