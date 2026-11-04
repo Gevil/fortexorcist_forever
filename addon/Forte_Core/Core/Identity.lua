@@ -32,6 +32,14 @@
 --     done on it — the Database.lua CharacterKey hole this layer closes)
 --     and every string operation runs inside a pcall.
 --   * a failed/secret/absent read is NEVER cached.
+--   * the law reads a TOKEN, not only the player: SelfName() runs it for
+--     "player" (a good read is a session constant) and NameOf(unit) runs it
+--     for any unit token (NO cache — a group roster changes). The live probe
+--     (PLAN §9 rows of 2026-11-04) settled the shape: UnitName answers
+--     (first, SURNAME) and UnitFullName answers (full name, connection
+--     label), so a reader that keeps UnitName's first return names a
+--     groupmate by her first name only, while her own CHAT_MSG_ADDON sender
+--     names her in full — the split FX8 fixes (PLAN §11.2).
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -150,44 +158,110 @@ function I.Raw(canon)
     return rawByCanon[canon]
 end
 
--- ------------------------------------------------------------ self name ----
+-- ------------------------------------------------------------ the name read --
 
---- The own-name read: the fullest plain (realm-label-free) name the name
---- APIs give for "player" — the answer with the most whitespace-separated
---- parts wins, ties go to the earlier of UnitNameUnmodified > UnitFullName
---- > UnitName (the identity-restricted APIs first, the display-side
---- UnitName last). Every API call runs in its own pcall and every string
---- op runs inside the outer one; every value passes PlainOrNil. A good
---- read is a session constant (a mid-session nil can not orphan the
---- profile keyed from it); a failed/secret read caches NOTHING.
-local selfCache
-function I.SelfName()
-    if selfCache then return selfCache end
+--- THE ONE NAME READ, for any unit token. The candidates:
+---   1. `UnitName(unit)`'s TWO returns joined by one space — the live probe
+---      (PLAN §9 rows of 2026-11-04, uiforever) answers
+---      `("Morvessa", "Ashveil")`, and on Forever the second half is the
+---      SURNAME, part of the character, not a realm (`GetRealmName()` is a
+---      connection label, header): joined it is the full name, and the
+---      identity-restricted `UnitNameUnmodified` answers only the bare
+---      `Morvessa`; a second half that is absent, secret, empty, a placeholder
+---      or label-only joins NOTHING, and a first half that is no half is no
+---      name at all;
+---   2. `UnitFullName(unit)`'s FIRST return — the probe answers
+---      `("Morvessa Ashveil", "Nethergarde")`: the full name, the connection
+---      label second;
+---   3. `UnitNameUnmodified(unit)` — the identity-restricted bare name.
+--- Each API call runs in its own pcall, every string operation inside the
+--- outer one, and every value passes `FX.Compat.PlainOrNil` first (a secret
+--- name has `type() == "string"` and poisons the concat done on it). The
+--- ANSWER WITH THE MOST WHITESPACE-SEPARATED PARTS WINS — the defence of this
+--- file's header, so no display setting can make one character look like two:
+--- a client that shows a groupmate by first name only (`UnitName` answers one
+--- part) is carried by `UnitFullName`'s two parts. TIES GO TO THE EARLIER
+--- CANDIDATE, which puts the token's own `UnitName` halves first: an API that
+--- answers the SAME part count as the token's display halves adds no
+--- information (the headless sim, which has no party of its own, answers
+--- every token with the player's own `UnitFullName`, and a scan keyed to
+--- "Thrynn" for every `partyN` is the whole FX8 split wearing a new hat),
+--- while a fuller `UnitFullName` still wins on the part count. A raise, an
+--- absent API, a secret, the client's placeholder, an empty and an unknown
+--- token all answer nil: a FAILED read, never a propagated error and never
+--- the placeholder as a name.
+local function fullestName(unit)
+    if type(unit) ~= "string" or unit == "" then return nil end
     local ok, best = pcall(function()
+        --- One half of a name, classified: nil on a secret, a placeholder, an
+        --- empty and a value the realm-label strip leaves nameless.
+        local function part(v)
+            v = plainName(v)
+            if v == nil or isPlaceholderName(v) then return nil end
+            v = stripRealm(v)
+            if v == "" then return nil end
+            return v
+        end
         local picked, parts
         local function consider(v)
-            v = FX.Compat.PlainOrNil(v)
-            if type(v) ~= "string" then return end
-            if isPlaceholderName(v) then return end
-            v = stripRealm(v)
-            if v == "" then return end
+            if v == nil then return end
             local n = 0
             for _ in v:gmatch("%S+") do n = n + 1 end
             if n > 0 and (parts == nil or n > parts) then
                 picked, parts = v, n
             end
         end
-        local function try(fn)
-            if type(fn) ~= "function" then return end
-            local okC, name = pcall(fn, "player")
-            if okC then consider(name) end
+        if type(_G.UnitName) == "function" then
+            local okC, first, second = pcall(_G.UnitName, unit)
+            if okC then
+                local f, s = part(first), part(second)
+                if f and s then
+                    consider(f .. " " .. s)
+                elseif f then
+                    consider(f)
+                end
+            end
         end
-        try(_G.UnitNameUnmodified)
-        try(_G.UnitFullName)
-        try(_G.UnitName)
+        if type(_G.UnitFullName) == "function" then
+            local okC, full = pcall(_G.UnitFullName, unit)
+            if okC then consider(part(full)) end
+        end
+        if type(_G.UnitNameUnmodified) == "function" then
+            local okC, bare = pcall(_G.UnitNameUnmodified, unit)
+            if okC then consider(part(bare)) end
+        end
         return picked
     end)
     if not ok then return nil end
+    if type(best) ~= "string" or best == "" then return nil end
+    return best
+end
+
+--- The FULLEST PLAIN NAME of any unit token (`party3`, `raid12`, `target`,
+--- `player`, …): the header's name law applied to a token, so a roster scan
+--- and a `CHAT_MSG_ADDON` sender of the SAME player land on the SAME
+--- canonical key. PLAN §11.2 "Fix FX8": a reader that keeps `UnitName`'s
+--- first return alone names a groupmate `aria` while her own comms lines name
+--- her `ariadawnsong`, and Core/Group.lua's canonical fold — the very law
+--- that makes the spellings one key — has nothing to fold: the plates show
+--- one player twice. NO CACHE: a group roster changes between scans and a
+--- cached peer name is a stale row (the self read, below, is the one name
+--- that is a session constant). nil on a non-token argument and on any
+--- failed read; the caller drops a nil the way it drops a secret.
+function I.NameOf(unit)
+    return fullestName(unit)
+end
+
+-- ------------------------------------------------------------ self name ----
+
+--- The own-name read: the same `fullestName` law as `NameOf`, run for
+--- "player". A good read is a session CONSTANT (a mid-session nil can not
+--- orphan the profile keyed from it); a failed/secret read caches NOTHING.
+--- That caching law is SelfName's own — `NameOf` never caches.
+local selfCache
+function I.SelfName()
+    if selfCache then return selfCache end
+    local best = fullestName("player")
     if type(best) ~= "string" or best == "" then return nil end
     selfCache = best
     return best

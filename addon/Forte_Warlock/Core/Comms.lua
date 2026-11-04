@@ -697,7 +697,12 @@ end
 --- pcall'd and name-guarded (UnitName is SecretWhenUnitNameIdentity-
 --- Restricted, UnitDocumentation.lua:2488 — a secret token names nobody and
 --- simply drops out of the scan; UnitClass/UnitIsConnected/
---- UnitIsDeadOrGhost are the catalog's). The test seam is readers.rosterScan.
+--- UnitIsDeadOrGhost are the catalog's). THE NAME IS FX.Identity.NameOf(unit)
+--- (FX8, PLAN §11.2), NOT `UnitName(unit)`'s first return: on Forever
+--- UnitName answers (first, SURNAME), so the first return alone keys a
+--- groupmate `aria` while her own CHAT_MSG_ADDON sender keys her
+--- `ariadawnsong` and Core/Group.lua's canonical fold has nothing to fold —
+--- the same player on the plates TWICE. The test seam is readers.rosterScan.
 function C:ScanRoster()
     local r = self.readers
     if type(r.rosterScan) == "function" then
@@ -715,7 +720,10 @@ function C:ScanRoster()
     local rows = {}
     for i = 1, n do
         local unit = token .. i
-        local ok, name = pcall(UnitName, unit)
+        -- The identity layer's fullest plain name of the token: its own
+        -- pcalls and PlainOrNil classifications, a placeholder/secret/raise
+        -- read as the nil that drops the row. (`NameOf` is a dot-function.)
+        local ok, name = pcall(FX.Identity.NameOf, unit)
         name = ok and plainString(name)
         if name then
             local class
