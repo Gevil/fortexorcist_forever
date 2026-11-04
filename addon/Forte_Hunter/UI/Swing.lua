@@ -113,8 +113,10 @@
 --     plus one off-family hue for the line; the Aluminium art, the
 --     Aluminium fill and the live red slice are all untouched.
 --   * `gcdSeconds()` is a DATA read (the shipped Hunter rows' gcdMs, §7.9
---     law 3), not WST's paladin constant; `ClipCastSeconds()` is the data's
---     cast time for the interlock's shot set (§7.9 law 2: no clip bar from
+--     law 3), not WST's paladin constant; `ClipCastSeconds()` is the
+--     interlock shot set's cast time -- the CLIENT's current length of the
+--     data's longest cast-time shot when the client reports one, the
+--     data's length as the fallback (§7.9 law 2: no clip bar from
 --     the reference -- its width law does not exist in this build).
 --
 -- Settings (module "Hunter", defaults registered by
@@ -823,18 +825,41 @@ end
 --- The tests'/demo's seam over the two fill paths. Rebuilds the fill; the
 --- state edges, the slices, the spark and the text are shared code, so one
 --- cycle draws the same sequence on both (the parity test proves it).
+--- The rebuild rides a pcall and the OLD fill leaves the tree only once
+--- the NEW one exists: the pre-guard order nil'd `self.fill` FIRST, so a
+--- rebuild that raised against a torn-down parent (the sim's hidden-frame
+--- `CreateTexture` returning nil feeds `fill:SetTexture` a nil) left a
+--- fill-less bar that `Update` then indexed -- the fossil of that is the
+--- `_fillMode = nil` memo-drop in test_swing_palette.lua's restoreAll.
+--- A legal seam BEFORE Init defers the whole rebuild to Init: the mode is
+--- recorded, and Init's own `_BuildFill` pass reads it (the options page
+--- applies stored values at login through this seam).
 function D:SetFillEngineMode(mode)
     if mode ~= "engine" and mode ~= "lua" then mode = "auto" end
     if self._fillMode == mode then return end
     self._fillMode = mode
     if not self.anchor then return end
-    local old = self.fill
-    self.fill = nil
-    if old ~= nil then
+    local old, oldEngine = self.fill, self._engineFill
+    local ok, built = pcall(self._BuildFill, self, self.anchor)
+    if (not ok) or built == nil then
+        -- The rebuild raised: the fill that was drawing keeps drawing
+        -- (never nil -- `Update` indexes it). Drop the stray object a
+        -- partial build may have parented, then restore the fill, the
+        -- path that animates it, and the caches a pass must re-dirty.
+        local stray = self.fill
+        if stray ~= nil and stray ~= old then
+            if stray.Hide then pcall(stray.Hide, stray) end
+            if stray.SetParent then pcall(stray.SetParent, stray, nil) end
+        end
+        self.fill, self._engineFill = old, oldEngine
+        self._fillW, self._armKey, self._fillSpanW, self._fillColor
+            = nil, nil, nil, nil
+        return
+    end
+    if old ~= nil and old ~= built then
         if old.Hide then pcall(old.Hide, old) end
         if old.SetParent then pcall(old.SetParent, old, nil) end
     end
-    self:_BuildFill(self.anchor)
     self:RenderIdle()
     local t = self.Tracker
     if t and t.active then self:StartTicking() end
@@ -1634,8 +1659,9 @@ function D:Update(now)
     -- this mode, so the same question ("can I start a cast-time shot now
     -- without clipping?") reads the same way in every mode: the fill edge
     -- on the fitting side == `remaining - floor >= castLen`. `castLen` is
-    -- the LIVE cast's length while a cast runs, the shipped data's
-    -- longest cast-time shot otherwise, so an un-hasted 2.0 s bow reads
+    -- the LIVE cast's length while a cast runs, and the CLIENT's length of
+    -- the shipped data's longest cast-time shot otherwise (that row's
+    -- number when the client is silent), so an un-hasted 2.0 s bow reads
     -- "never fits": the full bar in the growing modes (the stripe covers
     -- it), a full band in `safe` (the orange can never outgrow it) -- the
     -- honest "Aimed Shot always clips on this bow", available before the
@@ -1820,30 +1846,126 @@ local CLIP_SHOT_NAMES = {
     ["Aimed Shot"] = true, ["Multi-Shot"] = true, ["Steady Shot"] = true,
 }
 
---- The clip stripe's cast length with NO live cast (seconds): the longest
---- cast time the shipped data gives the interlock's shot set. nil = no
---- knowledge ⇒ no stripe. Memoised per bar; `InvalidateClipCastLength`
---- re-reads (the data-refresh seam; the tests inject their own table
---- through Tools.DataCastMsByName).
-function D:ClipCastSeconds()
-    if self._clipCastSec ~= nil then return self._clipCastSec end
-    local T = FX.Hunter.Tools
-    local idx = (T and T.DataCastMsByName) and T.DataCastMsByName()
-    local best
-    if type(idx) == "table" then
-        for name, ms in pairs(idx) do
-            if CLIP_SHOT_NAMES[name] and type(ms) == "number" and ms > 0
-                and (best == nil or ms > best) then
-                best = ms
+--- Every client spell id the data name rides: the locale seam's rank ids
+--- (`Locale.RankIDsForName` -- the data row's own ids, locale-independent,
+--- populated on a localized client) plus the generated table's ByName key
+--- (the English data key space, valid on every client). nil = no ids.
+local function clipShotIDs(name)
+    local ids
+    local Locale = FX.Locale
+    if Locale and Locale.RankIDsForName then
+        local ranked = Locale.RankIDsForName(name)
+        if type(ranked) == "table" then
+            for i = 1, #ranked do
+                local id = FX.Compat.PlainOrNil(ranked[i])
+                if type(id) == "number" then
+                    ids = ids or {}
+                    ids[#ids + 1] = id
+                end
             end
         end
     end
-    self._clipCastSec = (best and best / 1000) or nil
+    local byName = FX.Data and FX.Data.HunterByName
+    local one = (type(byName) == "table") and byName[name] or nil
+    if type(one) == "number" then
+        ids = ids or {}
+        ids[#ids + 1] = one
+    end
+    return ids
+end
+
+--- The CLIENT's current cast time of the clip shot, seconds: the
+--- tracker's own live seam -- `Tools.ResolveCastLength(id)` reads
+--- `C_Spell.GetSpellInfo(id).castTime` (MILLISECONDS) in one pcall with
+--- PlainOrNil on the number (the M3 law, Core/Tools.lua), so only a plain
+--- positive number ever leaves it; the seam call rides a second pcall so
+--- a raising seam reads as "the client says nothing", never as a dead
+--- render pass. The longest of a name's row ids wins (ranks of one shot).
+--- nil = no plain read at all (no API, secret, raise, no ids).
+local function clientClipSeconds(name)
+    local T = FX.Hunter.Tools
+    if not (T and T.ResolveCastLength) then return nil end
+    local ids = clipShotIDs(name)
+    if ids == nil then return nil end
+    local best
+    for i = 1, #ids do
+        local ok, t = pcall(T.ResolveCastLength, ids[i])
+        if ok and type(t) == "number" and t > 0
+            and (best == nil or t > best) then
+            best = t
+        end
+    end
+    return best
+end
+
+--- The live leg's cache -- the no-per-frame-API law. Its key is the
+--- tracker's cycle stamp (`start`, nil = idle), so a pass inside one
+--- cycle costs two field compares and a new cycle boundary costs the
+--- single re-read: the point the client's spell rows are re-known by at
+--- the latest. The bar registers no SPELLS_CHANGED / UNIT_SPELL_HASTE
+--- event (its KICK tables carry neither), so per-cycle re-reads are this
+--- file's cadence for a haste-re-scaled cast -- the same one every live
+--- read here rides, and the 10 Hz OnUpdate never touches the API.
+function D:_ClientClipSeconds()
+    if self._clipShotName == nil then return nil end
+    local tr = self.Tracker
+    local cycle = (type(tr) == "table" and type(tr.start) == "number")
+        and tr.start or nil
+    if self._clipLiveSeeded and self._clipLiveKey == cycle then
+        return self._clipLiveSec
+    end
+    local sec = clientClipSeconds(self._clipShotName)
+    self._clipLiveSeeded = true
+    self._clipLiveKey, self._clipLiveSec = cycle, sec
+    return sec
+end
+
+--- The clip stripe's cast length with NO live cast (seconds): the
+--- CLIENT's current cast time of the shot the shipped data names the
+--- interlock set's longest cast-time shot, falling back to that row's
+--- DATA length when the client gives nothing plain. (Measured live on
+--- uiforever 2026-11-04: the client casts Aimed Shot in 3.0 s while the
+--- generated row says 2000 ms -- a data-only idle mark understates the
+--- clip by a second on such a client.) The shot NAME picks the id (the
+--- AGENTS.md key space; ids ride the data rows, never hand-typed).
+--- nil = no knowledge at all ⇒ no stripe. Memoised per bar (the data leg;
+--- the live leg per cycle, `_ClientClipSeconds`);
+--- `InvalidateClipCastLength` drops both (the data-refresh seam; the
+--- tests inject their own table through Tools.DataCastMsByName and their
+--- own live length through Tools.ResolveCastLength).
+function D:ClipCastSeconds()
+    -- The memo guards the DATA leg's table walk only; the live leg runs
+    -- every call and caches itself per cycle (`_ClientClipSeconds`), so
+    -- the client's word outranks the row's on every pass, not just the
+    -- first. No data row: both fields stay nil and the walk re-runs (as
+    -- it always has); a row: the walk runs once per memo drop.
+    if self._clipCastSec == nil and self._clipShotName == nil then
+        local T = FX.Hunter.Tools
+        local idx = (T and T.DataCastMsByName) and T.DataCastMsByName()
+        local best, bestName
+        if type(idx) == "table" then
+            for name, ms in pairs(idx) do
+                if CLIP_SHOT_NAMES[name] and type(ms) == "number"
+                    and ms > 0 and (best == nil or ms > best) then
+                    best, bestName = ms, name
+                end
+            end
+        end
+        self._clipCastSec = (best and best / 1000) or nil
+        self._clipShotName = bestName
+    end
+    local live = self:_ClientClipSeconds()
+    if live ~= nil then return live end
     return self._clipCastSec
 end
 
+--- The memo drop of the ClipCastSeconds block: it forces the data walk
+--- and, with the live leg's own cache, the next `_ClientClipSeconds`
+--- re-read (the tests' data-injection seam rides it).
 function D:InvalidateClipCastLength()
-    self._clipCastSec = nil
+    self._clipCastSec, self._clipShotName = nil, nil
+    self._clipLiveSeeded, self._clipLiveKey, self._clipLiveSec
+        = nil, nil, nil
 end
 
 --- The in/out-of-combat alpha pair (the WST in-combat-only mechanism,

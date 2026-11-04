@@ -80,23 +80,38 @@ end
 --- defaults (aim window ON, clip region ON, weave line OFF), the lua fill,
 --- the production tracker, an idle bar.
 ---
---- `Tools.DataCastMsByName` is a MODULE-table field: a plain write is not
---- covered by the sim's per-file AutoRestore (only `_G` writes and the
---- registered patch helpers are), so every data-table injection here is
---- paired with this restore — the clip stripe reads shipped data through
---- that function, and test_zz_combat_hunter.lua asserts its shipped
---- numbers (the "len=4" leak this law prevents).
+--- `Tools.DataCastMsByName` and `Tools.ResolveCastLength` are MODULE-table
+--- fields: a plain write is not covered by the sim's per-file AutoRestore
+--- (only `_G` writes and the registered patch helpers are), so every
+--- injection here is paired with this restore — the clip stripe reads
+--- shipped data through that function, test_zz_combat_hunter.lua asserts
+--- its shipped numbers (the "len=4" leak this law prevents), and the
+--- stripe's NEW live leg (UI/Swing.lua's `_ClientClipSeconds`, the client
+--- cast-time preference) rides the second. Every leg that pins a DATA
+--- number therefore runs with the live seam stubbed to "the client says
+--- nothing plain" — the data fallback stays the tested leg on any
+--- client's spell DB; the live legs are test_swing_casttime.lua's.
 local REAL_DATA_CAST_MS = FX.Hunter.Tools.DataCastMsByName
-local injectedData = false
+local REAL_RESOLVE_LEN = FX.Hunter.Tools.ResolveCastLength
+local injectedData, injectedLive = false, false
+local function stubLiveLenSilent()
+    FX.Hunter.Tools.ResolveCastLength = function() return nil end
+    injectedLive = true
+end
 local function useData(map)
     FX.Hunter.Tools.DataCastMsByName = function() return map end
     injectedData = true
+    stubLiveLenSilent()
     Swing:InvalidateClipCastLength()
 end
 local function restoreBar()
     if injectedData then
         FX.Hunter.Tools.DataCastMsByName = REAL_DATA_CAST_MS
         injectedData = false
+    end
+    if injectedLive then
+        FX.Hunter.Tools.ResolveCastLength = REAL_RESOLVE_LEN
+        injectedLive = false
     end
     Swing:SetBarMode("safe")
     Swing:SetShowAimWindow(true)
@@ -503,8 +518,14 @@ end)
 
 test("the clip marker: the shipped data's Aimed Shot is the default length",
 function()
-    -- No injection: the number is the generated data's (§7.4: 2000 ms), the
-    -- same index the interlock's fallback rides.
+    -- No DATA injection: the number is the generated data's (§7.4: 2000
+    -- ms), the same index the interlock's fallback rides. The LIVE client
+    -- leg is stubbed to "no plain read" (the seam the client-length
+    -- preference rides, UI/Swing.lua's _ClientClipSeconds) so this names
+    -- the data fallback on any client's spell DB; the live legs are
+    -- test_swing_casttime.lua's.
+    local ok, err = pcall(function()
+    stubLiveLenSilent()
     Swing:InvalidateClipCastLength()
     local sec = Swing:ClipCastSeconds()
     assertNotNil(sec)
@@ -527,7 +548,9 @@ function()
         nearpx(clipMarker(mode):GetWidth(), W)
         Swing:RenderIdle()
     end
+    end)
     restoreBar()
+    if not ok then error(err, 0) end
 end)
 
 test("the clip marker: retargeted to the LIVE cast under the interlock",
@@ -818,7 +841,11 @@ end)
 test("a resize re-pins the markers on the new geometry", function()
     -- safe: the band is castLen x scale from the left, the line gcd x
     -- scale from the left; one: (castLen + floor) x scale and (floor + gcd)
-    -- x scale from the right (floor = aim 0.5, no retry here).
+    -- x scale from the right (floor = aim 0.5, no retry here). The clip
+    -- numbers ride the SHIPPED data row, so the live seam is stubbed
+    -- silent (the data leg is the tested one, the header law).
+    local ok, err = pcall(function()
+    stubLiveLenSilent()
     for _, probe in ipairs({
         { mode = "safe", clip = 2.0, weave = 1.5 },
         { mode = "one", clip = 2.5, weave = 2.0 },
@@ -849,7 +876,9 @@ test("a resize re-pins the markers on the new geometry", function()
         Swing:SetWidth(savedW)
         assertEquals(200, S.Width)
     end
+    end)
     restoreBar()
+    if not ok then error(err, 0) end
 end)
 
 test("an idle bar parks every marker (no stale stripe on a hidden bar)",
