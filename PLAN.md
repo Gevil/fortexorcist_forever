@@ -929,3 +929,27 @@ a colour-blind check. Order (file-disjoint):
 | K4 Review fixes + colour-blind palette | `fx-worker` (after K1) | `Forte_Hunter/UI/Swing.lua`, `UI/Melee.lua`, `Pages/Hunter.lua`, tests | confirmed K1 findings; a `SwingPalette` option (`default` / `colourblind`) whose signals differ in BRIGHTNESS and position, not only hue (e.g. Okabe–Ito blue/orange/yellow), default = today's colours | luminance contrast between fill / clip mark / aim zone / live slice measured ≥ a stated threshold in the colour-blind palette |
 | K5 Demo clip | manager, uiforever | `docs/demo/hunter-swing-signals.gif/.mp4`, README | the new markers in a real cycle, 100 % zoom | frames reviewed |
 | K6 Release refresh | manager | GitHub pre-release `v0.1.0-dev` asset | gate + live battery on the new zip, replace the asset, verify the anonymous download | sha256 match |
+
+**K progress (2026-11-04):** K1 review `fd7b3f3` (3 majors confirmed) · K2 test-mode swing `c85cd61` · K3 cleanups `fc5a598` ·
+K4 Part A fixes `e55dc2f` (F1/F2/F3/F5 + minors). K4 Part B (palette) was designed and measured but not wired — measured
+on the Aluminium art: default palette fill|clip 1.13:1, fill|aim slice 1.43:1; the Okabe–Ito ladder lifts the load-bearing
+pairs to 1.3–3.6:1; the best achievable adjacency minimum on this art is ~1.45:1 (`tools/swing_contrast.py`,
+`tools/swing_palette_matrix.py`). K4B wires it. `test_swing_demo.lua:127` was seen flaky (2 fails / 2 passes on one tree)
+→ K2 makes the demo clock-injected.
+
+### 11.5 Iteration L — live uiforever test round on the site's new features (owner tip 2026-11-04)
+
+The uiforever changelog (read 2026-11-04) added what we lacked: a hostile **Scarlet Zealot** that targets you and puts you
+in combat (27 Oct); **stances/forms** switch and page the bars (31 Oct); **JSON scenarios** set bags, equipment, auras,
+group and target (25 Oct); `/uif bag add` fires bag events; **class switch** in the header (1 Nov); **talent trees match the
+Forever launch** (2 Nov: Oath of Light, Shieldsworn, Bloom, Lacerate; Berserk gone); **game language** via the WTF folder —
+de/fr/es/pt/ru UI, spells and items, addons load their translations (4 Nov); `/run` works after one confirmation (3 Nov).
+
+| Check | What it proves | How |
+|---|---|---|
+| L1 Real aim phase | the red aim slice + F1 interlock freeze on an attackable target | Hunter, target the Scarlet Zealot, drive PLAYER_SWING through the real frames; a real `/cast Aimed Shot` if the site casts |
+| L2 Forms mid-fight | FX7a: the cooldown bar keeps running cooldowns across a SPELLS_CHANGED | Druid/Warrior, cooldowns running, shift form in combat |
+| L3 JSON scenario | H7 proc rows from player auras; Warlock plates from real bag counts; party channel (FX7b) + roster names (FX8) with a real group | a scenario JSON with auras, bags and a party |
+| L4 Class sweep | every class add-on loads and its module frames draw, no Lua errors | Character/Class switch: Warlock, Shaman, Mage, Paladin, Priest, Druid, Rogue, Warrior |
+| L5 Game language | `ForteXorcist.Locale` resolves spell names on a German client (incl. Raptor Strike, review 8 F7) | WTF with `SET textLocale "deDE"` |
+| L6 Talent data | our I2b rows (Oath of Light, Shieldsworn, Bloom, Lacerate; no Berserk) match the site's launch talents | read the site spellbook/talent data |
