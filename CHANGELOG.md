@@ -72,6 +72,17 @@ headless interface simulator and on uiforever.com — not in a live game.
 - **Melee rail (opt-in):** your main-hand swing as a slim bar under the
   swing bar, shown only in melee range during combat; Raptor Strike resets
   it. Off by default — when off it costs nothing.
+- **Non-English Warlocks: the soul-shard counter now counts.** A German
+  client carrying four Soul Shards read `shards x0` — the bag pass asked
+  the client's item table for the English name "Soul Shard", which a
+  localized client counts at 0, and the shard (unlike the healthstones)
+  has no generated data row for the localization layer to derive the
+  client's own name from. The shard now carries its item id beside its
+  name, so the localization layer learns the client's name for it —
+  recorded at login, and on a cold item cache requested and applied the
+  moment the client's answer lands, re-reading the count by itself. The
+  German client's `Seelensplitter` now counts; English clients are
+  unchanged.
 
 ## 0.1.0-dev — 2026-11-04 (Iteration I: launch-day build)
 

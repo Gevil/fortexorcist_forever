@@ -233,3 +233,142 @@ test("locale: the enUS gates keep asking the English names", function()
         "the English family gate is unchanged")
     restore()
 end)
+
+-- ============================================================ shard alias
+-- The 2026-11-04 uiforever finding (deDE client): a Warlock carrying four
+-- Soul Shards reads x0. `C_Item.GetItemCount(6265)` = 4, the bag slot and
+-- `C_Item.GetItemInfo(6265)` say `Seelensplitter`, but the counter asks
+-- `FX.L("Soul Shard")` -- and the Locale item aliases rode only the
+-- GENERATED item rows, so the data-less shard name had no alias and the
+-- English string counted 0 on every non-English client. The fix is the
+-- `Locale.RegisterItemName` seam and the `WK.SHARD_ITEMS = { [6265] =
+-- "Soul Shard" }` registration: warm cache records the alias at the
+-- module's init, a cold cache REQUESTS the id and the
+-- GET_ITEM_INFO_RECEIVED reply records the alias AND re-reads the counter
+-- (the `Locale.SubscribeLateNames` leg of `EnableEvents`). These tests
+-- drive the real `WK.DefaultShardCountReader`, the real `Tools.Shards`
+-- counter, the real Locale watch frame and the real registration path.
+
+local SHARD_ID = 6265
+local SHARD_DE = "Seelensplitter"          -- the live deDE name, measured
+local shardCounts, shardRequests
+local function shardSeam(on)
+    if not on then
+        if _C_Item ~= nil then _G.C_Item = _C_Item end
+        shardCounts, shardRequests = nil, nil
+        return
+    end
+    shardCounts, shardRequests = {}, {}
+    _G.C_Item = setmetatable({
+        -- The localized client counts the item under ITS name only.
+        GetItemCount = function(name)
+            shardCounts[name] = (shardCounts[name] or 0) + 1
+            if name == SHARD_DE then return 4 end
+            return 0
+        end,
+        RequestLoadItemDataByID = function(id)
+            shardRequests[#shardRequests + 1] = id
+        end,
+    }, { __index = _C_Item })
+end
+
+test("locale: the registered shard counts under the client's German name",
+function()
+    FX.LoadClassAddOn("WARLOCK")
+    restore()
+    german(true)
+    shardSeam(true)
+    Locale.stubItemName = function(id)
+        if id == SHARD_ID then return SHARD_DE end
+        return nil
+    end
+    WK.RegisterShardItemAliases()
+    assertEquals(SHARD_DE, Locale.LocalizedName("Soul Shard"),
+        "the registration records the alias from the client's own id read")
+    local count, source = Tools.Shards:Read()
+    assertEquals(4, count,
+        "the real shard counter reads the German-named bag (x0 before)")
+    assertEquals("bag", source)
+    assertTrue(shardCounts[SHARD_DE] ~= nil,
+        "the read asked the client's shard name")
+    assertTrue(shardCounts["Soul Shard"] == nil,
+        "the English data label was never asked of this client")
+    shardSeam(false)
+    restore()
+end)
+
+test("locale: a cold-cache login self-corrects the shard count on the "
+.. "late item name", function()
+    FX.LoadClassAddOn("WARLOCK")
+    restore()
+    german(true)
+    shardSeam(true)
+    local cached = false
+    Locale.stubItemName = function(id)
+        if cached and id == SHARD_ID then return SHARD_DE end
+        return nil
+    end
+    WK.RegisterShardItemAliases()
+    assertEquals("Soul Shard", Locale.LocalizedName("Soul Shard"),
+        "a cold cache has no alias yet")
+    assertEquals(SHARD_ID, shardRequests[#shardRequests],
+        "the registration REQUESTED the shard's item data")
+    local before = Tools.Shards:Read()
+    assertEquals(0, before, "the cold pass reads the English name: x0")
+    -- The name arrives. Drive the REAL Locale watch frame the way the
+    -- client does, with the tools' enable live (the late-name
+    -- subscription -- and with it the self-correcting re-read -- rides it).
+    cached = true
+    local frame = Locale.WatchItemLoads()
+    assertNotNil(frame, "the item-name watch frame exists")
+    local handler = frame:GetScript("OnEvent")
+    assertNotNil(handler, "the watch installs the handler")
+    local wasEnabled = Tools._eventsEnabled
+    if not wasEnabled then Tools:EnableEvents() end
+    handler(frame, "GET_ITEM_INFO_RECEIVED", SHARD_ID, true)
+    assertEquals(SHARD_DE, Locale.LocalizedName("Soul Shard"),
+        "the arrival records the alias")
+    local count, source = Tools.Shards:Count()
+    assertEquals(4, count,
+        "the late-name subscription re-read the counter: no bag event")
+    assertEquals("bag", source)
+    if not wasEnabled then
+        Tools:DisableEvents()
+        Tools._eventFrame = nil
+    end
+    shardSeam(false)
+    restore()
+end)
+
+test("locale: on enUS the shard registration adds no alias and no request",
+function()
+    FX.LoadClassAddOn("WARLOCK")
+    restore()
+    local asked, requests = {}, {}
+    _G.C_Item = setmetatable({
+        GetItemCount = function(name)
+            asked[#asked + 1] = name
+            if name == "Soul Shard" then return 4 end
+            return 0
+        end,
+        RequestLoadItemDataByID = function(id)
+            requests[#requests + 1] = id
+        end,
+    }, { __index = _C_Item })
+    WK.RegisterShardItemAliases()
+    assertEquals(0, #requests, "the English client requests nothing")
+    assertEquals(0, Locale.state.aliases, "the English client gains no alias")
+    assertEquals("Soul Shard", FX.L("Soul Shard"), "FX.L stays the identity")
+    local count = Tools.Shards:Read()
+    assertEquals(4, count, "enUS counts under the English name as before")
+    assertEquals("Soul Shard", asked[#asked],
+        "the English name is what the pass asked")
+    -- The registered row is durable: a Reset re-seeds it (the shard row is
+    -- not lost), and the re-seed is labels only, no aliases.
+    Locale.Reset()
+    assertEquals("Soul Shard", Locale.englishByItemID[SHARD_ID],
+        "the registered shard row survives Locale.Reset")
+    assertEquals(0, Locale.state.aliases, "the re-seed records no alias")
+    _G.C_Item = _C_Item
+    restore()
+end)

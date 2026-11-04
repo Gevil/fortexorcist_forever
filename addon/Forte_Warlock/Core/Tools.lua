@@ -155,10 +155,45 @@ WK.soulstoneNames = WK.DeriveNames(WK.SoulstonePatterns)
 WK.healthstoneNames = WK.DeriveItemNames(WK.HealthstonePatterns)
 WK.summonNames = WK.DeriveNames(WK.SummonPatterns)
 
---- The shard bag item, by NAME: the generated data has no shard row, the id
---- is build-sensitive, and the name is what the C_* item seams accept
---- (docs/warlock-tools.md, probe P1 covers the live shape).
-WK.SHARD_ITEM_NAMES = { "Soul Shard" }
+--- The shard bag item, carried as `id -> english`: the generated data has
+--- no shard row, and the pair is what makes the counter locale-safe. The
+--- NAME rides the `C_Item.GetItemCount` seam (docs/warlock-tools.md, probe
+--- P1 covers the live shape) and the id rides the Locale registration
+--- (`Locale.RegisterItemName`), which records the client's alias for the
+--- name — the 2026-11-04 uiforever measurement: a deDE client answers
+--- `Seelensplitter` for 6265 and counts the bare English name at 0, so
+--- without the alias the counter read x0 on every non-English client. The
+--- id is a MEASURED hand-carried constant, never compared against a live
+--- read (it feeds the alias/request seams only); the reader below keeps
+--- counting by NAME through `FX.L`.
+WK.SHARD_ITEMS = { [6265] = "Soul Shard" }
+
+--- The names, derived from `WK.SHARD_ITEMS` (ids sorted, so the bag pass
+--- asks in a stable order on every build).
+WK.SHARD_ITEM_NAMES = {}
+do
+    local ids = {}
+    for id in pairs(WK.SHARD_ITEMS) do ids[#ids + 1] = id end
+    table.sort(ids)
+    for _, id in ipairs(ids) do
+        WK.SHARD_ITEM_NAMES[#WK.SHARD_ITEM_NAMES + 1] = WK.SHARD_ITEMS[id]
+    end
+end
+
+--- Hand the carried shard ids to the Locale (the `RegisterItemName` seam,
+--- see `WK.SHARD_ITEMS`): warm cache records the alias from the client's
+--- own id read, cold cache REQUESTS the id and the alias lands on the
+--- `GET_ITEM_INFO_RECEIVED` reply, which also re-reads the counter below.
+--- Runs from the module's own enable paths (`OnEnable` behind the class
+--- gate, `OnClassChanged`), never at the file's top: the locale state is
+--- enable-time state. Idempotent; absent-Locale degrades to no-op.
+function WK.RegisterShardItemAliases()
+    local Locale = FX.Locale
+    if not (Locale and Locale.RegisterItemName) then return end
+    for id, name in pairs(WK.SHARD_ITEMS) do
+        pcall(Locale.RegisterItemName, id, name)
+    end
+end
 
 --- Soulstone window when the data carries none: 30 minutes, the Burning
 --- Crusade-era value the original's 900 s (spec SS-01 `SS_TIME`, WotLK)
@@ -195,13 +230,15 @@ end
 --- no-hand-typed-ids rule. Only plain numbers are summed; every name that
 --- answers nothing is skipped, and nil = "no reliable read".
 ---
---- H1b (docs/localization.md): the shard has NO generated data row, so there
---- is no itemID to hand the seam and the name is the only key available --
---- which makes it the one place in this file where the client-facing string
---- must be the CLIENT's: `FX.L(name)` (the Locale's item alias map is built
---- from the generated item ids, so a name the data set does not carry is its
---- own key and this is the identity on enUS as well as on a client whose item
---- alias for the shard has not arrived).
+--- H1b (docs/localization.md): the shard has NO generated data row, so its
+--- alias is the hand-carried `WK.SHARD_ITEMS` registration
+--- (`Locale.RegisterItemName`) -- the client's name for the id lands in the
+--- alias map (recorded at registration on a warm cache, on the
+--- `GET_ITEM_INFO_RECEIVED` reply on a cold one), and `FX.L(name)` turns
+--- the English data label into it. The identity on enUS (no aliases there)
+--- and on a localized client whose alias has not arrived yet; the
+--- late-name subscription in `EnableEvents` re-reads the count the moment
+--- it does.
 function WK.DefaultShardCountReader()
     if not (C_Item and C_Item.GetItemCount) then return nil end
     local total
@@ -916,6 +953,24 @@ function M:EnableEvents()
     f:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         onToolEvent(M, event, a1, a2, a3, a4, a5)
     end)
+    -- A late item name for a registered shard id (the cold-cache login:
+    -- the GET_ITEM_INFO_RECEIVED reply records the alias) re-reads the
+    -- count through the real bag seam, so a German login corrects its x0
+    -- without waiting for a bag event. The Forte_Cooldown item-scan
+    -- subscription is the pattern (wired once, survives DisableEvents);
+    -- the id gate keeps every other item's arrival a no-op here.
+    if not self._lateNameWired then
+        local Locale = FX.Locale
+        if Locale and Locale.SubscribeLateNames then
+            self._lateNameWired = true
+            Locale.SubscribeLateNames(function(itemID)
+                if itemID == nil or WK.SHARD_ITEMS[itemID] == nil then
+                    return
+                end
+                self.Shards:Read(nil, "bag")
+            end)
+        end
+    end
     self._eventsEnabled = true
 end
 
@@ -952,6 +1007,10 @@ function M:OnEnable()
     -- Event frame for warlocks only: the shared /fx bootstrap runs OnEnable
     -- for every player class.
     if FX._playerClass ~= "WARLOCK" then return end
+    -- The shard alias registration (WK.SHARD_ITEMS -> Locale) rides the
+    -- same class gate as the event frame: enable-time, warlock-only,
+    -- idempotent.
+    WK.RegisterShardItemAliases()
     self:EnableEvents()
     -- The H6 comms (Core/Comms.lua): prefix registration, the CHAT_MSG_ADDON
     -- and GROUP_* frame. Rides this module's class gate (see above).
@@ -962,6 +1021,7 @@ end
 --- the event frame follows the class.
 function M:OnClassChanged(classFile)
     if classFile == "WARLOCK" then
+        WK.RegisterShardItemAliases()
         self:EnableEvents()
         if M.Comms then M.Comms:OnEnable() end
     else

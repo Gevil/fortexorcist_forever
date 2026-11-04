@@ -42,6 +42,12 @@ Locale.aliasesByTable = Locale.aliasesByTable or {}
 Locale.idsByEnglish = Locale.idsByEnglish or {}
 -- [itemID] = english data name (the data set's label for a live item id).
 Locale.englishByItemID = Locale.englishByItemID or {}
+-- [itemID] = english, the `RegisterItemName` rows: item ids the CONSUMER
+-- carries by hand because the generated data has no row for them (the
+-- Warlock's Soul Shard). The durable source Reset re-seeds
+-- `englishByItemID` from, exactly as `FX.Data.Items` is the durable source
+-- the generated walk re-seeds it from.
+Locale.registeredItemNames = Locale.registeredItemNames or {}
 -- English data keys: an incoming name in this set is NEVER aliased (a
 -- localized name that collides with another row's English key would poison
 -- the lookup).
@@ -318,6 +324,36 @@ function Locale.EnglishItemName(itemID)
     return Locale.englishByItemID[itemID]
 end
 
+--- Register a CONSUMER-carried item: the id and English label of an item
+--- the generated data has no row for (the Warlock's Soul Shard,
+--- `WK.SHARD_ITEMS`). The label joins `englishByItemID` — the alias/request
+--- walk's key space — and rides the very same paths the generated rows
+--- ride: the alias is recorded NOW when `ItemNameByID` answers, or the id
+--- is REQUESTED and the alias lands on `OnItemNameArrived`. The row is
+--- durable: it lives in `registeredItemNames`, so `Reset` re-seeds it the
+--- way the generated walk re-seeds the `FX.Data.Items` rows (the consumer's
+--- alias re-record rides its own re-registration, the way the Forte_Cooldown
+--- Rescan re-walks the data). On an English client (`IsEnglish`) this records
+--- the id label and NOTHING else: zero aliases, zero requests, so `FX.L`
+--- stays the identity and the English read path is bit-identical.
+--- Idempotent. Returns true when the row was taken.
+function Locale.RegisterItemName(itemID, english)
+    if type(itemID) ~= "number" or type(english) ~= "string" then
+        return false
+    end
+    Locale.registeredItemNames[itemID] = english
+    Locale.englishByItemID[itemID] = english
+    noteKey(english)
+    if Locale.IsEnglish() then return true end
+    local localized = Locale.ItemNameByID(itemID)
+    if localized ~= nil then
+        record(english, localized)
+    else
+        Locale.RequestItemName(itemID)
+    end
+    return true
+end
+
 --- Ask the client to load an item's data (the cold-cache login window).
 --- `ITEM_DATA_LOAD_RESULT`/`GET_ITEM_INFO_RECEIVED` carry the arrival.
 function Locale.RequestItemName(itemID)
@@ -370,6 +406,18 @@ function Locale.Reset()
     Locale.idsByEnglish = {}
     Locale.englishByItemID = {}
     Locale.englishKeys = {}
+    -- Re-seed the registered rows (the Warlock's shard): the registry, not
+    -- the map, is their durable source — the same shape the generated rows
+    -- survive Reset in (their source is `FX.Data.Items`, the Forte_Cooldown
+    -- Rescan re-walks it; the shard's OnItemNameArrived path reads
+    -- `englishByItemID`, so the row must stand after every Reset). The
+    -- alias re-record is the consumer's own re-registration (its module
+    -- init), not this loop's: the English gate makes re-recording here
+    -- unsafe against stub order.
+    for itemID, english in pairs(Locale.registeredItemNames) do
+        Locale.englishByItemID[itemID] = english
+        noteKey(english)
+    end
     Locale.stubLocale = nil
     Locale.stubSpellName = nil
     Locale.stubItemName = nil
