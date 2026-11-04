@@ -399,10 +399,18 @@ function C:Channel()
 end
 
 --- The rate law: `key` may fire again after `gap` seconds. Stamps on yes.
+--- A NO is the header's skipped send, and it is COUNTED here — the one gate
+--- every rate-limited site runs through, so `/fx status`'s `rate %d` reports
+--- every line the rate law ate (the header's "a skipped send is SILENT and
+--- COUNTED" law; the counter used to sit at zero through a session of
+--- rate-shaving, docs/reviews/code-review-7.md F7).
 function C:RateGate(key, gap)
     local now = self:Clock()
     local last = self._lastAt[key]
-    if last ~= nil and (now - last) < gap then return false end
+    if last ~= nil and (now - last) < gap then
+        self.counts.rateSkipped = self.counts.rateSkipped + 1
+        return false
+    end
     self._lastAt[key] = now
     return true
 end

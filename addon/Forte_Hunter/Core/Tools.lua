@@ -341,11 +341,7 @@ function SwingTracker:OnSwingRange(swingType, isInRange, checksRange)
     checksRange = FX.Compat.PlainOrNil(checksRange)
     isInRange = FX.Compat.PlainOrNil(isInRange)
     local checked = (checksRange == true or checksRange == 1)
-    if not checked then
-        self.rangeEdges = false
-        return
-    end
-    self.rangeEdges = true
+    if not checked then return end
     if isInRange == nil then return end       -- no check possible: permissive
     local inRange = (isInRange == true or isInRange == 1) and true or false
     self.factsInRange = inRange
@@ -819,8 +815,6 @@ function FX.Hunter.NewSwingTracker(opts)
         lastShotTime = nil,         -- Clock() at the last cycle/shot event
         factsInRange = nil,         -- learned range fact (a completed shot
                                     -- or a plain-true range edge stamps it)
-        rangeEdges = nil,           -- the last edge's checksRange state:
-                                    -- did the range check speak at all?
         _evtSeal = nil,             -- the seal of the event being handled
         -- Injectable gate/seam readers (tests; the live defaults are the
         -- pcall-guarded unit reads wired by the module below).

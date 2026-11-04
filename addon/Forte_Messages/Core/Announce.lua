@@ -75,7 +75,11 @@ Announce.channelOut = nil  -- the module's Channel layer (local echo law)
 Announce.counts = {
     sent = 0,            -- accepted C_ChatInfo.SendChatMessage calls
     lockedSkipped = 0,   -- SKIPPED because the client says chat is locked
-    offSkipped = 0,      -- skipped by the OutputRaid / Output master gates
+    offSkipped = 0,      -- skipped by the OutputRaid / Output master gates,
+                         -- the row's own box inside this gate, AND the
+                         -- module-side announce pre-checks of Forte_Messages/
+                         -- Module.lua (`announceSkipped`), which read the
+                         -- same box before the send is attempted at all
     noGroup = 0,         -- the no-group local echoes (ToGroup law)
     noTarget = 0,        -- a whisper row whose target name is unreadable
     sendFailed = 0,      -- the call raised (the pcall caught it)

@@ -14,6 +14,29 @@ headless interface simulator and on uiforever.com — not in a live game.
 
 ## Unreleased — 2026-11-04 (Iteration J: the Hunter swing bar reads your rotation)
 
+- **Your settings survive the old `Name-Realm` profile key in every shape.**
+  The launch-day check found installs whose saved profile is named after the
+  *first* name plus the realm label (`Morvessa-Nethergarde`) while the profile
+  key today packs the whole name (`MorvessaAshveil`). The migration now
+  recognises that spelling too, so such a character wakes up on her settings
+  instead of the defaults. Only your own character's key is moved — a profile
+  you named yourself (a "Uther-Raid" page) is left exactly where it is, and an
+  existing profile of the new name is never written over.
+- **`/fx messages` reports the announces that are off.** A row switched off
+  was skipped silently by the module and never counted, so the line read
+  `off-skipped 0` on an install whose every announce is off. It now counts
+  every opt-out, which is what makes a silent install legible.
+- **`/fx warlock status`'s `rate` column counts.** The warlock comms rate
+  limiter dropped lines it was asked to send too often without counting them;
+  the launch-day readout now shows how many the rate law ate.
+- **Auras that were already over when they were read are ignored.** A spell
+  aura whose expiry timestamp is in the past is no longer treated as a live
+  fact by the Spell Timer's aura sweep: it no longer plants a row that is born
+  at zero, and it no longer wipes a live row of the same spell. A permanent
+  aura (no end time) is a fact as before.
+- A dead range-check telemetry field on the Hunter swing tracker, a dead
+  locale id-map and a dispatcher-less locale event hook were removed.
+
 - **"Can I cast without clipping?" is on the bar.** A dim red mark shows the
   Aimed Shot length: in the default *Safe window* mode it sits at the bar's
   left end — start Aimed or Multi-Shot while the orange still reaches past

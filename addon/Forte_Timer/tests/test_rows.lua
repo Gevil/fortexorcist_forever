@@ -714,6 +714,79 @@ test("a sealed aura read is ignored, the row is left alone", function()
     Rows:Clear()
 end)
 
+test("a POSITIVE expiration in the past is no fact: no born-expired row, no refresh of a live one",
+function()
+    -- `ReadFact` is the one fact seam of both sweep halves, and a
+    -- `expirationTime` behind the sweep's clock describes an aura that has
+    -- ALREADY ENDED (a client stamp skew, an aura the client has not cleared
+    -- out of its store yet). Today it is a fact, and both consumers turn it
+    -- into a visible lie: the bulk leg inserts a row BORN expired, and the
+    -- per-name leg hands a live row to `Rows:OnAuraFact`'s REFRESH arm, which
+    -- removes and re-inserts it on a window that is already over.
+    buildHunterRegistry()
+    local o = opts()
+    Rows.options = o
+    Rows:Clear()
+    local base = 21000
+    Reconcile.inCombat = function() return false end
+    Reconcile:Init(Rows, o)
+    local savedLiveness, savedRowsLiveness = Reconcile.liveness, Rows.liveness
+    Reconcile.liveness = function() return "GUID-x", false, false end
+    Rows.liveness = Reconcile.liveness
+    local ended = {
+        name = "Serpent Sting",
+        expirationTime = base - 5,      -- FIVE SECONDS IN THE PAST
+        duration = 20,
+        applications = 1,
+    }
+    -- The enumeration shape the production readers hand: the bulk list
+    -- itself answers the seal probe with no `expirationTime`, so the sweep
+    -- reaches the facts through the bounded `byIndex` fallback (the
+    -- production `GetUnitAuras` raising is exactly what arms it) —
+    -- `C_UnitAuras.GetAuraDataByIndex`, one aura per index.
+    local facts = { ended }
+    Reconcile.readers = {
+        byName = function() return false end,      -- the per-name leg is inert
+        bulk = function() error("FXTEST: the bulk list is sealed") end,
+        byIndex = function(_token, i) return facts[i] end,
+    }
+    local added = Reconcile.counts.added
+    local n = Reconcile:SweepBulk("player", "HELPFUL", base)
+    assertEquals(0, n, "an ended aura contributes nothing to the sweep")
+    assertEquals(added, Reconcile.counts.added,
+        "no row is inserted BORN EXPIRED")
+    assertNil(Rows:Find("Serpent Sting", "none"),
+        "the panel carries no row of an aura that was over before it was read")
+    -- `0` is the catalog's PERMANENT spelling, a window with no end: it
+    -- stays a fact exactly as today.
+    facts[1] = { name = "Serpent Sting", expirationTime = 0, duration = 20,
+        applications = 1 }
+    n = Reconcile:SweepBulk("player", "HELPFUL", base)
+    assertEquals(1, n, "a permanent aura is a fact")
+    assertNotNil(Rows:Find("Serpent Sting", "none"),
+        "and it reaches the panel")
+    Rows:Clear()
+    -- The per-name half: the live row of a 12 s crowd control rides a past
+    -- fact UNTOUCHED (the refresh arm is what used to eat it).
+    local row = seededRow("Serpent Sting", "target", 12, base)
+    local expire = row.expireAt
+    Reconcile.readers = {
+        byName = function() return ended end,
+        bulk = function() return false end,
+    }
+    local skippedNow = Reconcile.counts.skipped
+    Reconcile:SweepUnit("target", "HARMFUL", base)
+    assertTrue(Reconcile.counts.skipped > skippedNow,
+        "the read is classified as no-answer, the sealed read's own shape")
+    near(row.expireAt, expire)
+    assertEquals(true, row.predicted, "the row is still a prediction")
+    assertEquals(Laws.NORMAL, row.state, "and it is still on the panel")
+    Reconcile.liveness = savedLiveness
+    Rows.liveness = savedRowsLiveness
+    Reconcile.readers = Reconcile.LiveReaders()
+    Rows:Clear()
+end)
+
 test("the aura sweep gate: FX.SecretState.aurasSecret seals the whole path",
 function()
     buildHunterRegistry()

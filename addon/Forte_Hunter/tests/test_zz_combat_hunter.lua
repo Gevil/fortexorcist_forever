@@ -421,7 +421,7 @@ test("zzz the suite leaves the module state as it found it", function()
     Swing.active = false
     Swing.start, Swing.duration, Swing.at, Swing.pending = nil, nil, nil, nil
     Swing.cast, Swing.flying, Swing.retryUntil = nil, nil, nil
-    Swing.feignPending, Swing.movePulseAt, Swing.rangeEdges = nil, nil, nil
+    Swing.feignPending, Swing.movePulseAt = nil, nil
     Swing.factsInRange, Swing.shooting, Swing.moving = nil, false, false
     Aspects.current = nil
     assertNil(Swing:CastRemaining(), "the clip is clean")

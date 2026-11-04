@@ -157,7 +157,15 @@ local function isTable(v) return type(v) == "table" end
 ---   * a legacy row is a key of the SHAPE the old CharacterKey wrote — the
 ---     packed name, a hyphen, any realm label — whose name half matches
 ---     this character canonically, so a realm label that moved between the
----     write and now is still picked up. The match is additionally
+---     write and now is still picked up. The name half matches on EITHER
+---     the WHOLE key (the old read answered the full name) OR this
+---     character's FIRST name (the read `UnitNameUnmodified` answers on a
+---     Forever client — the measured uiforever shape of PLAN §9, rows of
+---     2026-11-04: `UnitNameUnmodified` = "Morvessa" while the key today is
+---     "MorvessaAshveil", so the file carries "Morvessa-Nethergarde"); the
+---     second leg is gated on that first name being a STRICT PREFIX of the
+---     packed key, so it folds one character's own two spellings and never
+---     a second player of the same first name. The match is additionally
 ---     BOUND-GATED (the key is a key of `characters` — every real
 ---     character key binds itself there — or equals `active`), so a
 ---     profile the USER named e.g. "Uther-Raid" is left exactly where it
@@ -195,11 +203,40 @@ function DB.RekeyLegacy(db)
     if not isTable(p) then return end
     local keyCanon = FX.Identity.Canonical(key)
     if not keyCanon then return end
+    -- The character's FIRST name, canonically: what `UnitNameUnmodified`
+    -- answers on a Forever client (measured on uiforever, PLAN §9 rows of
+    -- 2026-11-04: `UnitNameUnmodified` = "Morvessa" beside
+    -- `UnitName` = ("Morvessa", "Ashveil")). The old key law packed the
+    -- name read of ITS day, so a file can carry "Morvessa-Nethergarde"
+    -- while today's key is "MorvessaAshveil" — a whole-key canonical
+    -- compare never folds those two. The read rides this file's name law:
+    -- the call pcall'd (the identity reads are
+    -- SecretWhenUnitIdentityRestricted), the value through
+    -- FX.Identity.Canonical, which classifies it via PlainOrNil first (a
+    -- secret name has type() == "string"), and a failed read is a nil that
+    -- costs this session only the second recognition leg.
+    -- The gate is structural: the first name must be a STRICT PREFIX of
+    -- the packed key — one character's own first half, never the full name
+    -- (that is leg one), never a placeholder read, and never a DIFFERENT
+    -- character who happens to share the first name.
+    local firstCanon
+    local okFirst, first = pcall(function()
+        if type(_G.UnitNameUnmodified) ~= "function" then return nil end
+        local okRead, bare = pcall(_G.UnitNameUnmodified, "player")
+        if not okRead then return nil end
+        return FX.Identity.Canonical(bare)
+    end)
+    if okFirst and type(first) == "string"
+        and #first < #keyCanon and keyCanon:sub(1, #first) == first then
+        firstCanon = first
+    end
     local function legacyOf(k)
         if type(k) ~= "string" or k == key then return false end
         local head = k:match("^(.-)%-")            -- the name before the label
         if not head or head == "" then return false end
-        return FX.Identity.Canonical(head) == keyCanon
+        local headCanon = FX.Identity.Canonical(head)
+        if headCanon == keyCanon then return true end
+        return firstCanon ~= nil and headCanon == firstCanon
     end
     -- The move moves a LEGACY KEY OF THIS CHARACTER, not any key of the
     -- shape: a shape match alone would re-key a user-named profile like
@@ -214,9 +251,12 @@ function DB.RekeyLegacy(db)
         if characters and characters[k] ~= nil then return true end
         return active ~= nil and active == k
     end
+    -- Collect first: assigning a NEW key inside pairs() is illegal. The
+    -- cursor is HOISTED past the byName leg so the binding leg below moves
+    -- the SAME key: pairs() has no order, and with the two first-name legs
+    -- a file can carry more than one legacy spelling of this character.
+    local moveKey
     if isTable(p.byName) then
-        -- Collect first: assigning a NEW key inside pairs() is illegal.
-        local moveKey
         for k, profile in pairs(p.byName) do
             if legacyOf(k) and boundToCharacter(k) then
                 local st = type(profile) == "table" and profile.settings
@@ -232,8 +272,12 @@ function DB.RekeyLegacy(db)
     end
     if characters then
         local bind
-        for k, v in pairs(characters) do
-            if legacyOf(k) then bind = k end
+        if moveKey ~= nil and characters[moveKey] ~= nil then
+            bind = moveKey
+        else
+            for k in pairs(characters) do
+                if legacyOf(k) then bind = k end
+            end
         end
         if bind and characters[key] == nil then
             local bound = characters[bind]

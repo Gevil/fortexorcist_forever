@@ -230,7 +230,12 @@ test("the master switch and the channel routing: SAY/YELL normalise, a "
     ST:Set("RaidMsg", "OutputChannel", "PIZZA")
     FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 11.0, nil, nil)
     assertEquals(2, #sent, "the stray string sent nothing")
-    assertEquals(off0 + 1, Announce.counts.offSkipped)
+    -- TWO counts for the one bad channel: `OnCooldownReady`'s channel
+    -- pre-check fails first (`OutputChannel` = "PIZZA" is not a string the
+    -- cfg accepts, so `cfg.ReadyChannel` is off) and counts the module-side
+    -- opt-out; the party half rides the channel leg into the gate, whose
+    -- bad-string leg counts its own (Core/Announce.lua:163).
+    assertEquals(off0 + 2, Announce.counts.offSkipped)
     -- The master switch mutes the whole channel half.
     ST:Set("RaidMsg", "OutputEnable", false)
     ST:Set("RaidMsg", "OutputChannel", "SAY")
@@ -518,13 +523,15 @@ test("FADING: a Banish row fires the event EXACTLY ONCE crossing 3.0 s, "
     Rows:Sweep(clock[1])
     assertEquals(2, #events, "the fade event rings for the row")
     assertEquals(sent0, Announce.counts.sent, "the un-ticked send is off")
-    -- Two counted opt-outs, not one: a fade is TWO gated sends (the party
-    -- half and the channel half), and `OnTimerFading` calls both, so one
-    -- un-ticked fade moves `offSkipped` by two. The row's true expiry, which
-    -- arrives on the bus in this same sweep (E3), moves it by NOTHING: its
-    -- announce calls are behind `cfg.ExpireAnnounce`/`ExpireChannel` in the
-    -- subscriber, so an off row never reaches the counting gate at all.
-    assertEquals(off0 + 2, Announce.counts.offSkipped)
+    -- Four counted opt-outs. Two are the fade: a fade is TWO gated sends
+    -- (the party half and the channel half), `OnTimerFading` calls both, and
+    -- both of this row's boxes are off, so the gate counts each. Two more are
+    -- the row's true expiry, which arrives on the bus in this same sweep
+    -- (E3): `ExpireAnnounce`/`ExpireChannel` are read by the MODULE in
+    -- `OnTimerExpired`, and an off box is one off-skip each there exactly as
+    -- the gate counts its own (test "a module-side announce pre-check COUNTS
+    -- as an off-skip").
+    assertEquals(off0 + 4, Announce.counts.offSkipped)
     ST:Set("RaidMsg", "BanishFadeParty", true)
     clock[1] = clock[1] + 0.5                 -- pumping more: no third fire
     Rows:Sweep(clock[1])
@@ -687,5 +694,31 @@ test("a foreign unit's cast is ignored (the player filter)", function()
     assertEquals(0, #sent)
     ST:Set("RaidMsg", "SoulstoneAnnounce", false)
     restoreSpellNames(real)
+    restoreAll()
+end)
+
+test("a module-side announce pre-check COUNTS as an off-skip, so "
+.. "`/fx messages` reports the rows that are off", function()
+    enable()
+    installReaders({})
+    -- The shipped install leaves the ready rows OFF (E2), so the module's
+    -- pre-check in `OnCooldownReady` is the only thing standing between a
+    -- ready pop and the raid channel: the gate that counts an opt-out is
+    -- never entered. A leg that counted nothing made `/fx messages` report
+    -- `off-skipped 0` for an install whose every announce row is off — the
+    -- instrument's purpose inverted (Core/Announce.lua's header law: a
+    -- skipped send is silent and COUNTED).
+    assertEquals(false, FX.Messages.Module.cfg.ReadyAnnounce)
+    assertEquals(false, FX.Messages.Module.cfg.ReadyChannel)
+    local off0, sent0 = Announce.counts.offSkipped, Announce.counts.sent
+    FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 1.0, nil, nil)
+    assertEquals(sent0, Announce.counts.sent, "an off row stays silent")
+    -- TWO counts: the pop's party half and its channel half (the original's
+    -- bits 1 and 2, Forte_Class/Warlock/Warlock.lua:373), pre-checked apart.
+    -- Both counters are mutually exclusive by construction — a row ON falls
+    -- into the `then` arm and reaches only the gate — so one opt-out is one
+    -- count in every report, never two.
+    assertEquals(off0 + 2, Announce.counts.offSkipped,
+        "a pre-check counts its opt-out exactly like the gate's own")
     restoreAll()
 end)

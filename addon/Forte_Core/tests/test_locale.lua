@@ -10,6 +10,37 @@ test("locale: the module is loaded and FX.L is the display seam", function()
     assertNotNil(Locale.state, "the module's state exists")
 end)
 
+test("locale: the module carries no dead surface (the review-7 cleanups)",
+function()
+    -- F5: `canonicalByAliasID` was built from the rename pairs' ids and
+    -- read by nothing -- the id-first lookups resolve through the generated
+    -- data (the alias rides the class ByName table, e.g.
+    -- Forte_Shaman/Data/Shaman.lua `["Lightning Mastery"] = 16166`), and the
+    -- runtime fold is by NAME. The pair list stays (it is provenance, and
+    -- the name fold below is the live leg).
+    assertNil(Locale.canonicalByAliasID, "no id-keyed canonical map is built")
+    for _, pair in ipairs(Locale.RenameAliases) do
+        assertEquals("table", type(pair.aliasIDs),
+            pair.name .. ": the pair keeps its id provenance")
+        assertEquals(pair.name, Locale.CanonicalName(pair.alias),
+            "the NAME fold is the live leg: " .. pair.alias)
+        assertEquals("Nothing " .. pair.name,
+            Locale.CanonicalName("Nothing " .. pair.name),
+            "and it folds no other name")
+    end
+    -- F6: the module's `OnEvents(event, ...)` hook had no dispatcher (the
+    -- tree's only PLAYER_LOGIN consumer is Core/Init.lua's bootstrap frame,
+    -- pinned by Forte_Core/tests/test_login_order.lua), so its PLAYER_LOGIN
+    -- leg could never run: the login rebuild rides OnEnable, the class
+    -- change rides OnClassChanged.
+    local mod = FX.modules and FX.modules.Locale
+    assertNotNil(mod, "the Locale module is registered")
+    assertNil(mod.OnEvents, "no module hook waits for an event none dispatches")
+    assertEquals("function", type(mod.OnEnable), "the login leg rides OnEnable")
+    assertEquals("function", type(mod.OnClassChanged),
+        "the class-change leg rides OnClassChanged")
+end)
+
 test("locale: nil and unknown names pass through unchanged", function()
     assertEquals(nil, Locale.CanonicalName(nil), "nil canonicalizes to nil")
     assertEquals(nil, Locale.LocalizedName(nil), "nil displays as nil")

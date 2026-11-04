@@ -197,12 +197,19 @@ test("FX7b: a party the real globals name changes NOTHING for a default "
         local sent0 = Announce.counts.sent
         local off0 = Announce.counts.offSkipped
         local echo0 = Announce.counts.noGroup
-        -- Every shipped row is off by E2; a full party must not move it.
+        -- Every shipped row is off by E2; a full party must not move the
+        -- SEND. The off rows are read by the MODULE before the gate is
+        -- entered, and an opt-out read there is the same opt-out the gate
+        -- counts when it reads the row inside itself, so the party half and
+        -- the channel half each count one off-skip (test "a module-side
+        -- announce pre-check COUNTS as an off-skip" in test_announce.lua): a
+        -- default install reporting `off-skipped 0` to `/fx messages` is the
+        -- instrument reading a fully opted-out install as if it had spoken.
         FX.Fire(FX.EVENTS.COOLDOWN_READY, "Rapid Fire", 5.0, nil, nil)
         assertEquals(0, #sent, "a default install speaks to no party")
         assertEquals(sent0, Announce.counts.sent)
-        assertEquals(off0, Announce.counts.offSkipped,
-            "the row's own opt-out is read before the gate is entered")
+        assertEquals(off0 + 2, Announce.counts.offSkipped,
+            "the row's own opt-out is read, and counted, by the module")
         assertEquals(echo0, Announce.counts.noGroup,
             "a party is not a no-group echo, and an off row reaches no echo")
     end)

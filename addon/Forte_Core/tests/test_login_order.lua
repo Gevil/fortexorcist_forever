@@ -34,16 +34,18 @@
 --     PLAYER_ENTERING_WORLD runs the login pass exactly once, and the PLAYER_LOGIN
 --     that then arrives (or a second zone-in) adds nothing.
 --
--- The law's audit result (2026-11-03, the whole tree): the ONLY PLAYER_LOGIN
--- registration in addon/** is Core/Init.lua's bootstrap frame -- no class
--- module registers it, so none can miss it. Two rows that are NOT the trap and
--- one that is dead are reported to the manager: Forte_Cooldown registers
--- PLAYER_ENTERING_WORLD (which fires AFTER PLAYER_LOGIN, so a frame registered
--- mid-dispatch still hears it), and Forte_Core/Core/Locale.lua's
--- `LocaleModule.OnEvents` PLAYER_LOGIN leg is never dispatched by anyone (no
--- OnEvents dispatcher exists in the tree) -- that module's login rebuild rides
--- its OnEnable, and its class-change rebuild rides OnClassChanged, both of
--- which do run.
+-- The law's audit result (2026-11-03, the whole tree; re-checked 2026-11-04):
+-- the ONLY PLAYER_LOGIN registration in addon/** is Core/Init.lua's bootstrap
+-- frame -- no class module registers it, so none can miss it. Two rows that
+-- are NOT the trap are reported to the manager: Forte_Cooldown registers
+-- PLAYER_ENTERING_WORLD (which fires AFTER PLAYER_LOGIN, so a frame
+-- registered mid-dispatch still hears it). The one DEAD row the audit found
+-- -- Forte_Core/Core/Locale.lua's dispatcher-less `LocaleModule.OnEvents`
+-- PLAYER_LOGIN leg -- is GONE (removed 2026-11-04, docs/reviews/
+-- code-review-7.md F6): no OnEvents dispatcher exists in the tree, so that
+-- module's login rebuild rides its OnEnable and its class-change rebuild
+-- rides OnClassChanged, both of which do run. The census test below is what
+-- keeps a hook of that shape from growing back.
 --
 -- Stubs: `_G.CreateFrame`, `_G.C_AddOns`, `_G.UnitClass` are patched with
 -- counting proxies that forward to the real globals (the loads are real), and
@@ -204,25 +206,37 @@ function()
     local seen = 0
     probe:SetScript("OnEvent", function() seen = seen + 1 end)
     probe:RegisterEvent("PLAYER_LOGIN")
-    -- The one module in the tree that still has an OnEvents(event, ...) hook
-    -- (Core/Locale.lua). Counting it proves the framework delivers no raw
-    -- event to any module -- the reason that hook's PLAYER_LOGIN leg can
-    -- never fire.
-    local localeCounts, restoreLocale = countMethod({ "Locale" }, "OnEvents")
+    -- No registered module carries a raw `OnEvents(event, ...)` hook: the
+    -- framework dispatches no raw event to a module, so a hook of that shape
+    -- can never run (Locale's dispatcher-less one was removed on exactly
+    -- this finding, docs/reviews/code-review-7.md F6). Counting the hook on
+    -- EVERY module proves the delivery, not one module's dead code.
+    local names = registeredNames()
+    local hookNames = {}
+    for _, name in ipairs(names) do
+        local mod = FX.modules[name]
+        if mod and type(mod.OnEvents) == "function" then
+            hookNames[#hookNames + 1] = name
+        end
+    end
+    assertEquals(0, #hookNames,
+        "no module carries an undispatchable OnEvents hook: "
+        .. table.concat(hookNames, ", "))
+    local hookCounts, restoreHooks = countMethod(names, "OnEvents")
     local proxy, calls = proxyAddOns()
 
     local ok, err = withGlobals({ C_AddOns = proxy }, function()
         handler(nil, "PLAYER_LOGIN", FX.CONST.ADDON_NAME)
     end)
-    restoreLocale()
+    restoreHooks()
     assertTrue(ok, "dispatch raised: " .. tostring(err))
 
     assertEquals(0, seen, "dispatching PLAYER_LOGIN through the bootstrap delivers "
         .. "it to no other frame: a module that registers PLAYER_LOGIN in its "
         .. "OnEnable and waits for it waits for the session")
     assertEquals(0, calls.load, "the dispatch is the single consumer, not a loader fan-out")
-    if localeCounts.Locale then
-        assertEquals(0, localeCounts.Locale, "no raw PLAYER_LOGIN reaches a module hook")
+    for name, count in pairs(hookCounts) do
+        assertEquals(0, count, name .. ": no raw PLAYER_LOGIN reaches a module hook")
     end
 end)
 

@@ -395,8 +395,25 @@ function()
     box[1] = 1001                            -- one second later: the query
                                              -- window (5 s) and the announce
                                              -- window (2 s) both still shut
+    local rate0 = C.counts.rateSkipped
     C:OnRosterChanged()
     assertEquals(4, #sent)
+    -- The rate law is the header's skipped send, and a skipped send is
+    -- COUNTED: the query gate refused one burst and the announce gates
+    -- refused the two state lines, so the trio rides `rate %d` on
+    -- `/fx status`. The counter used to sit at 0 for a session of pure
+    -- rate-shaving (docs/reviews/code-review-7.md F7).
+    assertEquals(rate0 + 3, C.counts.rateSkipped,
+        "the ate-list of the rate law is reported, not silent")
+    -- The gate is the counter's home, so every rate-limited site (the query
+    -- burst, the answer leg of an inbound query, the state announces) rides
+    -- it: a NO counts, an opening costs nothing.
+    local gate0 = C.counts.rateSkipped
+    assertFalse(C:RateGate("query", 5), "inside the window the gate says no")
+    assertEquals(gate0 + 1, C.counts.rateSkipped, "and the no is counted")
+    box[1] = 20000
+    assertTrue(C:RateGate("query", 5), "past the window the gate opens")
+    assertEquals(gate0 + 1, C.counts.rateSkipped, "the opening costs no count")
     hs.present, hs.count = saved[1], saved[2]
     sh.count, sh.source = saved[3], saved[4]
     C.readers.rosterScan = nil

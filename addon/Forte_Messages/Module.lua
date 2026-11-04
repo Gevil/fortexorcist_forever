@@ -159,6 +159,21 @@ function M:OnApplySettings(tbl, moduleName)
 end
 
 -- ------------------------------------------------------------ the ready pop --
+--- The module-side announce pre-check (the row's own checkbox, read HERE,
+--- before the announce layer's gate is entered): the send is not even
+--- attempted, and that skip is the SAME opt-out `Announce:Group` /
+--- `Announce:Channel` / `Announce:Whisper` count in
+--- `Announce.counts.offSkipped` when the row is off inside the gate. One
+--- counter, one law — Announce.lua's header law is "a skipped send is silent
+--- and COUNTED (… so `/fx messages` reports what the lockdown ate)": a
+--- pre-check that counted nothing made that line read `off-skipped 0` for an
+--- install whose every announce row is off, which is the instrument's whole
+--- purpose inverted. Every announce pre-check in this file counts through
+--- here, so one opt-out is exactly one off-skip in every report.
+local function announceSkipped()
+    Announce.counts.offSkipped = Announce.counts.offSkipped + 1
+end
+
 --- The FX_COOLDOWN_READY listener (name, now, texPath, category). The
 --- chat/banner pair is the Self Messages half (the original's chat line --
 --- Core/Channel.lua), the sound is the NEW opt-in (CD-33 -- Core/Sounds.lua),
@@ -178,10 +193,14 @@ function M:OnCooldownReady(name, now, texPath, category)
     if cfg.ReadyAnnounce then
         Announce:Group(Channel.format(cfg.ReadyAnnounceText, plain),
             "ReadyAnnounce")
+    else
+        announceSkipped()
     end
     if cfg.ReadyChannel then
         Announce:Channel(Channel.format(cfg.ReadyAnnounceText, plain),
             "ReadyChannel")
+    else
+        announceSkipped()
     end
 end
 
@@ -302,9 +321,13 @@ function M:OnTimerExpired(spell, target, kind)
     Sounds:TimerExpired()
     if cfg.ExpireAnnounce then
         Announce:Group(announceText, "ExpireAnnounce")
+    else
+        announceSkipped()
     end
     if cfg.ExpireChannel then
         Announce:Channel(announceText, "ExpireChannel")
+    else
+        announceSkipped()
     end
 end
 
@@ -479,9 +502,13 @@ function M:OnCastForSoulstone(event, unit, a, b, c)
             self.counts.soulstone = self.counts.soulstone + 1
             if cfg.SoulstoneAnnounce then
                 Announce:Group(text, "SoulstoneAnnounce")
+            else
+                announceSkipped()
             end
             if cfg.SoulstoneChannel then
                 Announce:Channel(text, "SoulstoneChannel")
+            else
+                announceSkipped()
             end
             Announce:Whisper(cfg.SoulstoneSuccessWhisperText,
                 "SoulstoneSuccessWhisper", pending)
@@ -505,6 +532,14 @@ end
 --- boxes (those gate the Success half) -- and with all three of its boxes
 --- OFF (every one ships OFF, E2) the leg is inert: no count, no send, no
 --- off-skip bookkeeping. A default install stands mute on the whole cast.
+--- The exemption from the module-side off-count (`announceSkipped`,
+--- `M:OnTimerExpired`) is deliberate and is what makes it inert: that
+--- counter counts a SEND that was asked for and switched off, and this gate
+--- is the leg's own LIVENESS check -- the `OnCastForSoulstone` cheap gate
+--- above already returns on the same all-off reading, so a leg that is not
+--- armed at all reports no skips. `AnnounceSoulstone` runs its boxes
+--- unconditionally once it is armed, so each of its sends rides the counting
+--- gate inside `Announce:Group`/`Channel`/`Whisper`.
 function M:AnnounceSoulstone(kind, target)
     local cfg = self.cfg
     local partyKey, channelKey = "Soulstone" .. kind .. "Party",
@@ -608,9 +643,13 @@ function M:OnCastForAnnounce(event, unit, a, b, c)
         self.counts.cast = self.counts.cast + 1
         if cfg[prefix .. "CastParty"] then
             Announce:Group(text, prefix .. "CastParty")
+        else
+            announceSkipped()
         end
         if cfg[prefix .. "CastChannel"] then
             Announce:Channel(text, prefix .. "CastChannel")
+        else
+            announceSkipped()
         end
     end
 end
@@ -714,10 +753,14 @@ function M:AnnouncePet(stem, kind, target)
     if cfg[key .. "Party"] then
         Announce:Group(text, key .. "Party")
         sent = sent + 1
+    else
+        announceSkipped()
     end
     if cfg[key .. "Channel"] then
         Announce:Channel(text, key .. "Channel")
         sent = sent + 1
+    else
+        announceSkipped()
     end
     return sent
 end

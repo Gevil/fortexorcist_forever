@@ -114,6 +114,17 @@ end
 --- the API's server-clock semantics stay one story: Forever hands
 --- `expirationTime` in GetTime() units (docs/api
 --- wow-api-unit-player/references/UNIT-AURAS.md:174-199).
+--- A POSITIVE expiration that is already in the past is NO FACT (the same
+--- "a nil changes nothing" contract the sealed read rides): it describes an
+--- aura that has already ended, and both consumers turn it into a visible
+--- lie — `SweepBulk`/`Rows:InsertFromAura` insert a row BORN expired (a bar
+--- at zero that the row machine then spends a whole fade+fail window on, and
+--- in the `ExpireAnnounce` world an expiry message for an aura nobody ever
+--- saw), and `SweepRow`/`Rows:OnAuraFact` takes the REFRESH arm
+--- (Rows.lua:427-470: the live row is removed and re-inserted) on a window
+--- that is already over — a live row of a 12 s crowd control is gone on the
+--- next sweep. `0` stays a fact exactly as today: the catalog's
+--- permanent-aura spelling, a window with no end, not an ended one.
 function Reconcile:ReadFact(aura, now)
     if aura == nil then return nil end
     local iss = _G.issecretvalue
@@ -121,6 +132,8 @@ function Reconcile:ReadFact(aura, now)
     local ok, exp, dur, app = pcall(readFactFields, aura)
     if not ok then return nil end
     if type(exp) ~= "number" then return nil end
+    local at = tonumber(now)
+    if at ~= nil and exp > 0 and exp <= at then return nil end
     local total = (type(dur) == "number" and dur > 0) and dur or nil
     local stacks = (type(app) == "number") and app or nil
     return exp, total, stacks

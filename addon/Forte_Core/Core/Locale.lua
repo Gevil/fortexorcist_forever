@@ -68,14 +68,15 @@ Locale.RenameAliases = {
     { id = 16166, name = "Elemental Mastery", alias = "Lightning Mastery",
       aliasIDs = { 16579, 16580, 16581, 16582 } },
 }
+-- `aliasIDs` is provenance (the ids the alias spelling rides, mirroring the
+-- spell lists' `_renames`); the runtime fold is by NAME alone, so no
+-- id-keyed map is built from it -- an id-first lookup resolves through the
+-- generated data, which already carries the alias key in its own ByName
+-- table (Forte_Shaman/Data/Shaman.lua `["Lightning Mastery"] = 16166`).
 Locale.renamedToCanonical = {}
-Locale.canonicalByAliasID = {}
 for i = 1, #Locale.RenameAliases do
-    local pair = Locale.RenameAliases[i]
-    Locale.renamedToCanonical[pair.alias] = pair.name
-    for j = 1, #(pair.aliasIDs or {}) do
-        Locale.canonicalByAliasID[pair.aliasIDs[j]] = pair.name
-    end
+    Locale.renamedToCanonical[Locale.RenameAliases[i].alias] =
+        Locale.RenameAliases[i].name
 end
 
 Locale.state = Locale.state or {
@@ -399,6 +400,13 @@ end
 local LocaleModule = { name = "Locale" }
 
 function LocaleModule.OnEnable()
+    -- The login rebuild has TWO live legs and no third: this one, and
+    -- OnClassChanged below (the LoadOnDemand class add-on landing after the
+    -- enable loop). The module carries NO `OnEvents(event, ...)` hook: the
+    -- framework delivers no raw event to a module (Forte_Core/tests/
+    -- test_login_order.lua proves the bootstrap frame dispatches
+    -- PLAYER_LOGIN to the login pass alone), so such a hook is dead code
+    -- (removed 2026-11-04, docs/reviews/code-review-7.md F6).
     Locale.WatchItemLoads()
     Locale.BuildSpellAliases()
     return true
@@ -420,13 +428,6 @@ function LocaleModule.OnDisable()
         pcall(frame.UnregisterEvent, frame, "ITEM_DATA_LOAD_RESULT")
     end
     return true
-end
-
-function LocaleModule.OnEvents(event, ...)
-    if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
-        Locale.state.spellsBuilt = false
-        Locale.BuildSpellAliases()
-    end
 end
 
 function LocaleModule.OnClassChanged()

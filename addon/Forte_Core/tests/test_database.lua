@@ -543,6 +543,160 @@ function()
     assertEquals(key, db.profiles.active)
 end)
 
+test("v3 recognises the uiforever shape: a legacy key of the FIRST name half",
+function()
+    -- The measured shape (PLAN §9, rows of 2026-11-04, uiforever): the name
+    -- APIs answer a TWO-part identity, `UnitNameUnmodified` the bare FIRST
+    -- name, `GetRealmName()` the connection label "Nethergarde". Today's key
+    -- packs the whole name (`MorvessaAshveil`); the old key law packed the
+    -- name read of ITS day with the label (`Morvessa-Nethergarde`), so an
+    -- install written before the key law moved carries a legacy row whose
+    -- name half is only the first half — and a whole-key canonical compare
+    -- never folds the two. Without the first-name leg the character boots on
+    -- defaults with her profile sitting under a key nothing reads.
+    local saved = saveNameAPIs()
+    _G.UnitName = function() return "Morvessa", "Ashveil" end
+    _G.UnitFullName = function() return "Morvessa Ashveil", "Nethergarde" end
+    _G.UnitNameUnmodified = function() return "Morvessa" end
+    clearKeyCaches()
+    local key = DB.CharacterKey()
+    assertEquals("MorvessaAshveil", key, "the key packs the FULL name")
+    local legacy = "Morvessa-Nethergarde"
+    local db = {
+        version = 2,
+        profiles = {
+            perCharacter = true,
+            shared = DB.SHARED_NAME,
+            active = legacy,
+            characters = { [legacy] = legacy },
+            byName = {
+                [legacy] = { settings = { Cooldown = { Width = 277 } } },
+                [DB.SHARED_NAME] = { settings = {} },
+            },
+        },
+        defaultsPruned = { Cooldown = true, General = true },
+    }
+    assertEquals(3, DB.Migrate(db))
+    assertEquals(key, db.profiles.active,
+        "the active profile rides the packed key: the first-name row folds onto it")
+    assertNotNil(db.profiles.byName[key], "the profile moved")
+    assertEquals(277, db.profiles.byName[key].settings.Cooldown.Width,
+        "the settings moved WITH it")
+    assertEquals(key, db.profiles.characters[key],
+        "the character binding followed the SAME key the profile moved from")
+    assertEquals(nil, db.profiles.byName[legacy], "the legacy spelling is gone")
+    assertEquals(nil, db.profiles.characters[legacy])
+    assertNotNil(db.profiles.byName[DB.SHARED_NAME], "the shared profile rode through")
+    -- Idempotent by content: a second pass finds no legacy row.
+    assertEquals(3, DB.Migrate(db))
+    assertEquals(277, db.profiles.byName[key].settings.Cooldown.Width)
+    restoreNameAPIs(saved)
+end)
+
+test("the first-name leg stays BOUND-GATED and never writes over the new key",
+function()
+    local saved = saveNameAPIs()
+    _G.UnitName = function() return "Morvessa", "Ashveil" end
+    _G.UnitFullName = function() return "Morvessa Ashveil", "Nethergarde" end
+    _G.UnitNameUnmodified = function() return "Morvessa" end
+    clearKeyCaches()
+    local key = DB.CharacterKey()
+    local twin = "Morvessa-Nethergarde"
+    -- (a) THE NEW KEY ALREADY EXISTS, and the twin is BOUND: both write
+    -- guards stand, so the twin rides as a named profile and nothing of the
+    -- new key moves.
+    local db = {
+        version = 3,
+        profiles = {
+            perCharacter = true,
+            shared = DB.SHARED_NAME,
+            active = key,
+            characters = { [key] = key, [twin] = twin },
+            byName = {
+                [key] = { settings = { Cooldown = { Width = 300 } } },
+                [twin] = { settings = { Cooldown = { Width = 111 } } },
+                [DB.SHARED_NAME] = { settings = {} },
+            },
+        },
+        defaultsPruned = { Cooldown = true, General = true },
+    }
+    DB.RekeyLegacy(db)
+    assertEquals(300, db.profiles.byName[key].settings.Cooldown.Width,
+        "the new-key entry is NOT overwritten")
+    assertNotNil(db.profiles.byName[twin],
+        "the legacy row is kept visible: a re-key never drops data")
+    assertEquals(111, db.profiles.byName[twin].settings.Cooldown.Width)
+    assertEquals(twin, db.profiles.characters[twin], "its binding rides")
+    assertEquals(key, db.profiles.active)
+    -- (b) THE TWIN IS NOT BOUND and is not the active profile: a profile of
+    -- the SHAPE that nothing binds is a profile someone NAMED — the same
+    -- bound gate the whole-key leg rides, now on the first-name leg.
+    db = {
+        version = 3,
+        profiles = {
+            perCharacter = true,
+            shared = DB.SHARED_NAME,
+            active = key,
+            characters = { [key] = key },
+            byName = {
+                [key] = { settings = { Cooldown = { Width = 300 } } },
+                [twin] = { settings = { Cooldown = { Width = 111 } } },
+                [DB.SHARED_NAME] = { settings = {} },
+            },
+        },
+        defaultsPruned = { Cooldown = true, General = true },
+    }
+    DB.RekeyLegacy(db)
+    assertNotNil(db.profiles.byName[twin], "an UNBOUND twin of the shape rides")
+    assertEquals(111, db.profiles.byName[twin].settings.Cooldown.Width)
+    assertEquals(300, db.profiles.byName[key].settings.Cooldown.Width)
+    restoreNameAPIs(saved)
+end)
+
+test("a first-name half that is not this character's own prefix folds nothing",
+function()
+    -- The gate of the second leg is structural: the first name must be a
+    -- STRICT PREFIX of the packed key. A name read that is not the
+    -- character's own first half — a stranger's name on a shared profile
+    -- file, and by the same law the client's `UNKNOWNOBJECT` placeholder —
+    -- is no half of this identity, so her profile rides under her own key.
+    local saved = saveNameAPIs()
+    _G.UnitName = function() return "Morvessa", "Ashveil" end
+    _G.UnitFullName = function() return "Morvessa Ashveil", "Nethergarde" end
+    _G.UnitNameUnmodified = function() return "Zyxnia" end
+    clearKeyCaches()
+    local key = DB.CharacterKey()
+    assertEquals("MorvessaAshveil", key)
+    local stranger = "Zyxnia-Nethergarde"
+    local db = {
+        version = 3,
+        profiles = {
+            perCharacter = true,
+            shared = DB.SHARED_NAME,
+            active = key,
+            characters = { [key] = key, [stranger] = stranger },
+            byName = {
+                [key] = { settings = { Cooldown = { Width = 300 } } },
+                [stranger] = { settings = { Cooldown = { Width = 140 } } },
+                [DB.SHARED_NAME] = { settings = {} },
+            },
+        },
+        defaultsPruned = { Cooldown = true, General = true },
+    }
+    DB.RekeyLegacy(db)
+    assertNotNil(db.profiles.byName[stranger],
+        "a bound key whose name half is NOT this character rides")
+    assertEquals(140, db.profiles.byName[stranger].settings.Cooldown.Width)
+    assertEquals(stranger, db.profiles.characters[stranger], "with its binding")
+    assertEquals(300, db.profiles.byName[key].settings.Cooldown.Width)
+    assertEquals(2, (function()
+        local n = 0
+        for _ in pairs(db.profiles.characters) do n = n + 1 end
+        return n
+    end)(), "no third binding is invented")
+    restoreNameAPIs(saved)
+end)
+
 test("a ladder with no readable name stamps v3; the first good key re-keys the live DB once",
 function()
     local saved = saveNameAPIs()
