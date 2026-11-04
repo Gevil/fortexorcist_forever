@@ -879,3 +879,14 @@ live-verified orange → red → white cycle stays the baseline.
 | J1 Design map | `fx-scout` `WSTDesign` | `docs/research/wst-swing-design.md` | Every WST Hunter/cast-bar/melee-bar feature and option (file:line), how one-bar vs split-bar draws (geometry, what moves, what is static), the clip/delay/latency indicators, the weaving aids (melee swing vs ranged reload windows, cast-bar overlay, safe-to-cast/move markers); our current `Forte_Hunter` behaviour and options for each (file:line); a gap table and a proposed design that keeps ForteXorcist's look; which APIs each needs on Forever (catalog-checked; `PLAYER_SWING`, `UnitAttackSpeed` per slot, `C_SwingTimer`) |
 | J2 Build | `fx-worker`(s), split by file after J1 | `Forte_Hunter/**` (+ its options page) | each option persisted through the sparse settings store, every mode tested through the real frame scripts with exact payloads, defaults keep today's live-verified look |
 | J3 Live check | manager on uiforever | frames per mode | one-bar and split-bar cycles recorded frame by frame (orange → red → white per mode), options toggled live, no Lua errors |
+
+**J1 result (manager-reviewed):** `docs/research/wst-swing-design.md` §7 — signals ranked by the rotation question they
+answer: P1 **clip stripe** (right end, dim: start a cast-time shot only while the fill edge is left of it; default on), P2
+**standing aim region** (right end, tinted all cycle; default on), P3 white fill (already shipped), P4 **weave line** (1 px
+at `aim + 1.5 s GCD` from the right; default off), P5 opt-in **melee rail** (main-hand `PLAYER_SWING`, Raptor Strike
+reset, drawn only in the melee band; default off). One/split bar = **`BarMode`** picker `safe` (default = today's pixels) /
+`one` (fill grows toward the aim end, capped at it) / `elapsed` (single fill), replacing `ShowSafeWindow` (stored `false` →
+`elapsed`). No style toggle, latency stays a probe. J2 slices (note §7.8): **α** modes + aim region + clip stripe + weave
+line (`UI/Swing.lua`, new `tests/test_swing_modes.lua`) ∥ **β** melee rail (new `Core/Melee.lua`, `UI/Melee.lua`,
+`tests/test_melee.lua`, one line in each Hunter toc) → **γ** options page + docs + README (`Pages/Hunter.lua`,
+`tests/test_swing.lua`, `docs/hunter-tools.md`, `README.md`).
