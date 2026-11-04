@@ -915,3 +915,17 @@ band shows its last ~10 % beyond the orange — "Aimed Shot does not fit yet", c
 downscaled capture → launch check F27. Gate PASS **928 tests** (Hunter load probe now expects `HunterMelee`/
 `HunterMeleeUI`). Driving note: on uiforever the swing must go through BOTH the Tools event frame and the UI kick
 (`D:OnSwingEvent()`), plus `START_AUTOREPEAT_SPELL` after a reload — a tracker-only drive leaves the display idle.
+
+### 11.4 Iteration K — refinements without a client session (owner request 2026-11-04)
+
+Owner picked all six: code review 8, refresh the pre-release, swing bar in `/fx test`, small cleanups, a swing demo clip,
+a colour-blind check. Order (file-disjoint):
+
+| Step | Agent | Owns | Change | Acceptance |
+|---|---|---|---|---|
+| K1 Review | `fx-scout` `CodeReview8` | `docs/reviews/code-review-8.md` | adversarial review of Iteration J (`d4f64fb..9a1db90`, `Forte_Hunter/**`, `scripts/gate.py`): marker MEANING per mode, secret reads, hidden-frame OnUpdate, melee rail gate/events, settings migration | every finding quotes real code at a real line; manager re-checks each |
+| K2 Test-mode swing + fuller fill | `fx-worker` | new `Forte_Hunter/Core/SwingDemo.lua` (+ one toc line each), `Forte_Core/Core/TestMode.lua`, the Cooldown + Timer feeders (`Forte_Cooldown/Module.lua`, `Forte_Timer/Module.lua` feeder blocks only), tests | `/fx test` on a Hunter loops a synthetic Auto Shot cycle on the real swing bar (all markers live, a fake Aimed Shot cast now and then) via a swapped tracker restored on exit; cooldown bar + Spell Timer get a fuller, stable fill (≈6 cooldowns, ≈4 timer rows) | swing demo never touches the real tracker's state; scrub on stop/combat/logout; no settings/chat; tests through the real slash path |
+| K3 Cleanups | `fx-worker` | `Forte_Core/Core/Database.lua`, `Forte_Timer/Core/Reconcile.lua`, `Forte_Messages/Module.lua` (+ `Core/Announce.lua` counter only), `Forte_Core/Core/Locale.lua`, `Forte_Warlock/Core/Comms.lua` (`rateSkipped` only), `Forte_Hunter/Core/Tools.lua` (`rangeEdges` only), tests | `RekeyLegacy` also recognises first-name-only legacy keys (uiforever `Morvessa-Nethergarde` → `MorvessaAshveil`, bound keys only); `ReadFact` rejects a positive past expiry (keeps 0 = permanent); module-driven announce skips counted in `offSkipped`; dead code removed or wired | fail-first tests for the three behaviour changes; suites green |
+| K4 Review fixes + colour-blind palette | `fx-worker` (after K1) | `Forte_Hunter/UI/Swing.lua`, `UI/Melee.lua`, `Pages/Hunter.lua`, tests | confirmed K1 findings; a `SwingPalette` option (`default` / `colourblind`) whose signals differ in BRIGHTNESS and position, not only hue (e.g. Okabe–Ito blue/orange/yellow), default = today's colours | luminance contrast between fill / clip mark / aim zone / live slice measured ≥ a stated threshold in the colour-blind palette |
+| K5 Demo clip | manager, uiforever | `docs/demo/hunter-swing-signals.gif/.mp4`, README | the new markers in a real cycle, 100 % zoom | frames reviewed |
+| K6 Release refresh | manager | GitHub pre-release `v0.1.0-dev` asset | gate + live battery on the new zip, replace the asset, verify the anonymous download | sha256 match |
