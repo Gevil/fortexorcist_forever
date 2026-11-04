@@ -890,3 +890,19 @@ reset, drawn only in the melee band; default off). One/split bar = **`BarMode`**
 line (`UI/Swing.lua`, new `tests/test_swing_modes.lua`) ∥ **β** melee rail (new `Core/Melee.lua`, `UI/Melee.lua`,
 `tests/test_melee.lua`, one line in each Hunter toc) → **γ** options page + docs + README (`Pages/Hunter.lua`,
 `tests/test_swing.lua`, `docs/hunter-tools.md`, `README.md`).
+
+**J2 landed:** α `8215483`, β `f6eeb19`, γ `98f0b52` (Hunter 127/127, Options 105/105).
+
+**J3 live check (manager, uiforever, 2026-11-04) — found a semantic bug, fix J4.** Driving `PLAYER_SWING` through the real
+Tools frame + the UI kick (`D:OnSwingEvent`), a 3.0 s cycle with Aimed Shot 2.0 s, aim 0.5 s draws aim region 33.3 px,
+clip stripe 166.7 px of 200 — the widths of the spec. But in the DEFAULT `safe` mode the fill SHRINKS
+(`w = (remaining − floor) × scale`, `Swing.lua:1188`): a cast of length `c` fits iff `remaining − aim ≥ c` ⇔ `w ≥ c × scale`,
+a threshold measured from the LEFT at `c × scale` (here 133 px). The right-anchored stripe starts at `W − (c + aim) × scale`
+(33 px), so in `safe` mode it marks the wrong place — measured frame: fill edge at ~46 % = 1.4 s left before the aim,
+i.e. Aimed Shot would clip, yet the fill is past the stripe's start; the page tip ("only while the fill is left of this
+stripe") is wrong for `safe` too. The same holds for the weave line (`safe` threshold = `gcd × scale` from the left).
+Both markers are right for the growing fills (`one`, `elapsed`). The J2 tests asserted marker WIDTHS, not their MEANING.
+
+| Fix | Owns | Change | Acceptance |
+|---|---|---|---|
+| J4 Marker meaning per mode | `Forte_Hunter/UI/Swing.lua`, `tests/test_swing_modes.lua`, `Pages/Hunter.lua` (the two tips), `docs/hunter-tools.md` (reading section) | each marker is the threshold the FILL EDGE crosses in that mode: `one`/`elapsed` (fill grows) — unchanged; `safe` (fill shrinks) — clip mark at `castLen × scale` from the left and weave line at `gcd × scale` from the left (orange reaching past the mark ⇒ the cast / the GCD still fits). Tips + docs read correctly in every mode | a PROPERTY test per mode: sampled across a whole cycle (≥ 30 points, with and without a live cast and a retry), `fillEdgeOnSafeSide(marker)` == `castFits(now)` (`remaining − floor ≥ castLen`) and the same for the GCD; existing tests pass; manager re-checks live |
