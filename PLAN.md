@@ -842,3 +842,13 @@ after I-2 lands, beside I2f's tests (I2f reports bugs first; its fixes run after
 
 Then: I2f fixes → CodeReview7 (fresh reviewer) → fixes → full gate + live uiforever battery + `release.py` dry run.
 Sim binary bump stays open until a 70707-profile release ships (no toolchain here; upstream-sim ranked 5–6).
+
+**Fix round FX7 (2026-11-04; findings manager-confirmed in the code before dispatch)**
+
+| Slice | Owns | Fix | Source |
+|---|---|---|---|
+| FX7a Rebuild keeps cooldowns | `Forte_Cooldown/Module.lua`, `Forte_Cooldown/Core/Engine.lua`, `Forte_Cooldown/tests/test_zz_combat_bar.lua` + a new test | `SPELLS_CHANGED` → `M:Rebuild` → `Engine:Build` wipes `tracked` and `entries` (`Engine.lua:132-134`): every running cooldown on the bar is lost, and in combat the re-reads can be secret. Carry running entries (and proc ICD windows) across a rebuild for every name still tracked; drop only names no longer tracked | I2f finding 1 |
+| FX7b Party comms | `Forte_Warlock/Core/Comms.lua`, `Forte_Messages/Core/Announce.lua`, their tests | `plainCall` returns a BOOLEAN (`Comms.lua:332`), so `plainCall(GetNumGroupMembers)` turns 4 into `true` → `tonumber(true)` nil → PARTY never chosen (`Comms.lua:373-375`, `Announce.lua:189-192`): party comms + party announces never send. Read the count as a plain number. The lockdown re-queue (`Comms.lua:518` → `Enqueue` stamps `queuedAt = now`, `:425`) must keep the line's original `queuedAt` so the TTL retires lines held through a long lockdown. Tests must stub the REAL `GetNumGroupMembers`, not the `groupCount` seam | CodeReview7 F1, F2 |
+| FX7c Test-mode ticker | `Forte_Core/Core/TestMode.lua`, `Forte_Timer/Module.lua` (the duplicate `DEMO_PARKED` only), their tests | the 1 Hz pump ticker is created in `OnEnable` and runs all session (`TestMode.lua:310-315`); create it on `Start`, cancel on `Stop`. Remove the dead duplicate `DEMO_PARKED` table (`Forte_Timer/Module.lua` ~:810) | CodeReview7 minors |
+
+Not fixed (recorded): dead `Locale.canonicalByAliasID`, dispatcher-less `LocaleModule.OnEvents`, never-incremented `rateSkipped`, write-only `rangeEdges` — harmless, post-launch cleanup.
