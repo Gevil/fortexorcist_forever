@@ -383,13 +383,22 @@ test("the window rides the Engine and retires at its endTime", function()
     assertNil(Engine.entries[AD_KEY])
 end)
 
-test("a rebuild drops the windows and re-arms the seen model", function()
+-- The raw `Engine:Build` CONTRACT (FX7a, PLAN §11.2): Build EMPTIES
+-- `Engine.entries` and carries nothing itself -- the ride of a running
+-- window across a rebuild is the caller's (the rebuild carry in
+-- Forte_Cooldown/Module.lua, pinned by test_zzb_carry.lua). This leg drives
+-- the raw wipe plus the class-change shape of the rebuild hook, where the
+-- windows go and every `seen` stamp goes with the window it armed, so the
+-- aura the sweep still sees is a fresh edge again.
+test("the raw Engine:Build wipe takes the windows and the seen model with it",
+function()
     clearProcs()
     Procs:Scan(4000, readersWith({ AD_BUFF }))
     assertEquals(1, live())
-    Engine:Build(FX._playerClass, function() return true end)   -- wipes entries
-    Procs:OnRebuild()
+    Engine:Build(FX._playerClass, function() return true end) -- empties entries
+    Procs:OnRebuild(true)              -- the class-change shape: nothing rides
     assertEquals(0, live(), "the Engine wiped the table; the windows stayed")
+    assertNil(Procs.seen[AD_BUFF], "and the seen stamp went with its window")
     -- The aura is (model-wise) still up, so the sweep sees no new edge --
     -- after the rebuild reset it sees one again.
     assertEquals(1, Procs:Scan(4010, readersWith({ AD_BUFF })))

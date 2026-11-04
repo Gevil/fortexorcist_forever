@@ -114,6 +114,14 @@ Engine.tracked = {}   -- [name] = { name, dataId, baseDuration, maxCharges? (run
 --            icon? (item texture; nil = Timeline resolves the spell icon) }
 --            -- see file header
 Engine.entries = {}
+-- Four feeds write this table, in three key shapes: the data NAME (a spell,
+-- from the tracked set, and a tracked item), `<name>#<buffId>` (a proc ICD
+-- window, Core/Procs.lua) and `<name>#<slot>` (a weapon-enchant window,
+-- Core/Enchants.lua). `Engine:Build` empties it -- it is the Build's own
+-- contract -- and the caller decides what rides the wipe: a same-class
+-- rebuild carries back every window whose key the fresh state still tracks
+-- (Forte_Cooldown/Module.lua's rebuild carry, FX7a), a class change starts it
+-- clean. The rows below are the entry shape (file header).
 Engine.learned = {}   -- [name] = seconds, persisted via Engine:AttachStorage
 
 --- Point learned durations at a SavedVariables-backed table so they survive reloads.
@@ -129,13 +137,22 @@ end
 --- Build the tracked set from the generated data for `classFile` ("HUNTER", ...).
 --- `isKnown(name)` decides whether the player has the spell; injectable for tests.
 --- Returns the number of spells tracked, or nil + reason if there is no data.
+--- The third result is the CLASS CHANGE: `classFile` differs from the class
+--- this Engine last built. `entries` is wiped either way -- the tracked set is
+--- the fresh build's own -- and the caller decides what rides the wipe (the
+--- rebuild carry, Forte_Cooldown/Module.lua): a same-class rebuild is a re-read
+--- of the known set, so its running windows are the same question they were,
+--- while a class change is a fresh question with nothing to carry across.
 function Engine:Build(classFile, isKnown)
+    local classChanged = self.builtClass ~= classFile
+    self.builtClass = classFile
     wipe(self.tracked)
     wipe(self.entries)
     local key = TitleCase(classFile)
     local data = key and FX.Data and FX.Data[key]
     if not data then
-        return nil, "no generated data for class " .. tostring(classFile)
+        return nil, "no generated data for class " .. tostring(classFile),
+            classChanged
     end
     local n = 0
     for id, spell in pairs(data) do
@@ -145,7 +162,7 @@ function Engine:Build(classFile, isKnown)
             n = n + 1
         end
     end
-    return n
+    return n, nil, classChanged
 end
 
 --- Runtime multi-charge detection (owner ruling 2026-11-01: multi-charge is

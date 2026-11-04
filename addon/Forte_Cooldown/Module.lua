@@ -406,6 +406,63 @@ local function demoCount()
     return n
 end
 
+-- ================================================== The rebuild carry (FX7a) ==
+-- A `SPELLS_CHANGED` rebuild is a re-read of the KNOWN set. It is not a
+-- statement about the cooldowns running right now, and the old shape --
+-- snapshot, `Engine:Build`, done -- threw every running window off the bar
+-- and left the bar to re-learn itself from the reads: inside a combat
+-- lockdown those reads may be secret, so the bar stayed empty for the rest
+-- of the fight (I2f finding 1; the combat suite had to settle every storm and
+-- re-fire its own cast to get a row back at all). The carry: the entries
+-- table is snapshotted before the Build and every window whose KEY THE FRESH
+-- STATE STILL TRACKS is handed back -- the SAME table, so the window, its
+-- provenance, its certification, its charge clock, its display tags and its
+-- cached row all ride. A window whose key the fresh state does not track is
+-- dropped: the spell, the item or the proc aura is gone, and a row of a gone
+-- effect is the lie the drop exists to prevent. A CLASS CHANGE is a different
+-- question (Core/Engine.lua's `classChanged`), and there is nothing to carry
+-- across it -- the bar starts clean, as the old shape always did.
+--
+-- The snapshot table is module-scope, not a per-Rebuild allocation (a
+-- SPELLS_CHANGED storm is the normal case); the hand-back drains it key by
+-- key, so it is empty between rebuilds and holds no reference to any entry.
+local carryScratch = {}
+
+--- Snapshot every running entry, keyed as `Engine.entries` keys it.
+local function carrySnapshots()
+    for key, e in pairs(Engine.entries) do carryScratch[key] = e end
+end
+
+--- Hand back the snapshotted windows the fresh state still tracks, and drop
+--- the rest. The three name-keyed feeds of `Engine.entries` key by the data
+--- name (spells, Core/Engine.lua; items, Core/Items.lua) or by
+--- `<name>#<buffId>` (proc ICDs, Core/Procs.lua), so the fresh registry of
+--- the feed that owns the key is the question. The fourth feed, the
+--- weapon-enchant windows (Core/Enchants.lua, the `category` = "Buff" tag --
+--- the only entries that carry it), deliberately do NOT ride: a slot's window
+--- is the read pass's own fact (`WEAPON_ENCHANT_CHANGED`, the 1 Hz net
+--- re-anchors it from `timeLeft` every pass), and a stale one is the poisoned
+--- state the Enchants header fights -- tests/test_enchants.lua pins the drop.
+local function carryKeep(key, e)
+    if e.category == "Buff" then return false end
+    if Engine.tracked[key] then return true end
+    local P = Engine.Procs
+    if P and P.tracked and P.tracked[key] then return true end
+    local I = Engine.Items
+    if I and I.tracked and I.tracked[key] then return true end
+    return false
+end
+
+--- The Build's half: empty `Engine.entries`, then the carry back.
+local function carryRestore()
+    for key, e in pairs(carryScratch) do
+        if carryKeep(key, e) then
+            Engine.entries[key] = e
+        end
+        carryScratch[key] = nil
+    end
+end
+
 function M:Rebuild()
     -- The source line and the zero notice below describe THIS pass: clear
     -- the recorded source so Build's isKnown calls repopulate it (nil =
@@ -414,11 +471,17 @@ function M:Rebuild()
     -- The known-spell set is a fresh question now, so the memoized locale-
     -- safe read keys are (H1b: they ride IsPlayerSpell).
     wipe(readKeyCache)
-    local n, reason = Engine:Build(FX._playerClass, isKnown)
-    -- Engine:Build wiped `entries`: the proc tracker's running ICD windows
-    -- went with them, so its seen model has to go with them too, and on a
-    -- class change the watched set is a fresh question (Core/Procs.lua).
-    if Engine.Procs then Engine.Procs:OnRebuild() end
+    carrySnapshots()
+    local n, reason, classChanged = Engine:Build(FX._playerClass, isKnown)
+    -- The windows of the fresh tracked set ride the wipe (the carry law
+    -- above); a class change is the clean start it always was.
+    if not classChanged then carryRestore() end
+    wipe(carryScratch)
+    -- The proc tracker's running ICD windows are carried with the bar, so
+    -- their `seen` stamps ride with the windows they armed; on a class
+    -- change the watched set is a fresh question and the windows are gone,
+    -- so every stamp goes with them (Core/Procs.lua).
+    if Engine.Procs then Engine.Procs:OnRebuild(classChanged) end
     if not n then
         -- SPELLS_CHANGED can fire constantly (loot, talents, levels). Say
         -- "no data for your class" once, not once per event.

@@ -430,14 +430,47 @@ function Procs:Init()
     return self:ApplyStoredSettings()
 end
 
---- The Engine wipes `entries` at every `Engine:Build` (a rebuild, a class
---- change): the running windows are gone, and the `seen` model has to go
---- with them -- a watched id that is still `seen` with no window behind it
---- would swallow the next proc's edge.
-function Procs:OnRebuild()
-    wipe(self.seen)
-    if self.enabled then return self:Build() end
-    return 0
+--- The Engine's rebuild empties `entries`; the caller carries a running
+--- window back when its row is still watched (FX7a,
+--- Forte_Cooldown/Module.lua's rebuild carry), and the `seen` stamp of a
+--- window that rode rides WITH it. The ICD window runs on the clock and on
+--- nothing else, and `seen` is the record of the aura that armed it -- so
+--- dropping the stamp of a live window would re-arm its edge at the next
+--- complete pass, and a read would re-enlist the window from the aura and
+--- restart a bar that is already running (the old law, the old shape: the
+--- Build WIPED the windows, so the stamps had to go with them). A stamp whose
+--- window did not ride goes, and so does every stamp on a CLASS CHANGE: the
+--- windows are gone, the watched set is a fresh question, and the next proc of
+--- a watched aura is an edge again.
+function Procs:OnRebuild(classChanged)
+    local ride
+    if not classChanged then
+        for spellID, at in pairs(self.seen) do
+            local rows = self.byBuff[spellID]
+            local live = false
+            if rows then
+                for i = 1, #rows do
+                    if Engine.entries[rows[i].key] then
+                        live = true
+                        break
+                    end
+                end
+            end
+            if live then
+                ride = ride or {}
+                ride[spellID] = at
+            end
+        end
+    end
+    if not self.enabled then
+        wipe(self.seen)
+        return 0
+    end
+    local n = self:Build()          -- Build wipes `seen` with the watched set
+    if ride then
+        for spellID, at in pairs(ride) do self.seen[spellID] = at end
+    end
+    return n
 end
 
 --- The live defaults: the catalog's bulk aura read, player + helpful

@@ -41,7 +41,11 @@ local SECRET = "FXTEST-SECRET-VALUE"
 -- The rebuild-debounce settle (Module.lua RESCAN/REBUILD debounces are
 -- 0.5 s): after a SetInCombat the sim fires SPELLS_CHANGED (measured I2f);
 -- pumping this much clock lets the debounced Rebuild land BEFORE the
--- scenario casts, so the fight runs on settled state.
+-- scenario casts, so the fight runs on a settled TRACKED SET. The running
+-- rows themselves no longer need the settle: a same-class rebuild carries
+-- them (FX7a, PLAN §11.2 -- the ride is pinned by test_zzb_carry.lua), and
+-- what a storm legitimately changes is which names the client reports, so the
+-- scenarios still settle first and open their rows on settled state.
 local REBUILD_SETTLE = 0.75
 
 -- The fight's cast set: the gate picks them; every helper and test below
@@ -173,12 +177,13 @@ end
 --- Fire the short cast through the real frame script and ensure the row
 --- rides: the sim fires SPELLS_CHANGED on its combat/combat-admin events
 --- (SetInCombat, SetSpellCooldown, SetGCD -- I2f measured: each arms the
---- Module's 0.5 s rebuild debounce, and the debounced Rebuild WIPES live
---- entries by design). The scenario settles the storm after every such
---- mutation and re-opens its watched row when a wipe ate it -- the same
---- recovery the live client gives (the spell is still on cooldown, the
---- client re-fires the cast event never; a wiped row self-heals on the
---- next cast/read, which is the rebuild law).
+--- Module's 0.5 s rebuild debounce). The scenario settles the storm after
+--- every such mutation, which is the tracked set's fresh-read moment: the
+--- running rows ride a same-class rebuild (FX7a, PLAN §11.2), so the row that
+--- is open here rides a later storm; the re-fire below is the belt for the
+--- name a fresh read no longer reports (a trimmed set drops its row, and a
+--- trimmed name re-opens through the real event path -- the recovery the
+--- live client gives, since the client never re-fires a spent cast).
 local function castShort(guid)
     fire("UNIT_SPELLCAST_SUCCEEDED", "player", guid, shortId, 11)
     A_Admin.SetSpellCooldown(shortId, shortCd)
@@ -304,12 +309,11 @@ function()
     fire("PLAYER_REGEN_DISABLED")           -- the combat-start half (idempotent)
     assertTrue(InCombatLockdown())
     -- MEASURED (I2f): SetInCombat(true) makes the sim fire SPELLS_CHANGED;
-    -- the Module's rebuild debounce (0.5 s) then runs Engine:Build, and a
-    -- Build WIPS live entries by design (the rebuild law). A scenario that
-    -- casts inside the debounce window watches its row vanish silently --
-    -- not the module's fault (a real SPELLS_CHANGED mid-fight is the same
-    -- law, and learned durations survive it). So: settle the storm first,
-    -- then fight.
+    -- the Module's rebuild debounce (0.5 s) then runs Engine:Build, which
+    -- re-reads the TRACKED SET (the I2f settle law: the scenarios cast on a
+    -- settled set). The running rows ride that rebuild -- FX7a, PLAN §11.2 --
+    -- so the row opened below is the fight's row to the end, and the settle
+    -- is here for the tracked set, not for the row.
     step(REBUILD_SETTLE)
     drainEngine()
     Display:Update(Engine:Sorted({}), GetTime())
@@ -383,17 +387,12 @@ function()
     assertEquals(longName and 2 or 1, liveSlots(),
         "the fight's rows ride the bar")
 
-    -- The pop, in combat. The sim fires SPELLS_CHANGED repeatedly during
-    -- ordinary clock (I2f measured: an plain AdvanceTime ride eats live
-    -- rows -- every storm arms the module's 0.5 s rebuild debounce and
-    -- Engine:Build WIPES entries by the rebuild law; the storm law itself
-    -- is pinned by its own test below). Riding a 20 s window therefore
-    -- needs the storm defused for the ride: the module seam M.Rebuild is
-    -- swapped for the duration of the ride (the suite's seam convention),
-    -- so the window rides its real edge and pops exactly once.
-    -- (I2f measured: a plain clock ride takes the window to its edge with
-    -- NO Rebuild call -- the rebuild storms ride the combat edges, pinned
-    -- by the test below -- so the ride needs no seam at all.)
+    -- The pop, in combat. The sim fires SPELLS_CHANGED during ordinary clock
+    -- (I2f measured; the storm law is pinned by its own test below), and
+    -- under the carry a plain clock ride no longer eats the live rows -- the
+    -- 20 s window rides its real edge and pops exactly once, with no seam on
+    -- the module at all. (I2f measured the storms ride the combat edges; the
+    -- ride below needs no defuse and no seam either way.)
     local se2 = Engine.entries[shortName]
     assertNotNil(se2, "the watched row rides to its edge")
     local edge = se2.start + shortCd
@@ -422,40 +421,53 @@ function()
     releaseChat()
 end)
 
--- The storm law, pinned as a fact (I2f, measured through this seam): the
--- sim fires SPELLS_CHANGED during ordinary combat clock; the Module's event
--- frame coalesces the burst into ONE debounced Rebuild, and Rebuild is
--- Build, and Build WIPES the live entries by design (learned durations
--- ride in storage; the visible rows restart from events/reads).
+-- The storm law, pinned as a fact (I2f measured the trigger, FX7a the law):
+-- the sim fires SPELLS_CHANGED on the combat edges; the Module's event frame
+-- coalesces the burst into ONE debounced Rebuild; the Rebuild IS Build, and
+-- Build re-reads the TRACKED SET -- and the windows that were running ride
+-- it. The wipe is the Build's own contract; the carry is the rebuild's, and
+-- it hands back every entry whose key the fresh state still tracks (learned
+-- durations ride in storage as ever). The bar no longer restarts from
+-- events/reads, which is the point: inside a combat lockdown the follow-up
+-- reads may be secret, and a bar that lost its rows to a looting spool had
+-- nothing to re-learn them from. The full ride -- three rows through the real
+-- event frame, the untracked name dropping out, the class change starting
+-- clean, the proc ICD windows riding -- is test_zzb_carry.lua.
 test("zz SPELLS_CHANGED storms ride the rebuild law", function()
-    -- The law, pinned deterministically (I2f, measured through this seam):
-    -- the sim fires SPELLS_CHANGED on the combat ENTER edge (the gate's
-    -- event probe: `seen=SPELLS_CHANGED`); the Module's handler coalesces
-    -- the burst into the debounced Rebuild; and Rebuild IS Build, and
-    -- Build WIPES the live entries by design -- the visible rows restart
-    -- from events/reads, the learned durations ride in storage. The cast
-    -- scenarios above settle after every combat-edge mutation for exactly
-    -- this reason.
     assertNotNil(shortId, "the gate picked the fight's spells")
     drainEngine()
     A_Admin.SetInCombat(true)
     castShort("Cast-Fx-storm")
-    assertTrue(countEntries() > 0, "the watched row is live pre-rebuild")
+    local before = Engine.entries[shortName]
+    assertNotNil(before, "the watched row is live pre-rebuild")
+    assertTrue(countEntries() > 0, "the bar has the row")
+    local startBefore, endBefore, sourceBefore =
+        before.start, before.endTime, before.source
     local realBuild = Engine.Build
-    local trims = nil
+    local sawLive, changed = nil, nil
     Engine.Build = function(self, ...)
-        trims = countEntries()
-        return realBuild(self, ...)
+        sawLive = countEntries()          -- the rows Build finds on entry
+        local n, reason, classChanged = realBuild(self, ...)
+        changed = classChanged
+        return n, reason, classChanged
     end
-    M:Rebuild()                       -- the debounced rebuild's own call
+    M:Rebuild()                           -- the debounced rebuild's own call
     Engine.Build = realBuild
     A_Admin.SetInCombat(false)
     step(REBUILD_SETTLE)
-    assertNotNil(trims, "the rebuild ran Build")
-    assertTrue(trims > 0,
-        "Build found the live entries and trimmed them (the rebuild law)")
-    assertEquals(0, countEntries(),
-        "the rebuild leaves no live row: the bar restarts from events")
+
+    assertNotNil(sawLive, "the rebuild ran Build")
+    assertTrue(sawLive > 0, "Build ran over the live rows")
+    assertEquals(false, changed, "the class did not change: the carry is open")
+    local after = Engine.entries[shortName]
+    assertNotNil(after, "the rebuild leaves its live row on the bar")
+    assertTrue(after == before,
+        "the entry object itself rode, not a re-opened copy")
+    near(startBefore, after.start)
+    near(endBefore, after.endTime)
+    assertEquals(sourceBefore, after.source)
+    assertEquals(1, countEntries(), "and it is the only row")
+    drainEngine()
 end)
 
 -- Phase 2: leave combat -- PLAYER_REGEN_ENABLED's reconcile pass re-anchors
