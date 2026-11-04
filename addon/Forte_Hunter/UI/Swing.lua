@@ -837,6 +837,7 @@ end
 function D:SetFillEngineMode(mode)
     if mode ~= "engine" and mode ~= "lua" then mode = "auto" end
     if self._fillMode == mode then return end
+    local prevMode = self._fillMode
     self._fillMode = mode
     if not self.anchor then return end
     local old, oldEngine = self.fill, self._engineFill
@@ -846,12 +847,17 @@ function D:SetFillEngineMode(mode)
         -- (never nil -- `Update` indexes it). Drop the stray object a
         -- partial build may have parented, then restore the fill, the
         -- path that animates it, and the caches a pass must re-dirty.
+        -- K9 m4 (code-review-9 MINOR 4): the MEMO rides the restore too
+        -- -- with it left on the requested mode, the bar drew on the old
+        -- path while the memo claimed the new one, and a repeat call to
+        -- the requested mode was a memo no-op: no retry.
         local stray = self.fill
         if stray ~= nil and stray ~= old then
             if stray.Hide then pcall(stray.Hide, stray) end
             if stray.SetParent then pcall(stray.SetParent, stray, nil) end
         end
         self.fill, self._engineFill = old, oldEngine
+        self._fillMode = prevMode
         self._fillW, self._armKey, self._fillSpanW, self._fillColor
             = nil, nil, nil, nil
         return
@@ -1174,6 +1180,14 @@ function D:SetBarColor(col)
     self._barColorSet = true
     BASE.BarColor = { col[1] or 1, col[2] or 1, col[3] or 1, col[4] or 1 }
     applyPalette(ST.swingPalette)
+    -- K9 m5 (code-review-9 MINOR 5): the rail follows the PICKER, not only
+    -- the palette -- the same two guarded lines SetSwingPalette pushes, so
+    -- the push is no longer asymmetric between the two setters. It rides
+    -- BEFORE the bar's own fill legs because it does not need a bar frame
+    -- (the login-order twin: `Melee:SetBarColor` is legal before the rail's
+    -- Init and remembers the colour for the frame that arrives later).
+    local rail = FX.Hunter.Melee
+    if rail and rail.SetBarColor then rail:SetBarColor(S.BarColor) end
     if not self.fill then return end
     local c = S.BarColor
     self:_SetFillColor(self.fill, c)
@@ -2146,9 +2160,21 @@ local function storedModeWords()
     if type(raw) ~= "table" then return nil, nil, nil end
     local mode = FX.Compat.PlainOrNil(raw.BarMode)
     local legacy = FX.Compat.PlainOrNil(raw.ShowSafeWindow)
-    return raw,
-        (type(mode) == "string") and mode or nil,
-        ((legacy == true or legacy == false) and legacy)
+    -- K9 M1 (docs/reviews/code-review-9.md MAJOR 1): the ABSENT word is
+    -- nil, not false. The old tail `(legacy == true or legacy == false)
+    -- and legacy` answered `false` for an absent key (`(false) and nil`
+    -- is false, and `x and false or nil` can not spell the three-way read
+    -- at all), and the consumer's gate is `legacy ~= nil` -- so a profile
+    -- with NEITHER word folded to `elapsed` and got stamped, and the
+    -- shipped Safe-window default never showed on a fresh install. The
+    -- three-way read needs an explicit if.
+    local legacyWord
+    if legacy == true then
+        legacyWord = true
+    elseif legacy == false then
+        legacyWord = false
+    end
+    return raw, (type(mode) == "string") and mode or nil, legacyWord
 end
 
 function D:ApplySettings(tbl)

@@ -53,7 +53,7 @@ local function realFace()
     local parts = {}
     for _, k in ipairs({ "active", "start", "duration", "lastDuration",
         "aimLen", "shooting", "moving", "movePulseAt", "flying", "at",
-        "cast", "pending", "retryUntil", "factsInRange", "rangeEdges",
+        "cast", "pending", "retryUntil", "factsInRange",
         "lastShotTime", "feignPending", "base", "baseOverride" }) do
         parts[#parts + 1] = k .. "=" .. tostring(t[k])
     end

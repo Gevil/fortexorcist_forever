@@ -281,8 +281,16 @@ function O:Build()
     -- only: a character is its first+last name, the label moves between
     -- logins, so it is never part of the profile key (FX.DB.CharacterKey,
     -- docs/research/upstream-api-2026-11-03.md §2).
+    -- K9 m3 (code-review-9 MINOR 3): the fallback read is
+    -- SecretWhenUnitIdentityRestricted -- raise-prone -- so it rides a
+    -- pcall like the name reads of Database.lua: a raise (a client under
+    -- RestrictedActions on this player-initiated Open path) costs the
+    -- NAME, not the window: nil = no name, the "?" below.
     local selfName = (FX.Identity and FX.Identity.SelfName())
-        or (UnitName and UnitName("player"))
+    if selfName == nil and type(UnitName) == "function" then
+        local okName, bare = pcall(UnitName, "player")
+        if okName then selfName = bare end
+    end
     local name = FX.Compat.PlainOrNil(selfName) or "?"
     local realm = ""
     if GetRealmName then

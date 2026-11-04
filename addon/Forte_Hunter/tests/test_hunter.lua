@@ -134,6 +134,60 @@ test("Missing is false in combat, true out of combat with none", function()
     assertFalse(t:Missing())
 end)
 
+-- 5b. K9 m3 (docs/reviews/code-review-9.md MINOR 3): the LIVE lockdown
+-- sample rides pcall + PlainOrNil, the UI/Melee.lua `_InCombat` shape.
+-- `Missing()` runs inside OnEvent bodies (PLAYER_REGEN_ENABLED/DISABLED,
+-- PLAYER_ENTERING_WORLD), and a raw `InCombatLockdown()` raise there is
+-- the Lua popup the K4 F3 fix removed from the rail. A raise, a no-value
+-- read and an absent global all mean NO KNOWLEDGE (nil) -- the same
+-- reminder posture the absent global has always had.
+test("IsCombat samples InCombatLockdown through a pcall: raise, no value, absent = no knowledge",
+function()
+    local saved = _G.InCombatLockdown
+    local t = FX.Hunter.NewAspectTracker({ names = Tools.aspectNames })
+    local ok, v
+    -- The plain answers ride through.
+    _G.InCombatLockdown = function() return true end
+    assertEquals(true, t:IsCombat())
+    _G.InCombatLockdown = function() return false end
+    assertEquals(false, t:IsCombat())
+    -- The numeric lockdown readings ride (the Melee gate's split).
+    _G.InCombatLockdown = function() return 1 end
+    assertEquals(true, t:IsCombat())
+    _G.InCombatLockdown = function() return 0 end
+    assertEquals(false, t:IsCombat())
+    -- A RAISING lockdown: no knowledge, NOT a raise. The old shape called
+    -- `InCombatLockdown()` bare -- both asserts below fail on it.
+    _G.InCombatLockdown = function() error("FXTEST-RESTRICTED", 0) end
+    ok, v = pcall(t.IsCombat, t)
+    assertTrue(ok, "the lockdown raise is swallowed, not an OnEvent popup")
+    assertEquals(nil, v, "a raising read is no knowledge")
+    ok, v = pcall(t.Missing, t)
+    assertTrue(ok, "Missing rides the raising lockdown without raising")
+    assertEquals(true, v, "no knowledge is not-proven-in-combat: the reminder rides")
+    -- A read with NO VALUE (the secret classification arrives as nil
+    -- through PlainOrNil): no knowledge. The old shape answered false.
+    _G.InCombatLockdown = function() return nil end
+    assertEquals(nil, t:IsCombat(), "a no-value read is no knowledge")
+    -- The ABSENT global: no knowledge. The old shape answered false.
+    _G.InCombatLockdown = nil
+    assertEquals(nil, t:IsCombat(), "an absent lockdown is no knowledge")
+    -- The injected seam keeps its law, and rides the same guard.
+    local inj = FX.Hunter.NewAspectTracker({
+        names = Tools.aspectNames,
+        inCombat = function() return true end,
+    })
+    assertEquals(true, inj:IsCombat())
+    local injR = FX.Hunter.NewAspectTracker({
+        names = Tools.aspectNames,
+        inCombat = function() error("FXTEST-RESTRICTED", 0) end,
+    })
+    ok, v = pcall(injR.IsCombat, injR)
+    assertTrue(ok, "the injected seam rides the same guard")
+    assertEquals(nil, v, "a raising injected seam is no knowledge")
+    _G.InCombatLockdown = saved
+end)
+
 -- 6. Ranged swing timer geometry, injected clock. Payload contract
 -- verified from the catalog: PLAYER_SWING = (swingDuration, swingType)
 -- DURATION FIRST; the Ranged enum value is 2.

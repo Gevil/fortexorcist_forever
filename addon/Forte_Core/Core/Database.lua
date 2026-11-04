@@ -230,14 +230,6 @@ function DB.RekeyLegacy(db)
         and #first < #keyCanon and keyCanon:sub(1, #first) == first then
         firstCanon = first
     end
-    local function legacyOf(k)
-        if type(k) ~= "string" or k == key then return false end
-        local head = k:match("^(.-)%-")            -- the name before the label
-        if not head or head == "" then return false end
-        local headCanon = FX.Identity.Canonical(head)
-        if headCanon == keyCanon then return true end
-        return firstCanon ~= nil and headCanon == firstCanon
-    end
     -- The move moves a LEGACY KEY OF THIS CHARACTER, not any key of the
     -- shape: a shape match alone would re-key a user-named profile like
     -- "Uther-Raid" onto the character key. The old law bound EVERY
@@ -247,6 +239,64 @@ function DB.RekeyLegacy(db)
     local characters, active
     if isTable(p.characters) then characters = p.characters end
     if type(p.active) == "string" then active = p.active end
+    -- K9 M2 (docs/reviews/code-review-9.md MAJOR 2): the SIBLING SCAN.
+    -- The gate above proves the first name is a strict prefix of THIS
+    -- character's key; it says nothing about a legacy ROW of that first
+    -- name belonging to her. Forever names are first + surname and name
+    -- uniqueness is a whole-name fact, so one account can carry "Anne
+    -- Ashvale" AND "Anne Brightoak" -- and the old key law packed the
+    -- name read of its day (the FIRST name) plus the realm label, so both
+    -- Annes of one realm wrote the SAME legacy key. When any other bound
+    -- character key has the first name as a strict canonical prefix, a
+    -- first-name sibling shares the account, the packed key names NEITHER
+    -- of them, and leg two is inert: the boot-defaults pre-leg behaviour
+    -- is the conservative answer, and the ladder report names the skip.
+    -- (Canonical drops the realm label, so a legacy-shaped bound key
+    -- canonicalises to the bare first name -- length-equal, never a
+    -- STRICT prefix -- and is not counted as a sibling.)
+    local legTwo = firstCanon ~= nil
+    local legTwoSkip
+    if legTwo and characters then
+        for k in pairs(characters) do
+            local kCanon = (type(k) == "string") and FX.Identity.Canonical(k)
+            if type(kCanon) == "string" and kCanon ~= keyCanon
+                and #firstCanon < #kCanon
+                and kCanon:sub(1, #firstCanon) == firstCanon then
+                legTwo = false
+                legTwoSkip = "a first-name sibling shares the account"
+                break
+            end
+        end
+    end
+    -- K9 M2 hardening (same review): the LEGAL label. With the head not
+    -- unique, the label half is the only disambiguator left, so a
+    -- first-name row moves only when its label canonical-equals TODAY's
+    -- realm (the read pcall'd -- GetRealmName rides this file's
+    -- connection-label law). This kills the cross-realm twin of the
+    -- sibling collision (`Anne-Nethergarde` + `Anne-Ashvenos`, the mover
+    -- matching both through the head, the pick falling to pairs order);
+    -- an unreadable label is no disambiguator: leg two inert.
+    local realmCanon
+    if legTwo then
+        local okRealm, label = pcall(function()
+            if type(_G.GetRealmName) ~= "function" then return nil end
+            local okRead, rawLabel = pcall(_G.GetRealmName)
+            if not okRead then return nil end
+            return FX.Identity.Canonical(rawLabel)
+        end)
+        if okRealm and type(label) == "string" then realmCanon = label end
+    end
+    local function legacyOf(k)
+        if type(k) ~= "string" or k == key then return false end
+        local head = k:match("^(.-)%-")            -- the name before the label
+        if not head or head == "" then return false end
+        local headCanon = FX.Identity.Canonical(head)
+        if headCanon == keyCanon then return true end
+        if not legTwo or headCanon ~= firstCanon then return false end
+        local label = k:match("^[^%-]+%-(.+)$")
+        local labelCanon = (label ~= nil) and FX.Identity.Canonical(label)
+        return realmCanon ~= nil and labelCanon == realmCanon
+    end
     local function boundToCharacter(k)
         if characters and characters[k] ~= nil then return true end
         return active ~= nil and active == k
@@ -294,6 +344,18 @@ function DB.RekeyLegacy(db)
         end
     end
     if legacyOf(active) then p.active = key end
+    if legTwoSkip then
+        -- The ladder report names the skip (code-review-9 MAJOR 2): a
+        -- player whose profile carries the old first-name key with a
+        -- first-name sibling on the account sees WHY the row stayed
+        -- where it is instead of silently booting on defaults. One line
+        -- per session (the once-flag above), pcall'd like every report
+        -- in this file: the re-key law is never-fatal.
+        pcall(FX.Print, "|cff88ccffsaved profiles: an old profile of the "
+            .. "pre-key-law name shape was left in place - " .. legTwoSkip
+            .. " ('" .. tostring(firstCanon) .. "'-rows name more than one "
+            .. "character); it keeps its old key|r")
+    end
 end
 
 --- The test seam (and only that): let RekeyLegacy run again — the state a

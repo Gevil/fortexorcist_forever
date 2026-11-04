@@ -421,6 +421,35 @@ function()
     assertEquals("one", Swing.state.barMode)
     Swing:ApplySettings({ ShowSafeWindow = true, BarMode = "one" })
     assertEquals("one", Swing.state.barMode)
+    -- (d) K9 M1 (docs/reviews/code-review-9.md MAJOR 1): the profile
+    -- with NEITHER word -- the fresh Hunter profile of a fresh install.
+    -- The word reader used to answer `false` for an ABSENT legacy key
+    -- (`(legacy == true or legacy == false) and legacy` is `(false) and
+    -- nil` = false), the consumer gate is `legacy ~= nil`, and the
+    -- wordless profile folded to `elapsed` AND GOT STAMPED -- the shipped
+    -- Safe-window default never showed. No word: the registered default
+    -- rides and the raw profile is NOT stamped. (The legs (a) and (b)
+    -- pin the stamped halves: legacy false alone -> `elapsed` stamped,
+    -- a stored BarMode over a legacy key -> the BarMode wins and the
+    -- legacy key retires.)
+    wipe()
+    Swing:ApplyStoredSettings()
+    assertEquals("safe", Swing.state.barMode,
+        "a wordless profile boots in the shipped safe mode")
+    assertTrue(Swing.state.showSafeWindow, "the safe flag rides the mode")
+    assertNil(raw.BarMode, "no word is stamped into a fresh profile")
+    assertNil(raw.ShowSafeWindow, "the retired key is not written back")
+    -- (e) The legacy key ALONE, the `true` half: the mode is `safe`, the
+    -- folded word is stamped and the key retires (leg (a) is the `false`
+    -- half). A second login on the folded profile says the same.
+    wipe()
+    raw.ShowSafeWindow = true
+    Swing:ApplyStoredSettings()
+    assertEquals("safe", Swing.state.barMode, "legacy true is the safe mode")
+    assertEquals("safe", raw.BarMode, "the legacy true stamps safe")
+    assertNil(raw.ShowSafeWindow, "the legacy key retires on the fold")
+    Swing:ApplyStoredSettings()
+    assertEquals("safe", Swing.state.barMode)
     wipe()
     Swing:SetShowSafeWindow(true)
     Swing:SetBarMode("safe")

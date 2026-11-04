@@ -14,6 +14,18 @@ headless interface simulator and on uiforever.com — not in a live game.
 
 ## Unreleased — 2026-11-04 (Iteration J: the Hunter swing bar reads your rotation)
 
+- **The Hunter bar starts in its Safe-window mode as intended, and two
+  characters sharing a first name keep their own settings.** A fresh Hunter
+  profile booted in the Elapsed-fill mode and kept it — the retired
+  `ShowSafeWindow` migration mistook "this profile has no old-mode key" for
+  "the key says off" and wrote the choice into the save; now a profile with
+  no mode word boots in the shipped Safe-window mode and stays unstamped.
+  And the profile migration no longer moves an old `First-Realm` profile
+  when a second character on the account shares that first name (an "Anne
+  Ashvale" and an "Anne Brightoak" both wrote the old key
+  `Anne-<realm>`): with the name shared, nothing is moved, each character
+  keeps her own settings, and a profile row of another realm's label no
+  longer folds onto your key.
 - **Your settings survive the old `Name-Realm` profile key in every shape.**
   The launch-day check found installs whose saved profile is named after the
   *first* name plus the realm label (`Morvessa-Nethergarde`) while the profile

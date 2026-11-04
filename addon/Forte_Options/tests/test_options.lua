@@ -1437,6 +1437,59 @@ test("title: player-realm from GetRealmName, never a dangling dash", function()
     O:Close()
 end)
 
+test("title: a raising name read costs the NAME, not the window (K9 m3)",
+function()
+    -- K9 m3 (docs/reviews/code-review-9.md MINOR 3): the UnitName
+    -- fallback of the title read is SecretWhenUnitIdentityRestricted --
+    -- raise-prone -- and rode bare. The shell is built once by O:Build,
+    -- so the leg drives Build over a FRESH receiver (the file's methods
+    -- take `self` = the module; the reads are Build's own lines) with the
+    -- identity seams poisoned: Identity answers nil (no cache) and
+    -- UnitName RAISES. Pre-fix the bare `UnitName("player")` call raised
+    -- out of Build -- the first assert below fails on it.
+    local saved = {
+        UnitName = _G.UnitName,
+        SelfName = FX.Identity.SelfName,
+    }
+    -- The shell's frame name is unique: hand the fresh build the NAME
+    -- slot for the ride (the live shell keeps its object in O.window,
+    -- only the global registration steps aside).
+    local NAME = "ForteXorcistOptionsWindow"
+    local savedGlobal = _G[NAME]
+    local ok, built, text
+    do
+        _G[NAME] = nil
+        FX.Identity.SelfName = function() return nil end
+        _G.UnitName = function() error("FXTEST-IDENTITY-LOCKED", 0) end
+        -- The fresh receiver rides `self` through Build, its callees and
+        -- the module constants -- EXCEPT the live shell's own state:
+        -- `window` is Build's once-built guard (inheriting it made Build
+        -- early-return the LIVE shell) and `profileTabs` is the live
+        -- shell's widget list (RefreshProfileTabs would hide them).
+        local liveState = { window = true, profileTabs = true }
+        local fresh = setmetatable({}, { __index = function(_, k)
+            if liveState[k] then return nil end
+            return O[k]
+        end })
+        ok, built = pcall(O.Build, fresh)
+        if ok and built then
+            text = fresh.titleFS:GetText()
+            built:Hide()
+            pcall(built.SetParent, built, nil)   -- the shell down
+        end
+        _G[NAME] = savedGlobal
+    end
+    _G.UnitName = saved.UnitName
+    FX.Identity.SelfName = saved.SelfName
+    if not ok then
+        error("FXTEST-BUILD-RAISED: " .. tostring(built), 0)
+    end
+    assertTrue(true, "the build swallows the raising name read")
+    assertNotNil(text, "the title built over the failed read")
+    assertTrue(text:find("by Xus - ?", 1, true) ~= nil,
+        "the name falls back to the ? placeholder: " .. text)
+end)
+
 -- ================================== CD-35 geometry + CD-31 Warn page rows ==
 -- CD-35 (spec §1.5) the original's BASICS rows `Vertical` (:1705 "Flip to
 -- vertical"), `Flip` (:1706 "Flip bar direction") and its auto-hide row

@@ -69,11 +69,32 @@ local AspectTracker = {}
 AspectTracker.__index = AspectTracker
 
 function AspectTracker:IsCombat()
+    -- K9 m3 (code-review-9 MINOR 3): the lockdown read rides the Melee
+    -- UI/Melee.lua `_InCombat` shape -- pcall + PlainOrNil, a
+    -- raising/secret/absent read is "no knowledge" = nil, never a raise.
+    -- This runs inside OnEvent bodies (the reminder's `not self:IsCombat()`
+    -- gate on PLAYER_REGEN_ENABLED/DISABLED, PLAYER_ENTERING_WORLD), and a
+    -- raise there is the Lua popup the K4 F3 fix removed from the rail.
+    -- The consumer `Missing` reads nil as "not proven in combat" -- the
+    -- same reminder posture the absent global has always had.
+    local function verdict(v)
+        v = FX.Compat.PlainOrNil(v)
+        if v == true or v == 1 then return true end
+        if v == false or v == 0 then return false end
+        return nil
+    end
     local f = self.inCombat
-    if f then return f() and true or false end
+    if f then
+        local ok, v = pcall(f)
+        if not ok then return nil end
+        return verdict(v)
+    end
     -- No injected predicate: sample the live lockdown (catalog:
     -- InCombatLockdown, RestrictedActionsDocumentation.lua:44, unannotated).
-    return type(InCombatLockdown) == "function" and InCombatLockdown() and true or false
+    if type(_G.InCombatLockdown) ~= "function" then return nil end
+    local ok, v = pcall(_G.InCombatLockdown)
+    if not ok then return nil end
+    return verdict(v)
 end
 
 --- Our own successful cast of an aspect. Aspects are mutually exclusive, so

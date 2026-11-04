@@ -438,6 +438,25 @@ function()
     restoreAll()
 end)
 
+test("a live BarColor pick moves the melee rail too (K9 m5, push symmetry)",
+function()
+    -- K9 m5 (docs/reviews/code-review-9.md MINOR 5): K4B pushed the bar
+    -- colour to the rail only from SetSwingPalette; the bar's own
+    -- SetBarColor -- the live Colour-picker seam -- pushed to nobody, so
+    -- the picker moved the bar while the rail kept the old fill until it
+    -- was re-enabled. The push is now symmetric: a live pick repaints the
+    -- rail through its SetBarColor.
+    restoreAll()                        -- the shipped posture baseline
+    Melee:SetEnabled(true)              -- the rail's frame (off by default)
+    assertNotNil(Melee.fill, "the rail built its fill")
+    Swing:RenderIdle()
+    local pick = { 0.15, 0.85, 0.35, 1 }
+    Swing:SetBarColor(pick)
+    assertColor(Swing.fill, pick, "the bar repainted on the pick")
+    assertColor(Melee.fill, pick, "the rail rides the LIVE pick")
+    restoreAll()
+end)
+
 -- ==================================================== 5. the interlock tint ==
 
 local function v2Tracker(clock, extra)

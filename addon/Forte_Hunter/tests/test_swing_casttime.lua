@@ -304,6 +304,13 @@ function()
         assertNotNil(Swing.fill, "the raise kept a fill (never nil)")
         assertTrue(Swing.fill == widget, "the fill that drew keeps drawing")
         assertTrue(Swing:UsesEngineFill(), "its path survived the failed switch")
+        -- K9 m4 (docs/reviews/code-review-9.md MINOR 4): the MEMO rides
+        -- the restore. Pre-fix it stayed on the requested "lua" while
+        -- the engine widget kept drawing -- the memo claimed a mode the
+        -- bar does not run, and a repeat call to "lua" was a memo no-op:
+        -- no retry.
+        assertEquals("engine", Swing._fillMode,
+            "the memo names the fill that DRAWS, not the failed switch")
         -- The bar comes back (OnClassChanged is idempotent through Init)
         -- and Update DRAWS on it.
         Swing:OnClassChanged("HUNTER")
@@ -318,6 +325,14 @@ function()
         assertTrue(Swing:Update(clock[1]))
         assertNotNil(Swing._fillIntent)
         Swing:RenderIdle()
+        -- K9 m4: the RETRY lands. The bar is whole and the memo names
+        -- the drawing engine path, so the switch to "lua" is a real
+        -- call, not the memo echo it was pre-fix (pre-fix: the memo read
+        -- "lua", the call no-oped, and the engine widget stayed on the
+        -- bar -- the assert below fails on it). It rebuilds.
+        Swing:SetFillEngineMode("lua")
+        assertEquals("lua", Swing._fillMode, "the retry spoke")
+        assertFalse(Swing:UsesEngineFill(), "the retry rebuilt on the requested mode")
         -- Back to the shipped v2 posture: the mode already reads "lua",
         -- the memo-drop idiom (test_swing_palette.lua's restoreAll)
         -- forces the real rebuild on the visible-then-idle bar.

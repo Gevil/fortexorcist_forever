@@ -558,6 +558,10 @@ function()
     _G.UnitName = function() return "Morvessa", "Ashveil" end
     _G.UnitFullName = function() return "Morvessa Ashveil", "Nethergarde" end
     _G.UnitNameUnmodified = function() return "Morvessa" end
+    -- K9 M2: the first-name leg now requires the legacy key's realm
+    -- LABEL to canonical-equal today's realm; pin the label the row
+    -- carries so the leg speaks.
+    _G.GetRealmName = function() return "Nethergarde" end
     clearKeyCaches()
     local key = DB.CharacterKey()
     assertEquals("MorvessaAshveil", key, "the key packs the FULL name")
@@ -590,6 +594,96 @@ function()
     -- Idempotent by content: a second pass finds no legacy row.
     assertEquals(3, DB.Migrate(db))
     assertEquals(277, db.profiles.byName[key].settings.Cooldown.Width)
+    restoreNameAPIs(saved)
+end)
+
+test("v3 SIBLING GUARD: two characters sharing a first name keep their own rows",
+function()
+    -- K9 M2 (docs/reviews/code-review-9.md MAJOR 2): Forever names are
+    -- first + surname and name uniqueness is a whole-name fact, so one
+    -- account can carry "Anne Ashvale" AND "Anne Brightoak" -- and the
+    -- OLD key law packed the first name plus the realm label, so both
+    -- Annes of one realm wrote the SAME legacy key `Anne-Nethergarde`.
+    -- The packed key then names NEITHER of them: the leg skips (the
+    -- boot-defaults pre-leg behaviour), the shared row and the
+    -- sibling's binding ride, and the ladder report names the skip.
+    local saved = saveNameAPIs()
+    _G.UnitName = function() return "Anne", "Ashvale" end
+    _G.UnitFullName = function() return "Anne Ashvale", "Nethergarde" end
+    _G.UnitNameUnmodified = function() return "Anne" end
+    _G.GetRealmName = function() return "Nethergarde" end
+    clearKeyCaches()
+    local key = DB.CharacterKey()
+    assertEquals("AnneAshvale", key, "the mover is Anne Ashvale")
+    local legacy = "Anne-Nethergarde"
+    local sibling = "AnneBrightoak"
+    local db = {
+        version = 3,
+        profiles = {
+            perCharacter = true,
+            shared = DB.SHARED_NAME,
+            active = legacy,
+            characters = { [legacy] = legacy, [sibling] = sibling },
+            byName = {
+                [legacy] = { settings = { Cooldown = { Width = 277 } } },
+                [sibling] = { settings = { Cooldown = { Width = 96 } } },
+                [DB.SHARED_NAME] = { settings = {} },
+            },
+        },
+        defaultsPruned = { Cooldown = true, General = true },
+    }
+    DB.RekeyLegacy(db)
+    assertNotNil(db.profiles.byName[legacy],
+        "the shared first name names NEITHER Anne: the row rides")
+    assertEquals(277, db.profiles.byName[legacy].settings.Cooldown.Width,
+        "with its settings")
+    assertEquals(nil, db.profiles.byName[key],
+        "no profile moves onto this character: the boot is the pre-leg defaults")
+    assertEquals(legacy, db.profiles.active, "the active key rides untouched")
+    assertEquals(legacy, db.profiles.characters[legacy], "with the row's binding")
+    assertEquals(sibling, db.profiles.characters[sibling],
+        "the sibling's binding rides too")
+    restoreNameAPIs(saved)
+end)
+
+test("v3 SIBLING GUARD: a legacy key of ANOTHER realm's label does not move",
+function()
+    -- The cross-realm twin of the sibling collision: `Anne-Nethergarde`
+    -- and `Anne-Ashvenos`, both bound, the mover matching both through
+    -- the head -- the pick among the matches used to fall to pairs()
+    -- order. The label half of a first-name row now must
+    -- canonical-equal today's realm; the alien label rides. The
+    -- sibling-free whole-key leg one keeps its realm-label tolerance
+    -- (the MOVED-label leg above pins it): this is leg two only.
+    local saved = saveNameAPIs()
+    _G.UnitName = function() return "Anne", "Ashvale" end
+    _G.UnitFullName = function() return "Anne Ashvale", "Nethergarde" end
+    _G.UnitNameUnmodified = function() return "Anne" end
+    _G.GetRealmName = function() return "Nethergarde" end  -- today's label
+    clearKeyCaches()
+    local key = DB.CharacterKey()
+    local alien = "Anne-Ashvenos"
+    local db = {
+        version = 3,
+        profiles = {
+            perCharacter = true,
+            shared = DB.SHARED_NAME,
+            active = alien,
+            characters = { [alien] = alien },
+            byName = {
+                [alien] = { settings = { Cooldown = { Width = 143 } } },
+                [DB.SHARED_NAME] = { settings = {} },
+            },
+        },
+        defaultsPruned = { Cooldown = true, General = true },
+    }
+    DB.RekeyLegacy(db)
+    assertNotNil(db.profiles.byName[alien],
+        "the label names another world's Anne: the row rides")
+    assertEquals(143, db.profiles.byName[alien].settings.Cooldown.Width)
+    assertEquals(nil, db.profiles.byName[key], "no move onto this character")
+    assertEquals(alien, db.profiles.characters[alien], "with its binding")
+    assertEquals(alien, db.profiles.active, "and the active key")
     restoreNameAPIs(saved)
 end)
 
