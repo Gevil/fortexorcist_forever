@@ -194,22 +194,32 @@ the printed number is its seconds — one fact, positional and numeric, no third
 copy.
 
 **Clip region — can I start Aimed Shot (or Multi-Shot) right now without
-clipping the shot?** A dim stripe at the bar's right end, as long as that shot's
-cast time plus the aim window: start the cast while the fill's edge is **left**
-of the stripe's left edge and the shot lands before the windup; press inside the
-stripe and the cast delays the next Auto Shot. The stripe's *fullness* is the
-message — a full stripe means this bow never fits a cast-time shot between Auto
-Shots, the same truth the red cast-interlock prints after the fact, now
-available before the press.
+clipping the shot?** The threshold the fill's edge crosses, drawn in the
+direction the chosen bar mode's fill moves: with the **shrinking bar**
+(*Safe window*, the default) it is a dim band at the bar's **left** end, as
+long as that shot's cast time — start the cast while the orange **still
+reaches past** the band, and the shot lands before the windup. With the
+**filling bars** (*One bar*, *Single fill*) it is the dim stripe at the
+**right** end, as long as that shot's cast time plus the aim window — start
+the cast while the fill's edge is **left** of the stripe. Both readings
+answer the one test `time-to-the-aim-window − (aim + retry) ≥ cast time`;
+press on the wrong side and the cast delays the next Auto Shot. The
+marker's *fullness* is the message — a bar-spanning mark means this bow
+never fits a cast-time shot between Auto Shots, the same truth the red
+cast-interlock prints after the fact, now available before the press.
 
 **Melee-weave line — is there room to step in, fire one global cooldown and be
-back before the shot?** A 1-px line planted at `aim + 1.5 s` from the right end
-(the 1.5 s GCD is the shipped data row, not a constant). Fill's edge **left** of
-the line: there is room for one 1.5 s GCD — a Raptor Strike / Mongoose Bite
-weave or an instant shot — before the stand-still window opens. The line at or
-past the bar's left edge: the hasted cycle has **no** room at all — do not step
-in. Off by default: a signal a non-weaving build must learn to ignore costs more
-than it pays.
+back before the shot?** A 1-px line planted at the GCD's threshold in the
+**direction the mode's fill moves** (the 1.5 s GCD is the shipped data row, not
+a constant): with the **shrinking bar** at `1.5 s` from the **left** end —
+step in while the orange **reaches past** the line; with the **filling bars**
+at `aim + 1.5 s` from the **right** end — step in while the fill's edge is
+**left** of it. Either side of the line says it: on the fitting side there is
+room for one 1.5 s GCD — a Raptor Strike / Mongoose Bite weave or an instant
+shot — before the stand-still window opens. The line parked off the bar (the
+mode's own overflow direction): the hasted cycle has **no** room at all — do
+not step in. Off by default: a signal a non-weaving build must learn to ignore
+costs more than it pays.
 
 **Melee rail — is my main-hand swing up for the Raptor Strike reset reward?**
 An opt-in slim rail under the bar (under the range light when it is on; one

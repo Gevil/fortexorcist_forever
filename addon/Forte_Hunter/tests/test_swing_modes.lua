@@ -10,17 +10,25 @@
 --   3. the `elapsed` mode = fraction x width, no slices;
 --   4. the standing aim region (P2, §7.3): aimLen x scale the WHOLE cycle in
 --      every mode, its alpha below the live slice's, hideable alone;
---   5. the clip stripe (P1, §7.4): (castLen + aimLen) x scale clamped to the
---      bar, castLen from the INJECTED data table, retargeted to the live
---      cast under the interlock, 0 when off;
---   6. the weave line (P4, §7.4): x = W - (aimLen + gcd) x scale, hidden
---      when that runs off the bar's left edge (the no-room law), hidden by
---      its own key, default off;
+--   5. the clip marker (P1, §7.4 + the J4 fix PLAN §11.3): the threshold the
+--      FILL EDGE crosses in the mode drawn -- (castLen + floor) x scale from
+--      the RIGHT in the growing fills, castLen x scale from the LEFT in
+--      `safe` (the band the orange must outgrow); castLen from the INJECTED
+--      data table, retargeted to the live cast under the interlock, 0 when off;
+--   6. the weave line (P4, §7.4 + J4): the GCD threshold in the mode's own
+--      direction -- (gcd + floor) x scale from the RIGHT in the growing
+--      fills, gcd x scale from the LEFT in `safe` -- hidden when that runs
+--      off the bar (the no-room law), hidden by its own key, default off;
 --   7. PARITY: one Auto Shot cycle through the "lua" and the "engine" fill
 --      path yields the same _fillIntent sequence in EVERY mode (the
 --      test_swing3.lua parity law, mode-parameterised);
---   8. StatusLine() names the mode, the aim-region alpha and the stripe's
---      width (the /fx status seam).
+--   8. StatusLine() names the mode, the aim-region alpha and the marker's
+--      width (the /fx status seam);
+--   9. the J4 MEANING property, per mode: a whole cycle sampled at 0.05 s
+--      (>= 30 live passes) with no cast, with a live cast and with an open
+--      retry -- the side of the DRAWN marker the fill's edge sits on ==
+--      `remaining - floor >= castLen` (clip) / `>= gcd` (weave), through
+--      the real Update with the injected tracker.
 --
 -- Every tracker is INJECTED (the test_swing2.lua clock + gate-reader shape)
 -- and every number is read off the REAL frame scripts through the bar's real
@@ -104,7 +112,8 @@ end
 Swing:Init()                       -- idempotent; the frame + marker art
 assertNotNil(Swing.anchor)
 assertNotNil(Swing.aimRegion)      -- the standing aim region (P2)
-assertNotNil(Swing.clip)           -- the clip stripe (P1)
+assertNotNil(Swing.clip)           -- the clip stripe (P1, growing modes)
+assertNotNil(Swing.clipBand)       -- the clip band (P1, safe mode, J4)
 assertNotNil(Swing.weave)          -- the weave line (P4)
 
 local W = 200                      -- the shipped bar width (S.Width)
@@ -422,47 +431,73 @@ function()
     restoreBar()
 end)
 
--- ===================================================== 5. the clip stripe P1 ==
+-- ==================================================== 5. the clip marker ==
 
-test("the clip stripe: (castLen + aimLen) x scale, castLen from the DATA",
+--- J4 (PLAN §11.3): the clip marker is the threshold the FILL EDGE crosses
+--- in the mode drawn. The growing fills (`one`/`elapsed`) keep §7.4's
+--- right-anchored stripe, (castLen + floor) x scale wide; the shrinking
+--- fill (`safe`, its law `(remaining - floor) x scale` SPENDS the floor)
+--- draws the LEFT-anchored band castLen x scale wide the orange must
+--- outgrow. One texture per anchor (the sim's geometry law), the pass
+--- parks the other -- the probe reads the mode's active texture.
+local function clipMarker(mode)
+    if mode == "safe" then return Swing.clipBand end
+    return Swing.clip
+end
+
+test("the clip marker: castLen (+ floor) x scale from the mode's end, DATA-fed",
 function()
-    -- The injected data table (the §7.8 item-5 seam: the stripe's cast
+    -- The injected data table (the §7.8 item-5 seam: the marker's cast
     -- length is Tools.DataCastMsByName's number, never a hand-typed one).
     -- The pcall wrapper is the leak law: an assert failure must not leave
     -- the module's data index patched for the files that run after.
     local ok, err = pcall(function()
     useData({ ["Aimed Shot"] = 1000 })
-    Swing:SetBarMode("safe")
-    Swing:SetShowAimWindow(false)
-    Swing:SetShowClipRegion(true)
-    Swing:SetShowWeaveLine(false)
-    local clock = { 8000 }
-    local t = v2Tracker(clock, { baseSpeed = 2.0 })
-    Swing:SetTracker(t)
-    Swing:RenderIdle()
-    t:OnSwingStart(2.0, 2)                  -- aimLen 0.5, scale 100
-    Swing:Update(clock[1])
-    assertTrue(Swing.clip:IsShown())
-    nearpx(Swing.clip:GetWidth(), (1.0 + 0.5) * (W / 2.0))     -- 150 px
-    nearpx(Swing.clip:GetRight(), Swing.anchor:GetRight())
-    near3(select(4, Swing.clip:GetVertexColor()), S.ClipRegionAlpha)
-    -- Clamped to the bar: the honest "Aimed Shot always clips on this bow".
-    useData({ ["Aimed Shot"] = 4000 })
-    Swing:Update(clock[1])
-    nearpx(Swing.clip:GetWidth(), W)
-    -- Off is zero width.
-    Swing:SetShowClipRegion(false)
-    Swing:Update(clock[1])
-    assertFalse(Swing.clip:IsShown())
-    nearpx(Swing.clip:GetWidth(), 0)
-    Swing:SetShowClipRegion(true)
-    Swing:RenderIdle()
+    for _, mode in ipairs({ "safe", "one", "elapsed" }) do
+        Swing:SetBarMode(mode)
+        Swing:SetShowAimWindow(false)
+        Swing:SetShowClipRegion(true)
+        Swing:SetShowWeaveLine(false)
+        local clock = { 8000 }
+        local t = v2Tracker(clock, { baseSpeed = 2.0 })
+        Swing:SetTracker(t)
+        Swing:RenderIdle()
+        t:OnSwingStart(2.0, 2)                  -- aimLen 0.5, scale 100
+        Swing:Update(clock[1])
+        local m = clipMarker(mode)
+        local mPark = (m == Swing.clip) and Swing.clipBand or Swing.clip
+        assertTrue(m:IsShown(), mode .. ": the marker is on")
+        assertFalse(mPark:IsShown(), mode .. ": the other texture parked")
+        local expectW = (mode == "safe") and (1.0 * (W / 2.0))
+            or ((1.0 + 0.5) * (W / 2.0))        -- safe 100 / growing 150
+        nearpx(m:GetWidth(), expectW)
+        if mode == "safe" then
+            nearpx(m:GetLeft(), Swing.anchor:GetLeft())    -- band: left end
+        else
+            nearpx(m:GetRight(), Swing.anchor:GetRight())  -- stripe: right
+        end
+        near3(select(4, m:GetVertexColor()), S.ClipRegionAlpha)
+        -- Clamped to the bar: the honest "Aimed Shot never fits this bow".
+        useData({ ["Aimed Shot"] = 4000 })
+        Swing:Update(clock[1])
+        nearpx(m:GetWidth(), W)
+        useData({ ["Aimed Shot"] = 1000 })
+        -- Off is zero width, both textures parked.
+        Swing:SetShowClipRegion(false)
+        Swing:Update(clock[1])
+        assertFalse(m:IsShown())
+        nearpx(m:GetWidth(), 0)
+        nearpx(Swing.clipBand:GetWidth(), 0)
+        nearpx(Swing.clip:GetWidth(), 0)
+        Swing:SetShowClipRegion(true)
+        Swing:RenderIdle()
+    end
     end)
     restoreBar()
     if not ok then error(err, 0) end
 end)
 
-test("the clip stripe: the shipped data's Aimed Shot is the default length",
+test("the clip marker: the shipped data's Aimed Shot is the default length",
 function()
     -- No injection: the number is the generated data's (§7.4: 2000 ms), the
     -- same index the interlock's fallback rides.
@@ -470,60 +505,71 @@ function()
     local sec = Swing:ClipCastSeconds()
     assertNotNil(sec)
     nearpx(sec, 2.0)
-    -- An un-hasted 2.0 s cycle therefore draws a FULL-WIDTH stripe: the
-    -- honest "a cast-time shot always clips on this bow" (§7.4).
-    Swing:SetBarMode("safe")
-    Swing:SetShowAimWindow(false)
-    Swing:SetShowClipRegion(true)
-    local clock = { 8200 }
-    local t = v2Tracker(clock, { baseSpeed = 2.0 })
-    Swing:SetTracker(t)
-    Swing:RenderIdle()
-    t:OnSwingStart(2.0, 2)
-    Swing:Update(clock[1])
-    nearpx(Swing.clip:GetWidth(), W)
-    Swing:RenderIdle()
+    -- An un-hasted 2.0 s cycle therefore SPANS the bar in every mode: the
+    -- honest "a cast-time shot always clips on this bow" (§7.4 + J4) --
+    -- the growing stripe covers the bar, the safe band is full-width so
+    -- the orange can never outgrow it (the fill tops out at
+    -- (duration - floor) x scale < 2.0 x scale).
+    for _, mode in ipairs({ "safe", "one", "elapsed" }) do
+        Swing:SetBarMode(mode)
+        Swing:SetShowAimWindow(false)
+        Swing:SetShowClipRegion(true)
+        local clock = { 8200 }
+        local t = v2Tracker(clock, { baseSpeed = 2.0 })
+        Swing:SetTracker(t)
+        Swing:RenderIdle()
+        t:OnSwingStart(2.0, 2)
+        Swing:Update(clock[1])
+        nearpx(clipMarker(mode):GetWidth(), W)
+        Swing:RenderIdle()
+    end
     restoreBar()
 end)
 
-test("the clip stripe: retargeted to the LIVE cast under the interlock",
+test("the clip marker: retargeted to the LIVE cast under the interlock",
 function()
     local ok, err = pcall(function()
-    useData({ ["Aimed Shot"] = 4000 })
-    Swing:SetBarMode("safe")
-    Swing:SetShowAimWindow(false)
-    Swing:SetShowClipRegion(true)
-    local clock = { 8400 }
-    local t = v2Tracker(clock, { baseSpeed = 2.0,
-        castLenReader = function() return 0.8 end })
-    Swing:SetTracker(t)
-    Swing:RenderIdle()
-    t:OnSwingStart(2.0, 2)
-    Swing:Update(clock[1])
-    nearpx(Swing.clip:GetWidth(), W)        -- 4.0 s data length: clamped
-    -- The Aimed Shot SENT opens the interlock (the Forever no-START law):
-    -- the stripe retargets to the LIVE cast's 0.8 s, so the frozen red bar
-    -- shows the reason it is red (§7.4).
-    t:OnShotCast("SENT", "Aimed Shot", 20904, "GA")
-    Swing:Update(8400.1)
-    assertTrue(Swing.cast:IsShown())
-    -- freeze = 1 - (press - cycleStart)/duration = 1: the press ate the
-    -- WHOLE cycle, so the red bar is full-width (the v2 interlock law).
-    nearpx(Swing.fill:GetWidth(), W)
-    nearpx(Swing.clip:GetWidth(), (0.8 + 0.5) * (W / 2.0))  -- 130 px
-    -- The interlock's own light tint is what reads over the red bar.
-    local r, g, b, a = Swing.clip:GetVertexColor()
-    near3(r, S.ClipInterlockColor[1]); near3(g, S.ClipInterlockColor[2])
-    near3(b, S.ClipInterlockColor[3])
-    near3(a, S.ClipRegionAlpha)
-    -- Out of the interlock the stripe rides the aim hue again.
-    t:OnShotCast("SUCCEEDED", "Aimed Shot", 20904, "GA")
-    Swing:Update(8400.2)
-    assertFalse(Swing.cast:IsShown())
-    local r2, g2 = Swing.clip:GetVertexColor()
-    near3(r2, S.AimColor[1]); near3(g2, S.AimColor[2])
-    nearpx(Swing.clip:GetWidth(), W)
-    Swing:RenderIdle()
+    for _, mode in ipairs({ "safe", "one" }) do
+        useData({ ["Aimed Shot"] = 4000 })
+        Swing:SetBarMode(mode)
+        Swing:SetShowAimWindow(false)
+        Swing:SetShowClipRegion(true)
+        Swing:SetShowWeaveLine(false)
+        local clock = { 8400 }
+        local t = v2Tracker(clock, { baseSpeed = 2.0,
+            castLenReader = function() return 0.8 end })
+        Swing:SetTracker(t)
+        Swing:RenderIdle()
+        t:OnSwingStart(2.0, 2)
+        Swing:Update(clock[1])
+        local m = clipMarker(mode)
+        nearpx(m:GetWidth(), W)               -- 4.0 s data length: spans
+        -- The Aimed Shot SENT opens the interlock (the Forever no-START
+        -- law): the marker retargets to the LIVE cast's 0.8 s (the safe
+        -- band bare, the growing stripe plus the floor), so the frozen red
+        -- bar shows the reason it is red (§7.4).
+        t:OnShotCast("SENT", "Aimed Shot", 20904, "GA")
+        Swing:Update(8400.1)
+        assertTrue(Swing.cast:IsShown())
+        -- freeze = 1 - (press - cycleStart)/duration = 1: the press ate the
+        -- WHOLE cycle, so the red bar is full-width (the v2 interlock law).
+        nearpx(Swing.fill:GetWidth(), W)
+        local span = (mode == "safe") and 0.8 or (0.8 + 0.5)
+        nearpx(m:GetWidth(), math.min(W, span * (W / 2.0)))
+        -- The interlock's own light tint is what reads over the red bar.
+        local r, g, b, a = m:GetVertexColor()
+        near3(r, S.ClipInterlockColor[1]); near3(g, S.ClipInterlockColor[2])
+        near3(b, S.ClipInterlockColor[3])
+        near3(a, S.ClipRegionAlpha)
+        -- Out of the interlock the marker rides the aim hue again.
+        t:OnShotCast("SUCCEEDED", "Aimed Shot", 20904, "GA")
+        Swing:Update(8400.2)
+        assertFalse(Swing.cast:IsShown())
+        local r2, g2 = m:GetVertexColor()
+        near3(r2, S.AimColor[1]); near3(g2, S.AimColor[2])
+        nearpx(m:GetWidth(), W)
+        Swing:RenderIdle()
+    end
     end)
     restoreBar()                             -- restores the data index too
     if not ok then error(err, 0) end
@@ -531,69 +577,91 @@ end)
 
 -- ======================================================== 6. the weave line ==
 
-test("the weave line: x = W - (aimLen + gcd) x scale, on its key", function()
+test("the weave line: the GCD threshold in the mode's own direction, on its key",
+function()
     local gcd = Swing.GcdSeconds()
     nearpx(gcd, 1.5)                     -- the shipped data's gcdMs = 1500
-    Swing:SetBarMode("safe")
-    Swing:SetShowAimWindow(false)
-    Swing:SetShowClipRegion(false)
-    Swing:SetShowWeaveLine(true)
-    local clock = { 9000 }
-    local t = v2Tracker(clock, { baseSpeed = 3.0 })
-    Swing:SetTracker(t)
-    Swing:RenderIdle()
-    t:OnSwingStart(3.0, 2)               -- aimLen 0.5, scale 200/3
-    Swing:Update(clock[1])
-    assertTrue(Swing.weave:IsShown())
-    local expect = W - (0.5 + gcd) * (W / 3.0)
-    local centre = (Swing.weave:GetLeft() + Swing.weave:GetRight()) * 0.5
-    nearpx(centre, Swing.anchor:GetLeft() + expect)
-    nearpx(Swing.weave:GetWidth(), S.WeaveWidth)
-    nearpx(Swing.weave:GetHeight(), S.Height + S.MarkerOvershoot)
-    -- The line rides OUTSIDE the bar's edges: the taller-than-the-bar law.
-    assertTrue(Swing.weave:GetTop() >= Swing.anchor:GetTop() + 1)
-    assertTrue(Swing.weave:GetBottom() <= Swing.anchor:GetBottom() - 1)
-    -- Off its key: gone.
-    Swing:SetShowWeaveLine(false)
-    Swing:Update(clock[1])
-    if Swing.weave:IsShown() then
-        error("weave facts: x=" .. tostring(Swing._weaveX)
-            .. " flag=" .. tostring(FX.Hunter.Swing.state.showWeaveLine)
-            .. " barShown=" .. tostring(Swing._shown)
-            .. " nodeShown=" .. tostring(Swing.weave._shown)
-            .. " strata=" .. tostring(Swing.weave:GetFrameStrata())
-            .. " w=" .. tostring(Swing.weave:GetWidth())
-            .. " h=" .. tostring(Swing.weave:GetHeight())
-            .. " phase=" .. tostring(Swing._phase))
+    local scale = W / 3.0                -- base 3.0 / cycle 3.0: aim 0.5
+    for _, mode in ipairs({ "safe", "one", "elapsed" }) do
+        Swing:SetBarMode(mode)
+        Swing:SetShowAimWindow(false)
+        Swing:SetShowClipRegion(false)
+        Swing:SetShowWeaveLine(true)
+        local clock = { 9000 }
+        local t = v2Tracker(clock, { baseSpeed = 3.0 })
+        Swing:SetTracker(t)
+        Swing:RenderIdle()
+        t:OnSwingStart(3.0, 2)               -- aimLen 0.5, scale 200/3
+        Swing:Update(clock[1])
+        assertTrue(Swing.weave:IsShown(), mode .. ": the line is on the bar")
+        -- J4: the safe fill spends the floor, so its line is the bare gcd
+        -- from the LEFT; the growing fills draw raw progress, so their
+        -- line carries floor = aim (+ open retry) from the RIGHT (§7.4).
+        local expect = (mode == "safe") and (gcd * scale)
+            or (W - (gcd + 0.5) * scale)
+        local centre = (Swing.weave:GetLeft() + Swing.weave:GetRight()) * 0.5
+        nearpx(centre, Swing.anchor:GetLeft() + expect)
+        nearpx(Swing.weave:GetWidth(), S.WeaveWidth)
+        nearpx(Swing.weave:GetHeight(), S.Height + S.MarkerOvershoot)
+        -- The line rides OUTSIDE the bar's edges: the taller-than-the-bar law.
+        assertTrue(Swing.weave:GetTop() >= Swing.anchor:GetTop() + 1)
+        assertTrue(Swing.weave:GetBottom() <= Swing.anchor:GetBottom() - 1)
+        -- Off its key: gone.
+        Swing:SetShowWeaveLine(false)
+        Swing:Update(clock[1])
+        if Swing.weave:IsShown() then
+            error("weave facts: x=" .. tostring(Swing._weaveX)
+                .. " flag=" .. tostring(FX.Hunter.Swing.state.showWeaveLine)
+                .. " barShown=" .. tostring(Swing._shown)
+                .. " nodeShown=" .. tostring(Swing.weave._shown)
+                .. " strata=" .. tostring(Swing.weave:GetFrameStrata())
+                .. " w=" .. tostring(Swing.weave:GetWidth())
+                .. " h=" .. tostring(Swing.weave:GetHeight())
+                .. " phase=" .. tostring(Swing._phase))
+        end
+        assertFalse(Swing.weave:IsShown())
+        Swing:RenderIdle()
     end
-    assertFalse(Swing.weave:IsShown())
-    Swing:RenderIdle()
     restoreBar()
 end)
 
-test("the weave line: off-bar is the no-room message; default off", function()
-    -- A 2.0 s cycle with aim 0.5 and the 1.5 s GCD: (0.5+1.5)/2.0 of the bar
-    -- is the WHOLE bar -- the budget runs off the left edge, so the line
-    -- hides (§7.4's hasted "do not step in" law).
-    Swing:SetBarMode("safe")
-    Swing:SetShowAimWindow(false)
-    Swing:SetShowClipRegion(false)
-    Swing:SetShowWeaveLine(true)
-    local clock = { 9200 }
-    local t = v2Tracker(clock, { baseSpeed = 2.0 })
-    Swing:SetTracker(t)
-    Swing:RenderIdle()
-    t:OnSwingStart(2.0, 2)
-    Swing:Update(clock[1])
-    assertFalse(Swing.weave:IsShown(), "x = 0 is off-bar, not a border line")
-    -- A hasted 1.5 s cycle (aim 0.375): aim + gcd = 1.875 > 1.5 -- off the bar.
-    local h = v2Tracker({ 9400 }, { baseSpeed = 2.0 })
-    Swing:SetTracker(h)
-    Swing:RenderIdle()
-    h:OnSwingStart(1.5, 2)
-    Swing:Update(9400)
-    assertFalse(Swing.weave:IsShown())
-    Swing:RenderIdle()
+test("the weave line: off-bar (in the mode's direction) is the no-room message; default off",
+function()
+    -- A 2.0 s cycle with aim 0.5 and the 1.5 s GCD: the growing modes
+    -- measure (aim + gcd) = 2.0 s = the WHOLE bar, so the line parks off
+    -- the bar's left edge. The shrinking fill measures the bare gcd =
+    -- 1.5 s of 2.0 s, so its line SITS on the bar at 150 px -- the honest
+    -- "there is weave room only in the first half-second of orange".
+    -- A hasted 1.5 s cycle (aim 0.375) runs the GCD off the bar in EVERY
+    -- mode: gcd x scale >= W from the left, aim + gcd > duration from the
+    -- right -- the correct "do not step in" message (§7.4's hasted law).
+    for _, probe in ipairs({
+        { mode = "one", dur = 2.0, shown = false },
+        { mode = "elapsed", dur = 2.0, shown = false },
+        { mode = "safe", dur = 2.0, shown = true },
+        { mode = "one", dur = 1.5, shown = false },
+        { mode = "safe", dur = 1.5, shown = false },
+    }) do
+        Swing:SetBarMode(probe.mode)
+        Swing:SetShowAimWindow(false)
+        Swing:SetShowClipRegion(false)
+        Swing:SetShowWeaveLine(true)
+        local clock = { 9200 }
+        local t = v2Tracker(clock, { baseSpeed = 2.0 })
+        Swing:SetTracker(t)
+        Swing:RenderIdle()
+        t:OnSwingStart(probe.dur, 2)
+        Swing:Update(clock[1])
+        assertEquals(probe.shown, Swing.weave:IsShown(),
+            probe.mode .. " at " .. probe.dur .. " s")
+        if probe.shown then
+            local centre = (Swing.weave:GetLeft() + Swing.weave:GetRight())
+                * 0.5
+            nearpx(centre, Swing.anchor:GetLeft()
+                + Swing.GcdSeconds() * (W / probe.dur))
+        end
+        Swing:RenderIdle()
+    end
     -- The γ.1 defaults are the MODULE's shipped state (captured above,
     -- before this file ran a single setter): mode safe, aim window ON, clip
     -- region ON, weave line OFF.
@@ -635,10 +703,11 @@ local function runCycle(mode, path)
         -- The mode's whole draw: the fill intent, the phase, the v2 slices
         -- and the three slice-A markers.
         out[#out + 1] = string.format(
-            "%s|i%.2f|a%.2f|r%.2f|c%.2f|A%.2f|C%.2f|K%s|k%s|s%s",
+            "%s|i%.2f|a%.2f|r%.2f|c%.2f|A%.2f|C%.2f|B%.2f|K%s|k%s|s%s",
             tostring(Swing._phase), Swing._fillIntent or -1,
             Swing._aimW or -1, Swing._retryW or -1, Swing._castW or -1,
             Swing._aimRegionW or -1, Swing._clipW or -1,
+            Swing._clipBandW or -1,
             tostring(Swing._weaveX), tostring(Swing._timeKey),
             tostring(Swing._shown and 1 or 0))
         i = i + 1
@@ -712,8 +781,11 @@ function()
     -- hue at a stepped alpha (0.22 stripe, 0.45 region, 1.0 live slice), and
     -- the weave line is the one colour outside the cycle family.
     local cr, cg, cb, ca = Swing.clip:GetVertexColor()
+    local br, bg, bb, ba = Swing.clipBand:GetVertexColor()
     local rr, rg, rb = Swing.aimRegion:GetVertexColor()
     near3(cr, S.AimColor[1]); near3(cg, S.AimColor[2])
+    near3(br, S.AimColor[1]); near3(bg, S.AimColor[2])   -- the band is the
+    near3(bb, S.AimColor[3]); near3(ba, S.ClipRegionAlpha) -- same family
     near3(rr, S.AimColor[1]); near3(rg, S.AimColor[2])
     assertTrue(S.ClipRegionAlpha < S.AimRegionAlpha)
     assertTrue(S.AimRegionAlpha < S.AimColor[4])
@@ -726,67 +798,258 @@ function()
     assertTrue(wb > wr, "the weave line is off-family from the reds")
     assertEquals(S.BarTexture, Swing.aimRegion:GetTexture())
     assertEquals(S.BarTexture, Swing.clip:GetTexture())
+    assertEquals(S.BarTexture, Swing.clipBand:GetTexture())
     assertEquals(S.WeaveTexture, Swing.weave:GetTexture())
     -- The fill path the mode flips between is untouched by slice A.
     assertEquals(S.BarTexture, Swing.fill:GetTexture())
 end)
 
 test("a resize re-pins the markers on the new geometry", function()
-    Swing:SetBarMode("safe")
-    Swing:SetShowAimWindow(true)
-    Swing:SetShowClipRegion(true)
-    Swing:SetShowWeaveLine(true)
-    local savedW = S.Width
-    Swing:SetWidth(300)
-    assertEquals(300, S.Width)
-    local clock = { 13000 }
-    local t = v2Tracker(clock, { baseSpeed = 3.0 })
-    Swing:SetTracker(t)
-    Swing:RenderIdle()
-    t:OnSwingStart(3.0, 2)                  -- aimLen 0.5, scale 300/3 = 100
-    Swing:Update(clock[1])
-    nearpx(Swing.aimRegion:GetWidth(), 0.5 * (300 / 3.0))
-    nearpx(Swing.clip:GetWidth(), math.min(300,
-        (Swing:ClipCastSeconds() + 0.5) * (300 / 3.0)))
-    -- The weave line rides the seam: W - (aimLen + gcd) x scale.
-    nearpx(Swing._weaveX, 300 - (0.5 + Swing.GcdSeconds()) * (300 / 3.0))
-    assertTrue(Swing.weave:IsShown())
-    Swing:RenderIdle()
-    Swing:SetWidth(savedW)
-    assertEquals(200, S.Width)
+    -- safe: the band is castLen x scale from the left, the line gcd x
+    -- scale from the left; one: (castLen + floor) x scale and (floor + gcd)
+    -- x scale from the right (floor = aim 0.5, no retry here).
+    for _, probe in ipairs({
+        { mode = "safe", clip = 2.0, weave = 1.5 },
+        { mode = "one", clip = 2.5, weave = 2.0 },
+    }) do
+        Swing:SetBarMode(probe.mode)
+        Swing:SetShowAimWindow(true)
+        Swing:SetShowClipRegion(true)
+        Swing:SetShowWeaveLine(true)
+        local savedW = S.Width
+        Swing:SetWidth(300)
+        assertEquals(300, S.Width)
+        local clock = { 13000 }
+        local t = v2Tracker(clock, { baseSpeed = 3.0 })
+        Swing:SetTracker(t)
+        Swing:RenderIdle()
+        t:OnSwingStart(3.0, 2)                  -- aimLen 0.5, scale 300/3 = 100
+        Swing:Update(clock[1])
+        nearpx(Swing.aimRegion:GetWidth(), 0.5 * (300 / 3.0))
+        nearpx(clipMarker(probe.mode):GetWidth(), math.min(300,
+            probe.clip * (300 / 3.0)))
+        -- The weave line rides the seam in the mode's own direction.
+        local expectWeave = (probe.mode == "safe")
+            and (probe.weave * (300 / 3.0))
+            or (300 - probe.weave * (300 / 3.0))
+        nearpx(Swing._weaveX, expectWeave)
+        assertTrue(Swing.weave:IsShown())
+        Swing:RenderIdle()
+        Swing:SetWidth(savedW)
+        assertEquals(200, S.Width)
+    end
     restoreBar()
 end)
 
 test("an idle bar parks every marker (no stale stripe on a hidden bar)",
 function()
-    Swing:SetBarMode("one")
-    Swing:SetShowAimWindow(true)
-    Swing:SetShowClipRegion(true)
-    Swing:SetShowWeaveLine(true)
-    local clock = { 14000 }
-    local t = v2Tracker(clock, { baseSpeed = 3.0 })
-    Swing:SetTracker(t)
-    Swing:RenderIdle()
-    t:OnSwingStart(3.0, 2)                  -- aimLen 0.5, scale 66.7: the
+    -- mode one draws the right-anchored stripe, mode safe the left-anchored
+    -- band; the other texture parks, and RenderIdle parks them all.
+    for _, mode in ipairs({ "one", "safe" }) do
+        Swing:SetBarMode(mode)
+        Swing:SetShowAimWindow(true)
+        Swing:SetShowClipRegion(true)
+        Swing:SetShowWeaveLine(true)
+        local clock = { 14000 }
+        local t = v2Tracker(clock, { baseSpeed = 3.0 })
+        Swing:SetTracker(t)
+        Swing:RenderIdle()
+        t:OnSwingStart(3.0, 2)              -- aimLen 0.5, scale 66.7: the
                                             -- weave line is ON the bar
-    Swing:Update(clock[1])
-    assertTrue(Swing.clip:IsShown() and Swing.aimRegion:IsShown()
-        and Swing.weave:IsShown(),
-        "clip=" .. tostring(Swing._clipW) .. " region="
-        .. tostring(Swing._aimRegionW) .. " weave=" .. tostring(Swing._weaveX))
-    Swing:RenderIdle()
-    assertFalse(Swing.clip:IsShown())
-    assertFalse(Swing.aimRegion:IsShown())
-    assertFalse(Swing.weave:IsShown())
-    nearpx(Swing.clip:GetWidth(), 0)
-    nearpx(Swing.aimRegion:GetWidth(), 0)
+        Swing:Update(clock[1])
+        local m = clipMarker(mode)
+        local mPark = (m == Swing.clip) and Swing.clipBand or Swing.clip
+        assertTrue(m:IsShown() and Swing.aimRegion:IsShown()
+            and Swing.weave:IsShown(),
+            mode .. " clip=" .. tostring(m:GetWidth()) .. " region="
+            .. tostring(Swing._aimRegionW) .. " weave="
+            .. tostring(Swing._weaveX))
+        assertFalse(mPark:IsShown(), mode .. ": the other texture parks")
+        Swing:RenderIdle()
+        assertFalse(Swing.clip:IsShown())
+        assertFalse(Swing.clipBand:IsShown())
+        assertFalse(Swing.aimRegion:IsShown())
+        assertFalse(Swing.weave:IsShown())
+        nearpx(Swing.clip:GetWidth(), 0)
+        nearpx(Swing.clipBand:GetWidth(), 0)
+        nearpx(Swing.aimRegion:GetWidth(), 0)
+    end
     -- The mode/marker seams are legal before the frames exist too (the
     -- options page applies stored values at login through them).
-    assertEquals("one", FX.Hunter.Swing.state.barMode)
+    assertEquals("safe", FX.Hunter.Swing.state.barMode)
     restoreBar()
     assertEquals("safe", FX.Hunter.Swing.state.barMode)
     assertTrue(Swing.state.showAimWindow)
     assertTrue(Swing.state.showClipRegion)
     assertFalse(Swing.state.showWeaveLine)
     assertFalse(Swing.anchor:IsShown())
+end)
+
+-- ============================================= 9. the J4 marker MEANINGS ==
+
+-- The J4 acceptance (PLAN §11.3): the J2 tests asserted marker WIDTHS;
+-- these assert their MEANING, per mode. `propertyCycle` drives one whole
+-- Auto Shot cycle through the REAL Update with the injected tracker,
+-- sampling every 0.05 s, and compares at every live pass the side of the
+-- DRAWN marker the fill's edge sits on
+--
+--     fillEdgeOnSafeSide(clipMarker)  ==  remaining - floor >= castLen
+--     fillEdgeOnSafeSide(weaveLine)   ==  remaining - floor >= gcd
+--
+-- ("onSafeSide" = the side that says "it fits" in the mode drawn: the
+-- RIGHT of the left-anchored marker in `safe`, whose fill is
+-- `(remaining - floor) x scale`; the LEFT of the right-anchored marker in
+-- the growing fills, whose fill is raw progress). Both sides ride the
+-- same 0.5-px law (`nearpx`): the truth carries the same window as an
+-- epsilon in seconds (0.5 / scale), so the sample landing exactly on the
+-- threshold reads the same on both sides.
+--
+-- Under the cast interlock the FILL is FROZEN by the shipped v2 law -- its
+-- width is the cycle's fraction at the press and the full-width red slice
+-- is the message -- so the fill-edge property does not read there; those
+-- passes pin the interlock laws instead: the marker carries the LIVE cast
+-- length (plus the floor in the growing modes, whose fill spends none) and
+-- the red slice spans the bar.
+local function propertyCycle(mode, opts)
+    Swing:SetBarMode(mode)
+    Swing:SetShowAimWindow(true)
+    Swing:SetShowClipRegion(true)
+    Swing:SetShowWeaveLine(true)
+    Swing:SetFillEngineMode("lua")
+    local shrinking = (mode == "safe")
+    local gcd = Swing.GcdSeconds()
+    local clock = { 40000 }
+    local t = v2Tracker(clock, { baseSpeed = opts.base,
+        castLenReader = function() return opts.castLen end })
+    Swing:SetTracker(t)
+    Swing:RenderIdle()
+    t:OnSwingStart(opts.dur, 2)               -- aimLen = 0.5 x dur / base
+    local start = clock[1]
+    local scale = S.Width / opts.dur
+    local eps = 0.5 / scale                   -- the nearpx law in seconds
+    local samples, frozen, crossings = 0, 0, 0
+    local lastReading
+    local i = 0
+    while start + i * 0.05 < start + opts.dur - 0.02 do
+        local at = start + i * 0.05
+        clock[1] = at
+        if opts.castAt and math.abs(at - (start + opts.castAt)) < 0.025 then
+            t:OnShotCast("SENT", "Aimed Shot", 20904, "GA")
+        end
+        if opts.retryAt and math.abs(at - (start + opts.retryAt)) < 0.025 then
+            t:OnShotCast("FAILED_QUIET", "Auto Shot", 75, "GR")
+        end
+        local stamp = mode .. " +" .. string.format("%.2f", at - start)
+        assertTrue(Swing:Update(at), stamp .. ": the cycle ran")
+        local phase, _, floor = t:CycleState(at)
+        local _, remaining = t:Progress(at)
+        local castLeft, castLen = t:CastRemaining(at)
+        local fillW = Swing.fill:GetWidth()
+        if castLeft then
+            frozen = frozen + 1
+            local span = shrinking and castLen or (castLen + floor)
+            nearpx(clipMarker(mode):GetWidth(),
+                math.min(S.Width, span * scale))
+            assertTrue(clipMarker(mode):IsShown(), stamp .. ": marker on")
+            if mode ~= "elapsed" then
+                assertTrue(Swing.cast:IsShown(), stamp .. ": red slice")
+                nearpx(Swing.cast:GetWidth(), S.Width)
+            end
+        else
+            samples = samples + 1
+            local clipSec = castLen or Swing:ClipCastSeconds()
+            local castTruth = (remaining - floor) >= clipSec - eps
+            local gcdTruth = (remaining - floor) >= gcd - eps
+            local m = clipMarker(mode)
+            local clipLeft = m:GetLeft() - Swing.anchor:GetLeft()
+            local clipRight = clipLeft + m:GetWidth()
+            -- Explicit branches, NOT `shrinking and x or y`: the safe
+            -- reading can BE false, and `false or y` reads as the growing
+            -- side (Lua's and/or are not a ternary).
+            local clipReading
+            if shrinking then
+                clipReading = fillW >= clipRight - 0.5
+            else
+                clipReading = fillW <= clipLeft + 0.5
+            end
+            assertEquals(clipReading, castTruth, stamp .. " clip (phase "
+                .. tostring(phase) .. " fill=" .. string.format("%.1f", fillW)
+                .. " clip=" .. string.format("%.1f", clipLeft)
+                .. "-" .. string.format("%.1f", clipRight) .. ")")
+            local wx = Swing._weaveX
+            local weaveReading
+            local centre = -1
+            if wx == nil then
+                weaveReading = false          -- off-bar = "never" (no-room)
+            else
+                centre = (Swing.weave:GetLeft()
+                    + Swing.weave:GetRight()) * 0.5
+                    - Swing.anchor:GetLeft()
+                if shrinking then
+                    weaveReading = fillW >= centre - 0.5
+                else
+                    weaveReading = fillW <= centre + 0.5
+                end
+            end
+            if weaveReading ~= gcdTruth then
+                error(stamp .. " weave: reading=" .. tostring(weaveReading)
+                    .. " truth=" .. tostring(gcdTruth)
+                    .. " fill=" .. string.format("%.2f", fillW)
+                    .. " wx=" .. tostring(wx)
+                    .. " centre=" .. string.format("%.2f", centre)
+                    .. " phase=" .. tostring(phase)
+                    .. " rem=" .. tostring(remaining)
+                    .. " floor=" .. tostring(floor))
+            end
+            assertEquals(weaveReading, gcdTruth, stamp .. " weave")
+            if lastReading ~= nil and lastReading ~= clipReading then
+                crossings = crossings + 1
+            end
+            lastReading = clipReading
+        end
+        i = i + 1
+    end
+    Swing:RenderIdle()
+    return samples, frozen, crossings
+end
+
+--- The three scenarios, all on one 3.0 s / base 3.0 cycle (aim 0.5, the
+--- injected data's Aimed Shot 1.0 s, the data's GCD 1.5 s, 0.05 s grid):
+--- plain; an open retry at +1.0 (floor 0.5 -> 1.0 for 0.5 s); a live Aimed
+--- Shot cast at +1.0 (1.0 s of frozen interlock). The clip truth flips at
+--- +1.5 (+2.0 under the retry) and the weave truth at +1.0 (+1.5) in every
+--- scenario, so each pass table straddles both markers' thresholds.
+local function threeScenarios(mode)
+    local ok, err = pcall(function()
+        useData({ ["Aimed Shot"] = 1000 })
+        local s, f, x = propertyCycle(mode, { dur = 3.0, base = 3.0 })
+        assertTrue(s >= 30, mode .. " plain: " .. s .. " live passes")
+        assertTrue(x >= 1, mode .. " plain: the clip threshold was crossed")
+        s, f, x = propertyCycle(mode, { dur = 3.0, base = 3.0, retryAt = 1.0 })
+        assertTrue(s >= 30, mode .. " retry: " .. s .. " live passes")
+        assertTrue(x >= 1, mode .. " retry: the clip threshold was crossed")
+        s, f, x = propertyCycle(mode, { dur = 3.0, base = 3.0,
+            castAt = 1.0, castLen = 1.0 })
+        assertTrue(s >= 30, mode .. " cast: " .. s .. " live passes")
+        assertTrue(f >= 10, mode .. " cast: the interlock window ran ("
+            .. f .. " passes)")
+        assertTrue(x >= 1, mode .. " cast: the clip threshold was crossed")
+    end)
+    restoreBar()
+    if not ok then error(err, 0) end
+end
+
+test("J4 meaning, mode safe (the default): the fill edge on the marker == the fit",
+function()
+    threeScenarios("safe")
+end)
+
+test("J4 meaning, mode one: the fill edge on the marker == the fit",
+function()
+    threeScenarios("one")
+end)
+
+test("J4 meaning, mode elapsed: the fill edge on the marker == the fit",
+function()
+    threeScenarios("elapsed")
 end)

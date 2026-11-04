@@ -174,10 +174,10 @@ function P.RegisterHunterPage()
                         tip = "When must I stop moving? The right-end band that stands all cycle: the aiming window (0.5 s scaled by haste). The fill runs into it; the red slice inside it is the live windup - stand still while it drains. Live." })
                     s.CHK({ module = M, key = "ShowClipRegion",
                         label = "Clip region (a cast started here clips the shot)",
-                        tip = "Can I cast without clipping? Start Aimed Shot only while the fill is left of this stripe - inside it the cast delays your next Auto Shot. The stripe is that shot's cast time plus the aim window, so a full stripe means this bow never fits a cast-time shot between Auto Shots. Live." })
+                        tip = "Can I cast without clipping? Start Aimed Shot / Multi-Shot while the bar says it fits: with the shrinking bar, while the orange reaches PAST the dim mark; with the filling bars, while the fill is LEFT of the stripe at the right end. On the wrong side the cast delays your next Auto Shot. The mark is that shot's cast time, so a bar-spanning mark means this bow never fits a cast-time shot. Live." })
                     s.CHK({ module = M, key = "ShowWeaveLine",
                         label = "Melee-weave line (room for a 1.5 s GCD before the shot)",
-                        tip = "Is there room to weave? Left of this line there is room for one 1.5 s global cooldown - a melee weave (Raptor Strike, Mongoose Bite) or an instant shot - before the shot; the line off the bar's left end means a hasted cycle has no room at all. Off by default: it is a melee-weave build tool. Live." })
+                        tip = "Is there room to weave? Shrinking bar (Safe window): step in while the orange still reaches PAST the line. Filling bars (One bar / Single fill): while the fill is LEFT of the line. The line is the room for one 1.5 s global cooldown (Raptor Strike, Mongoose Bite, an instant shot) before the shot; the line off the bar means a hasted cycle has no room at all. Off by default: it is a melee-weave build tool. Live." })
                     s.CHK({ module = M, key = "EnableMeleeRail",
                         label = "Enable melee swing rail",
                         tip = "Is my main-hand swing up? Your main-hand swing, shown only in melee range - Raptor Strike resets it. A slim rail under the bar (under the range light when it is on): full = the swing is ready. Off by default. Live." })

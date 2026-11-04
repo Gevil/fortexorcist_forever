@@ -88,16 +88,27 @@
 --       over it; the WST aim block's *drain* is deliberately NOT copied
 --       (one number per fact: the region is positional, the text numeric);
 --       under a live retry its alpha dims so the yellow stays loudest;
---       the CLIP STRIPE (P1, §7.4): (castLen + aimLen) x scale, clamped to
---       the bar, the aim hue at ClipRegionAlpha under the region, so the
---       right end is a two-tone zone -- bright = stand still, dim = a
---       cast started from here out clips the shot. castLen is the LIVE
---       cast's length under the interlock (the frozen red bar shows the
---       reason it is red) and the shipped data's Aimed Shot otherwise;
---       the WEAVE LINE (P4, §7.4): 1 px at (aimLen + gcd) x scale from the
---       right, Height + MarkerOvershoot tall so it reads as a line, hidden
---       when the budget runs off the bar's left edge -- at/past it there is
---       no room for the GCD at all, which is the "do not step in" message.
+--       the CLIP MARKER (P1, §7.4 + the J4 fix PLAN §11.3): the threshold
+--       the FILL EDGE crosses in THIS mode. Growing fills (`one`/
+--       `elapsed`): the right-anchored stripe -- (castLen + floor) x scale
+--       (floor = aim + open retry), the aim hue at ClipRegionAlpha under
+--       the region; fill edge LEFT of it = the cast fits. Shrinking fill
+--       (`safe`): a LEFT-anchored dim BAND of castLen x scale the orange
+--       must outgrow -- fill edge RIGHT of it = the cast fits (the safe
+--       fill law is (remaining - floor) x scale: it SPENDS the floor, so
+--       the band is the bare cast length and the floor rides in the fill).
+--       In both readings the marker answers one question the same way: the
+--       fill edge on the fitting side == `remaining - floor >= castLen`.
+--       castLen is the LIVE cast's length under the interlock (the frozen
+--       red bar shows the reason it is red) and the shipped data's Aimed
+--       Shot otherwise;
+--       the WEAVE LINE (P4, §7.4 + J4): 1 px at the GCD threshold the fill
+--       edge crosses in this mode -- (gcd + floor) x scale from the RIGHT
+--       in the growing fills (the fill spends no floor), gcd x scale from
+--       the LEFT in `safe` (orange right of it = the GCD fits). Height +
+--       MarkerOvershoot tall so it reads as a line, hidden when the budget
+--       runs off the bar in the mode's own direction -- off-bar IS the "do
+--       not step in" message (§7.4's no-room law).
 --     The markers read by ALPHA STEP (0.22 / 0.45 / 1.0 of the same red)
 --     plus one off-family hue for the line; the Aluminium art, the
 --     Aluminium fill and the live red slice are all untouched.
@@ -168,10 +179,12 @@ FX.Hunter.SwingSkin = {
     -- Iteration J slice A (docs/research/wst-swing-design.md §7.3/§7.4): the
     -- three position markers on the Aluminium bar. They read by ALPHA STEP,
     -- not by a new art file, so the right end is one legible family:
-    --   * the CLIP STRIPE (P1) -- the aim hue at 0.22: a dim red wash over
-    --     the bar's right end, wider than the aim region; under a live cast
-    --     interlock it rides the FlyingColor triple so the frozen RED bar
-    --     shows a lighter band = the reason it is red (§7.4);
+    --   * the CLIP MARKER (P1) -- the aim hue at 0.22. Growing fills: a dim
+    --     red wash over the bar's RIGHT end (castLen + floor wide), wider
+    --     than the aim region; shrinking fill (`safe`): a dim red BAND at
+    --     the bar's LEFT end (castLen wide) the orange must outgrow. Under a
+    --     live cast interlock it rides the FlyingColor triple so the frozen
+    --     RED bar shows a lighter band = the reason it is red (§7.4, J4);
     --   * the STANDING AIM REGION (P2) -- the same red at 0.45: clearly the
     --     brighter knob inside the stripe, and always dimmer than the
     --     full-alpha live aim slice that draws over it; under a live retry
@@ -573,8 +586,15 @@ function D:_BuildAimRegion(parent)
     self._aimRegionW, self._aimRegionA = nil, nil
 end
 
---- The clip stripe (P1) and the weave line (P4); see `_BuildAimRegion` for
---- why they are the topmost bar art.
+--- The clip marker (P1) and the weave line (P4); see `_BuildAimRegion` for
+--- why they are the topmost bar art. J4 draws the clip marker on TWO
+--- textures, each with its ONE build-time anchor: the right-anchored
+--- stripe of §7.4 for the growing fills (`clip`) and the left-anchored
+--- band the orange must outgrow for the shrinking fill (`clipBand`) --
+--- the fill's own TOPLEFT law. A texture keeps its explicit size only
+--- under a single, never-switched anchor (the sim's geometry law, and the
+--- client's), so the marker never re-pins: the Update pass draws one and
+--- parks the other.
 function D:_BuildTopMarkers(parent)
     local clip = parent:CreateTexture(nil, "ARTWORK")
     clip:SetTexture(S.BarTexture)
@@ -583,6 +603,13 @@ function D:_BuildTopMarkers(parent)
     local ac = S.AimColor
     clip:SetVertexColor(ac[1], ac[2], ac[3], S.ClipRegionAlpha)
     clip:Hide()
+
+    local band = parent:CreateTexture(nil, "ARTWORK")
+    band:SetTexture(S.BarTexture)
+    band:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    band:SetSize(0, S.Height)
+    band:SetVertexColor(ac[1], ac[2], ac[3], S.ClipRegionAlpha)
+    band:Hide()
 
     local weave = parent:CreateTexture(nil, "ARTWORK")
     weave:SetTexture(S.WeaveTexture)
@@ -593,8 +620,8 @@ function D:_BuildTopMarkers(parent)
     weave:SetVertexColor(wc[1], wc[2], wc[3], wc[4])
     weave:Hide()
 
-    self.clip, self.weave = clip, weave
-    self._clipW, self._clipA, self._weaveX = nil, nil, nil
+    self.clip, self.clipBand, self.weave = clip, band, weave
+    self._clipW, self._clipBandW, self._clipA, self._weaveX = nil, nil, nil, nil
 end
 
 -- ---------------------------------------------------------------- the fill --
@@ -930,7 +957,7 @@ function D:SetSize(w, h)
     -- drops their caches: the next pass re-sizes/re-anchors them on the new
     -- numbers (the slice widths ride the same law, the v2 behaviour).
     self._aimRegionW, self._aimRegionA = nil, nil
-    self._clipW, self._clipA = nil, nil
+    self._clipW, self._clipBandW, self._clipA = nil, nil, nil
     self._weaveX = false                        -- the force sentinel, not nil
 end
 
@@ -1045,8 +1072,8 @@ function D:SetBarMode(mode)
     ST.showSafeWindow = (mode ~= "elapsed")   -- the mode subsumes the key
     self._fillW, self._timeKey, self._phase, self._fillColor = nil, nil, nil,
         nil
-    self._aimRegionW, self._aimRegionA, self._clipW, self._clipA =
-        nil, nil, nil, nil
+    self._aimRegionW, self._aimRegionA = nil, nil
+    self._clipW, self._clipBandW, self._clipA = nil, nil, nil
     self._weaveX = false                       -- the force sentinel, not nil
 end
 
@@ -1061,7 +1088,7 @@ end
 --- P1: the clip stripe (§7.4). Off = width 0, the stripe never drawn.
 function D:SetShowClipRegion(on)
     ST.showClipRegion = not not on
-    self._clipW, self._clipA = nil, nil
+    self._clipW, self._clipBandW, self._clipA = nil, nil, nil
 end
 
 --- P4: the melee-weave line (§7.4). Default OFF: it is a weave-build tool.
@@ -1161,6 +1188,12 @@ function D:Update(now)
     local W = S.Width
     local scale = (tracker.duration and tracker.duration > 0)
         and (W / tracker.duration) or 0
+    -- J4 (PLAN §11.3): which way the FILL moves this mode draws. `safe`
+    -- is the shrinking fill `(remaining - floor) x scale`; `one` and
+    -- `elapsed` draw the raw cycle progress growing toward the aim end.
+    -- The two position markers read from the fill's START edge (below),
+    -- so the mode decides which end of the bar carries them.
+    local shrinking = ST.showSafeWindow and ST.barMode ~= "one"
 
     -- The fill: frozen under the cast interlock, otherwise the phase's
     -- own law.
@@ -1184,7 +1217,7 @@ function D:Update(now)
         local aim = aimLen or 0
         local drain = (phase == "aim") and math.min(aim, remaining) or aim
         w = math.min(W - drain * scale, W * fraction)
-    elseif ST.showSafeWindow and phase ~= "flying" then
+    elseif shrinking and phase ~= "flying" then
         w = math.max(0, (remaining - floor) / tracker.duration) * W
     else
         w = fraction * W
@@ -1288,33 +1321,60 @@ function D:Update(now)
     self:_SetMarkerColor(self.aimRegion, "_aimRegionA", S.AimColor,
         (retryW > 0) and S.AimRegionRetryAlpha or S.AimRegionAlpha)
 
-    -- P1: the clip stripe -- (castLen + aimLen) x scale, clamped to the
-    -- bar. `castLen` is the LIVE cast's length while a cast runs, the
-    -- shipped data's longest cast-time shot otherwise, so an un-hasted
-    -- 2.0 s bow draws a full-width stripe: the honest "Aimed Shot always
-    -- clips on this bow", available before the press (§7.4).
+    -- P1: the clip marker (J4) -- the threshold the FILL EDGE crosses in
+    -- this mode, so the same question ("can I start a cast-time shot now
+    -- without clipping?") reads the same way in every mode: the fill edge
+    -- on the fitting side == `remaining - floor >= castLen`. `castLen` is
+    -- the LIVE cast's length while a cast runs, the shipped data's
+    -- longest cast-time shot otherwise, so an un-hasted 2.0 s bow reads
+    -- "never fits": the full bar in the growing modes (the stripe covers
+    -- it), a full band in `safe` (the orange can never outgrow it) -- the
+    -- honest "Aimed Shot always clips on this bow", available before the
+    -- press (§7.4). Where the mode's fill law does not SPEND the floor
+    -- (the growing fills draw raw progress), the marker carries it: the
+    -- safe fill is (remaining - floor) x scale already, so its band is the
+    -- bare cast length.
     local clipW = 0
     if ST.showClipRegion and scale > 0 then
         local castSec = castLen or self:ClipCastSeconds()
-        local span = castSec and (castSec + aimSec)
+        local span
+        if castSec then
+            span = shrinking and castSec or (castSec + (floor or 0))
+        end
         if span and span > 0 then
             clipW = math.min(W, span * scale)
         end
     end
-    self:_SetSlice(self.clip, "_clipW", clipW, 0)
-    -- Under the interlock the stripe rides the light interlock tint, so the
-    -- frozen red bar shows the *reason* it is red (§7.4's last law).
-    self:_SetMarkerColor(self.clip, "_clipA",
+    -- The safe mode draws the LEFT-anchored band the orange must outgrow
+    -- and parks the stripe; the growing modes keep §7.4's right-anchored
+    -- stripe and park the band (one texture per anchor, one anchor per
+    -- texture, J4).
+    if shrinking then
+        self:_SetSlice(self.clip, "_clipW", 0, 0)
+        self:_SetClipBand(clipW)
+    else
+        self:_SetClipBand(0)
+        self:_SetSlice(self.clip, "_clipW", clipW, 0)
+    end
+    -- Under the interlock the active marker rides the light interlock
+    -- tint, so the frozen red bar shows the *reason* it is red (§7.4's
+    -- last law).
+    self:_SetMarkerColor(shrinking and self.clipBand or self.clip, "_clipA",
         castLeft and S.ClipInterlockColor or S.AimColor, S.ClipRegionAlpha)
 
-    -- P4: the melee-weave line, 1 px at (aimLen + GCD) x scale from the
-    -- right. At/past the bar's left edge there is no room for the 1.5 s GCD
-    -- at all -- a hasted cycle parks the line OFF the bar, which IS the
-    -- "do not step in" message, so the line hides (§7.4's no-room law).
+    -- P4: the melee-weave line (J4) -- the GCD threshold the fill edge
+    -- crosses in this mode: `remaining - floor >= gcd` reads as the fill
+    -- edge on the fitting side, (gcd + floor) x scale from the RIGHT in
+    -- the growing fills (their fill spends no floor), gcd x scale from the
+    -- LEFT in `safe` (the orange reaching PAST the line = the 1.5 s GCD
+    -- still fits). At/past the far edge there is no room for the GCD at
+    -- all -- a hasted cycle parks the line OFF the bar in the mode's own
+    -- direction, which IS the "do not step in" message (§7.4's no-room law).
     local weaveX
     if ST.showWeaveLine and scale > 0 then
-        local x = W - (aimSec + gcdSeconds()) * scale
-        if x > 0 then weaveX = x end
+        local budget = gcdSeconds() + (shrinking and 0 or (floor or 0))
+        local x = shrinking and (budget * scale) or (W - budget * scale)
+        if x > 0 and x < W then weaveX = x end
     end
     self:_SetWeaveLine(weaveX)
     self._phase = phase
@@ -1357,6 +1417,21 @@ function D:_SetSlice(tex, key, w, inset)
         tex:SetPoint("TOPRIGHT", self.anchor, "TOPRIGHT", -(inset or 0), 0)
         if w > 0 then tex:Show() else tex:Hide() end
     end
+end
+
+--- The `safe` mode's clip band (J4): the LEFT-anchored dim band the orange
+--- must outgrow. The FILL's geometry law: its TOPLEFT point is pinned ONCE
+--- at build and never re-pinned (a zero-offset TOPLEFT re-pin makes the
+--- client derive the size from the parent, measured in the sim 2026-11-04
+--- -- that is exactly the law that lets the fill resize every pass), so
+--- this pass sizes/shows only. Shares `_SetSlice`'s cache discipline.
+function D:_SetClipBand(w)
+    local tex = self.clipBand
+    if not tex then return end
+    if self._clipBandW == w then return end
+    self._clipBandW = w
+    tex:SetSize(w, S.Height)
+    if w > 0 then tex:Show() else tex:Hide() end
 end
 
 --- Dirty-checked marker tint: a colour triple plus the alpha it rides at.
@@ -1483,7 +1558,7 @@ function D:RenderIdle()
     end
     for _, pair in ipairs({ { self.aim, "_aimW" }, { self.retry, "_retryW" },
         { self.cast, "_castW" }, { self.aimRegion, "_aimRegionW" },
-        { self.clip, "_clipW" } }) do
+        { self.clip, "_clipW" }, { self.clipBand, "_clipBandW" } }) do
         local tex, key = pair[1], pair[2]
         if tex and self[key] ~= 0 then
             self[key] = 0
@@ -1679,12 +1754,19 @@ function D:StatusLine()
             return (type(v) == "number") and string.format("%.1f", v)
                 or "off"
         end
+        local function clipNum()
+            -- The marker the mode is DRAWING: the safe mode's band, the
+            -- growing modes' stripe (J4).
+            local w = (ST.barMode == "safe" or ST.barMode == nil)
+                and (self._clipBandW or 0) or (self._clipW or 0)
+            return string.format("%.1f", w)
+        end
         markers = string.format(
             "aimRegion=%s@%.2f clip=%s weave=%s",
             num(self._aimRegionW or 0),
             self._aimRegionA and (tonumber(
                 (self._aimRegionA:match("|([%d%.]+)$"))) or 0) or 0,
-            num(self._clipW or 0), num(self._weaveX))
+            clipNum(), num(self._weaveX))
     end
     return string.format(
         "Swing bar: %s | %dx%d | %s | %s | fill=%s | mode=%s | %s",
