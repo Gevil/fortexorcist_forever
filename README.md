@@ -28,6 +28,12 @@ textures).
 </p>
 
 <p align="center">
+  <img src="docs/demo/warlock-plates.gif" alt="The four purple Warlock plates: shard counter, soulstone timer, summon queue and healthstone row updating" width="640"><br>
+  <em>Warlock plates rendered at 30 fps from the addon itself in the wow-ui-sim simulator (manual clock): the shard
+  counter, the soulstone timer counting down, the summon queue and the healthstone row. (<a href="docs/demo/warlock-plates.mp4">MP4</a>)</em>
+</p>
+
+<p align="center">
   <img src="docs/demo/options-window.png" alt="The original-style options window with its 16-cell module index" width="620"><br>
   <em>The options window in the original's style: profile tabs, module index, every setting applies live.</em>
 </p>
