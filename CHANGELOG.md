@@ -12,6 +12,45 @@ headless interface simulator and on uiforever.com — not in a live game.
 
 ---
 
+## 0.1.0-dev — 2026-11-04 (Iteration I: launch-day build)
+
+- **Your profile follows your character, not the server label.** On WoW
+  Forever a character is a first and last name, and the "realm" the client
+  reports is only a connection label that can change between logins. Your
+  per-character profile is now keyed by your full name alone, so it can no
+  longer appear to lose your settings after a server move. Older profiles
+  are picked up automatically.
+- **Cooldown data follows Blizzard's launch notes (3 Nov).** Slam 15 s,
+  Stormstrike 6 s, Riptide 12 s; Ice Lance shares Fire Blast's cooldown and
+  all Hunter traps share one; Oath of Light and other new spells are tracked;
+  Lava Burst, Berserk, Blessing of Light, Salvation, Mass Salvation and Revoke
+  are gone; Totemic Call and Lightning Mastery work under their new names.
+- **12 more class procs are tracked** (Clearcasting, Fingers of Frost,
+  Maelstrom Weapon, Infusion of Light, Vengeance, Enrage and others). In
+  combat, where the game may hide aura details, they simply don't show
+  rather than show something wrong.
+- **The cooldown bar no longer empties mid-fight.** A spell-list change
+  during combat (shapeshift, stance, loot, talents) used to clear every
+  running cooldown from the bar; they now stay.
+- **Test mode: `/fx test`** (or the button on the Cooldown options page)
+  fills the cooldown bar, splash and Spell Timer with sample entries so you
+  can place and style frames without casting. It never sends chat, never
+  saves settings, clears itself when you stop it, enter combat or log out,
+  and refuses to start in combat.
+- **Warlock group tools (opt-in) work in parties.** Party comms and party
+  announces never actually went out; they do now. Messages the game
+  throttles are retried, messages blocked during an encounter are sent in
+  order afterwards, and a groupmate appears once on the plates (not twice).
+  Everything stays OFF until you switch it on.
+- **Hunter range light**: a range read that came back empty in every case
+  is fixed, and range updates can no longer error in combat.
+- **More launch-day diagnostics in `/fx probe`**: your name/realm as the
+  client reports them, whether every event we use exists, a settings
+  save-and-reload check, and whether Healthstone, pet and weapon-enchant
+  cooldowns are readable.
+
+---
+
 ## Unreleased — 2026-11-03 (Iteration H, review-6 fix slice)
 
 - **Your settings now survive a profile switch.** Switching profiles (or
