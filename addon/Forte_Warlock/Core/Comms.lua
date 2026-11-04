@@ -332,6 +332,22 @@ local function plainCall(fn, arg)
     return plain and true or false
 end
 
+--- The NUMERIC half of the same shape: pcall, PlainOrNil, tonumber. The two
+--- are NOT interchangeable and the difference is the party-comms bug of
+--- FX7b: `plainCall` answers a BOOLEAN (`plain and true or false`), so a
+--- count through it turns 4 into `true`, `tonumber(true)` is nil, and every
+--- caller that compares the result to zero reads an empty room. `plainCall`
+--- is for the boolean predicates (`IsInRaid`, the two restriction reads);
+--- this is for the APIs that answer a number (`GetNumGroupMembers`, the
+--- `ScanRoster` count below). A raise, an absent surface, a secret value and
+--- a non-numeric answer all read as nil: no evidence, never a guess.
+local function plainCount(fn, arg)
+    if type(fn) ~= "function" then return nil end
+    local ok, value = pcall(fn, arg)
+    if not ok then return nil end
+    return tonumber(FX.Compat.PlainOrNil(value))
+end
+
 --- True ONLY on a plain-true answer from any legal check (the SecretState
 --- consumer law; the Announce:chatLocked shape, Announce.lua:84-97).
 function C:chatLocked()
@@ -364,14 +380,20 @@ end
 
 --- RAID in a raid, PARTY in a party, nil with no group (the Announce:Group
 --- routing, Announce.lua:110-124; the original sent "RAID" only
---- (Forte_Core.lua:1909) — the party leg is the strict superset).
+--- (Forte_Core.lua:1909) — the party leg is the strict superset). The raid
+--- half rides the BOOLEAN reader (`IsInRaid` answers a bool); the party half
+--- rides the NUMERIC one, because `GetNumGroupMembers` answers a COUNT and
+--- the boolean reader turns any non-empty room into `true` — which is how
+--- party comms never sent on the real client (FX7b).
 function C:Channel()
     local r = self.readers
     if plainCall(r.isRaid or _G.IsInRaid) then return "RAID" end
-    local members = r.groupCount
-        and r.groupCount()
-        or (type(_G.GetNumGroupMembers) == "function"
-            and plainCall(_G.GetNumGroupMembers))
+    local members
+    if type(r.groupCount) == "function" then
+        members = plainCount(r.groupCount)
+    elseif type(_G.GetNumGroupMembers) == "function" then
+        members = plainCount(_G.GetNumGroupMembers)
+    end
     if (tonumber(members) or 0) > 0 then return "PARTY" end
     return nil
 end
@@ -415,14 +437,19 @@ end
 --- One re-queue. `mode` is "head" (the lockdown class), "front" (a pumped
 --- line the gate sent home) or "tail" (a throttle, behind its back-off). Over
 --- the cap the OLDEST (the head) is the one that goes, counted — the cap is
---- the boundedness law of the header.
-function C:Enqueue(text, channel, kind, mode, tries)
+--- the boundedness law of the header. `queuedAt` is the line's ORIGINAL
+--- arrival stamp: a pumped line going back into the queue rides it, so its
+--- OUTBOX_TTL keeps ageing (the FX7b fix — stamping the re-queue's minute
+--- gave a line the lockdown gate holds with an endless life, and its retry
+--- budget is deliberately unspent there). A fresh line names nothing and
+--- stamps the clock.
+function C:Enqueue(text, channel, kind, mode, tries, queuedAt)
     local q = self.outbox
     local now = self:Clock()
     tries = math.floor(tonumber(tries) or 0)
     placeOutbox(q, {
         text = text, channel = channel, kind = kind, tries = tries,
-        queuedAt = now,
+        queuedAt = tonumber(queuedAt) or now,
         head = (mode == "head" or mode == "front") and true or nil,
         nextAt = (mode == "tail") and (now + self:Backoff(tries)) or nil,
     }, mode)
@@ -514,8 +541,12 @@ function C:PumpOutbox()
         -- The client's own gate says the room is shut: the line goes back at
         -- the head with its tries UNSPENT (the client never saw it) and
         -- waits for the lift — the ADDON_RESTRICTION_STATE_CHANGED pump, with
-        -- the bounded step below as the floor.
-        self:Enqueue(item.text, item.channel, "gate", "front", item.tries)
+        -- the bounded step below as the floor. It rides home with its
+        -- ORIGINAL arrival stamp: the unspent tries make the TTL the only
+        -- bound on a gate-held line, and re-stamping it here is what let a
+        -- long lockdown hold lines for a whole session (FX7b).
+        self:Enqueue(item.text, item.channel, "gate", "front", item.tries,
+            item.queuedAt)
     elseif status ~= "sent" and status ~= "throttled"
         and status ~= "lockdown" then
         -- off / noGroup / tooLong / refused / raised: the drop class.

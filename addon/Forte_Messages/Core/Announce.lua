@@ -115,6 +115,23 @@ local function plainCall(fn, arg)
     return plain and true or false
 end
 
+--- The NUMERIC half of the same shape: pcall, PlainOrNil, tonumber. The two
+--- are NOT interchangeable, and the difference is FX7b: `plainCall` answers a
+--- BOOLEAN (`plain and true or false`), so a COUNT through it turns 4 into
+--- `true`, `tonumber(true)` is nil, and the caller that compares the result
+--- with zero reads an empty room -- which is how an opted-in party announce
+--- fell to the local echo on the real client. `plainCall` is for the boolean
+--- predicates this file gates (`IsInRaid`, the two `C_ChatInfo` reads, the
+--- `C_CVar.GetCVarBool` flag); this is for `GetNumGroupMembers`. A raise, an
+--- absent surface, a secret value and a non-numeric answer all read as nil:
+--- no evidence, never a guess.
+local function plainCount(fn, arg)
+    if type(fn) ~= "function" then return nil end
+    local ok, value = pcall(fn, arg)
+    if not ok then return nil end
+    return tonumber(FX.Compat.PlainOrNil(value))
+end
+
 --- True ONLY on a plain-true answer from any legal check (the SecretState
 --- consumer law -- nil/unknown never suppresses):
 ---   FX.SecretState.chat (the C_RestrictedActions Chat=5 snapshot, refreshed
@@ -184,10 +201,17 @@ function Announce:Group(text, gateKey)
         return "locked"
     end
     local r = self.readers
+    -- The raid half rides the BOOLEAN reader (`IsInRaid` answers a bool);
+    -- the party half rides the NUMERIC one, because `GetNumGroupMembers`
+    -- answers a COUNT and the boolean reader turns any non-empty room into
+    -- `true` -- the FX7b shape that sent every party announce to the echo.
     local inRaid = plainCall(r.isRaid or _G.IsInRaid)
-    local members = r.groupCount and r.groupCount()
-        or (type(_G.GetNumGroupMembers) == "function"
-            and plainCall(_G.GetNumGroupMembers))
+    local members
+    if type(r.groupCount) == "function" then
+        members = plainCount(r.groupCount)
+    elseif type(_G.GetNumGroupMembers) == "function" then
+        members = plainCount(_G.GetNumGroupMembers)
+    end
     if inRaid then return self:send(text, "RAID") end
     if (tonumber(members) or 0) > 0 then return self:send(text, "PARTY") end
     -- No group: the original echoes it locally (Forte_Core.lua:2052-2053
