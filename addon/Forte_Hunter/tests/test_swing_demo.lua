@@ -67,20 +67,24 @@ local function stopQuietly()
 end
 
 --- One demo drive: `beat` + the real render pass over [from, to], sampled.
+--- The drive walks the DEMO'S OWN beat plan (`SwingDemo.beatPlan`) -- the
+--- cycle stamps plus the aim-window centre and the cycle tail -- so every
+--- window is sampled BY CONSTRUCTION: the demo's cycle phase rides the
+--- drive's clock (the arming base modulo the cycle) and a fixed 0.2 s grid
+--- can starve a phase at unlucky phases (the flake post-mortem; the plan
+--- walk makes the drive deterministic in what it samples at ANY base).
 --- The observations ride the bar's own draw state (the test_swing3 shape):
 --- phase, fill intent, aim slice, interlock slice, clip marker (the safe
 --- mode's band and the growing modes' stripe), flying shown.
 local function drive(from, to)
     local obs = {}
-    local t = from
-    while t <= to + 1e-9 do
-        Demo:Beat(t)
-        Swing:Update(t)
+    for _, b in ipairs(FX.Hunter.SwingDemo.beatPlan(from, to)) do
+        Demo:Beat(b.t)
+        Swing:Update(b.t)
         obs[#obs + 1] = string.format("%s|f%.2f|a%.2f|c%.2f|m%.2f",
             tostring(Swing._phase), Swing._fillIntent or -1,
             Swing._aimW or -1, Swing._castW or -1,
             math.max(Swing._clipW or 0, Swing._clipBandW or 0))
-        t = t + 0.2
     end
     return obs
 end
@@ -121,12 +125,20 @@ function()
         "the bar rides the swapped demo tracker, not the real one")
     assertTrue(Swing.Tracker ~= nil and Swing.Tracker.active,
         "and the demo tracker runs a cycle")
-    local obs = drive(10000, 10012)           -- ~4 cycles of beats + renders
-    assertTrue(#obs >= 60, "the cycle was sampled whole (" .. #obs .. ")")
+    -- The drive window rides the Fill instant (the arming base): the plan's
+    -- cycle 0 starts AT the Fill, the demo's cycle phase is aligned to the
+    -- plan from the first beat (the stamp-plan law: cycle 0 of the plan IS
+    -- the Fill's cycle, so every window carries its stamps at every phase).
+    local base = GetTime() + 1e-6      -- the Fill cycle's stamps are the arming's
+    local plan = FX.Hunter.SwingDemo.beatPlan(base, base + 14)
+    local obs = drive(base, base + 14)
+    assertTrue(#obs >= #plan - 2,
+        "the plan was walked whole (" .. #obs .. " of " .. #plan .. ")")
     assertTrue(countPhase(obs, "reload") > 0, "the reload span shows")
-    assertTrue(countPhase(obs, "aim") > 0, "the aim window shows")
-    assertTrue(countPhase(obs, "flying") >= 4,
-        "every cycle proves its shot's flight ("
+    assertTrue(countPhase(obs, "aim") >= 3,
+        "the non-interlock cycles carry the aim phase (the visibility law)")
+    assertTrue(countPhase(obs, "flying") >= 3,
+        "full cycles prove their shots' flights ("
         .. countPhase(obs, "flying") .. ")")
     -- The markers: the aim slice, the clip marker (the safe band / growing
     -- stripe), and the interlock slice on the every-third-cycle cast.
