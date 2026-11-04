@@ -164,6 +164,61 @@ syntax + api-lint OK). Screenshots `docs/media/sim/fx_hunter_swing.png`,
 aura in the sim), alpha pulsing (0.36 / 0.57 / 0.93 in three captures); options window
 `780x650` with the Hunter page = 4 sections (Tips + 3) / 10 bound rows, content height 350.
 
+## Reading the swing bar (Iteration J slice γ, 2026-11-04 — `docs/research/wst-swing-design.md` §7)
+
+The Hunter options page's Shot Cycle section carries one picker and four
+signals; each answers one rotation question, and each tip says it in one line.
+The defaults: `BarMode = "safe"`, `ShowAimWindow = true`,
+`ShowClipRegion = true`, `ShowWeaveLine = false` (a weave-build tool),
+`EnableMeleeRail = false` — registered once in `Pages/Hunter.lua`; `BarMode`
+replaced `ShowSafeWindow`, and a stored `ShowSafeWindow = false` reads back as
+`BarMode = "elapsed"` (the `SetShowSafeWindow` migration seam in
+`UI/Swing.lua`), `true`/unset as `"safe"`.
+
+**Bar mode — how close is the next Auto Shot, and how much room do I have to
+move?** Three readings of one cycle. *Safe window* (the shipped look) draws the
+safe-to-move span as the fill shrinking toward the aim end: an empty left field
+**is** the warning, so "must I stand still now?" arrives without arithmetic.
+*One bar* draws the same quantity growing left→right as the cycle's progress,
+stopping at the aim window and chasing its edge as the shot fires — the idiom
+WeaponSwingTimer/YaHT players already have in their eyes; the fill reads as
+"how far along am I". *Single fill* is the plain cycle clock (the old
+`ShowSafeWindow = false` law): the bar is a swing stopwatch, the honest choice
+for a player who does not weave.
+
+**Aim window — when must I stop moving?** The right-end band that stands all
+cycle: the aiming window (0.5 s, scaled by haste). The fill runs into it; when
+the fill's edge touches the band, stop moving and let the shot go. The
+full-alpha red slice inside it (the `ShowAimSlice` row) is the *live* windup, and
+the printed number is its seconds — one fact, positional and numeric, no third
+copy.
+
+**Clip region — can I start Aimed Shot (or Multi-Shot) right now without
+clipping the shot?** A dim stripe at the bar's right end, as long as that shot's
+cast time plus the aim window: start the cast while the fill's edge is **left**
+of the stripe's left edge and the shot lands before the windup; press inside the
+stripe and the cast delays the next Auto Shot. The stripe's *fullness* is the
+message — a full stripe means this bow never fits a cast-time shot between Auto
+Shots, the same truth the red cast-interlock prints after the fact, now
+available before the press.
+
+**Melee-weave line — is there room to step in, fire one global cooldown and be
+back before the shot?** A 1-px line planted at `aim + 1.5 s` from the right end
+(the 1.5 s GCD is the shipped data row, not a constant). Fill's edge **left** of
+the line: there is room for one 1.5 s GCD — a Raptor Strike / Mongoose Bite
+weave or an instant shot — before the stand-still window opens. The line at or
+past the bar's left edge: the hasted cycle has **no** room at all — do not step
+in. Off by default: a signal a non-weaving build must learn to ignore costs more
+than it pays.
+
+**Melee rail — is my main-hand swing up for the Raptor Strike reset reward?**
+An opt-in slim rail under the bar (under the range light when it is on; one
+drag moves the stack). It fills left→right, **full = the swing is ready**, and
+a landed Raptor Strike refills it (Mongoose Bite does not). It draws only in
+combat and, with the range light on, only while the light reads MELEE — Auto
+Shot needs ≥ 8 yd and Raptor/Mongoose need ≤ 5, so outside the melee band the
+rail is noise by design, not an option.
+
 ## Verification (2026-11-01)
 
 - `luajit -e "assert(loadfile(...)))"` — `Core/Tools.lua`, `tests/test_hunter.lua`: clean.

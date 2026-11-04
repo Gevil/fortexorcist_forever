@@ -3,7 +3,10 @@
 -- Pages/Hunter.lua): the Auto Shot swing bar geometry driven by an injected
 -- clock, its idle/ticker law, the aspect reminder's Missing() gate and
 -- pulse, the live settings seam (FX.Settings -> the frames), the shared lock
--- convention, the class gate and the registered options page.
+-- convention, the class gate and the registered options page — incl. the
+-- Iteration J slice γ page law: the BarMode picker's §7.1 rows, the
+-- marker/rail tips, the section keys-list recycle law and the
+-- ShowSafeWindow -> BarMode migration.
 --
 -- Every tracker here is INJECTED (Swing:SetTracker / Reminder:SetAspects):
 -- no real time, no combat driving, no real aura read. The sim profile is not
@@ -543,7 +546,9 @@ test("the Hunter page builds in the options window", function()
     for i, sec in ipairs(page.sections) do counts[i] = #sec.widgets end
     assertEquals(0, counts[1])      -- Some Tips is text lines
     assertEquals(4, counts[2])      -- Enable, Lock, ShowTime, EnableReminder
-    assertEquals(6, counts[3])      -- the five Show* keys + BaseSpeed
+    assertEquals(10, counts[3])     -- BarMode + the four slice-γ rows + the
+                                    -- four v2 Show* keys + BaseSpeed
+                                    -- (ShowSafeWindow's CHK rode here)
     assertEquals(3, counts[4])      -- Width, Height, ReminderSize
     assertEquals(3, counts[5])      -- BarColor, BgColor, ReminderColor
     assertEquals(1, counts[6])      -- ShowRangeLight
@@ -612,6 +617,230 @@ test("the Hunter page's tips tell the truth about their keys", function()
     -- And the claim the sibling rows DO make: the alpha pair is applied at
     -- the frame (UI/Swing.lua's _ApplyCombatAlpha leg).
     assertContains(inCombat, "Live")
+end)
+
+-- Iteration J slice γ (docs/research/wst-swing-design.md §7.8 γ): the Shot
+-- Cycle section's rows. The mode picker carries §7.1's labels verbatim, the
+-- four new rows are §7.3/§7.4/§7.5, ShowSafeWindow is GONE from the page and
+-- from the registration, and every tip names the rotation question its signal
+-- answers in plain words — the honesty law above, extended to the new rows.
+test("the Shot Cycle rows are §7.1's picker, the §7.3/§7.4/§7.5 rows, and no ShowSafeWindow",
+function()
+    if not (FX.Options and FX.Options.pages and FX.Options.pages["Hunter"]) then
+        print("[page] Forte_Options has no Hunter page -- skipped")
+        return
+    end
+    FX.Options:Open("Hunter")
+    local page = FX.Options.pagesBuilt["Hunter"]
+    assertNotNil(page, "the page builds")
+    local shot
+    for _, sec in ipairs(page.sections) do
+        if sec.title == "Shot Cycle" then shot = sec end
+    end
+    assertNotNil(shot, "the Shot Cycle section exists")
+    local rows = {}
+    for _, w in ipairs(shot.widgets) do
+        assertNotNil(w.spec.key, "every Shot Cycle row is bound to a key")
+        rows[w.spec.key] = w.spec
+    end
+    FX.Options:Close()
+
+    -- §7.1: the key retires in the same cutover — no row, no default. Its
+    -- pixels are the picker's `elapsed` item; the migration seam is asserted
+    -- in the round-trip test below.
+    assertNil(rows["ShowSafeWindow"], "the retired key has no row")
+    assertNil(FX.Settings:GetDefault("Hunter", "ShowSafeWindow"),
+        "the retired key has no registered default")
+
+    -- The mode picker: §7.1's three items, values and labels verbatim.
+    local mode = rows["BarMode"]
+    assertNotNil(mode, "the BarMode row is on the page")
+    assertEquals("Bar mode", mode.label)
+    assertEquals(3, #(mode.items or {}))
+    assertEquals("safe", mode.items[1].value)
+    assertEquals("Safe window (shrinks toward the aim end)",
+        mode.items[1].label)
+    assertEquals("one", mode.items[2].value)
+    assertEquals("One bar (fills toward the aim end)", mode.items[2].label)
+    assertEquals("elapsed", mode.items[3].value)
+    assertEquals("Single fill (cycle elapsed)", mode.items[3].label)
+
+    -- The four rows, labels verbatim (§7.3 / §7.4 / §7.4 / §7.5).
+    local function label(key)
+        local spec = rows[key]
+        assertNotNil(spec, "the " .. key .. " row is on the page")
+        return spec.label
+    end
+    assertEquals("Aim window (right end, standing)", label("ShowAimWindow"))
+    assertEquals("Clip region (a cast started here clips the shot)",
+        label("ShowClipRegion"))
+    assertEquals(
+        "Melee-weave line (room for a 1.5 s GCD before the shot)",
+        label("ShowWeaveLine"))
+    assertEquals("Enable melee swing rail", label("EnableMeleeRail"))
+
+    -- Every new tip names the rotation question it answers (the §7.0
+    -- ranking): which way to read the fill (P2/P3), when to stand still
+    -- (P2), can I cast without clipping (P1), is there room for a 1.5 s
+    -- GCD (P4), is the main-hand swing up (P5).
+    local function tip(key)
+        local spec = rows[key]
+        assertNotNil(spec, "the " .. key .. " row is on the page")
+        return spec.tip or ""
+    end
+    assertContains(tip("BarMode"), "Safe window")
+    assertContains(tip("BarMode"), "One bar")
+    assertContains(tip("BarMode"), "Single fill")
+    assertContains(tip("BarMode"), "Auto Shot")
+    assertContains(tip("ShowAimWindow"), "When must I stop moving")
+    assertContains(tip("ShowAimWindow"), "stand still")
+    assertContains(tip("ShowClipRegion"), "Can I cast without clipping")
+    assertContains(tip("ShowClipRegion"), "Start Aimed Shot")
+    assertContains(tip("ShowClipRegion"), "delays your next Auto Shot")
+    assertContains(tip("ShowWeaveLine"), "Is there room to weave")
+    assertContains(tip("ShowWeaveLine"), "1.5 s global cooldown")
+    assertContains(tip("EnableMeleeRail"), "main-hand swing")
+    assertContains(tip("EnableMeleeRail"), "melee range")
+    assertContains(tip("EnableMeleeRail"), "Raptor Strike")
+    -- The honesty law, extended: each of the five rows rides a real live
+    -- seam (UI/Swing.lua's KEYMAP for the four bar keys, FX.Hunter.Melee's
+    -- self-wired ApplySettings for the rail), so each says "Live" — and
+    -- none of them is the inert latency row, whose tip stays the one the
+    -- test above pins.
+    for _, key in ipairs({ "BarMode", "ShowAimWindow", "ShowClipRegion",
+        "ShowWeaveLine", "EnableMeleeRail" }) do
+        assertContains(tip(key), "Live", key .. " rides a live seam")
+    end
+end)
+
+-- The section-recycle law: the Shot Cycle keys list IS the set of its rows
+-- (Window.lua's onResetAll iterates it). Moving every row off its default
+-- and clicking the section recycle lands every one of them back — on the
+-- store AND on the live objects (the KEYMAP seam, not just the file).
+test("the Shot Cycle keys list is the set: the section recycle lands every row on its default",
+function()
+    if not (FX.Options and FX.Options.pages and FX.Options.pages["Hunter"]) then
+        print("[page] Forte_Options has no Hunter page -- skipped")
+        return
+    end
+    FX.Options:Open("Hunter")
+    local page = FX.Options.pagesBuilt["Hunter"]
+    local shot
+    for _, sec in ipairs(page.sections) do
+        if sec.title == "Shot Cycle" then shot = sec end
+    end
+    assertNotNil(shot)
+    local rec = shot.bar.recycle
+    assertNotNil(rec, "the section carries its recycle")
+
+    ST:Set("Hunter", "BarMode", "one")
+    ST:Set("Hunter", "ShowAimWindow", false)
+    ST:Set("Hunter", "ShowClipRegion", false)
+    ST:Set("Hunter", "ShowWeaveLine", true)
+    ST:Set("Hunter", "EnableMeleeRail", true)
+    ST:Set("Hunter", "ShowAimSlice", false)
+    ST:Set("Hunter", "ShowFlying", false)
+    ST:Set("Hunter", "ShowRetry", false)
+    ST:Set("Hunter", "ShowLatency", true)
+    ST:Set("Hunter", "BaseSpeed", 3)
+    rec:GetScript("OnClick")(rec)
+    FX.Options:Close()
+
+    assertEquals("safe", ST:Get("Hunter", "BarMode"))
+    assertEquals(true, ST:Get("Hunter", "ShowAimWindow"))
+    assertEquals(true, ST:Get("Hunter", "ShowClipRegion"))
+    assertEquals(false, ST:Get("Hunter", "ShowWeaveLine"))
+    assertEquals(false, ST:Get("Hunter", "EnableMeleeRail"))
+    assertEquals(true, ST:Get("Hunter", "ShowAimSlice"))
+    assertEquals(true, ST:Get("Hunter", "ShowFlying"))
+    assertEquals(true, ST:Get("Hunter", "ShowRetry"))
+    assertEquals(false, ST:Get("Hunter", "ShowLatency"))
+    assertEquals(0, ST:Get("Hunter", "BaseSpeed"))
+    -- The live objects followed the recycle, not just the store.
+    assertEquals("safe", Swing.state.barMode)
+    assertTrue(Swing.state.showAimWindow)
+    assertTrue(Swing.state.showClipRegion)
+    assertFalse(Swing.state.showWeaveLine)
+    assertFalse(FX.Hunter.Melee.state.enabled)
+    FX.Hunter.Melee:HideNow()
+    Swing:RenderIdle()
+end)
+
+-- γ.1 + γ.3: the registered posture lives in the ONE registration; every new
+-- key round-trips Set -> Get -> the live object; and the retired
+-- ShowSafeWindow key migrates through UI/Swing.lua's SetShowSafeWindow seam
+-- — a stored false reads back as the elapsed mode, true as safe.
+test("the mode/marker/rail keys round-trip to the live objects; a stored ShowSafeWindow=false reads back as BarMode=elapsed",
+function()
+    assertNotNil(ST)
+    assertEquals("safe", ST:GetDefault("Hunter", "BarMode"))
+    assertEquals(true, ST:GetDefault("Hunter", "ShowAimWindow"))
+    assertEquals(true, ST:GetDefault("Hunter", "ShowClipRegion"))
+    assertEquals(false, ST:GetDefault("Hunter", "ShowWeaveLine"))
+    assertEquals(false, ST:GetDefault("Hunter", "EnableMeleeRail"))
+    assertNil(ST:GetDefault("Hunter", "ShowSafeWindow"))
+
+    local Melee = FX.Hunter.Melee
+    assertNotNil(Melee)
+    Melee:EnableForClass()                          -- seed + wire, idempotent
+    Melee.combatReader = function() return false end -- the sim is not in combat
+
+    -- The mode picker rides the store to the bar.
+    ST:Set("Hunter", "BarMode", "one")
+    assertEquals("one", ST:Get("Hunter", "BarMode"))
+    assertEquals("one", Swing.state.barMode)
+    ST:Set("Hunter", "BarMode", "elapsed")
+    assertEquals("elapsed", Swing.state.barMode)
+    ST:Reset("Hunter", "BarMode")
+    assertEquals("safe", ST:Get("Hunter", "BarMode"))
+    assertEquals("safe", Swing.state.barMode)
+
+    -- The three bar markers ride the same seam.
+    ST:Set("Hunter", "ShowAimWindow", false)
+    assertEquals(false, ST:Get("Hunter", "ShowAimWindow"))
+    assertEquals(false, Swing.state.showAimWindow)
+    ST:Reset("Hunter", "ShowAimWindow")
+    assertTrue(Swing.state.showAimWindow)
+    ST:Set("Hunter", "ShowClipRegion", false)
+    assertEquals(false, Swing.state.showClipRegion)
+    ST:Reset("Hunter", "ShowClipRegion")
+    assertTrue(Swing.state.showClipRegion)
+    ST:Set("Hunter", "ShowWeaveLine", true)
+    assertEquals(true, ST:Get("Hunter", "ShowWeaveLine"))
+    assertEquals(true, Swing.state.showWeaveLine)
+    ST:Reset("Hunter", "ShowWeaveLine")
+    assertFalse(Swing.state.showWeaveLine)
+
+    -- The rail rides FX.Hunter.Melee's own self-wiring (slice β): on builds
+    -- the frame, off hides it with no ticker (the off law), and outside the
+    -- combat/melee gate it never shows.
+    ST:Set("Hunter", "EnableMeleeRail", true)
+    assertEquals(true, ST:Get("Hunter", "EnableMeleeRail"))
+    assertEquals(true, Melee.state.enabled)
+    assertNotNil(Melee.anchor, "enabling the rail builds the frame")
+    assertFalse(Melee:Refresh(), "out of the gate the rail stays hidden")
+    ST:Reset("Hunter", "EnableMeleeRail")
+    assertEquals(false, Melee.state.enabled)
+    assertFalse(Melee._shown)
+    assertNil(Melee.anchor:GetScript("OnUpdate"))
+
+    -- The migration (§7.1): the key is retired from the registration, so a
+    -- stored value reaches the bar through KEYMAP's SetShowSafeWindow seam
+    -- — a stored false IS the elapsed mode, true is safe, and the mode
+    -- reads back on the live bar.
+    ST:Set("Hunter", "ShowSafeWindow", false)
+    assertEquals(false, ST:Get("Hunter", "ShowSafeWindow"))
+    assertEquals("elapsed", Swing.state.barMode)
+    ST:Set("Hunter", "ShowSafeWindow", true)
+    assertEquals("safe", Swing.state.barMode)
+    -- The key retires cleanly: drop the stored probe from the profile
+    -- (the store seam, read-only elsewhere; the mode is already restored).
+    assertNotNil(ST._store)
+    ST._store("Hunter").ShowSafeWindow = nil
+
+    Melee.combatReader = nil
+    Melee:HideNow()
+    Swing:RenderIdle()
 end)
 
 test("Status prints the swing bar, the reminder and the range light", function()

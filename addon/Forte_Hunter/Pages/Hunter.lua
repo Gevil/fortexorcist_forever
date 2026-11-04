@@ -39,8 +39,21 @@ local DEFAULTS = {
     Lock = true,
     ShowTime = true,
     EnableReminder = true,
-    -- Shot Cycle (swing v2, docs/research/weaponswingtimer.md gap row 10)
-    ShowSafeWindow = true,
+    -- Shot Cycle (swing v2, docs/research/weaponswingtimer.md gap row 10;
+    -- Iteration J slice γ, docs/research/wst-swing-design.md §7): BarMode
+    -- REPLACES ShowSafeWindow (§7.1) — this ONE registration. A stored
+    -- ShowSafeWindow = false reaches the bar through UI/Swing.lua's
+    -- SetShowSafeWindow migration seam and reads back as BarMode =
+    -- "elapsed" (true/unset as "safe"); the key has no row and no default
+    -- here any more. ShowAimWindow / ShowClipRegion / ShowWeaveLine are the
+    -- §7.3 / §7.4 markers (UI/Swing.lua's KEYMAP); EnableMeleeRail is the
+    -- §7.5 opt-in rail, riding FX.Hunter.Melee's own ApplySettings
+    -- self-wiring (slice β) — no new plumbing in either case.
+    BarMode = "safe",
+    ShowAimWindow = true,
+    ShowClipRegion = true,
+    ShowWeaveLine = false,
+    EnableMeleeRail = false,
     ShowAimSlice = true,
     ShowFlying = true,
     ShowRetry = true,
@@ -143,9 +156,31 @@ function P.RegisterHunterPage()
                     tip = "Master switches of the Hunter tools.",
                 })
                 b.Section("Shot Cycle", function(s)
-                    s.CHK({ module = M, key = "ShowSafeWindow",
-                        label = "Two-phase cycle (safe window + aim)",
-                        tip = "The fill is the SAFE-TO-MOVE span shrinking toward the aim slice. Off = the plain single-phase bar. Live." })
+                    s.SEL({ module = M, key = "BarMode",
+                        label = "Bar mode",
+                        items = {
+                            { value = "safe",
+                                label =
+                                    "Safe window (shrinks toward the aim end)" },
+                            { value = "one",
+                                label =
+                                    "One bar (fills toward the aim end)" },
+                            { value = "elapsed",
+                                label = "Single fill (cycle elapsed)" },
+                        },
+                        tip = "How close is the next Auto Shot, and how much room do I have to move? Safe window: the fill is the safe-to-move span shrinking toward the aim end - an empty left field IS the warning. One bar: the same cycle read as progress, the fill growing toward the aim end. Single fill: the plain cycle clock for a player who does not weave. Live." })
+                    s.CHK({ module = M, key = "ShowAimWindow",
+                        label = "Aim window (right end, standing)",
+                        tip = "When must I stop moving? The right-end band that stands all cycle: the aiming window (0.5 s scaled by haste). The fill runs into it; the red slice inside it is the live windup - stand still while it drains. Live." })
+                    s.CHK({ module = M, key = "ShowClipRegion",
+                        label = "Clip region (a cast started here clips the shot)",
+                        tip = "Can I cast without clipping? Start Aimed Shot only while the fill is left of this stripe - inside it the cast delays your next Auto Shot. The stripe is that shot's cast time plus the aim window, so a full stripe means this bow never fits a cast-time shot between Auto Shots. Live." })
+                    s.CHK({ module = M, key = "ShowWeaveLine",
+                        label = "Melee-weave line (room for a 1.5 s GCD before the shot)",
+                        tip = "Is there room to weave? Left of this line there is room for one 1.5 s global cooldown - a melee weave (Raptor Strike, Mongoose Bite) or an instant shot - before the shot; the line off the bar's left end means a hasted cycle has no room at all. Off by default: it is a melee-weave build tool. Live." })
+                    s.CHK({ module = M, key = "EnableMeleeRail",
+                        label = "Enable melee swing rail",
+                        tip = "Is my main-hand swing up? Your main-hand swing, shown only in melee range - Raptor Strike resets it. A slim rail under the bar (under the range light when it is on): full = the swing is ready. Off by default. Live." })
                     s.CHK({ module = M, key = "ShowAimSlice",
                         label = "Aim window (red slice)",
                         tip = "The red right-end slice: the stand-still aiming window (0.5 s scaled by haste). Moving during it loses the shot. Live." })
@@ -164,9 +199,11 @@ function P.RegisterHunterPage()
                         tip = "The un-hasted ranged weapon speed for the aim-window ratio (aim = 0.5 x speed / base). 0 = auto. Live." })
                 end, {
                     module = M,
-                    keys = { "ShowSafeWindow", "ShowAimSlice", "ShowFlying",
-                        "ShowRetry", "ShowLatency", "BaseSpeed" },
-                    tip = "The two-phase Auto Shot cycle: reload, aim window, flight, retry.",
+                    keys = { "BarMode", "ShowAimWindow", "ShowClipRegion",
+                        "ShowWeaveLine", "EnableMeleeRail", "ShowAimSlice",
+                        "ShowFlying", "ShowRetry", "ShowLatency",
+                        "BaseSpeed" },
+                    tip = "The Auto Shot cycle and its reading: the bar mode, the aim window, the clip / weave markers, the melee rail, flight, retry.",
                 })
                 b.Section("Frame Sizing", function(s)
                     s.NUM({ module = M, key = "Width", label = "Width",
