@@ -857,3 +857,19 @@ Sim binary bump stays open until a 70707-profile release ships (no toolchain her
 Not fixed (recorded): dead `Locale.canonicalByAliasID`, dispatcher-less `LocaleModule.OnEvents`, never-incremented `rateSkipped`, write-only `rangeEdges` — harmless, post-launch cleanup.
 
 **Fix FX8 (2026-11-04, from the uiforever identity probe, PLAN §9 rows of 2026-11-04):** on Forever `UnitName(unit)` returns `(first, SURNAME)` and `CHAT_MSG_ADDON` senders read `First Last-Realm`; `Forte_Warlock/Core/Comms.lua:718` `ScanRoster` keeps only `UnitName(unit)`'s first return, so a groupmate's roster row (`morvessa`) never merges with their comms row (`morvessaashveil`) — two rows per player on the Warlock plates once comms are on. Fix: `FX.Identity.NameOf(unit)` — the same fullest-plain-name law as `SelfName` (`UnitFullName(unit)` / both `UnitName(unit)` returns joined / `UnitNameUnmodified(unit)`, most parts wins, placeholder = failed read) — used by `ScanRoster`. Owns `Forte_Core/Core/Identity.lua`, `Forte_Warlock/Core/Comms.lua` (ScanRoster only), tests. Open (launch check F19): `Forte_Timer/Core/Casts.lua:157` compares `UnitName(token)` with the SENT target string — a player target's spelling must be read on the real client.
+
+### 11.3 Iteration J — swing timer refinement after WeaponSwingTimer (owner request 2026-11-04)
+
+Owner: "refine the swing timer functionality based on the reference addon design — the one bar / split bar
+functionalities, its options, and anything that helps to weave." Reference: WeaponSwingTimer SixxFix (GPLv3, source at
+`/tmp/wst/src/WeaponSwingTimer/`, already credited in `Forte_Core/ATTRIBUTION.md` for swing v2). Its Hunter defaults
+(`WeaponSwingTimer_Hunter.lua:61-83`): `one_bar`, `classic_bars`, `show_text`, `show_multishot_clip_bar`,
+`show_autoshot_delay_timer`, `show_border`, separate `cooldown_*` / `auto_cast_*` / `clip_*` colours, `in_combat_alpha` /
+`ooc_alpha` / `backplane_alpha`, size + font; plus `WeaponSwingTimer_Castbar.lua` (shot cast bars) and
+`WeaponSwingTimer_Player.lua` (melee main/off-hand swing bars — the melee-weave half).
+
+| Step | Agent | Output | Acceptance |
+|---|---|---|---|
+| J1 Design map | `fx-scout` `WSTDesign` | `docs/research/wst-swing-design.md` | Every WST Hunter/cast-bar/melee-bar feature and option (file:line), how one-bar vs split-bar draws (geometry, what moves, what is static), the clip/delay/latency indicators, the weaving aids (melee swing vs ranged reload windows, cast-bar overlay, safe-to-cast/move markers); our current `Forte_Hunter` behaviour and options for each (file:line); a gap table and a proposed design that keeps ForteXorcist's look; which APIs each needs on Forever (catalog-checked; `PLAYER_SWING`, `UnitAttackSpeed` per slot, `C_SwingTimer`) |
+| J2 Build | `fx-worker`(s), split by file after J1 | `Forte_Hunter/**` (+ its options page) | each option persisted through the sparse settings store, every mode tested through the real frame scripts with exact payloads, defaults keep today's live-verified look |
+| J3 Live check | manager on uiforever | frames per mode | one-bar and split-bar cycles recorded frame by frame (orange → red → white per mode), options toggled live, no Lua errors |
