@@ -295,6 +295,52 @@ test("the scrub never touches a real entry", function()
     unseedTracked()
 end)
 
+test("the fill is a full, stable bar: six donors, topped up as they pop",
+function()
+    -- K2 (PLAN §11.4): the live check of 2026-11-04 watched the bar run down
+    -- between the all-rows-gone refills. The feeder now declares Target and
+    -- the fill is idempotent per live donor: the pump tops the bar UP, the
+    -- rows that are RUNNING keep their windows (no re-anchor, no stacking).
+    stopQuietly()
+    seedTracked(9)
+    T:Start()
+    local n = taggedCount()
+    assertTrue(n >= 5, "the bar opens full (" .. n .. " >= 5)")
+    assertEquals(6, n, "the donor spread is the CDM six")
+    local feeder
+    for _, f in ipairs(T.feeders) do
+        if f.Name == "Cooldown" then feeder = f end
+    end
+    assertNotNil(feeder)
+    assertEquals(6, feeder.Target, "the feed targets the full bar")
+    -- Pop three of the six the way the Sweep retires them (the entry leaves
+    -- the table), and watch the windows of the three that keep running.
+    local popped, kept = 0, {}
+    for name, e in pairs(Engine.entries) do
+        if T.IsSynthetic(e) then
+            if popped < 3 then
+                Engine.entries[name] = nil
+                popped = popped + 1
+            else
+                kept[name] = e.endTime
+            end
+        end
+    end
+    assertEquals(3, popped, "three donors left the bar")
+    local added = feeder.Fill(GetTime())
+    assertEquals(3, added, "the top-up re-arms exactly the popped donors")
+    assertTrue(taggedCount() >= 5, "the bar is full again ("
+        .. taggedCount() .. ")")
+    for name, endTime in pairs(kept) do
+        local e = Engine.entries[name]
+        assertNotNil(e, "the running donor " .. name .. " survived")
+        assertEquals(endTime, e.endTime,
+            "the running donor " .. name .. " was not re-anchored")
+    end
+    stopQuietly()
+    assertEquals(0, taggedCount(), "the exit scrubs the whole bar")
+end)
+
 test("the suite leaves the shipped state as it found it", function()
     stopQuietly()
     assertEquals(false, T.active)

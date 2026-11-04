@@ -642,11 +642,31 @@ end
 --- (the CDM demo law: synthetic entries carry no `dObj`).
 --- The two public legs are disarmed at the seam -- `expireMsgAt` is the
 --- announce stamp (`opts.onExpire` = the module's printed expiry line) and
---- `fadeWarn` is the FX_TIMER_FADING threshold -- so a demo row can not reach a
---- chat line even if `AnnounceExpiry` is on; the fire-side gates in
+--- `fadeWarn` is the FX_TIMER_FADING threshold -- so a demo row can not reach
+--- a chat line even if `AnnounceExpiry` is on; the fire-side gates in
 --- Core/Rows.lua carry the same law for the expiry and break events.
-local DEMO_ROWS = 5
+--- K2 (PLAN §11.4): the feed carries `Target = DEMO_ROWS`, so the 1 Hz pump
+--- tops the panel UP as rows run out (the idempotent fill below -- a donor
+--- with a live tagged row is left alone, so a top-up never stacks a second
+--- row of the same name and never touches a real row); the live check of
+--- 2026-11-04 watched the panel run down between the all-rows-gone refills.
+local DEMO_ROWS = 4
 local demoScratch = {}
+
+--- The names that are the demo's RIGHT NOW: the idempotence key of the fill.
+--- A panel row is keyed (name, "none"), so one live tagged row per donor
+--- name is one live row.
+local demoSeen = {}
+local function taggedNames()
+    wipe(demoSeen)
+    for i = 1, Rows.rows_n do
+        local row = Rows.rows[i]
+        if row and FX.TestMode.IsSynthetic(row) then
+            demoSeen[row.name] = true
+        end
+    end
+    return demoSeen
+end
 
 local function demoFill(now)
     now = now or M:Clock()
@@ -658,23 +678,31 @@ local function demoFill(now)
     if n == 0 then return 0 end
     table.sort(pool)
     local take = math.min(DEMO_ROWS, n)
+    local live = taggedNames()
     local created = 0
     for i = 1, take do
         local name = pool[math.floor((i - 1) * n / take) + 1]
-        local dur = FX.Timer.Registry.BestDuration(name)
-        if type(dur) == "number" and dur > 0 then
-            -- The stamp rides the PAST, spread across the row's own window, so
-            -- the panel opens on rows that are running (a stamp in the future
-            -- is a negative elapsed, which the arrival-highlight law reads as
-            -- "arrived": the finding `/fx timer test` documents).
-            local started = now - (dur * (i - 1) / take)
-            local row = Rows:InsertFromCast(name, "none", dur, started,
-                started, 1)
-            if row then
-                row.expireMsgAt = 0
-                row.fadeWarn = 0
-                FX.TestMode.Tag(row)
-                created = created + 1
+        -- The K2 idempotence: a donor whose window is still running (the
+        -- demo's own tagged row, or a real row the demo has no claim on --
+        -- `Rows:Find` is the panel's own key lookup) is LEFT ALONE, so the
+        -- pump's top-up pass adds only the donors that ran out.
+        if not live[name] and not Rows:Find(name, "none") then
+            local dur = FX.Timer.Registry.BestDuration(name)
+            if type(dur) == "number" and dur > 0 then
+                -- The stamp rides the PAST, spread across the row's own
+                -- window, so the panel opens on rows that are running (a
+                -- stamp in the future is a negative elapsed, which the
+                -- arrival-highlight law reads as "arrived": the finding
+                -- `/fx timer test` documents).
+                local started = now - (dur * (i - 1) / take)
+                local row = Rows:InsertFromCast(name, "none", dur, started,
+                    started, 1)
+                if row then
+                    row.expireMsgAt = 0
+                    row.fadeWarn = 0
+                    FX.TestMode.Tag(row)
+                    created = created + 1
+                end
             end
         end
     end
@@ -794,7 +822,7 @@ function M:OnEnable()
     -- pair, so the fill can not double).
     if FX.TestMode then
         FX.TestMode.RegisterFeeder({ Name = "SpellTimer", Fill = demoFill,
-            Scrub = demoScrub, Live = demoCount })
+            Scrub = demoScrub, Live = demoCount, Target = DEMO_ROWS })
     end
 
     -- The pages are Forte_Options' framework; registering from here is the

@@ -216,19 +216,26 @@ function()
     end
 end)
 
-test("the feeders of both fed frames are registered once", function()
+test("the feeders of the fed frames are registered once", function()
     enableAll()
-    local names, n = {}, 0
+    local names = {}
     for _, f in ipairs(T.feeders) do
-        n = n + 1
         names[f.Name] = (names[f.Name] or 0) + 1
         assertEquals("function", type(f.Fill), f.Name .. " fills")
         assertEquals("function", type(f.Scrub), f.Name .. " scrubs")
         assertEquals("function", type(f.Live), f.Name .. " counts")
     end
-    assertEquals(2, n, "the Cooldown bar and the Spell Timer register")
     assertEquals(1, names["Cooldown"])
     assertEquals(1, names["SpellTimer"])
+    -- K2 (PLAN §11.4): the swing bar's demo feeder rides the Hunter class
+    -- add-on, so it is present exactly for a Hunter profile -- and never
+    -- twice, the idempotence law the two frame feeders live by as well.
+    local swing = names["HunterSwing"]
+    assertTrue(swing == nil or swing == 1,
+        "the swing demo feeder rides once, never doubled")
+    if FX._playerClass == "HUNTER" then
+        assertEquals(1, swing, "a Hunter profile feeds the swing bar too")
+    end
 end)
 
 -- ------------------------------------------------------------- the pump ----

@@ -336,6 +336,60 @@ test("a combat start scrubs the panel", function()
     assertEquals(nil, Rows._dirty, "and the array was compacted")
 end)
 
+test("the fill is a full, stable panel: the spread, topped up as rows run out",
+function()
+    -- K2 (PLAN §11.4): the panel refills per expired row (Target + the
+    -- idempotent fill), not only once every row has run out.
+    enableAll()
+    stopQuietly()
+    Rows:Clear()
+    local tracked = Registry:Counts()
+    assertTrue(tracked >= 3,
+        "the donor pool carries the spread (" .. tracked .. ")")
+    T:Start()
+    local _, n = taggedRows()
+    assertTrue(n >= 3, "the panel opens full (" .. n .. " >= 3)")
+    assertTrue(n <= 4, "the spread is the K2 four (" .. n .. ")")
+    local feeder
+    for _, f in ipairs(T.feeders) do
+        if f.Name == "SpellTimer" then feeder = f end
+    end
+    assertNotNil(feeder)
+    assertEquals(4, feeder.Target, "the feed targets the full panel")
+    -- Run two rows out the way the scrub removes them (the key lookup the
+    -- idempotence consults must stop seeing them), keep the pair that is
+    -- still running under watch.
+    local kept, killed = {}, 0
+    for i = Rows.rows_n, 1, -1 do
+        local row = Rows.rows[i]
+        if row and T.IsSynthetic(row) then
+            if killed < 2 then
+                Rows:removeAt(i)
+                killed = killed + 1
+            else
+                kept[row.name] = row.expireAt
+            end
+        end
+    end
+    Rows:Compact()
+    assertEquals(2, killed, "two rows ran out")
+    local added = feeder.Fill(M:Clock())
+    assertEquals(2, added, "the top-up re-arms exactly the run-out donors")
+    local _, live = taggedRows()
+    assertTrue(live >= 3, "the panel is full again (" .. live .. ")")
+    for i = 1, Rows.rows_n do
+        local row = Rows.rows[i]
+        if row and T.IsSynthetic(row) and kept[row.name] then
+            assertEquals(kept[row.name], row.expireAt,
+                "the running row " .. row.name .. " was not re-anchored")
+        end
+    end
+    stopQuietly()
+    Rows:Clear()
+    local _, after = taggedRows()
+    assertEquals(0, after, "the exit scrubs the panel")
+end)
+
 test("the suite leaves the shipped state as it found it", function()
     stopQuietly()
     assertEquals(false, T.active)

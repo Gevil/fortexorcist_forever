@@ -100,7 +100,14 @@ T.stats = { starts = 0, stops = 0, refusals = 0, pumped = 0, filled = 0,
 
 --- The registered feeders, in registration order:
 --- `{ Name = <string>, Fill = function(now) -> n, Scrub = function() -> n,
---- Live = function() -> n }`, registered by the feature that owns the frame.
+--- Live = function() -> n, Target = <optional number> }`, registered by the
+--- feature that owns the frame. `Target` is the feeder's steady-state row
+--- count: `Pump` then tops the frame up to it, which is the shape K2 asked
+--- for (a frame that refills AS rows expire, not only once it has emptied).
+--- A feeder that declares one MUST keep `Fill` idempotent per live row (a
+--- re-Fill tops the missing donors up and leaves the running ones alone),
+--- and MUST NOT re-anchor a row that is not its own (the real-entry law).
+--- No `Target` = the classic law: refill only when the feeder is empty.
 T.feeders = {}
 
 --- The injectable combat probe (the tests script it; the live default is the
@@ -240,6 +247,15 @@ function T:Toggle()
     return self:Start()
 end
 
+--- The steady-state row count a pump pass aims the feeder at: its `Target`
+--- when it declares one (K2: the fuller, STABLE fill -- the bar refills as
+--- rows expire, it does not empty first), else 1 = the classic law of
+--- refilling only an emptied feeder.
+local function targetOf(f)
+    local t = tonumber(f.Target)
+    return (t and t > 0) and t or 1
+end
+
 --- Re-fill after a feature rebuilt its own state (`Engine:Build` wipes its
 --- entries, Forte_Cooldown/Module.lua:Rebuild): the mode is still on, so the
 --- frame the player is looking at keeps its demo rows.
@@ -250,14 +266,17 @@ function T:Refill()
     return n
 end
 
---- The pump: a feeder whose rows have all run out gets them back, which is
+--- The pump: a feeder that has fallen below its `Target` row count (an
+--- untargeted feeder: one that has run out of rows) gets them back, which is
 --- what keeps a demo walkable through a whole layout session (the CDM pump
---- loop, Core/Cooldown.lua:1768-1798, over a donor spread). Public so a test
---- drives it without reaching for the client's ticker.
+--- loop, Core/Cooldown.lua:1768-1798, over a donor spread). A feeder with a
+--- `Target` keeps its `Fill` idempotent per live row, so a top-up pass adds
+--- only the donors whose windows have run out. Public so a test drives it
+--- without reaching for the client's ticker.
 function T:Pump()
     if not self.active then return 0 end
     local n = eachFeeder(function(f, now)
-        if callLive(f) == 0 then return callFill(f, now) end
+        if callLive(f) < targetOf(f) then return callFill(f, now) end
         return 0
     end)
     self.stats.pumped = self.stats.pumped + 1

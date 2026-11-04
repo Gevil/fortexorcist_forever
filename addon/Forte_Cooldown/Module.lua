@@ -330,9 +330,13 @@ end
 --- as far from a secret-prone read as a row can be). Charge spells are left
 --- out: `Engine:Sorted` hides an entry whose bar has charges to spare, so a
 --- charge row is a bar that shows nothing -- the wrong donor for a layout pass.
---- The count and the spread are the CDM pair (`spellCooldownPumpPool = 5`,
---- `spellCooldownPumpPeriod = 1`), widened to six rows over a 12 s fall so a
---- screenshot pass sees a full bar and a live splash in the same minute.
+--- The CDM pair (`spellCooldownPumpPool = 5`, `spellCooldownPumpPeriod = 1`),
+--- widened to six rows over a 12 s fall so a screenshot pass sees a full bar
+--- and a live splash in the same minute. K2 (PLAN §11.4): the feed carries
+--- `Target = DEMO_ROWS`, so the 1 Hz pump TOPS THE BAR UP as donors pop off
+--- (the idempotent fill below) -- the live check of 2026-11-04 watched a bar
+--- that ran down to emptiness between the all-rows-gone refills; a demo the
+--- owner can walk is a bar that stays full.
 local DEMO_ROWS = 6
 local DEMO_SPREAD = 12
 local demoNames = {}
@@ -361,19 +365,27 @@ local function demoPick()
 end
 
 --- Fill the bar: insert each donor through the engine's own cast path and
---- spread its ready moment. Returns the number of rows created.
+--- spread its ready moment. K2 idempotence: a donor whose window is STILL on
+--- the bar (its own tagged entry, or a real entry the demo has no claim on)
+--- is left exactly as it is -- the pump's top-up pass therefore adds only
+--- the donors that popped, never re-anchors a row that is not its own, and
+--- the spread is keyed to the donor SLOT so the refill keeps the bar's shape.
+--- Returns the number of rows created.
 local function demoFill(now)
     now = now or GetTime()
     local take = demoPick()
     local created = 0
     for i = 1, take do
-        local e = Engine:OnCast(demoNames[i], now)
-        if e then
-            local remain = math.min(e.duration, DEMO_SPREAD * i / take)
-            e.start = now + remain - e.duration
-            e.endTime = now + remain
-            TestMode.Tag(e)
-            created = created + 1
+        local name = demoNames[i]
+        if name ~= nil and Engine.entries[name] == nil then
+            local e = Engine:OnCast(name, now)
+            if e then
+                local remain = math.min(e.duration, DEMO_SPREAD * i / take)
+                e.start = now + remain - e.duration
+                e.endTime = now + remain
+                TestMode.Tag(e)
+                created = created + 1
+            end
         end
     end
     return created
@@ -883,7 +895,7 @@ function M:OnEnable()
     -- module is.
     if FX.TestMode then
         FX.TestMode.RegisterFeeder({ Name = "Cooldown", Fill = demoFill,
-            Scrub = demoScrub, Live = demoCount })
+            Scrub = demoScrub, Live = demoCount, Target = DEMO_ROWS })
     end
 
     -- 10 Hz heartbeat: sweep ready alerts + feed the display. Every 10th

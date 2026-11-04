@@ -11,6 +11,7 @@ Data/Hunter.lua
 Core/Tools.lua
 Core/Range.lua
 Core/Melee.lua
+Core/SwingDemo.lua
 UI/Swing.lua
 UI/Reminder.lua
 UI/Range.lua
