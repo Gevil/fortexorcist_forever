@@ -241,10 +241,70 @@ function()
     t:OnShotCast("SENT", "Aimed Shot", 20904, "GA")   -- the no-START law
     Swing:Update(clock[1])
     assertEquals("value", log[2].kind)
-    nearpx(log[2].target, 0.5)                  -- frozen at half the cycle
+    -- F1 (code-review-8): the frozen arm's VALUE is the mode's fill law at
+    -- the press, so the target is w / W = 50 / 200 = 0.25 -- (remaining 1.0
+    -- - floor 0.5) / 2.0 -- not the cycle's REMAINING fraction 0.5 the v2
+    -- freeze carried. The span law (the full bar, the full cast length) is
+    -- the engine's own and does not move.
+    nearpx(log[2].target, 0.25)                -- the mode's fill at the press
     nearpx(Swing.fill:GetWidth(), 200)          -- the span is the full bar
     Swing:FillLog(nil)
     Swing:RenderIdle()
+    restoreBar()
+end)
+
+-- F5 (docs/reviews/code-review-8.md): the `one` mode's engine arm carried
+-- the claim "the cap IS W x progress" — true only while the cycle clock
+-- runs OUTSIDE the shut aim window. Inside it with the gate SHUT (not
+-- ready, no stamp, no open retry — the state a player who stands out of the
+-- swing lives in, where the clock runs on past the window) the elapsed arm
+-- spans the whole bar and runs the fill through the standing region, the
+-- over-draw the shared fill law caps. The tail now arms the cap as a static
+-- value, the number the law computes, so the arm stays the mode's law and
+-- the parity stays structural. The `drawn` geometry leg is what the
+-- `_fillIntent` comparison could not see.
+test("fill F5: the one-mode engine arm caps inside the gate-shut tail",
+function()
+    Swing:SetBarMode("one")
+    Swing:SetFillEngineMode("engine")
+    local clock = { 19000 }
+    -- A 1.0 s cycle on a 2.0 base: aim = 0.5 x 1.0 / 2.0 = 0.25 s, scale 200
+    -- px/s, and the gate (SwingTracker:CanAim) is held SHUT for the whole
+    -- cycle by the harness's attack seam — the state a player who stands
+    -- out of the swing lives in.
+    local t = v2Tracker(clock, { baseSpeed = 2.0,
+        attackReader = function() return false end })
+    Swing:SetTracker(t)
+    Swing:RenderIdle()
+    local log = Swing:FillLog(true)
+    t:OnSwingStart(1.0, 2)                      -- 19000 -> 19001, aim 0.25
+    local _, aimLen = t:CycleState(clock[1])
+    nearpx(aimLen, 0.25)
+    Swing:Update(clock[1])
+    assertEquals("elapsed", log[1].kind)        -- outside: the cycle's arm
+    nearpx(log[1].drawn, 0)
+    -- 19000.85: 0.15 s of cycle left, INSIDE the shut window. The mode's law
+    -- is min(W - aim x scale, W x progress) = min(200 - 0.25 x 200, 200 x
+    -- 0.85) = min(150, 170) = 150: the elapsed arm's number (170) would have
+    -- run the fill 20 px through the standing region.
+    clock[1] = 19000.85
+    local phase = t:CycleState(clock[1])
+    assertEquals("reload", phase, "the gate is shut: the phase is not aim")
+    Swing:Update(clock[1])
+    assertEquals("value", log[2].kind)
+    nearpx(log[2].target, 150 / 200)
+    nearpx(log[2].drawn, 150)                   -- the cap, not the 170
+    nearpx(Swing._fillIntent, 150)              -- the shared law agrees
+    -- Deeper in the same tail the cap HOLDS: the standing region does not
+    -- drain while the gate is shut, so the law's number stays at the cap
+    -- (the elapsed arm's number by now is 200 x 0.95 = 190, a 40 px ride
+    -- through the region).
+    clock[1] = 19000.95
+    Swing:Update(clock[1])
+    nearpx(Swing._fillIntent, 150)
+    Swing:FillLog(nil)
+    Swing:RenderIdle()
+    Swing:SetBarMode("safe")
     restoreBar()
 end)
 

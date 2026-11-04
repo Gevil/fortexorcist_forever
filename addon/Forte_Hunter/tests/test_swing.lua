@@ -355,6 +355,78 @@ test("the pulse breathes between PulseMin and PulseMax", function()
     Reminder:SetAspects(saved)
 end)
 
+-- ================================================= the F2 migration fold ==
+-- docs/reviews/code-review-8.md F2 (MAJOR): the retired `ShowSafeWindow`
+-- key and `BarMode` drive ONE state through two setters, and the login
+-- pass carries BOTH (Get answers an absent key with its registered
+-- default), so `for key, value in pairs(tbl)` — a hash walk, not the
+-- stored order — decided which one won. The fold: the legacy key is the
+-- mode's word ONLY when the raw profile carries no BarMode of its own, and
+-- after the fold has spoken the legacy key retires (the v2 prune cannot
+-- reach a key with no registered default). Every leg drives the REAL login
+-- path (`ApplyStoredSettings` -> `Get` -> `ApplySettings`); the raw profile
+-- is reached through the store seam the settings tests use.
+test("the ShowSafeWindow -> BarMode migration is a fold, not a pairs roll",
+function()
+    local ST = FX.Settings
+    local raw = ST._store and ST._store("Hunter")
+    assertTrue(type(raw) == "table", "the raw profile seam exists")
+    local function wipe()
+        for k in pairs(raw) do raw[k] = nil end
+    end
+
+    -- (a) The pre-slice-A profile: the legacy key is the profile's ONLY
+    -- word. `off` is the `elapsed` mode, and the fold STORES that word and
+    -- retires the legacy key, so the next login reads one word.
+    wipe()
+    raw.ShowSafeWindow = false
+    Swing:ApplyStoredSettings()
+    assertEquals("elapsed", Swing.state.barMode)
+    assertEquals(false, Swing.state.showSafeWindow)
+    assertNil(raw.ShowSafeWindow, "the legacy key retires on the fold")
+    assertEquals("elapsed", raw.BarMode, "the folded word is stored")
+    -- Idempotent: a second login on the folded profile says the same.
+    Swing:ApplyStoredSettings()
+    assertEquals("elapsed", Swing.state.barMode)
+
+    -- (b) The profile that chose a mode AND still carries the legacy key
+    -- (the review's exact scenario: off during Iteration I, One bar later).
+    -- The chosen mode wins whatever the legacy word says, in BOTH insertion
+    -- orders of the two keys.
+    for order = 1, 2 do
+        wipe()
+        if order == 1 then
+            raw.ShowSafeWindow = false
+            raw.BarMode = "one"
+        else
+            raw.BarMode = "one"
+            raw.ShowSafeWindow = false
+        end
+        Swing:ApplyStoredSettings()
+        assertEquals("one", Swing.state.barMode,
+            "order " .. order .. ": the chosen BarMode is the last word")
+        assertTrue(Swing.state.showSafeWindow,
+            "order " .. order .. ": the safe flag rides the mode")
+        assertNil(raw.ShowSafeWindow, "order " .. order .. ": retired")
+    end
+
+    -- (c) The direct seam: a lone legacy word still means the mode (the
+    -- live page row, the profile-switch fan-out), and a table carrying both
+    -- reads the mode key in both insertion orders.
+    Swing:ApplySettings({ ShowSafeWindow = true })
+    assertEquals("safe", Swing.state.barMode)
+    Swing:ApplySettings({ ShowSafeWindow = false })
+    assertEquals("elapsed", Swing.state.barMode)
+    Swing:ApplySettings({ BarMode = "one", ShowSafeWindow = true })
+    assertEquals("one", Swing.state.barMode)
+    Swing:ApplySettings({ ShowSafeWindow = true, BarMode = "one" })
+    assertEquals("one", Swing.state.barMode)
+    wipe()
+    Swing:SetShowSafeWindow(true)
+    Swing:SetBarMode("safe")
+    assertEquals("safe", Swing.state.barMode)
+end)
+
 -- ----------------------------------------------------------- live settings --
 
 test("Hunter settings drive the frames live", function()

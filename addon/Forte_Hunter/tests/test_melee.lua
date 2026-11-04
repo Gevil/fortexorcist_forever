@@ -345,6 +345,78 @@ test("melee β: the REAL event script re-arms on the resolved Raptor Strike name
     _G.UnitAttackSpeed = savedAS
 end)
 
+-- =================================================================== F3 ==
+-- docs/reviews/code-review-8.md F3 (MAJOR): this dispatcher used to gate the
+-- payload spellID on `a3 ~= nil` BEFORE the resolver — a raw comparison of
+-- a value this file's own header declares SecretWhenUnitSpellCastRestricted
+-- (the law Core/Tools.lua:993-996 states as "the one compare the law leaves
+-- out"), inside the RAISE-PRONE half of the split (Core/RaidHealth.lua
+-- :1575-1580: the OnEvent body; the OnUpdate body is the sealed one). A
+-- raise on a restricted raid frame cost the re-arm AND left FX_EVENTS
+-- standing with a live tracker. The fix hands the slot to the resolver
+-- UNTOUCHED — the resolver's pcall + PlainOrNil decide nil / secret / raise,
+-- the shape Tools' own dispatcher runs (Core/Tools.lua:1087-1091).
+-- The sim has no RestrictedActions regime, so a raw compare of a fake
+-- cannot raise HERE; the observable the fix moves is the hand-off itself,
+-- and that is what these legs pin (a `a3 ~= nil` gate in front of the
+-- resolver makes the hand-off leg red).
+test("F3 the cast-succeeded leg hands the payload to the resolver untouched",
+function()
+    local T = FX.Hunter.Tools
+    local saved = T.ResolveCastName
+    local seen, n = {}, 0
+    T.ResolveCastName = function(id)
+        n = n + 1
+        seen[n] = id
+        return nil                                  -- the resolver's verdict
+    end
+    local savedCore = Core.Tracker
+    local savedClass = FX._playerClass
+    FX._playerClass = "HUNTER"          -- EnableEvents rides the class gate
+    Core.Tracker = FX.Hunter.NewMeleeTracker()
+    Core.Tracker:ReadSpeed()
+    Core:EnableEvents()
+    local f = Core._eventFrame
+    assertNotNil(f)
+    local script = f:GetScript("OnEvent")
+    assertNotNil(script)
+
+    -- (a) A nil payload reaches the resolver: the nil test is the
+    -- resolver's, not this file's.
+    Core.Tracker:Reset()
+    script(Core._eventFrame, "UNIT_SPELLCAST_SUCCEEDED", "player", "G1", nil)
+    assertEquals(1, n, "the hand-off happens for a nil payload")
+    assertNil(seen[1], "and the slot rides through untouched")
+    assertFalse(Core.Tracker.active, "the resolver's nil verdict re-arms none")
+
+    -- (b) A payload that RAISES on every field read (the shape a secret
+    -- value has, the sentinel the Tools suite drives) reaches the resolver,
+    -- where the read is pcall-guarded: no raise escapes the event frame, and
+    -- nothing re-arms. With a raw compare in this dispatcher the script
+    -- raises on a client under RestrictedActions — the cost this fix is.
+    local fake = setmetatable({}, {
+        __index = function() error("touched a secret", 0) end,
+        __len = function() error("len of a secret", 0) end,
+    })
+    local ok = pcall(script, Core._eventFrame, "UNIT_SPELLCAST_SUCCEEDED",
+        "player", "G2", fake)
+    assertTrue(ok, "the event frame survives the secret payload")
+    assertEquals(2, n, "the secret payload was handed to the resolver")
+    assertTrue(seen[2] == fake, "the slot itself, unexamined")
+    assertFalse(Core.Tracker.active, "and nothing re-arms")
+
+    -- (c) The plain case the reward rides: a plain id still hands off with
+    -- the id as the argument (the fix is not a suppression).
+    script(Core._eventFrame, "UNIT_SPELLCAST_SUCCEEDED", "player", "G3", 415337)
+    assertEquals(3, n)
+    assertEquals(415337, seen[3])
+
+    Core:DisableEvents()
+    Core.Tracker = savedCore
+    FX._playerClass = savedClass
+    T.ResolveCastName = saved
+end)
+
 -- ----------------------------------------------------- acceptance 5: gate --
 
 test("melee β: the gate -- the rail draws iff (light off) or (light on and band melee), in combat",

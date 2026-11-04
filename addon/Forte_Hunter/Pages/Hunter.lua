@@ -180,7 +180,7 @@ function P.RegisterHunterPage()
                         tip = "Is there room to weave? Shrinking bar (Safe window): step in while the orange still reaches PAST the line. Filling bars (One bar / Single fill): while the fill is LEFT of the line. The line is the room for one 1.5 s global cooldown (Raptor Strike, Mongoose Bite, an instant shot) before the shot; the line off the bar means a hasted cycle has no room at all. Off by default: it is a melee-weave build tool. Live." })
                     s.CHK({ module = M, key = "EnableMeleeRail",
                         label = "Enable melee swing rail",
-                        tip = "Is my main-hand swing up? Your main-hand swing, shown only in melee range - Raptor Strike resets it. A slim rail under the bar (under the range light when it is on): full = the swing is ready. Off by default. Live." })
+                        tip = "Is my main-hand swing up? Your main-hand swing, shown only in melee range - Raptor Strike resets it. A slim rail under the bar (under the range light when it is on): it is FULL for the last half-second of the swing, which is the moment to step in and land it, and it empties as the swing comes in (a Raptor Strike reset shortens that last half-second to the swing's own speed). Off by default. Live." })
                     s.CHK({ module = M, key = "ShowAimSlice",
                         label = "Aim window (red slice)",
                         tip = "The red right-end slice: the stand-still aiming window (0.5 s scaled by haste). Moving during it loses the shot. Live." })

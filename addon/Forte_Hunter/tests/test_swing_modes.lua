@@ -187,7 +187,11 @@ test("mode safe: the aim/retry/interlock slices ride the v2 numbers", function()
     Swing:Update(4201.0)
     assertTrue(Swing.cast:IsShown())
     nearpx(Swing.cast:GetWidth(), W)               -- the full-width slice
-    nearpx(Swing.fill:GetWidth(), 100)             -- frozen at 0.5 fraction
+    -- F1 (code-review-8): the freeze reads this mode's law at the press
+    -- instant (remaining 1.0, floor 0.5, duration 2.0 => 50 px) — the
+    -- fill's own position when the cast opened; v2 drew the cycle's
+    -- REMAINING fraction x W = 100.
+    nearpx(Swing.fill:GetWidth(), 50)
     Swing:RenderIdle()
     restoreBar()
 end)
@@ -551,9 +555,16 @@ function()
         t:OnShotCast("SENT", "Aimed Shot", 20904, "GA")
         Swing:Update(8400.1)
         assertTrue(Swing.cast:IsShown())
-        -- freeze = 1 - (press - cycleStart)/duration = 1: the press ate the
-        -- WHOLE cycle, so the red bar is full-width (the v2 interlock law).
-        nearpx(Swing.fill:GetWidth(), W)
+        -- F1 (code-review-8): the freeze is THIS mode's fill law read at
+        -- the press instant (the cycle's first: `safe` = (2.0 - 0.5)/2.0 x
+        -- 200 = 150 px, the safe window as it stood; `one` = 200 x 0 = 0,
+        -- the fill has not started). v2 drew the cycle's REMAINING fraction
+        -- x W = the FULL bar in both modes, and the line the v2 test pinned
+        -- below is the proof of what that cost: the fill's leading edge was
+        -- the freeze, NOT the clip band's right edge, so the bar answered
+        -- "can this cast fit" from the fill's end instead of the gap the
+        -- marker exists to show.
+        nearpx(Swing.fill:GetWidth(), (mode == "safe") and 150 or 0)
         local span = (mode == "safe") and 0.8 or (0.8 + 0.5)
         nearpx(m:GetWidth(), math.min(W, span * (W / 2.0)))
         -- The interlock's own light tint is what reads over the red bar.
@@ -904,12 +915,16 @@ end)
 -- epsilon in seconds (0.5 / scale), so the sample landing exactly on the
 -- threshold reads the same on both sides.
 --
--- Under the cast interlock the FILL is FROZEN by the shipped v2 law -- its
--- width is the cycle's fraction at the press and the full-width red slice
--- is the message -- so the fill-edge property does not read there; those
--- passes pin the interlock laws instead: the marker carries the LIVE cast
--- length (plus the floor in the growing modes, whose fill spends none) and
--- the red slice spans the bar.
+-- Under the cast interlock the FILL is FROZEN (F1, code-review-8): its
+-- width is the MODE's own fill law read at the cast's start, so the freeze
+-- sits where the fill stood at the press, carries the mode's measure for
+-- the cast's whole length, and the fill-edge property READS THERE — the
+-- clip band's far edge against the frozen fill is the "can this cast fit"
+-- answer the interlock must keep answering. The interlock's own laws are
+-- pinned on the same passes: the marker carries the LIVE cast length (plus
+-- the floor in the growing modes, whose fill spends none), the red slice
+-- spans the bar, and the width does not drift between the press and the
+-- seal.
 local function propertyCycle(mode, opts)
     Swing:SetBarMode(mode)
     Swing:SetShowAimWindow(true)
@@ -929,6 +944,9 @@ local function propertyCycle(mode, opts)
     local eps = 0.5 / scale                   -- the nearpx law in seconds
     local samples, frozen, crossings = 0, 0, 0
     local lastReading
+    -- F1 (code-review-8): the interlock fill laws -- the width the freeze
+    -- locked to, and the width the pass before it drew.
+    local frozenW, prevFillW
     local i = 0
     while start + i * 0.05 < start + opts.dur - 0.02 do
         local at = start + i * 0.05
@@ -954,6 +972,49 @@ local function propertyCycle(mode, opts)
             if mode ~= "elapsed" then
                 assertTrue(Swing.cast:IsShown(), stamp .. ": red slice")
                 nearpx(Swing.cast:GetWidth(), S.Width)
+            end
+            -- F1 (docs/reviews/code-review-8.md) in EVERY mode: the frozen
+            -- fill is the mode's own fill law read at the cast's start.
+            -- (a) it therefore starts where the fill stood, inside one
+            -- sampling step of motion; (b) it does not drift for the cast's
+            -- whole length. The v2 law (`CastingCycleFraction() x W`, the
+            -- cycle's REMAINING fraction) jumps at the press in all three
+            -- modes and fails (a) by tens of pixels.
+            if frozenW == nil then
+                frozenW = fillW
+                if prevFillW ~= nil then
+                    assertTrue(math.abs(fillW - prevFillW) <= 0.5 + 0.05 * scale,
+                        mode .. " F1 the freeze starts where the fill stood"
+                        .. " (+" .. string.format("%.2f", at - start) .. ": "
+                        .. string.format("%.1f", fillW) .. " vs "
+                        .. string.format("%.1f", prevFillW) .. ")")
+                end
+            else
+                nearpx(fillW, frozenW, mode .. " F1 the freeze does not drift"
+                    .. " at +" .. string.format("%.2f", x))
+            end
+            -- (c) the J4 reading the freeze must still answer: with the
+            -- live cast riding, the clip marker's span is the cast (the
+            -- floor on the growing side), so the fill's leading edge
+            -- against that band's far edge reads "this cast fits", and the
+            -- tracker's own arithmetic is the truth.
+            if mode ~= "elapsed" then
+                local m = clipMarker(mode)
+                local clipLeft = m:GetLeft() - Swing.anchor:GetLeft()
+                local clipRight = clipLeft + m:GetWidth()
+                local fitTruth = castLeft <= (remaining - floor) + eps
+                local fitReading
+                if shrinking then
+                    fitReading = fillW >= clipRight - 0.5
+                else
+                    fitReading = fillW <= clipLeft + 0.5
+                end
+                assertEquals(fitTruth, fitReading, stamp
+                    .. " F1 the frozen marker reads the cast fit (phase "
+                    .. tostring(phase) .. " fill="
+                    .. string.format("%.1f", fillW) .. " band="
+                    .. string.format("%.1f", clipLeft) .. "-"
+                    .. string.format("%.1f", clipRight) .. ")")
             end
         else
             samples = samples + 1
@@ -1006,7 +1067,9 @@ local function propertyCycle(mode, opts)
                 crossings = crossings + 1
             end
             lastReading = clipReading
+            frozenW = nil                       -- the next freeze re-locks
         end
+        prevFillW = fillW
         i = i + 1
     end
     Swing:RenderIdle()

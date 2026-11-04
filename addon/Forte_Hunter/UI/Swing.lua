@@ -220,11 +220,18 @@ local TICK_SECONDS = 0.1                      -- the 10 Hz render rate
 --- hard-coded paladin `GetSpellInfo(19217)` constant. The GCD does not
 --- haste, so the shipped Hunter rows' `gcdMs` is the number, and the
 --- smallest positive row is the one a Hunter pays. Memoised (the generated
---- data is static for the session); 1.5 s is the data's value and the
---- no-data fallback.
-local gcdSecCache
+--- data is static for the session).
+--- F9 (docs/reviews/code-review-8.md): with no row this used to answer the
+--- invented `1.5` — a hand-typed gameplay number AGENTS.md forbids ("spell
+--- IDs are never hand-typed" in its general shape: the generated data is
+--- the only source), and it silently moved pixels (a hasted cycle's weave
+--- line lands on the bar or off it by this number alone). A build with no
+--- row now says the truth — nil — and the line stays off the bar, gated by
+--- its own arm; `GcdSeconds()` is the seam the options page and the tests
+--- read, so they see the same nil.
+local gcdSecCache, gcdSeeded
 local function gcdSeconds()
-    if gcdSecCache ~= nil then return gcdSecCache end
+    if gcdSeeded then return gcdSecCache end
     local data = FX.Data and FX.Data.Hunter
     local best
     if type(data) == "table" then
@@ -236,7 +243,8 @@ local function gcdSeconds()
             end
         end
     end
-    gcdSecCache = (best and best / 1000) or 1.5
+    gcdSecCache = best and (best / 1000) or nil
+    gcdSeeded = true
     return gcdSecCache
 end
 D.GcdSeconds = gcdSeconds
@@ -737,7 +745,8 @@ end
 --- Immediate on every arm: the shipped "a restart mid-swing must not ease
 --- back from the old fill". One pcall over the widget touches: a raise
 --- degrades THIS bar to the v2 SetSize law (one way, never back).
-function D:_EngineFillPass(now, tracker, phase, castLeft, w, floor, remaining)
+function D:_EngineFillPass(now, tracker, phase, castLeft, w, floor, remaining,
+                            aim, scale)
     local W = S.Width
     local kind, key, dir, start, dur, target
     if castLeft or (ST.showSafeWindow and phase == "flying") then
@@ -748,15 +757,35 @@ function D:_EngineFillPass(now, tracker, phase, castLeft, w, floor, remaining)
     elseif ST.barMode == "one" then
         -- The `one` mode's arm (slice A, §7.2): the law is the cycle's own
         -- progress, W x progress, capped by the standing region's drain --
-        -- and the cap IS W x progress (progress = 1 - remaining/duration,
-        -- the region's width is aimLen x scale), so the cycle's elapsed
-        -- arm over the full width is algebraically the whole curve, cap
-        -- included. The fill runs toward the aim end and reaches full
-        -- width exactly as the shot leaves.
-        kind = "elapsed"
-        dir = self._dirs.elapsed
-        start, dur = tracker.start, tracker.duration
-        key = "n|" .. armNum(tracker.start) .. "|" .. armNum(tracker.duration)
+        -- and OUTSIDE the window the cap IS W x progress (progress = 1 -
+        -- remaining/duration, the region's width is aimLen x scale), so the
+        -- cycle's elapsed arm over the full width is algebraically the
+        -- whole curve, cap included. The fill runs toward the aim end and
+        -- reaches full width exactly as the shot leaves.
+        -- F5 (docs/reviews/code-review-8.md): that algebra holds only
+        -- while the cycle clock runs OUTSIDE the shut window. Inside it --
+        -- the phase is NOT `aim` (the gate is shut: not ready, no stamp, no
+        -- open retry) with `remaining <= aim` -- the elapsed arm runs the
+        -- fill PAST the standing region, exactly the over-draw the shared
+        -- law caps, and the regime is routine: standing out of the swing
+        -- keeps the gate shut while the clock runs on past the window. The
+        -- tail arms the cap as a static value at the window's left edge --
+        -- the number the shared fill chain already put in `w` -- so the arm
+        -- is the mode's law and parity stays STRUCTURAL.
+        local aimSec = (type(aim) == "number" and aim > 0) and aim or nil
+        if phase ~= "aim" and aimSec ~= nil and scale > 0
+            and remaining <= aimSec + 1e-6 then
+            kind = "value"
+            target = (W > 0) and (w / W) or 0
+            dir, start, dur = self._dirs.remaining, now, 0
+            key = "v|" .. armNum(target)
+        else
+            kind = "elapsed"
+            dir = self._dirs.elapsed
+            start, dur = tracker.start, tracker.duration
+            key = "n|" .. armNum(tracker.start) .. "|"
+                .. armNum(tracker.duration)
+        end
     elseif ST.showSafeWindow then
         kind = "span"
         dir = self._dirs.remaining
@@ -790,10 +819,27 @@ function D:_EngineFillPass(now, tracker, phase, castLeft, w, floor, remaining)
     end
     self._armKey = key
     self._fillSpanW = spanW
+    -- F5: the width the armed widget PAINTS at this pass. The span arm's
+    -- frame is the law's width and drains with it; the elapsed arm spans
+    -- the whole bar and the fraction rides inside it (W x progress, which
+    -- is the mode's law -- the cap included, outside the window); the value
+    -- arm is a fraction of the frame. The parity geometry leg, compared
+    -- against `_fillIntent`.
+    local durSec = tracker.duration
+    local fracNow = (type(durSec) == "number" and durSec > 0)
+        and (1 - (remaining or 0) / durSec) or 0
+    local drawn
+    if kind == "span" then
+        drawn = w
+    elseif kind == "value" then
+        drawn = (target or 0) * W
+    else
+        drawn = W * fracNow
+    end
     local log = self._engineLog
     if log ~= nil then
         log[#log + 1] = { kind = kind, key = key, span = spanW, dur = dur,
-            dir = dir, target = target, at = now }
+            dir = dir, target = target, drawn = drawn, at = now }
         if #log > 64 then table.remove(log, 1) end
     end
 end
@@ -829,7 +875,13 @@ function D:_DegradeEngineFill()
 end
 
 --- The tests' view of the engine arms (bounded): entries are
---- {kind, key, span, dur, dir, target, at}. nil = logging off.
+--- {kind, key, span, dur, dir, target, drawn, at}. `drawn` is the width the
+--- armed widget paints at the arm instant (F5 in
+--- docs/reviews/code-review-8.md: the geometry leg the `_fillIntent` parity
+--- comparison cannot see, because the three arms carry a law's number in
+--- three different places -- the span arm's FRAME, the elapsed arm's
+--- FRACTION of the whole bar, the value arm's fraction of the frame). nil =
+--- logging off.
 function D:FillLog(on)
     self._engineLog = on and {} or nil
     return self._engineLog
@@ -1138,6 +1190,42 @@ function D:SetBaseSpeed(v)
     if t and t.SetBaseSpeed then t:SetBaseSpeed(tonumber(v)) end
 end
 
+--- F1 (docs/reviews/code-review-8.md, MAJOR, the manager's option 1): the
+--- cast interlock FREEZES the fill, and the frozen number is the CURRENT
+--- MODE's own fill law evaluated at the cast's start instant. The shipped
+--- v2 law drew `CastingCycleFraction()`, which is the cycle's REMAINING
+--- fraction (`1 - (press - start) / duration`, Core/Tools.lua:555-561,
+--- surfaced at :687-691) — the SHRINKING bar's measure. Drawn raw it
+--- over-reported the fit by `floor x scale` px in `safe` and drew the
+--- COMPLEMENT in the growing fills, i.e. it inverted the J4 marker reading
+--- exactly in the regime the J3 live check signed off (Aimed Shot 2 s is
+--- longer than a 1.9 s Haste cycle, so the regime is the normal one).
+--- `tracker.cast.startAt` is the press instant, stamped by
+--- SwingTracker:BeginCast; every number the law needs there is a PURE read
+--- of the tracker (`:Progress(t)` at a past instant of a live cycle
+--- finalises nothing, `:FloorAt(t)` is a pure sum), so the frozen fill is
+--- the fill the mode would have drawn at the press: the fill does not jump
+--- when the cast opens, stays put for its length, and the marker keeps its
+--- meaning (the clip band's right edge against the fill's leading edge)
+--- for the cast's whole length. Returns nil with no cycle to read.
+local function frozenFillW(tracker, t0, mode, showSafe, aim, Wpx, scalePx)
+    local dur = tracker.duration
+    if type(dur) ~= "number" or dur <= 0 then return nil end
+    local fraction, remaining = tracker:Progress(t0)
+    if fraction == nil then return nil end
+    local fl = (tracker.FloorAt and tracker:FloorAt(t0)) or (aim or 0)
+    if mode == "one" then
+        local a = aim or 0
+        -- The §7.2 cap read at the press: the standing region drains
+        -- inside the aim window, and the window opens at the floor.
+        local drain = (remaining <= fl) and math.min(a, remaining) or a
+        return math.min(Wpx - drain * scalePx, Wpx * fraction)
+    elseif showSafe then
+        return math.max(0, (remaining - fl) / dur) * Wpx
+    end
+    return fraction * Wpx
+end
+
 -- ---------------------------------------------------------------- render --
 --- One render pass; `now` is optional (GetTime() by default) -- the tests
 --- inject a clock. Returns true when a swing is on screen.
@@ -1199,8 +1287,20 @@ function D:Update(now)
     -- own law.
     local w
     if castLeft then
-        w = (tracker.CastingCycleFraction
-            and (tracker:CastingCycleFraction() * W)) or W
+        local cast = tracker.cast
+        local press = (type(cast) == "table")
+            and FX.Compat.PlainOrNil(cast.startAt) or nil
+        w = (type(press) == "number")
+            and frozenFillW(tracker, press, ST.barMode, ST.showSafeWindow,
+                aimLen, W, scale)
+            or nil
+        if w == nil then
+            -- No press stamp on the tracker (a tracker with the legacy
+            -- fraction seam only): the shipped v2 reading.
+            local freeze = tracker.CastingCycleFraction
+                and tracker:CastingCycleFraction()
+            w = (freeze and (freeze * W)) or W
+        end
     elseif ST.showSafeWindow and phase == "flying" then
         -- The WST shot-bar law (WeaponSwingTimer_Hunter.lua :913-1010):
         -- the WHOLE bar rides white from SUCCEEDED to the next
@@ -1237,7 +1337,8 @@ function D:Update(now)
     -- the law above. The engine test is re-read, so a mid-pass degrade is
     -- drawn the same pass it happens.
     if self._engineFill then
-        self:_EngineFillPass(now, tracker, phase, castLeft, w, floor, remaining)
+        self:_EngineFillPass(now, tracker, phase, castLeft, w, floor,
+            remaining, aimLen, scale)
     end
     if not self._engineFill and self._fillW ~= w then
         self._fillW = w
@@ -1372,9 +1473,17 @@ function D:Update(now)
     -- direction, which IS the "do not step in" message (§7.4's no-room law).
     local weaveX
     if ST.showWeaveLine and scale > 0 then
-        local budget = gcdSeconds() + (shrinking and 0 or (floor or 0))
-        local x = shrinking and (budget * scale) or (W - budget * scale)
-        if x > 0 and x < W then weaveX = x end
+        -- F9 (docs/reviews/code-review-8.md): the budget is a DATA read.
+        -- With no row there is no GCD to budget, and an invented 1.5 is not
+        -- a fact to hang a pixel on -- the line stays off the bar, in both
+        -- fill paths (this is the shared arm), and the property tests'
+        -- weave truth reads the same nil.
+        local gcdSec = gcdSeconds()
+        if gcdSec ~= nil then
+            local budget = gcdSec + (shrinking and 0 or (floor or 0))
+            local x = shrinking and (budget * scale) or (W - budget * scale)
+            if x > 0 and x < W then weaveX = x end
+        end
     end
     self:_SetWeaveLine(weaveX)
     self._phase = phase
@@ -1671,13 +1780,54 @@ local STORED = {
     Advanced = { "HunterStrata" },
 }
 
+--- F2 (docs/reviews/code-review-8.md, MAJOR): the two mode words, read off
+--- the RAW profile table (the store seam `_store`, the read
+--- Forte_Options/tests/test_settings.lua:171 uses). `Get` is not the seam
+--- for this: `FX.Settings` sanitises every read against the REGISTERED
+--- defaults (Forte_Options/Core/Settings.lua:106-126), and the retired
+--- `ShowSafeWindow` key is not registered any more — `BarMode` replaced it
+--- in the one registration the page makes (Pages/Hunter.lua:44-52) — so
+--- `Get` answers nil for a legacy profile and the migration seam never
+--- spoke: the review's stored-off profile read `safe`. Presence AND value
+--- are only readable on the raw table. The values are plain stored strings
+--- and booleans — no API return, so no secret gate applies to them.
+local function storedModeWords()
+    local st = FX.Settings
+    local raw = (type(st) == "table" and type(st._store) == "function")
+        and st._store("Hunter") or nil
+    if type(raw) ~= "table" then return nil, nil, nil end
+    local mode = FX.Compat.PlainOrNil(raw.BarMode)
+    local legacy = FX.Compat.PlainOrNil(raw.ShowSafeWindow)
+    return raw,
+        (type(mode) == "string") and mode or nil,
+        ((legacy == true or legacy == false) and legacy)
+end
+
 function D:ApplySettings(tbl)
-    for key, value in pairs(tbl or {}) do
-        local m = KEYMAP[key]
-        -- The shared page listener routes every Hunter-key change to
-        -- every renderer; a key without a consumer HERE (the range
-        -- light's ShowRangeLight) is inert by the map's law.
-        if m and self[m] then self[m](self, value) end
+    tbl = tbl or {}
+    -- F2: the retired `ShowSafeWindow` key and `BarMode` drive ONE state
+    -- through two setters (`SetShowSafeWindow` forwards into
+    -- `SetBarMode`, and each setter publishes the shared `showSafeWindow`
+    -- flag the fill law reads), so when the login pass carries BOTH the
+    -- applied order decided the mode — `for key, value in pairs(tbl)`
+    -- walks the table's HASH layout, not the STORED order, and the
+    -- register-then-Set write order (Forte_Options/Pages/Hunter.lua
+    -- :696-711) is exactly the one where the retired key's word won. The
+    -- order is now in the code: the legacy word goes FIRST, so a `BarMode`
+    -- in the same pass is the last word (the fold in ApplyStoredSettings
+    -- has already reduced the pair to one word for the login path).
+    local m = KEYMAP.ShowSafeWindow
+    if tbl.ShowSafeWindow ~= nil and m and self[m] then
+        self[m](self, tbl.ShowSafeWindow)
+    end
+    for key, value in pairs(tbl) do
+        if key ~= "ShowSafeWindow" then
+            local mm = KEYMAP[key]
+            -- The shared page listener routes every Hunter-key change to
+            -- every renderer; a key without a consumer HERE (the range
+            -- light's ShowRangeLight) is inert by the map's law.
+            if mm and self[mm] then self[mm](self, value) end
+        end
     end
 end
 
@@ -1689,6 +1839,43 @@ function D:ApplyStoredSettings()
             local out = {}
             for i = 1, #keys do
                 out[keys[i]] = st:Get(module, keys[i])
+            end
+            if module == "Hunter" then
+                -- F2 (docs/reviews/code-review-8.md): the migration is a
+                -- FOLD, not a race. The retired key and `BarMode` drive ONE
+                -- state through two setters, so when both reach
+                -- `ApplySettings` the pairs HASH order decides the mode —
+                -- and a legacy profile reaches it as both words (`Get`
+                -- serves the registered `BarMode` default on top of the
+                -- profile's `ShowSafeWindow`). The fold, from the raw
+                -- profile: the legacy word is the mode's word ONLY when the
+                -- profile carries no `BarMode` of its own (then the
+                -- registered default is overridden, because the profile
+                -- never chose a mode), and the retired key LEAVES the
+                -- profile — the store's v2 prune cannot reach a key with no
+                -- registered default, so this is where it retires.
+                -- `ShowSafeWindow off` (the pre-slice-A single-phase bar) is
+                -- the `elapsed` mode; `on` is `safe`.
+                local raw, chosen, legacy = storedModeWords()
+                if raw ~= nil then
+                    out.ShowSafeWindow = nil
+                    if legacy ~= nil then
+                        raw.ShowSafeWindow = nil
+                        if chosen == nil then
+                            chosen = (legacy == true) and "safe" or "elapsed"
+                            -- Persist the folded word: a profile that only
+                            -- ever carried the legacy key now carries the
+                            -- mode it means, so the NEXT login reads one
+                            -- word and the mode does not drift to the
+                            -- registered default behind it.
+                            raw.BarMode = chosen
+                            out.BarMode = chosen
+                        end
+                    end
+                    if chosen ~= nil and out.BarMode ~= chosen then
+                        out.BarMode = chosen
+                    end
+                end
             end
             self:ApplySettings(out)
         end

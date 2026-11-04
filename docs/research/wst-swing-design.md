@@ -667,8 +667,17 @@ length of the shot the player is about to press: the live cast's length while a 
 (`Tools.lua:677-695`), else the data length of the longest cast-time shot in `SHOT_CAST_SET`
 (`Tools.DataCastMsByName()`, `:1038-1050` ⇒ Aimed Shot 2000 ms, `Data/Hunter.lua:46`). Option
 `ShowClipRegion` (CHK, default **on**, label "Clip region (a cast started here clips the
-shot)"). Reading: fill's right edge **right of** the stripe's left edge ⇒ press it; inside the
-stripe ⇒ you clip. Worked number: an un-hasted 2.0 s cycle with `aim = 0.5` gives
+shot)"). Reading — the stripe is drawn where a press CLIPS, and the fill says which side of it
+the cycle's room is on, in the mode's own direction (`UI/Swing.lua`'s marker law, pinned by the
+J4 property leg in `tests/test_swing_modes.lua`; the pre-F1 text of this sentence had the
+growing bars on the wrong side):
+in a **growing** bar (`one`, `elapsed`) the fill is the cycle's progress and the stripe hangs
+off the right end, so the press fits while the fill's right edge is **left of the stripe's
+left edge**, and a fill that has reached into the stripe means the press clips;
+in the **shrinking** bar (`safe`) the fill *is* the safe-to-move span and the stripe starts at
+the bar's left, so the press fits while that span reaches **past the stripe's right edge**,
+and a span that stops short of it means the press clips.
+Worked number: an un-hasted 2.0 s cycle with `aim = 0.5` gives
 `(2.0+0.5)/2.0` ⇒ a full-bar stripe, i.e. the honest answer "Aimed Shot always clips on this
 bow" — the stripe's *fullness* is the message, and it is the same truth our interlock prints
 after the fact, now available before the press. Under the interlock the stripe retargets to

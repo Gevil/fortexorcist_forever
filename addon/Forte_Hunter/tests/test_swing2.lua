@@ -533,7 +533,13 @@ function()
     assertTrue(Swing.cast:IsShown())
     nearpx(Swing.cast:GetWidth(), 200)             -- the full-width slice
     local w0 = Swing.fill:GetWidth()
-    nearpx(w0, 100)                                -- frozen at 0.5 fraction
+    -- F1 (code-review-8): the freeze is THIS mode's fill law read at the
+    -- press instant (3401.0: remaining 1.0, floor 0.5, duration 2.0 => 50
+    -- px) — the fill exactly where it stood when the cast opened, the
+    -- same number the live safe law drew one line above. The v2 law drew
+    -- the cycle's REMAINING fraction x W = 100 (the shrinking bar's
+    -- measure drawn raw).
+    nearpx(w0, 50)
     clock[1] = 3401.4                              -- 1.1 s of cast left
     Swing:Update(clock[1])
     nearpx(Swing.fill:GetWidth(), w0)              -- frozen at the edge

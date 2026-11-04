@@ -277,10 +277,19 @@ local function onMeleeEvent(self, event, a1, a2, a3)
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         -- (unitTarget, castGUID, spellID): a1 unit, a2 guid rides UNREAD
         -- (the Tools M3 law), a3 id through the shared resolver.
-        if a3 ~= nil and FX.Hunter.Tools and FX.Hunter.Tools.ResolveCastName then
-            local raw = FX.Hunter.Tools.ResolveCastName(a3)
+        -- F3 (docs/reviews/code-review-8.md, MAJOR): the payload spellID
+        -- is SecretWhenUnitSpellCastRestricted, so it gets NO raw
+        -- comparison here -- not even `~= nil` (the law this file's header
+        -- adopts, Core/Tools.lua:993-996). The dispatcher hands the slot to
+        -- the resolver UNTOUCHED and the resolver's own pcall + PlainOrNil
+        -- decide nil / secret / raise (the shape Tools' dispatcher runs,
+        -- Core/Tools.lua:1087-1091); a comparison of the raw slot in this
+        -- un-guarded OnEvent body is the raise that costs the re-arm.
+        local T = FX.Hunter.Tools
+        if T and T.ResolveCastName then
+            local raw = T.ResolveCastName(a3)      -- nil for nil/secret/raise
             if raw then
-                local canon = FX.Hunter.Tools.CanonicalCastName
+                local canon = T.CanonicalCastName
                 local name = (canon and canon(raw)) or raw
                 t:OnCastSucceeded(a1, name)
             end
