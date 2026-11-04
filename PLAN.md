@@ -955,3 +955,18 @@ de/fr/es/pt/ru UI, spells and items, addons load their translations (4 Nov); `/r
 | L4 Class sweep | every class add-on loads and its module frames draw, no Lua errors | Character/Class switch: Warlock, Shaman, Mage, Paladin, Priest, Druid, Rogue, Warrior |
 | L5 Game language | `ForteXorcist.Locale` resolves spell names on a German client (incl. Raptor Strike, review 8 F7) | WTF with `SET textLocale "deDE"` |
 | L6 Talent data | our I2b rows (Oath of Light, Shieldsworn, Bloom, Lacerate; no Berserk) match the site's launch talents | read the site spellbook/talent data |
+
+### 11.6 Iteration K9 — code review 9 fixes (2026-11-04 evening, before launch)
+
+Source: `docs/reviews/code-review-9.md` (2 MAJOR, 3 MINOR, 2 INFO; all re-verified by the manager).
+
+| # | Finding | Fix |
+|---|---|---|
+| M1 | `storedModeWords` returns `false` for an ABSENT legacy key (`false and nil`), so the F2 fold stamps `BarMode=elapsed` on every fresh Hunter profile — the shipped Safe-window default never shows (seen live as `showSafe=false`). No install base hit: the stamp only runs in the game client, which launches at midnight. | absent → nil; fail-first legs: fresh profile boots `safe` and is NOT stamped; legacy false → `elapsed`; legacy true → `safe`; a stored BarMode wins |
+| M2 | RekeyLegacy's first-name leg can move a first-name sibling's legacy profile (two characters "Anne X"/"Anne Y" on one account shared the old first-name key); cross-realm ties fall to `pairs` order | skip the leg when any other bound character key shares the first name; require the legacy key's realm label to canonical-equal today's realm; tests with two legacy rows |
+| m3 | raw `InCombatLockdown` in `Hunter/Core/Tools.lua` IsCombat; raw `UnitName` in `Options/UI/Window.lua` | pcall + PlainOrNil (Melee.lua shape) |
+| m4 | `SetFillEngineMode` raise path leaves the `_fillMode` memo on the new mode | restore the previous memo on the fail arm |
+| m5 | the melee rail follows the palette but not a live BarColor pick | push from `SetBarColor` too |
+| i6 | stale `rangeEdges` in the demo test's tracker face | drop it |
+
+Then: gate, live battery, pre-release refresh (K6 procedure), ledger.
