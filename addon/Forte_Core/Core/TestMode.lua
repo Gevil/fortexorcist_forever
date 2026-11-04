@@ -47,9 +47,13 @@
 --    profile, which the sparse-store law forbids -- the store carries the
 --    user's choices, not a demo switch (docs/research/upstream-addons-2026-11-03
 --    .md §6 row 3: "never writes settings (sparse store law)").
---  * NO OnUpdate. The re-fill pump rides `C_Timer.NewTicker` created in
---    OnEnable, the Forte_Cooldown/Module.lua heartbeat idiom: a hidden frame
---    receives no OnUpdate, so an OnUpdate pump stops the moment the bar hides.
+--  * NO OnUpdate. The re-fill pump rides `C_Timer.NewTicker`, the
+--    Forte_Cooldown/Module.lua heartbeat idiom: a hidden frame receives no
+--    OnUpdate, so an OnUpdate pump stops the moment the bar hides. The ticker
+--    is a DEMO-lifetime resource (FX7c): `Start` arms it, every exit cancels
+--    it (`Stop`, and the disable as the belt), never the enable -- test mode
+--    is almost never on, and a ticker armed at enable would beat 1 Hz through
+--    every logged session to pump a mode that is not running.
 --  * NOT IN COMBAT. Starting is refused while `InCombatLockdown` answers a
 --    plain true, and the reason is printed: synthetic rows on a live frame
 --    during a fight are exactly the contamination the launch-day probes exist
@@ -195,6 +199,7 @@ function T:Start()
     self.active = true
     self.reason = "on"
     self.stats.starts = self.stats.starts + 1
+    self:StartPump()
     local cleared = eachFeeder(callScrub)
     local filled = eachFeeder(callFill)
     self.stats.filled = self.stats.filled + filled
@@ -213,6 +218,7 @@ end
 function T:Stop(why)
     if not self.active then return false, "off" end
     local n = eachFeeder(callScrub)
+    self:StopPump()
     self.active = false
     self.reason = why or "off"
     self.stats.stops = self.stats.stops + 1
@@ -257,6 +263,32 @@ function T:Pump()
     self.stats.pumped = self.stats.pumped + 1
     self.stats.filled = self.stats.filled + n
     return n
+end
+
+--- Arm the pump (FX7c): the ticker exists ONLY while the demo runs. The
+--- Forte_Cooldown/Module.lua heartbeat idiom -- a `C_Timer` ticker, never an
+--- OnUpdate (a hidden frame receives none). Idempotent: a start never
+--- doubles the pump; a raise at the client call leaves no handle, so the
+--- mode still runs (the pump is a convenience, not a gate) and the disable
+--- has nothing to cancel.
+function T:StartPump()
+    if self._ticker then return end
+    if C_Timer and C_Timer.NewTicker then
+        local ok, ticker = pcall(C_Timer.NewTicker, self.pumpSeconds, function()
+            T:Pump()
+        end)
+        if ok then self._ticker = ticker end
+    end
+end
+
+--- Cancel the pump (the pcall'd `:Cancel()` the disable path has always
+--- used: a client-side raise must not abort an exit) and clear the handle,
+--- so "no ticker out of the mode" is the field, not a hope. Idempotent.
+function T:StopPump()
+    if self._ticker and self._ticker.Cancel then
+        pcall(self._ticker.Cancel, self._ticker)
+    end
+    self._ticker = nil
 end
 
 --- `/fx test [|status]`: toggle, or report.
@@ -305,22 +337,16 @@ function T:OnEnable()
     f:RegisterEvent("PLAYER_LOGOUT")
     f:RegisterEvent("PLAYER_LEAVING_WORLD")
     f:SetScript("OnEvent", function(_, event) self:OnEvent(event) end)
-    -- The re-fill pump: a C_Timer ticker, never an OnUpdate (a hidden frame
-    -- receives none). Cancelled at the disable.
-    if C_Timer and C_Timer.NewTicker then
-        local ok, ticker = pcall(C_Timer.NewTicker, self.pumpSeconds, function()
-            T:Pump()
-        end)
-        if ok then self._ticker = ticker end
-    end
+    -- NO pump here (FX7c): the ticker is armed by `Start` and cancelled by
+    -- every exit; arming it at the enable would beat 1 Hz all session for a
+    -- mode that is almost never on.
 end
 
 function T:OnDisable()
     self:Stop("disabled")
-    if self._ticker and self._ticker.Cancel then
-        pcall(self._ticker.Cancel, self._ticker)
-    end
-    self._ticker = nil
+    -- The belt: a pump left running (a Stop that never ran, a mode that was
+    -- already off over a handle) is cancelled at the disable too.
+    self:StopPump()
 end
 
 --- The `/fx status` block (Forte_Core's status loop calls Status per module).

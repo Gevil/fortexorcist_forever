@@ -803,20 +803,6 @@ function M:OnEnable()
     if pages and pages.RegisterTimerPage then pages.RegisterTimerPage() end
 end
 
---- The `/fx test` parked set: the events of the feed spine whose whole job is
---- a row WRITE (a cast fact into the queue, an aura fact into a sweep, a target
---- change into a sweep). The cleanups and the read-only secret-state
---- snapshots are deliberately absent: they must keep running during a demo.
-local DEMO_PARKED = {
-    UNIT_SPELLCAST_SENT = true,
-    UNIT_SPELLCAST_START = true,
-    UNIT_SPELLCAST_SUCCEEDED = true,
-    UNIT_SPELLCAST_FAILED = true,
-    UNIT_SPELLCAST_INTERRUPTED = true,
-    UNIT_AURA = true,
-    PLAYER_TARGET_CHANGED = true,
-}
-
 --- The event spine. The payload fields arrive as `a1..a4` and are classified
 --- at the callee (PlainOrNil), never compared here. The ONE exception is the
 --- leading unit token `a1`: a unit token is OURS to read (plain text, the

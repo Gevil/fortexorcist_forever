@@ -19,7 +19,11 @@
 -- does not reach Forte_Core's module loop, so the enable path is driven by hand
 -- here. The C_Timer pumps are not reachable headless, so `T:Pump()` is driven
 -- directly, and a hidden frame's OnUpdate is never relied on -- TestMode
--- registers no OnUpdate at all, which the first test measures.
+-- registers no OnUpdate at all, which the first test measures. The pump
+-- LIFECYCLE tests (FX7c: the ticker is a demo-lifetime resource, born at the
+-- start and cancelled at every exit, never armed from the enable) spy
+-- `C_Timer.NewTicker` itself -- a headless ticker never fires, so the
+-- creation/cancel counts and the `_ticker` handle are the whole measurement.
 --
 -- The file runs LAST in the Forte_Core load list (the toc's test section)
 -- because it enables the fed add-ons' modules, and the last file wins those
@@ -163,6 +167,27 @@ local function installSendSpies()
     end
 end
 
+--- Spy the client's ticker surface: count the tickers created and the
+--- `Cancel` calls. The headless sim fires no ticker callback, so the counts
+--- and the `_ticker` handle ARE the lifecycle measurement; the fake ticker
+--- carries only the `.Cancel` the product calls (pcall'd, TestMode.lua).
+local function installPumpSpy()
+    local hits = { created = 0, cancelled = 0 }
+    local ct = _G.C_Timer
+    if type(ct) ~= "table" or type(ct.NewTicker) ~= "function" then return nil end
+    local keep = ct.NewTicker
+    ct.NewTicker = function()
+        hits.created = hits.created + 1
+        local ticker = {}
+        function ticker.Cancel() hits.cancelled = hits.cancelled + 1 end
+        return ticker
+    end
+    return function()
+        ct.NewTicker = keep
+        return hits
+    end
+end
+
 -- ----------------------------------------------------------------- module ---
 
 test("the module is registered, off, and pumps without any OnUpdate",
@@ -177,6 +202,10 @@ function()
     -- The frame law of the whole project (the 2026-11-02 uiforever finding):
     -- a hidden frame gets no OnUpdate, so the pump is a ticker.
     assertNil(T._eventFrame:GetScript("OnUpdate"))
+    -- FX7c: the enable creates NO pump. The mode is almost never on, so the
+    -- ticker is a demo-lifetime resource, born at the Start -- a session out
+    -- of demo mode must run no 1 Hz closure at all.
+    assertNil(T._ticker, "the enable leaves the pump uncreated")
     assertEquals("function", type(FX.slashSubs["test"]),
         "/fx test rides FX.RegisterSlash")
     -- No settings key of ours exists anywhere: the mode is session-only, so it
@@ -200,6 +229,88 @@ test("the feeders of both fed frames are registered once", function()
     assertEquals(2, n, "the Cooldown bar and the Spell Timer register")
     assertEquals(1, names["Cooldown"])
     assertEquals(1, names["SpellTimer"])
+end)
+
+-- ------------------------------------------------------------- the pump ----
+--
+-- FX7c: the 1 Hz re-fill pump is a DEMO-lifetime resource. It is created by
+-- the Start (after the refusal checks -- a refused start arms nothing) and
+-- cancelled by every exit -- the hand stop, the combat scrub, the disable.
+-- The pre-fix code armed it in OnEnable, so every logged session beat a
+-- closure once a second to pump a mode that is almost never on.
+
+test("the start creates one pump, the stop cancels it and clears the handle",
+function()
+    enableAll()
+    stopQuietly()
+    seedTracked(0)
+    assertNil(T._ticker, "no ticker out of the mode")
+    local restore = installPumpSpy()
+    assertNotNil(restore, "the client's ticker surface is present to spy")
+    FX.OnSlash("test")
+    assertTrue(T.active)
+    assertNotNil(T._ticker, "the running mode owns the pump")
+    FX.OnSlash("test")
+    assertEquals(false, T.active)
+    assertNil(T._ticker, "the stop cancelled the pump and cleared the handle")
+    local hits = restore()
+    assertEquals(1, hits.created, "exactly one ticker over one cycle")
+    assertEquals(1, hits.cancelled, "exactly one cancel over one cycle")
+end)
+
+test("a combat scrub cancels the pump with the mode", function()
+    enableAll()
+    stopQuietly()
+    seedTracked(0)
+    local restore = installPumpSpy()
+    assertNotNil(restore, "the client's ticker surface is present to spy")
+    FX.OnSlash("test")
+    assertNotNil(T._ticker, "the running mode owns the pump")
+    -- The real script, on the real frame (PLAYER_REGEN_DISABLED
+    -- @UnitDocumentation.lua:3884) -- the combat exit runs the same Stop.
+    T._eventFrame:GetScript("OnEvent")(T._eventFrame, "PLAYER_REGEN_DISABLED")
+    assertEquals(false, T.active)
+    assertNil(T._ticker, "the combat scrub cleared the handle")
+    local hits = restore()
+    assertEquals(1, hits.created, "one ticker in, one out")
+    assertEquals(1, hits.cancelled, "the combat exit cancelled the pump")
+end)
+
+test("three start/stop cycles create one pump each and leave none",
+function()
+    enableAll()
+    stopQuietly()
+    seedTracked(0)
+    local restore = installPumpSpy()
+    assertNotNil(restore, "the client's ticker surface is present to spy")
+    for cycle = 1, 3 do
+        FX.OnSlash("test")
+        assertNotNil(T._ticker, "cycle " .. cycle .. " owns its pump")
+        FX.OnSlash("test")
+        assertNil(T._ticker, "cycle " .. cycle .. " cancelled its pump")
+    end
+    local hits = restore()
+    assertEquals(3, hits.created, "exactly one ticker per start")
+    assertEquals(3, hits.cancelled, "exactly one cancel per stop")
+    assertNil(T._ticker, "the shipped state carries no ticker")
+end)
+
+test("the disable cancels a pump left running by the mode", function()
+    enableAll()
+    stopQuietly()
+    seedTracked(0)
+    local restore = installPumpSpy()
+    assertNotNil(restore, "the client's ticker surface is present to spy")
+    FX.OnSlash("test")
+    assertNotNil(T._ticker, "the running mode owns the pump")
+    T:OnDisable()
+    assertEquals(false, T.active, "the disable stopped the mode")
+    assertEquals("disabled", T.reason)
+    assertNil(T._ticker, "and cancelled the pump")
+    local hits = restore()
+    assertEquals(1, hits.created, "one ticker in")
+    assertEquals(1, hits.cancelled, "one cancel out, at the disable")
+    T:OnEnable()   -- the suite's enable window: the shipped code re-enables
 end)
 
 -- ------------------------------------------------------------- the slash ----
@@ -401,6 +512,7 @@ test("the mode refuses to start in combat and prints the reason", function()
     end
     assertTrue(sawReason, "the refusal says why: " .. table.concat(printed, " | "))
     assertEquals(0, #survivingSyntheticRows(), "and filled nothing")
+    assertNil(T._ticker, "and armed no pump")
     T.readers = keep
 end)
 
@@ -481,6 +593,7 @@ test("the suite leaves the shipped state as it found it", function()
     stopQuietly()
     assertEquals(false, T.active)
     assertEquals(0, #survivingSyntheticRows())
+    assertNil(T._ticker, "no pump ticker is left running")
     for name in pairs(Engine.tracked) do
         if name:find("^DemoTest") then Engine.tracked[name] = nil end
     end
