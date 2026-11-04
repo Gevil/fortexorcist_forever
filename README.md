@@ -28,6 +28,13 @@ textures).
 </p>
 
 <p align="center">
+  <img src="docs/demo/hunter-swing-signals.gif" alt="Hunter swing bar in its default Safe window mode driven by /fx test: orange reload fill, dim clip band at the left, standing aim zone at the right, live red aim slice, cyan weave line, red cast interlock, white flight" width="460"><br>
+  <em>The same bar driven by <code>/fx test</code> with the weave line on: orange = time to the stand-still, the left
+  band = Aimed Shot's length, the red end = stand still, white = the shot left; the cyan line = the melee-weave
+  budget, the frozen full-width red bar = a cast clips this cycle. (<a href="docs/demo/hunter-swing-signals.mp4">MP4</a>)</em>
+</p>
+
+<p align="center">
   <img src="docs/demo/warlock-plates.gif" alt="The four purple Warlock plates: shard counter, soulstone timer, summon queue and healthstone row updating" width="640"><br>
   <em>Warlock plates rendered at 30 fps from the addon itself in the wow-ui-sim simulator (manual clock): the shard
   counter, the soulstone timer counting down, the summon queue and the healthstone row. (<a href="docs/demo/warlock-plates.mp4">MP4</a>)</em>

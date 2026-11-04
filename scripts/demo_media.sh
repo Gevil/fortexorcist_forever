@@ -267,6 +267,7 @@ fails=0
 run cooldown-bar   clip  cooldown-bar        Hunter  150 3
 run spell-timer    clip  spell-timer         Warlock 150 3
 run hunter-swing   clip  hunter-swing        Hunter  180 3
+run hunter-swing-signals clip hunter-swing-signals Hunter 270 3
 run warlock-plates clip  warlock-plates      Warlock 150 2
 run bar-and-timer  scene cooldown-bar-and-timer Hunter  barandtimer.lua
 run warlock-png    scene warlock-plates      Warlock warlock.lua
