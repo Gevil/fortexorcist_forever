@@ -138,6 +138,7 @@ FX.Timer.Skin = {
     TickHeightFactor = 1.5, -- :1622 Height = Height*1.5
     SparkHeightFactor = 2,  -- :2384 spark height = Height*2
     SparkFlareFactor = 2.2, -- :2534 icon spark height = vis*Height*2.2
+    IconGlowFactor = 64 / 34,  -- Spark2 ring (64 px texture, bright line px 15..49) -> wraps the icon edge exactly
     -- ---- the row gate (§1.1 / §5.5) -------------------------------------
     Max = 15,               -- :3315 Max = {[0]=false, 15} (the ON value)
     MaxOn = false,          -- the flag default

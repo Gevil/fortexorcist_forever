@@ -260,6 +260,9 @@ function O:Build()
             C.BORDER_TINT[3], C.BORDER_TINT[4])
     end
     f:SetClampedToScreen(true)
+    -- DIALOG strata: at the default MEDIUM other addons' frames drew over the
+    -- window (live 2026-11-06). Set before any child exists so they follow.
+    f:SetFrameStrata("DIALOG")
 
     -- ---- title bar ----------------------------------------------------
     -- A real 26px strip at the very top of the window (defect 4): dark
@@ -318,6 +321,9 @@ function O:Build()
     local close = CreateFrame("Button", nil, f)
     close:SetSize(18, 18)
     close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -4)
+    close:SetFrameLevel(f:GetFrameLevel() + 50)   -- above every sibling strip
+    close:EnableMouse(true)
+    close:RegisterForClicks("LeftButtonUp")
     local closeText = W.fontString(close, "GameFontHighlightSmall",
         W.glyph("common-icon-redx", WC.GLYPH_CLOSE), C.ACCENT_RED)
     closeText:SetPoint("CENTER", close, "CENTER", 0, 0)

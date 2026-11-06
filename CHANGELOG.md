@@ -12,6 +12,47 @@ headless interface simulator and on uiforever.com — not in a live game.
 
 ---
 
+## Unreleased — 2026-11-06 (first live session on the Forever client)
+
+Found and fixed in the running game (Hunter, build 1.60.1.70790). Items marked
+*(not re-tested live)* were changed after the last in-game check.
+
+- **Spell Timer now sees your own casts, in and out of combat.** Registering
+  the pet's cast events replaced the player's, so Serpent Sting and Hunter's
+  Mark never reached the timer in combat. One registration per event now lists
+  every unit. The Timer also starts again (the `UNIT_DIED` registration no
+  longer aborts the module).
+- **Targeting yourself no longer wipes the timer bars.** A target change swept
+  the rows of the old target against the new unit and faded them all; rows are
+  now swept only for the unit they belong to.
+- **Hunter's Mark lives on one target.** Casting it on a new target retires the
+  old target's bar. A confirmed aura adopts your cast's row instead of adding a
+  second "target" row *(not re-tested live)*.
+- **The timer's icon glow wraps the icon exactly** instead of a squashed
+  rectangle.
+- **The timer's drag title sits below the frame** when the stack grows upward.
+- **Cooldown bar:** icons redraw at 60 Hz instead of 10 Hz; Berserking and
+  Rapid Regeneration (Troll racials) are tracked; icons that land on the same
+  spot stack in lanes instead of hiding each other *(lanes not re-tested live)*.
+- **Summon Hawk (talent, spell 1293241) is on the cooldown bar** and shares
+  its 6 s cooldown with Arcane Shot: casting either starts both bars *(not
+  re-tested live; its name is read from the client)*.
+- **A failing cast no longer jams the Spell Timer.** One raising cast job left
+  a hole in the timer's queue and every later pass errored for the rest of the
+  fight; jobs now run protected, the queue heals, and the first failure is
+  named once in chat.
+- **Options window closes with Esc and the X** and no longer traps the
+  keyboard (number and text boxes no longer grab focus on their own); it draws
+  above other add-ons.
+- **Aspect reminder shows the aspect's icon** (by spell ID, first known aspect)
+  instead of a grey square *(not re-tested live)*.
+- **Probe:** the copy window now opens (font fallback, visible background); the
+  login counter counts real logins, not `/reload`s.
+- **Developer logging:** `/fx log on|off` copies every Lua error to chat as
+  `[FX-ERR]`; with it on, cast events are traced as `[FX:timer]`.
+
+---
+
 ## Unreleased — 2026-11-04 (Iteration J: the Hunter swing bar reads your rotation)
 
 - **The Hunter bar starts in its Safe-window mode as intended, and two

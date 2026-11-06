@@ -186,24 +186,50 @@ function R:IconName()
         return current
     end
     if type(self._lastAspect) == "string" then return self._lastAspect end
+    -- Nothing cast yet: the first aspect THIS character actually knows (the
+    -- generic first entry, Beast, is not in every spellbook), else the first.
     local names = FX.Hunter.Tools and FX.Hunter.Tools.aspectNames
+    local byName = FX.Data and FX.Data.HunterByName
+    if names and byName and FX.Compat and FX.Compat.IsPlayerSpell then
+        for i = 1, #names do
+            local id = byName[names[i]]
+            if id and FX.Compat.IsPlayerSpell(id) then return names[i] end
+        end
+    end
     return (names and names[1])
+end
+
+-- Never the grey bar: a question-mark is the honest "icon unknown".
+local UNKNOWN_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
+
+--- Icon for an aspect name: by spell ID first (name lookups fail for spells
+--- the client does not list), then by name, then the question mark.
+local function aspectTexture(name)
+    local id = FX.Data and FX.Data.HunterByName and FX.Data.HunterByName[name]
+    local C = _G.C_Spell
+    for _, key in ipairs({ id, name }) do
+        if key ~= nil and C then
+            if C.GetSpellTexture then
+                local ok, v = pcall(C.GetSpellTexture, key)
+                if ok and v ~= nil then return v end
+            end
+            if C.GetSpellInfo then
+                local ok, info = pcall(C.GetSpellInfo, key)
+                local icon = ok and type(info) == "table" and (info.iconID or info.originalIconID)
+                if icon then return icon end
+            end
+        end
+    end
+    return nil
 end
 
 function R:ApplyIcon()
     local name = self:IconName()
     if name == nil or self._tex == name then return end
-    self._tex = name
-    local path
-    if C_Spell and C_Spell.GetSpellTexture then
-        local ok, v = pcall(C_Spell.GetSpellTexture, name)
-        if ok then path = v end
-    end
-    if path ~= nil then
-        self.icon:SetTexture(path)
-    else
-        self.icon:SetTexture(S.BarTexture)
-    end
+    local path = aspectTexture(name)
+    -- Only cache a successful lookup, so a not-yet-ready spell DB is retried.
+    if path ~= nil then self._tex = name end
+    self.icon:SetTexture(path or UNKNOWN_ICON)
 end
 
 -- ----------------------------------------------------------------- render --

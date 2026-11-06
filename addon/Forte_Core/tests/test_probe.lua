@@ -78,13 +78,28 @@ test("probe registered: slash seam, module, API shape", function()
     assertEquals(20, Probe.MAX_RUNS)
 end)
 
--- 2. The login epoch: OnEnable rides the Forte_Core bootstrap's
--- PLAYER_LOGIN (the file's frame is the only top-level registrant), so it
--- runs exactly once per login; a /reload must NOT re-run it.
-test("probeEpoch increments once per OnEnable (login), readable on runs", function()
+-- 2. The login epoch. PLAYER_LOGIN ALSO fires after /reload on the live
+-- client (epoch reached 20 in one session), so OnEnable does not bump it:
+-- the bump rides PLAYER_ENTERING_WORLD's isInitialLogin (first arg), which is
+-- true only on a real login. A /reload (isInitialLogin false, isReloadingUi
+-- true) must NOT bump it.
+test("probeEpoch bumps on a real login only, not on OnEnable or /reload; readable on runs", function()
     assertNotNil(savedEpoch)
     assertTrue(savedEpoch >= 1)
+    Probe._epochFrame = nil
     Probe:OnEnable()
+    assertEquals(savedEpoch, FX.db.probeEpoch, "OnEnable alone (a /reload) does not bump")
+    local f = Probe._epochFrame
+    assertNotNil(f)
+    local h = f:GetScript("OnEvent")
+    assertNotNil(h)
+    h(f, "PLAYER_ENTERING_WORLD", false, true)         -- /reload
+    assertEquals(savedEpoch, FX.db.probeEpoch, "a reload does not bump")
+    Probe._epochFrame = nil
+    Probe:OnEnable()
+    f = Probe._epochFrame
+    h = f:GetScript("OnEvent")
+    h(f, "PLAYER_ENTERING_WORLD", true, false)         -- real login
     assertEquals(savedEpoch + 1, FX.db.probeEpoch)
     local run = Probe:RunPlan("epoch-check", oneGroup())
     assertEquals(savedEpoch + 1, run.epoch)
@@ -435,7 +450,7 @@ test("SV row: OnEnable latches the stored stamp", function()
     local epochBefore = FX.db.probeEpoch
     Probe:OnEnable()
     assertEquals("FXS@pre-login", Probe._svLogin)
-    FX.db.probeEpoch = epochBefore -- OnEnable bumps the login counter; undo
+    FX.db.probeEpoch = epochBefore -- defensive: OnEnable itself no longer bumps
     Probe._svLogin = savedSvLogin
 end)
 

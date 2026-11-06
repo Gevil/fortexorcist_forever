@@ -106,6 +106,10 @@ local function inCombat()
 end
 Casts.InCombat = inCombat
 
+--- Spells whose effect can sit on one unit at a time (hand-kept until the
+--- generator emits isUnique).
+Casts.UNIQUE = { ["Hunter's Mark"] = true }
+
 --- The name half of a payload spellID: pcall the lookup, pass the result's
 --- `name` field through PlainOrNil, accept only a plain string. Never a raw
 --- comparison on the id; the info table's truth test stays inside the
@@ -552,16 +556,42 @@ function Casts:Pump(now)
     now = now or self:Clock()
     local p = self.pending
     local keep = 0
-    for i = 1, #p do
+    -- Heal holes first: a job that raised used to leave a nil slot behind
+    -- (live 2026-11-06, dungeon: "attempt to index local 'job' (a nil value)"
+    -- on every pump after one earlier error). Dense in place, once per pump.
+    local top = table.maxn(p)
+    local nd = 0
+    for k = 1, top do
+        local v = p[k]
+        if v ~= nil then nd = nd + 1; p[nd] = v end
+    end
+    for k = nd + 1, top do p[k] = nil end
+    for i = 1, nd do
         local job = p[i]
         if job.at <= now then
             p[i] = nil
+            -- One raising job must not stop the rest (or leave the queue torn):
+            -- run it protected and report the first distinct message in chat.
+            local okJob, errJob = pcall(function()
             if job.kind == "insert" then
                 local row, verdict = self.rows:InsertFromCast(job.name,
                     job.targetKey, job.duration, now, job.castTime, job.haste)
                 if row then
                     self:InitStatus()
                     self.status.rows = self.status.rows + 1
+                    -- Single-target effects (the Registry's `isUnique`, not in
+                    -- the generated data yet): the aura can only be on ONE
+                    -- unit, so a fresh cast on a new target retires this
+                    -- spell's rows on every other target (live 2026-11-06:
+                    -- Hunter's Mark bars stayed on old targets).
+                    if Casts.UNIQUE[job.name] then
+                        local others = self.rows:AllForName(job.name)
+                        for k = 1, #others do
+                            if others[k] ~= row then
+                                self.rows:Fade(others[k], Laws.REMOVE, now)
+                            end
+                        end
+                    end
                     -- The target string is an opaque key; a plain token match
                     -- promotes the row's unit token (CA-19).
                     local token = self:ResolveTarget(job.targetKey)
@@ -626,12 +656,21 @@ function Casts:Pump(now)
                     self.status.failed = self.status.failed + faded
                 end
             end
+            end)
+            if not okJob then
+                self:InitStatus()
+                self.status.raised = (self.status.raised or 0) + 1
+                if self._pumpErr ~= tostring(errJob) then
+                    self._pumpErr = tostring(errJob)
+                    FX.Print("timer: a cast job failed: " .. self._pumpErr)
+                end
+            end
         else
             keep = keep + 1
             p[keep] = job
         end
     end
-    for i = keep + 1, #p do p[i] = nil end
+    for i = keep + 1, nd do p[i] = nil end
     local q = self.queue
     for i = #q, 1, -1 do
         if now - q[i].openedAt > (self.flushAfter or Laws.QUEUE_FLUSH) then

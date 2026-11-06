@@ -143,6 +143,25 @@ end
 --- rebuild carry, Forte_Cooldown/Module.lua): a same-class rebuild is a re-read
 --- of the known set, so its running windows are the same question they were,
 --- while a class change is a fresh question with nothing to carry across.
+-- Spells that are not in the generated class data (racials carry no cooldown
+-- in the spell store; talent spells are missing). Hand-kept, ID-keyed.
+-- `name` may be omitted: it is then read from the live client. `shares` names
+-- a tracked spell that shares this cooldown: a cast of either starts both.
+Engine.RACIALS = {
+    [20554] = { name = "Berserking", cooldownMs = 180000 },
+    [1260270] = { name = "Rapid Regeneration", cooldownMs = 180000 },   -- channel; 3 min per owner
+    [1293241] = { cooldownMs = 6000, shares = "Arcane Shot" },          -- Summon Hawk talent (owner, 2026-11-06)
+}
+
+local function liveSpellName(id)
+    local C = _G.C_Spell
+    if not (C and C.GetSpellInfo) then return nil end
+    local ok, info = pcall(C.GetSpellInfo, id)
+    local nm = ok and type(info) == "table" and FX.Compat.PlainOrNil(info.name)
+    if type(nm) == "string" and nm ~= "" then return nm end
+    return nil
+end
+
 function Engine:Build(classFile, isKnown)
     local classChanged = self.builtClass ~= classFile
     self.builtClass = classFile
@@ -163,6 +182,26 @@ function Engine:Build(classFile, isKnown)
         end
     end
     return n, nil, classChanged
+end
+
+--- The hand-kept spells (Engine.RACIALS), added AFTER Build by the Module's
+--- Rebuild so Build's contract (class data only) and its count tests stay
+--- exactly as they were. Tracked only when the player knows the spell;
+--- returns how many were added. Cooldowns are measured on the live client
+--- (Berserking 20554: 180 s, 2026-11-06).
+function Engine:AddExtras(isKnown)
+    local n = 0
+    for id, spell in pairs(self.RACIALS) do
+        local name = spell.name or liveSpellName(id)
+        local known = name and (isKnown(name)
+            or (FX.Compat.IsPlayerSpell and FX.Compat.IsPlayerSpell(id)))
+        if known then
+            self.tracked[name] = { name = name, dataId = id,
+                baseDuration = spell.cooldownMs / 1000, shares = spell.shares }
+            n = n + 1
+        end
+    end
+    return n
 end
 
 --- Runtime multi-charge detection (owner ruling 2026-11-01: multi-charge is
@@ -199,7 +238,7 @@ end
 --- recharge clock at now + BestDuration (file header). A fresh cast clears
 --- any prior read-certification (`anchored`). Returns the entry, or nil if
 --- `name` isn't tracked.
-function Engine:OnCast(name, now)
+function Engine:OnCast(name, now, _partner)
     local t = self.tracked[name]
     if not t then return nil end
     local duration = self:BestDuration(name)
@@ -217,6 +256,14 @@ function Engine:OnCast(name, now)
         if c.nextAt == nil then c.nextAt = now + duration end
     end
     self.entries[name] = e
+    -- Shared cooldown: the partner spell goes on cooldown with this one.
+    if not _partner then
+        for pname, pt in pairs(self.tracked) do
+            if pname ~= name and (t.shares == pname or pt.shares == name) then
+                self:OnCast(pname, now, true)
+            end
+        end
+    end
     return e
 end
 

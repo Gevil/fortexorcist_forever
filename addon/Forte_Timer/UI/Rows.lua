@@ -183,7 +183,12 @@ function D:Init(options, skin, cfg)
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     title:SetText("Forte Spell Timers (predicted)")
     title:SetTextColor(1, 1, 1, 1)
-    title:SetPoint("BOTTOM", f, "TOP", 0, 2)
+    -- Placement rides the Expand option: growing UP hangs the stack off the
+    -- frame's bottom edge, so the title sits BELOW it (the bottom edge is
+    -- the handle the player positions); otherwise it stays above.
+    self.title = title
+    self.anchor = f
+    self:ApplyTitleAnchor(options.expand)
 
     self.anchor, self.title = f, title
     self.groups = {}      -- the group pool (frame + backdrop + label + mark)
@@ -274,6 +279,21 @@ function D:SetLocked(locked)
     self.anchor:SetMovable(not locked)
     self.anchor:EnableMouse(true)
     if locked then self.title:Hide() else self.title:Show() end
+end
+
+--- Title placement for the growth direction (nil = the default, expand up).
+function D:ApplyTitleAnchor(expand)
+    local title, f = self.title, self.anchor
+    if not title or not f then return end
+    if expand == nil then
+        expand = (self.options == nil) or (self.options.expand ~= false)
+    end
+    title:ClearAllPoints()
+    if expand then
+        title:SetPoint("TOP", f, "BOTTOM", 0, -2)
+    else
+        title:SetPoint("BOTTOM", f, "TOP", 0, 2)
+    end
 end
 
 --- FW:StartMoving's press stamp (Forte_Core/Options.lua:649-656): the cursor
@@ -449,7 +469,9 @@ function D:AcquireRow(i)
     iconSpark:SetTexture(skin.IconSpark)
     iconSpark:SetBlendMode("ADD")
     iconSpark:SetPoint("CENTER", icon, "CENTER", 0, 0)
-    iconSpark:SetSize(o.height, o.height * skin.SparkFlareFactor)
+    -- The Spark2 ring's bright line spans px 15..49 of its 64 px (34 px, centred),
+    -- so a 64/34 scale puts that line exactly on the icon's edge.
+    iconSpark:SetSize(o.iconSize * skin.IconGlowFactor, o.height * skin.IconGlowFactor)
     -- The stack tag: the icon's BOTTOMRIGHT, the base font at size - 1 with
     -- OUTLINE (:1696-1698, :2467-2471, :3347 -- delta D8).
     local tag = icon:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -609,7 +631,7 @@ function D:ApplyRowGeometry(row, o, skin, vis)
             row.icon:SetPoint("TOPRIGHT", row.bar, "TOPLEFT", -1, 0)
             row.icon:SetPoint("BOTTOMRIGHT", row.bar, "BOTTOMLEFT", -1, 0)
         end
-        row.iconSpark:SetSize(o.iconSize, o.height * skin.SparkFlareFactor)
+        row.iconSpark:SetSize(o.iconSize * skin.IconGlowFactor, o.height * skin.IconGlowFactor)
         row.spark:SetSize(o.height, o.height * skin.SparkHeightFactor)
         row.mark:SetSize(o.height, o.height)
         -- The mirrored fill rides the bar's height (its width is the fill

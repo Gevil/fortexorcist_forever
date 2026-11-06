@@ -242,6 +242,27 @@ end
 --- Sweep every live row that belongs to `token`: a row whose targetKey is the
 --- token, whose unitToken is it, or (self rows) the "player" sweep of a
 --- targetKey == "none" row.
+--- Does `token` still point at the unit this row belongs to? Live finding
+--- 2026-11-06: targeting yourself made every target row read "aura absent"
+--- (the aura is on the OLD target, not on you) and fade red. Identity first
+--- (the stamped guid), the cast's plain target name second; anything
+--- unreadable answers true, i.e. the old behaviour.
+local function tokenHoldsRowUnit(self, row, token)
+    if token == "player" or row.targetKey == "none" then return true end
+    local rowGuid = (type(row.guid) == "string") and row.guid or row.castGuid
+    if type(rowGuid) == "string" then
+        local g = self:TokenGuid(token)
+        if type(g) == "string" then return g == rowGuid end
+    end
+    local key = row.targetKey
+    if type(key) == "string" and key ~= token and type(_G.UnitName) == "function" then
+        local ok, name = pcall(_G.UnitName, token)
+        name = ok and plain(name) or nil
+        if type(name) == "string" then return name == key end
+    end
+    return true
+end
+
 function Reconcile:SweepUnit(token, filter, now)
     if self:Gates() then return 0 end
     now = now or GetTime()
@@ -253,13 +274,30 @@ function Reconcile:SweepUnit(token, filter, now)
             local mine = (row.targetKey == token)
                 or (row.unitToken == token)
                 or (token == "player" and row.targetKey == "none")
-            if mine then
+            if mine and tokenHoldsRowUnit(self, row, token) then
                 if self:SweepRow(row, token, filter, now) then n = n + 1 end
             end
         end
     end
     self.lastSweep[token] = now
     return n
+end
+
+--- The live row of `name` that belongs to the unit `token` holds right now
+--- (a cast row keyed by the target's name, promoted to this token), or nil.
+local function findRowForUnit(self, name, token)
+    if token == "player" then return nil end
+    local r = self.rows
+    for i = 1, r.rows_n do
+        local row = r.rows[i]
+        if row and row.name == name and row.state <= Laws.REMOVE
+            and row.targetKey ~= "none"
+            and (row.unitToken == token or row.targetKey == token)
+            and tokenHoldsRowUnit(self, row, token) then
+            return row
+        end
+    end
+    return nil
 end
 
 --- The bulk half: the design's P5 path. `GetUnitAuras(unit, filter)` lists the
@@ -311,15 +349,30 @@ function Reconcile:SweepBulk(token, filter, now)
             local name = aura and plain(aura.name)
             if type(name) == "string" and expire ~= nil
                 and FX.Timer.Registry.IsTracked(name) then
-                local row, verdict = self.rows:InsertFromAura(name,
-                    (token == "player") and "none" or token,
-                    expire, total
-                        or math.max(0, expire - now), stacks, token, nil, now,
-                    -- The confirming read's identity (the original's
-                    -- `st[i][11] = guid`, :1161): nil when the client gives no
-                    -- plain UnitGUID, which leaves the row guid-less and its
-                    -- break fail-open.
-                    self:TokenGuid(token))
+                -- A cast row is keyed by the target's NAME, the sweep's token
+                -- by "target": without this match every confirmed aura made a
+                -- SECOND row for the same mob (live 2026-11-06: two Hunter's
+                -- Mark bars, one under a "target" header). Adopt the cast row
+                -- for the unit the token holds now; insert only when none.
+                local guid = self:TokenGuid(token)
+                local existing = findRowForUnit(self, name, token)
+                local row, verdict
+                if existing then
+                    row = existing
+                    verdict = self.rows:OnAuraFact(existing, expire,
+                        total or math.max(0, expire - now), stacks, now,
+                        token, nil, guid)
+                else
+                    row, verdict = self.rows:InsertFromAura(name,
+                        (token == "player") and "none" or token,
+                        expire, total
+                            or math.max(0, expire - now), stacks, token, nil, now,
+                        -- The confirming read's identity (the original's
+                        -- `st[i][11] = guid`, :1161): nil when the client gives
+                        -- no plain UnitGUID, which leaves the row guid-less and
+                        -- its break fail-open.
+                        guid)
+                end
                 if row and verdict == "inserted" then
                     added = added + 1
                     self.counts.added = self.counts.added + 1

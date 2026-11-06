@@ -23,6 +23,22 @@ the relog persistence proof — same probe code, different restriction state.
    third-party tool touches the tree, and rehearse the whole install in a
    scratch directory first with `--target /tmp/fxdeploytest` (never against
    the live client) if the step is unfamiliar.
+
+   **Windows (Git Bash)** — verified 2026-11-06 on the owner's PC. The script's
+   default target is the Linux Steam/Proton path, so name the AddOns folder
+   yourself, and use `--verify` alone when the folders were installed by
+   hand (the deployer refuses to delete a folder it did not create and says
+   `REFUSED`; the verify pass is still the proof):
+
+   ```bash
+   FX_WOW_ADDONS="C:/Games/World of Warcraft/_forever_/Interface/AddOns" \
+     bash scripts/deploy.sh --verify
+   ```
+
+   The client loads `Forte_Core_Camelot.toc`, not `Forte_Core.toc`: a file
+   added to one must be added to both (`scripts/gate.py` checks they are
+   byte-identical). Without a luajit, `pip install lupa` gives a Lua 5.1 for a
+   syntax check (`loadstring`), and Mechanic's `addon.lint` runs luacheck.
 2. **ForeverSVFix: uninstall if installed.** (If it edits our `.toc` in place,
    the SavedVariables evidence below is contaminated.) Launch, log in on the
    **Hunter**.

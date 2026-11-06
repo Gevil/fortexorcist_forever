@@ -2072,6 +2072,9 @@ function D:Update(entries, now)
     end
     local byName, islot, seen = self._byName, self._islot, self._seen
     wipe(seen)
+    local lanes = self._lanes
+    if not lanes then lanes = {}; self._lanes = lanes end
+    for k in pairs(lanes) do lanes[k] = nil end
 
     for i = 1, n do
         local e = entries[i]
@@ -2106,8 +2109,17 @@ function D:Update(entries, now)
         -- icon centre = origin + pos(t) + ih/2 = t9, the very right edge of
         -- the segment span.
         local point, ox, oy = axisPoint(x)
-        if slot._cx ~= x or slot._cp ~= point then
-            slot._cx, slot._cp = x, point
+        -- Overlap lanes: icons whose axis positions fall within one icon width
+        -- of an earlier icon (same-cooldown casts, a trap family) step sideways
+        -- off the axis instead of hiding each other. The AXIS position stays
+        -- true; only the perpendicular offset changes.
+        local lane = 0
+        while lanes[lane] and math.abs(x - lanes[lane]) < H do lane = lane + 1 end
+        lanes[lane] = x
+        local step = lane * H * 0.75
+        if S.Vertical then ox = ox + step else oy = oy + step end
+        if slot._cx ~= x or slot._cp ~= point or slot._cl ~= lane then
+            slot._cx, slot._cp, slot._cl = x, point, lane
             slot.frame:ClearAllPoints()
             slot.frame:SetPoint(point, self.bar, point, ox, oy)
         end

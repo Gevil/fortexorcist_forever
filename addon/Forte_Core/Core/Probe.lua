@@ -979,6 +979,15 @@ function Probe:Window()
     pcall(f.SetToplevel, f, true)
     pcall(f.SetClampedToScreen, f, true)
 
+    -- Real-client EditBoxes raise "Font not set" on SetText without a font
+    -- (swallowed by the pcalls below => no text, no window). Give the frame
+    -- an opaque background so it is visible regardless of text state.
+    local okBg, bg = pcall(f.CreateTexture, f, nil, "BACKGROUND")
+    if okBg and bg then
+        pcall(bg.SetAllPoints, bg, f)
+        pcall(bg.SetColorTexture, bg, 0.05, 0.05, 0.08, 0.95)
+    end
+    pcall(f.SetFrameStrata, f, "DIALOG")
     local title
     local okT, t = pcall(f.CreateFontString, f, nil, "OVERLAY",
         "GameFontHighlightSmall")
@@ -1007,6 +1016,7 @@ function Probe:Window()
     pcall(eb.SetTextColor, eb, 0.92, 0.93, 0.96, 1)
     pcall(eb.SetHighlightColor, eb, 0.30, 0.52, 0.85, 0.55)
     pcall(eb.Enable, eb, true)
+    pcall(eb.SetFontObject, eb, _G.ChatFontNormal or _G.GameFontHighlight)
     -- The options window's validated identity font, when it is loaded.
     local Wc = FX.Options and FX.Options.Widgets and FX.Options.Widgets.C
     if type(Wc) == "table" and type(Wc.FONT_FILE) == "string"
@@ -1079,6 +1089,8 @@ local function presentRun(mod, run)
     end)
     if not ok then
         FX.Print("PROBE window unavailable: " .. tostring(err))
+    elseif not mod._win then
+        FX.Print("PROBE window unavailable: frame/EditBox could not be created")
     end
 end
 
@@ -1247,9 +1259,26 @@ function Probe:OnEnable()
         -- last run wrote, as it stands in the restored SavedVariables at
         -- PLAYER_LOGIN -- before this session's runs overwrite it.
         Probe._svLogin = FX.db.probeStamp
-        FX.db.probeEpoch = (tonumber(FX.db.probeEpoch) or 0) + 1
-    else
-        Probe._epoch = (Probe._epoch or 0) + 1
+        -- probeEpoch counts real LOGINS. PLAYER_LOGIN also fires after /reload
+        -- on the live client (epoch reached 20 in one session), so the bump
+        -- rides PLAYER_ENTERING_WORLD's isInitialLogin instead (below).
+    end
+    if _G.CreateFrame and not self._epochFrame then
+        local okE, ef = pcall(_G.CreateFrame, "Frame")
+        if okE and ef then
+            self._epochFrame = ef
+            pcall(ef.RegisterEvent, ef, "PLAYER_ENTERING_WORLD")
+            pcall(ef.SetScript, ef, "OnEvent", function(frame, _, isInitialLogin)
+                pcall(frame.UnregisterEvent, frame, "PLAYER_ENTERING_WORLD")
+                if isInitialLogin then
+                    if FX.db then
+                        FX.db.probeEpoch = (tonumber(FX.db.probeEpoch) or 0) + 1
+                    else
+                        Probe._epoch = (Probe._epoch or 0) + 1
+                    end
+                end
+            end)
+        end
     end
     if not self._frame and _G.CreateFrame then
         local ok, f = pcall(_G.CreateFrame, "Frame")

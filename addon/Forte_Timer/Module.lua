@@ -376,7 +376,11 @@ end
 function M:SetLabel(on) self.options.label = not not on end
 function M:SetShowID(on) self.options.showID = not not on end
 function M:SetSpellName(on) self.options.spell = not not on end
-function M:SetExpand(on) self.options.expand = not not on end
+function M:SetExpand(on)
+    self.options.expand = not not on
+    local D = FX.Timer and FX.Timer.Display
+    if D and D.ApplyTitleAnchor then D:ApplyTitleAnchor(self.options.expand) end
+end
 function M:SetOutwands(on) self.options.outwands = not not on end
 --- The bar direction (`Flip`, :3332, the "Flip bar direction" row :3149): the
 --- source mirrors its bar's fill (NewStatusBar's `SetFlipped` :1647-1655 —
@@ -777,9 +781,13 @@ function M:OnEnable()
     -- One frame, created inside the PLAYER_LOGIN handler (see the header).
     local f = CreateFrame("Frame")
     self._eventFrame = f
-    f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
+    -- LIVE FINDING 2026-11-06: a second RegisterUnitEvent for the same event
+    -- REPLACES the first unit set (player SENT/SUCCEEDED vanished once the pet
+    -- registration ran; combat casts never reached the Timer). One call per
+    -- event, every unit listed.
+    f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player", "pet")
     f:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
-    f:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+    f:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pet")
     f:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
     f:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
     -- The pet feed (wave 2b "PetRows v2", PLAN §11.1): the same family,
@@ -790,11 +798,11 @@ function M:OnEnable()
     -- no pet to produce it is simply no event. The payload's leading unit
     -- token is ours to read (a unit token is plain text), classified at the
     -- callee -- that token is what routes the two feeds.
-    f:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "pet")
-    f:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "pet")
-    f:RegisterUnitEvent("UNIT_AURA", "player")
-    f:RegisterUnitEvent("UNIT_AURA", "target")
-    f:RegisterUnitEvent("UNIT_DIED", "target")
+    f:RegisterUnitEvent("UNIT_AURA", "player", "target")
+    -- UNIT_DIED does not exist as a unit event on the live client (live
+    -- 2026-11-06: RegisterUnitEvent raised and aborted the whole module).
+    -- Optional: dead-target rows then retire on row expiry instead.
+    pcall(f.RegisterUnitEvent, f, "UNIT_DIED", "target")
     f:RegisterEvent("PLAYER_TARGET_CHANGED")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
     f:RegisterEvent("PLAYER_REGEN_DISABLED")
@@ -872,6 +880,17 @@ function M:OnEvent(event, a1, a2, a3, a4)
     local C = FX.Timer.Casts
     local caster = FX.Compat.PlainOrNil(a1)
     local isPet = type(caster) == "string" and caster == "pet"
+    -- Dev trace (`/fx log on`): what each cast event really delivers on the
+    -- live client -- types and plainness, never the values themselves.
+    if FX.Log and FX.LogModule and FX.LogModule.on
+        and string.sub(tostring(event), 1, 14) == "UNIT_SPELLCAST" then
+        local P = FX.Compat.PlainOrNil
+        FX.Log("timer", event, "caster=", tostring(caster),
+            "combat=", tostring(UnitAffectingCombat and UnitAffectingCombat("player")),
+            "a2plain=", tostring(P(a2) ~= nil), "a3plain=", tostring(P(a3) ~= nil),
+            "a4plain=", tostring(P(a4) ~= nil),
+            "spell=", tostring(P(a4) or P(a3)))
+    end
     if event == "UNIT_SPELLCAST_SENT" then
         -- (unitTarget, target, castGUID, spellID)
         if isPet then

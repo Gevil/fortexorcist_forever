@@ -17,6 +17,7 @@ FX.Cooldown.Module = M
 FX.RegisterModule("Cooldown", M)
 
 local TICK_SECONDS = 0.1        -- 10 Hz display/sweep cadence
+local RENDER_SECONDS = 1 / 60     -- bar redraw cadence (icon motion smoothness)
 local READ_DEBOUNCE = 0.1       -- coalesce a SPELL_UPDATE_COOLDOWN burst
 local REBUILD_DEBOUNCE = 0.5    -- coalesce a SPELLS_CHANGED burst
 local RESCAN_DEBOUNCE = 0.5     -- coalesce an inventory-change burst
@@ -485,6 +486,7 @@ function M:Rebuild()
     wipe(readKeyCache)
     carrySnapshots()
     local n, reason, classChanged = Engine:Build(FX._playerClass, isKnown)
+    if n then n = n + Engine:AddExtras(isKnown) end
     -- The windows of the fresh tracked set ride the wipe (the carry law
     -- above); a class change is the clean start it always was.
     if not classChanged then carryRestore() end
@@ -909,10 +911,26 @@ function M:OnEnable()
         if ticks % READ_NET_TICKS == 0 then
             M:ReadAll()
         end
-        if FX.Cooldown.Display then
-            FX.Cooldown.Display:Update(Engine:Sorted(sortedScratch), now)
-        end
     end)
+
+    -- Smooth render pump. The 10 Hz ticker above stepped icons 10x/s, which
+    -- looks choppy on a log-scaled bar. Display:Update is dirty-checked, so
+    -- calling it at ~60 Hz only moves what changed. This frame is never
+    -- hidden (a hidden frame gets no OnUpdate); it only runs while the module
+    -- is enabled and is created once.
+    if not M._renderFrame then
+        local rf = CreateFrame("Frame", nil, UIParent)
+        M._renderFrame = rf
+        local acc = 0
+        rf:SetScript("OnUpdate", function(_, elapsed)
+            acc = acc + (tonumber(elapsed) or 0)
+            if acc < RENDER_SECONDS then return end
+            acc = 0
+            if FX.Cooldown.Display then
+                FX.Cooldown.Display:Update(Engine:Sorted(sortedScratch), GetTime())
+            end
+        end)
+    end
 
     -- Display arrives with UI/Display.lua; nil-safe until that lands.
     if FX.Cooldown.Display then FX.Cooldown.Display:Init() end
