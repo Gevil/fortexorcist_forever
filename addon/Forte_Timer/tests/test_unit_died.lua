@@ -21,10 +21,17 @@
 -- PLAIN string (the guid is SecretWhenUnitIdentityRestricted -- it is
 -- classified, never compared; a plain GUID string like the catalog's WOWGUID
 -- payload is a plain string, and the content is inert to the branch); every
--- live row whose `unitToken` names the "target" unit then faces the client's
--- own `UnitExists("target")` -- a PLAIN false (the unit token is gone: the
--- death cleanup) fades the row REMOVED at once. The payload's CONTENT is not
--- compared: the liveness read is the answer.
+-- live row whose `unitToken` names the "target" unit then faces the gate --
+-- THE 2026-11-07 DEAD-CORPSE GATE (iteration M, the live-client finding):
+-- the gate is the client's own `UnitIsDeadOrGhost("target")` answering PLAIN
+-- TRUE (a dead mob's corpse, a released player's ghost -- both names in the
+-- pinned catalog, UnitToken in, bool out) with `UnitExists("target")`
+-- answering PLAIN FALSE riding as the SECOND trigger (the token gone
+-- outright: corpse looted, target cleared). The old gate was UnitExists
+-- ALONE -- and the client keeps the token alive over a fresh corpse, so on
+-- the real client the cleanup almost never fired; the dead-corpse legs pin
+-- the fix. The payload's CONTENT is not compared: the dead read is the
+-- answer, and a raise or a sealed read is no answer at all.
 --
 -- Every test drives the REAL event frame with the exact client payload (the
 -- dispatch idiom of test_module.lua: the frame is argument 1) -- a test
@@ -77,20 +84,26 @@ local function restorePlain()
     FX.Compat.PlainOrNil = realPlainOrNil
 end
 
---- The liveness answer the branch reads (the module pcalls the GLOBAL, so
---- the install is `_G.UnitExists`, the test_pet_rows.lua idiom). `target`
---- says whether the TARGET token still exists; every other token answers
---- its default.
+--- The liveness answers the branch reads (the module pcalls the GLOBALS, so
+--- the install is `_G.UnitExists` / `_G.UnitIsDeadOrGhost`, the
+--- test_pet_rows.lua idiom). `target` says whether the TARGET token still
+--- exists; the DEAD read is installed INERT (a nil answer falls the
+--- 2026-11-07 gate through to the UnitExists trigger), so these legs keep
+--- pinning exactly what they always pinned. Every other token answers its
+--- default.
 local function installUnitExists(target)
-    local saved = _G.UnitExists
+    local saved = { UnitExists = _G.UnitExists,
+        UnitIsDeadOrGhost = _G.UnitIsDeadOrGhost }
     _G.UnitExists = function(token)
         if token == "target" then return target end
         return false
     end
+    _G.UnitIsDeadOrGhost = function() return nil end
     return saved
 end
 local function restoreUnitExists(saved)
-    _G.UnitExists = saved
+    _G.UnitExists = saved.UnitExists
+    _G.UnitIsDeadOrGhost = saved.UnitIsDeadOrGhost
 end
 
 local function capture(event)
@@ -276,6 +289,137 @@ function()
     assertEquals(Laws.REMOVE, killed.state,
         "the GUID-shaped payload retires the target row")
     assertEquals(Laws.NORMAL, selfRow.state, "the self row rides on")
+    Rows:Clear()
+end)
+
+-- ------------------------------------------------------- the dead corpse --
+-- THE 2026-11-07 LIVE-CLIENT FINDING (iteration M): UnitExists("target")
+-- answers TRUE over a fresh corpse -- the token dies only when the corpse
+-- is looted, the player releases, the target is cleared -- so the old
+-- UnitExists-ALONE gate let a dead target's rows ride their full duration
+-- on the real client. The gate is now the catalog's
+-- UnitIsDeadOrGhost("target") first (docs/api/wow-addon-api-agents: UnitIs-
+-- Dead and UnitIsDeadOrGhost are BOTH pinned, (unit UnitToken) -> bool, the
+-- bool return not secret-annotated; the ghost half covers a released
+-- player), UnitExists == false riding as the second trigger. Every leg
+-- installs BOTH reads and drives the real frame with the catalog's GUID
+-- payload; the first leg fails on the UnitExists-alone branch.
+
+--- The sentinel that makes an installed read RAISE (the branch pcalls every
+--- global read, so a raise is the client's own failing-read shape).
+local RAISE = { "fx-test-raise" }
+--- Install BOTH liveness reads for one leg: `exists` answers
+--- UnitExists("target"), `isDead` answers UnitIsDeadOrGhost("target").
+local function installUnitState(exists, isDead)
+    local saved = { UnitExists = _G.UnitExists,
+        UnitIsDeadOrGhost = _G.UnitIsDeadOrGhost }
+    _G.UnitExists = function(token)
+        if token ~= "target" then return false end
+        if exists == RAISE then error("fx-test: UnitExists raise") end
+        return exists
+    end
+    _G.UnitIsDeadOrGhost = function(token)
+        if token ~= "target" then return nil end
+        if isDead == RAISE then error("fx-test: UnitIsDeadOrGhost raise") end
+        return isDead
+    end
+    return saved
+end
+local function restoreUnitState(saved)
+    _G.UnitExists = saved.UnitExists
+    _G.UnitIsDeadOrGhost = saved.UnitIsDeadOrGhost
+end
+
+test("the dead corpse: the token EXISTS, the target is DEAD -> its rows fade (2026-11-07; fails on the UnitExists-alone gate)",
+function()
+    enableTimer()
+    buildHunterRegistry()
+    Rows:Clear()
+    local killed = seedTargetRow("Serpent Sting", "Vile Poacher")
+    local selfRow = seedSelfRow("Hunter's Mark")
+    local broken, hb = capture(FX.EVENTS.TIMER_BROKEN)
+    -- The real client's every UNIT_DIED for my own kill answers THIS pair:
+    -- the corpse keeps the token alive, the dead verdict is true.
+    local saved = installUnitState(true, true)
+    dispatch("UNIT_DIED", "Creature-0-1142-65-1-1096-0")
+    restoreUnitState(saved)
+    assertEquals(Laws.REMOVE, killed.state,
+        "the corpse keeps the token alive; the DEAD read retires the row"
+        .. " (the UnitExists-alone gate let it ride)")
+    assertTrue(killed.removeAt > 0, "the fade stamp rides the removal")
+    assertEquals(Laws.NORMAL, selfRow.state, "the self row rides on")
+    assertEquals(0, #broken, "the kill is SILENT: no BROKEN, no announce")
+    FX.Off(hb)
+    Rows:Clear()
+end)
+
+test("the second trigger stands: token GONE (UnitExists false, no dead read) retires the rows",
+function()
+    enableTimer()
+    buildHunterRegistry()
+    Rows:Clear()
+    local killed = seedTargetRow("Serpent Sting", "Vile Poacher")
+    local selfRow = seedSelfRow("Hunter's Mark")
+    -- The corpse looted / the target cleared: no dead verdict, a plain
+    -- false liveness read. The dead gate falls through, UnitExists fires.
+    local saved = installUnitState(false, nil)
+    dispatch("UNIT_DIED", "Creature-0-1142-65-1-1096-0")
+    restoreUnitState(saved)
+    assertEquals(Laws.REMOVE, killed.state,
+        "the gone token retires the row through the second trigger")
+    assertEquals(Laws.NORMAL, selfRow.state, "the self row rides on")
+    Rows:Clear()
+end)
+
+test("the target lives: token exists, not dead -> nothing moves",
+function()
+    enableTimer()
+    buildHunterRegistry()
+    Rows:Clear()
+    local kept = seedTargetRow("Serpent Sting", "Vile Poacher")
+    -- Somebody else died (the base event fires for EVERY death in range)
+    -- while my target stands: both reads answer alive.
+    local saved = installUnitState(true, false)
+    dispatch("UNIT_DIED", "Creature-0-1142-65-1-2001-0")
+    restoreUnitState(saved)
+    assertEquals(Laws.NORMAL, kept.state,
+        "an alive target answers the whole event")
+    Rows:Clear()
+end)
+
+test("a RAISING read is no verdict: pcall'd, inert, rows ride",
+function()
+    enableTimer()
+    buildHunterRegistry()
+    Rows:Clear()
+    local kept = seedTargetRow("Serpent Sting", "Vile Poacher")
+    -- Both reads raise (a client that refuses the read): the branch pcalls
+    -- them, no verdict classifies, the rows ride row-expiry.
+    local saved = installUnitState(RAISE, RAISE)
+    dispatch("UNIT_DIED", "Creature-0-1142-65-1-1096-0")
+    restoreUnitState(saved)
+    assertEquals(Laws.NORMAL, kept.state,
+        "a raising read ran the cleanup (or raised through the frame)")
+    Rows:Clear()
+end)
+
+test("SEALED reads are no verdict: classified nil on both triggers, rows ride",
+function()
+    enableTimer()
+    buildHunterRegistry()
+    Rows:Clear()
+    local kept = seedTargetRow("Serpent Sting", "Vile Poacher")
+    -- Both reads return the sentinel: PlainOrNil classifies it nil -- nil
+    -- is neither the true the dead gate wants nor the false the liveness
+    -- gate wants, so the branch stays inert (the plain nil is no verdict;
+    -- a sealed read never overwrites known state, the module law).
+    local saved = installUnitState(SECRET, SECRET)
+    patchPlain()
+    dispatch("UNIT_DIED", "Creature-0-1142-65-1-1096-0")
+    restorePlain()
+    restoreUnitState(saved)
+    assertEquals(Laws.NORMAL, kept.state,
+        "a sealed read ran the cleanup")
     Rows:Clear()
 end)
 

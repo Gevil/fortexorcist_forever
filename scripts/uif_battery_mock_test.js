@@ -1,14 +1,17 @@
 /*
  * scripts/uif_battery_mock_test.js — the fx-clear-forte mock (slice F-C,
  * PLAN §11.1 wave 3): run the battery's fresh-clear sweep against FAKE PAGES
- * and assert its counting, without touching the live site.
+ * and assert its counting, without touching the live site. The second
+ * suite (2026-11-07) drives the battery's CODE-marker read
+ * (`codeMarkerRead`) with scripted console answers and asserts the ONE
+ * retry of a print that never lands.
  *
  *   node scripts/uif_battery_mock_test.js       # exits 0 when every case passes
  *
- * What is under test is `forteClearSweep` + `forteClearVerdict` in
- * scripts/uif_battery.js — imported, NOT re-implemented, so a change to the
- * sweep that breaks a case breaks this file. The two live defects it exists
- * for:
+ * What is under test is `forteClearSweep` + `forteClearVerdict` +
+ * `codeMarkerRead` in scripts/uif_battery.js — imported, NOT re-implemented,
+ * so a change to the sweep that breaks a case breaks this file. The two live
+ * defects the sweep suite exists for:
  *   3. a sweep that removed 0 of 15 rows PASSED ("no targets" and "nothing
  *      to clean" are the same number to a count-only check);
  *   4. the "Forte rows visible" count matched text ANYWHERE on the page, so
@@ -16,6 +19,13 @@
  *      70 console lines over an empty list read as 70 visible rows.
  * The fix is panel scoping: the count only sees the ADDONS LIST PANEL, the
  * container of the per-addon rows (each row = a checkbox + a ✕).
+ *
+ * The CODE suite exists for the third live flake: right after /reload the
+ * marker print intermittently never lands (3 sightings to 2026-11-07, every
+ * later print fine, every sighting clean on a re-run), so the battery
+ * settles and retries that ONE read. The cases pin: a missing print
+ * retries once, an ANSWER (true / false / error:...) never retries, and
+ * two missing prints fail the row.
  */
 'use strict';
 
@@ -26,6 +36,7 @@ const battery = require(process.env.FX_BATTERY
   || path.join(__dirname, 'uif_battery.js'));
 const forteClearSweep = battery.forteClearSweep;
 const forteClearVerdict = battery.forteClearVerdict;
+const codeMarkerRead = battery.codeMarkerRead;
 
 const CROSS = '\u2715';                    // the per-row remove control
 
@@ -158,6 +169,49 @@ const run = async (name, build, want) => {
   return cases[cases.length - 1];
 };
 
+// ------------------------------------------------------------------- code --
+// The CODE-marker read suite (2026-11-07): drives the SHIPPED
+// `codeMarkerRead` with scripted reads the way the cases above drive the
+// shipped sweep. A read answers in the luaMarked shape { printed, line };
+// `codeLine(null)` is the flake — the console answered, the marker line
+// never came. The settle is faked (nap captured), so the cases are instant.
+const codeLine = (v) => (v == null
+  ? { printed: 'FXBAT-OTHER=quiet console', line: '' }
+  : { printed: `FXBAT-CODE=${v}`, line: `FXBAT-CODE=${v}` });
+
+const runCode = async (name, scripted, want) => {
+  let calls = 0;
+  const settled = [];
+  const read = async () => {
+    const v = scripted[Math.min(calls, scripted.length - 1)];
+    calls += 1;
+    return v;
+  };
+  const r = await codeMarkerRead(read, {
+    settleMs: 4000, nap: async (ms) => { settled.push(ms); },
+  });
+  const value = r.m ? r.m[1] : null;
+  const rowPass = !!r.m && r.m[1] === 'true';
+  const bad = [];
+  if (r.retried !== want.retried) {
+    bad.push(`retried=${r.retried}, wanted ${want.retried}`);
+  }
+  if (calls !== want.calls) bad.push(`reads=${calls}, wanted ${want.calls}`);
+  if (value !== want.value) bad.push(`value=${value}, wanted ${want.value}`);
+  if (settled.length !== want.settles) {
+    bad.push(`settles=${settled.length}, wanted ${want.settles}`);
+  }
+  if (settled.length && settled[0] !== 4000) {
+    bad.push(`settle=${settled[0]}, wanted 4000`);
+  }
+  if (rowPass !== want.rowPass) {
+    bad.push(`row ${rowPass ? 'PASS' : 'FAIL'}, wanted ${want.rowPass ? 'PASS' : 'FAIL'}`);
+  }
+  cases.push({ name, ok: bad.length === 0, why: bad.join('; '),
+    got: `retried=${r.retried} reads=${calls} settles=${settled.length}`
+      + ` value=${value} row=${rowPass ? 'PASS' : 'FAIL'}` });
+};
+
 async function main() {
   // 1. THE F-C DEFECT. The console mentions Forte 70 times, the ADDONS panel
   //    holds no row at all: the sweep has nothing to remove, and the row
@@ -208,6 +262,24 @@ async function main() {
   await run('no rows and no ADDONS header (panel unlocatable) -> FAIL',
     () => makePage({ rows: [], header: false }),
     { pass: false, visible: -1, removed: 0, left: 0 });
+
+  // 6. THE CODE READ RETRY (the 2026-11-07 post-/reload console hole).
+  await runCode('CODE read prints nothing, the retry prints true -> PASS, retried once',
+    [codeLine(null), codeLine('true')],
+    { retried: true, calls: 2, value: 'true', settles: 1, rowPass: true });
+  await runCode('CODE read prints true at once -> NO retry, one read',
+    [codeLine('true')],
+    { retried: false, calls: 1, value: 'true', settles: 0, rowPass: true });
+  await runCode('CODE read prints false is an ANSWER: no retry, the row fails',
+    [codeLine('false'), codeLine('true')],
+    { retried: false, calls: 1, value: 'false', settles: 0, rowPass: false });
+  await runCode('CODE read prints error:... is an ANSWER: no retry, the row fails',
+    [codeLine('error:boom'), codeLine('true')],
+    { retried: false, calls: 1, value: 'error:boom', settles: 0,
+      rowPass: false });
+  await runCode('CODE read prints nothing TWICE -> the row FAILS, after the one retry',
+    [codeLine(null), codeLine(null)],
+    { retried: true, calls: 2, value: null, settles: 1, rowPass: false });
 
   const failed = cases.filter((c) => !c.ok);
   for (const c of cases) {

@@ -186,3 +186,47 @@ Header: `PROBE <label> epoch=<n> build=[<GetBuildInfo>] date=<...>`.
 After the session: file the SavedVariables file + the bar-observation into the
 PLAN §9 log, then fix whatever the probes report (PLAN §11 Iteration D) and
 re-stamp §8 risks with the measured facts.
+
+## Next live session (after 2026-11-07 refresh)
+
+Numbered checks only the real client can answer, in order. The refresh is
+the Iteration-M build: the Timer's dead-target cleanup rides a new
+`UnitIsDeadOrGhost` gate, and the racials, the shared-cooldown pair and the
+rank pins are GENERATED data (M3a), so their rows are the ones to watch.
+
+1. **Timer UNIT_DIED registers; a kill retires the rows.** Log in and
+   `/reload`: NO chat line `timer: UNIT_DIED registration raised` (the
+   registration is pcall'd and prints that line on a raise). Then kill a
+   target that carries your DoT (Serpent Sting on a Vile Poacher) and
+   **leave the corpse standing**: its target rows fade within ~1 s — the
+   2026-11-07 fix (the old gate keyed the token being gone, and the client
+   keeps the token alive over a fresh corpse, so on the shipped build the
+   rows rode out their full duration). Your own self rows ride on.
+2. **Racial cooldowns on the bar (Troll/Orc/Dwarf as you roll).** Use
+   **Berserking** and/or **Rapid Regeneration**: the icon rides the
+   cooldown bar for **180 s** (the owner's measured value, now a generated
+   `racial = true` row on the class rosters). Hunter: cast **Summon Hawk**
+   — it starts a shared **6 s** cooldown and **Arcane Shot's** icon starts
+   its cooldown at the same moment (the store's shared category 1173; the
+   pair fact moved out of the hand-kept table into the data).
+3. **(Mage) Arcane Blast.** Cast it: **no** cooldown icon rides the bar
+   (the fake 8 s bar was the weapon-proc row, retired by the M3a pin) and
+   the Spell Timer carries an **18 s buff row whose stack count grows**
+   with casts (the Arcane Focus stacks, to 4).
+4. **(Rogue) Shank.** Cast it: a **10 s** cooldown icon rides the bar (the
+   70790 capture gave the row its values — Shank 1329549 Rank 2 — the name
+   carried none before).
+5. **`/fx log` with no argument** prints a status line (what logging is
+   doing), **no** red error line, no Lua error.
+6. **Options closes with Esc.** `/fx options`, press **Esc** — the window
+   closes (F1 proved the X; this is the keyboard half).
+7. **Bar smooth + CPU sane.** Watch the cooldown bar fill for ~10 s: the
+   sweep is **smooth (~60 Hz)**, not stepping once a second; open `/fx` —
+   the CPU read-out is in the sane band for the other addons on the
+   session, no runaway climbing every second.
+8. **(Warlock) DoTs after Tuesday 2026-11-10's class changes.** Once the
+   Tuesday pass has landed (it moves **Siphon Life, Corruption, Bane of
+   Agony, Wrack**): put each DoT on a target and compare the row to the
+   tooltip — the countdown must match the tooltip duration and the row's
+   tick cadence the aura's ticks (the M5 data refresh rode the live
+   hotfixes; the Tuesday changes are the pair this check pins).

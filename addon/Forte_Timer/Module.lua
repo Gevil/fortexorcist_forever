@@ -965,16 +965,35 @@ function M:OnEvent(event, a1, a2, a3, a4)
         -- classified through PlainOrNil and NEVER compared: a sealed guid
         -- classifies nil and the branch stays inert, the exact contract the
         -- "a SEALED payload" test leg pins). The event fires for EVERY death
-        -- in range, so the liveness gate is hoisted OUT of the row loop: one
-        -- pcall'd UnitExists("target") read per event -- the rows all key
-        -- against the same "target" token, and a living target answers the
-        -- whole event before any row is touched (design §2's death-cleanup
-        -- verdict: cleanup rides row-expiry, this is the opportunistic
-        -- half).
+        -- in range, so the verdict is ONE gate hoisted OUT of the row loop:
+        -- the rows all key against the same "target" token, and an alive
+        -- target answers the whole event before any row is touched (design
+        -- §2's death-cleanup verdict: cleanup rides row-expiry, this is the
+        -- opportunistic half).
+        -- LIVE FINDING 2026-11-07: the gate used to be UnitExists("target")
+        -- == false ALONE -- and a dead mob's CORPSE keeps the "target"
+        -- token alive, so on the client the cleanup almost never fired and
+        -- the rows of every kill rode their full duration. The dead verdict
+        -- is the catalog's UnitIsDeadOrGhost("target") (both UnitIsDead and
+        -- UnitIsDeadOrGhost are pinned in docs/api/wow-addon-api-agents,
+        -- (unit UnitToken) -> bool with no secret annotation on the return;
+        -- the ghost half covers a released player), UnitExists == false
+        -- riding as the SECOND trigger (the token gone outright: the corpse
+        -- looted, the target cleared). Every read is pcall'd and classified
+        -- through PlainOrNil: a raise, a sealed answer, a nil is NO verdict
+        -- and the branch stays inert (the dead-corpse / raising / sealed
+        -- test legs pin the pair).
         local guid = FX.Compat.PlainOrNil(a1)
         if type(guid) == "string" then
-            local ok, exists = pcall(UnitExists, "target")
-            if ok and FX.Compat.PlainOrNil(exists) == false then
+            local cleanup = false
+            local okDead, isDead = pcall(UnitIsDeadOrGhost, "target")
+            if okDead and FX.Compat.PlainOrNil(isDead) == true then
+                cleanup = true
+            else
+                local ok, exists = pcall(UnitExists, "target")
+                cleanup = ok and FX.Compat.PlainOrNil(exists) == false
+            end
+            if cleanup then
                 for i = 1, Rows.rows_n do
                     local row = Rows.rows[i]
                     if row and row.state <= Laws.NORMAL

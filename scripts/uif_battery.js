@@ -58,7 +58,12 @@
  *               PREVIOUSLY loaded code (false PASS). No dialog = FAIL.
  *   2. CODE     the expectMarker Lua expression prints true (default: the
  *               ForteXorcist.CONST.VERSION build constant) — the bytes
- *               running are the bytes just imported.
+ *               running are the bytes just imported. A read that prints
+ *               NOTHING (the intermittent post-/reload console hole, 3
+ *               sightings to 2026-11-07, every session clean on a re-run)
+ *               is settled and retried ONCE before the row fails; the
+ *               `got` records the retry. An answering print is never
+ *               retried.
  *   3. CLASSSET exactly the player's own Forte_<Class> add-on is resident,
  *               over the nine class add-ons; the site's own Mage log-in
  *               artefact is tolerated (PLAN §9 2026-11-02 LoD row).
@@ -206,6 +211,31 @@ async function forteClearSweep(docArg) {
 // remove (`visible === 0`); an unlocatable panel reports -1 and fails.
 const forteClearVerdict = (cleared) => cleared.left === 0
   && (cleared.removed > 0 || cleared.visible === 0);
+
+// ---------------------------------------------------------- code-marker ----
+// The CODE row's read, at module scope on purpose: the mock harness
+// scripts/uif_battery_mock_test.js drives THESE EXACT BYTES with scripted
+// reads. Live flake (3 sightings to 2026-11-07): right after /reload the
+// console intermittently answers the marker print with NOTHING — the row
+// reads "(no printed line)" — while EVERY later print of the same session
+// works, and every sighting came back clean on a re-run. A missing print
+// is a TIMING hole, not an answer, so the read is retried ONCE after a
+// short settle before the row fails (the caller records the retry in the
+// row's `got`). A print that ANSWERS — true, false, error:... — is an
+// answer and is never retried.
+const matchCodeLine = (r) => String((r && r.printed) || '')
+  .match(/^FXBAT-CODE=(\S*)$/m);
+async function codeMarkerRead(read, opts) {
+  const o = opts || {};
+  const settleMs = o.settleMs == null ? 4000 : o.settleMs;
+  const nap = o.nap || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const first = await read();
+  const m = matchCodeLine(first);
+  if (m) return { m, retried: false, first, last: first };
+  await nap(settleMs);
+  const second = await read();
+  return { m: matchCodeLine(second), retried: true, first, last: second };
+}
 
 async function uifBattery(options) {
   const opt = options || {};
@@ -404,16 +434,30 @@ async function uifBattery(options) {
     add(codeRow, true, 'skipped: no expectMarker given and the repo carries '
       + 'no version constant to compare', 'skipped');
   } else {
-    const code = await luaMarked(
+    const codeRead = () => luaMarked(
       'local ok,v = pcall(function() return (' + marker + ') end) '
       + 'local out if not ok then out = "error:" .. tostring(v) '
       + 'elseif v then out = "true" else out = "false" end '
       + 'print("FXBAT-CODE=" .. out)',
       'FXBAT-CODE=');
-    const mCode = code.printed.match(/^FXBAT-CODE=(\S*)$/m);
+    // The shipped bytes of the read (codeMarkerRead, module scope, mock-
+    // tested): one read; when it printed NOTHING — the intermittent
+    // post-/reload console hole (3 sightings to 2026-11-07, every session
+    // clean on a re-run) — a settle and ONE retry of this same read
+    // before the row fails. An answering print is never retried, and the
+    // `got` records that the retry happened.
+    const read = await codeMarkerRead(codeRead);
+    const mCode = read.m;
     add(codeRow, !!mCode && mCode[1] === 'true',
       `FXBAT-CODE=true for (${marker})`,
-      mCode ? mCode[1] : (code.line || '(no printed line)'));
+      (mCode ? mCode[1]
+        : ((read.last && read.last.line) || '(no printed line)'))
+      + (read.retried
+        ? ' | retried once after a settle: the first read printed no '
+          + 'FXBAT-CODE= line (the intermittent post-/reload console '
+          + 'hole), the retry '
+          + (mCode ? `printed ${mCode[1]}` : 'printed no line either')
+        : ''));
   }
 
   // ---------------------------------------------------- 3. class add-on set
@@ -575,12 +619,14 @@ function report(zip, rows) {
 
 // Kernel-friendly publication: the file evaluates to the function, and the
 // name is reachable as a global for kernels that eval-then-call. The clear
-// sweep and its verdict ride along as properties so the mock harness
-// (scripts/uif_battery_mock_test.js) drives the shipped bytes.
+// sweep, its verdict, and the CODE-marker read ride along as properties so
+// the mock harness (scripts/uif_battery_mock_test.js) drives the shipped
+// bytes.
 if (typeof globalThis !== 'undefined') globalThis.uifBattery = uifBattery;
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = uifBattery;
   module.exports.forteClearSweep = forteClearSweep;
   module.exports.forteClearVerdict = forteClearVerdict;
+  module.exports.codeMarkerRead = codeMarkerRead;
 }
 uifBattery;
