@@ -972,3 +972,21 @@ Source: `docs/reviews/code-review-9.md` (2 MAJOR, 3 MINOR, 2 INFO; all re-verifi
 | i6 | stale `rangeEdges` in the demo test's tracker face | drop it |
 
 Then: gate, live battery, pre-release refresh (K6 procedure), ledger. **Done 2026-11-04: `af094bc`, gate 974, live-verified, pre-release refreshed.**
+
+### 11.7 Iteration M — post-launch: review the first live-client fixes, refresh to the live builds (2026-11-07)
+
+Owner (2026-11-07): pushed `d490e2e` from a laptop session — the first live session on the Forever client (Hunter, build 1.60.1.70790), fixes made in the running game, **static checks only, wow-ui-sim suite not run**. Ask: pull, review everything, execute on the findings unsupervised without a client; online research; pull fresh upstreams that now carry real in-game data.
+
+Upstream state measured 2026-11-07: Gethe/wow-ui-source `forever` has 70755, 70790 (launch), 70840, **70862**; the vendored API catalog (JBurlison/WoWAddonAPIAgents) re-pinned upstream to **70790**; API delta 70707→70862 is additive except `UNIT_COMBAT.amount` now `SecretValue` (we do not use UNIT_COMBAT) and new `C_ActionBar.IsHighestSpellRank`. wowsims/forever DB updated to 70790 and 70862 (items + hotfixes); mythicsim-forever-engine 68 commits ahead incl. a live tooltip spell audit. No GitHub issues; pre-release 7 downloads. The local Steam install was last run 2026-11-01 (70707): no real SavedVariables on this machine.
+
+| # | Work | Who |
+|---|---|---|
+| M1 | Full gate on `d490e2e` (the suite the laptop did not run) | manager |
+| M2 | Code review 10 of `d490e2e` against the laws (adversarial, read-only) | fx-scout |
+| M3 | Regression tests for every live fix in `d490e2e` (real frame scripts), + the review's fixes | fx-worker |
+| M4 | Re-vendor the API catalog to 70790 (upstream) and note the 70790→70862 delta; api_lint | fx-worker |
+| M5 | Data refresh: wowsims spell store + mythicsim to the live builds; regenerate; a value-diff report for tracked spells | fx-worker |
+| M6 | Online research: post-launch hotfixes / dev notes / addon-API reports affecting tracked spells or our API use | research agent |
+| M7 | Gate, uiforever battery, pre-release refresh, ledger | manager |
+
+Simulator law: one wow-ui-sim process at a time — workers in parallel waves do not run the sim; the manager gates.

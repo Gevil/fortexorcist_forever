@@ -3,7 +3,7 @@
 **Answer first:** this is the Forever-targeted reference layer of an MIT-licensed,
 version-aware WoW addon agent suite, vendored as ForteXorcist's API ground-truth layer #1
 (see `docs/api/README.md`). It is a **pinned source-declaration snapshot of the Blizzard UI
-source for WoW Forever 1.60.1.70707 (interface 16001)** - signatures, event payloads and
+source for WoW Forever 1.60.1.70790 (interface 16001)** - signatures, event payloads and
 security annotations - plus the curated contract guides and the evidence discipline that goes
 with them. It is **not** runtime-verified addon availability: every guide repeats that
 source-declared, loaded, permitted and runtime-tested are four separate evidence states.
@@ -14,11 +14,11 @@ source-declared, loaded, permitted and runtime-tested are four separate evidence
 |---|---|
 | Upstream repository | https://github.com/JBurlison/WoWAddonAPIAgents |
 | License | MIT (text vendored at `LICENSE.md`, upstream filename `LICENSE`) |
-| Clone commit (this copy) | `20585807fdddadda3020ffac0d20f5e1c15ad8ce` |
-| Upstream commit date | 2026-11-03 04:58:05 -0500 |
-| Package version | 2.3.0 (`package.json`, `config/plugin.json`) |
-| Vendored | 2026-11-03 by agent `I2eDocs` (re-vendor of the 2026-11-01 `ApiPack` copy at `f9269081…`; `git archive` of the pinned commit, no upstream git metadata kept) |
-| Data pinned by the catalogs | `Gethe/wow-ui-source` @ `aff0d8cd53bf4d9ef1c1dd2786b94461a276fb16`, version `1.60.1.70707`, interface `16001`, verified 2026-11-03 |
+| Clone commit (this copy) | `1957c44fa7e25adfcae4e3c9aade2b21c3576b6a` |
+| Upstream commit date | 2026-11-05T11:23:52Z |
+| Package version | 2.4.1 (`package.json`) |
+| Vendored | 2026-11-07 by the manager (Iteration M4): the 78 files upstream changed inside the existing vendored scope copied byte-for-byte from the pinned tarball; no file removed upstream; the 13 new upstream files are in the omitted categories below. Previous copy: `20585807…` (2026-11-03, agent `I2eDocs`) |
+| Data pinned by the catalogs | `Gethe/wow-ui-source` @ `eac30af597e5aaa43a60f6675ef5fdcea100375f`, version `1.60.1.70790` (the launch build), interface `16001`, verified 2026-11-07. Known later delta to 70862 (`9dc84f0d3b`, 2026-11-07), read from the Gethe compare: additive (`C_ActionBar.IsHighestSpellRank`, `BattleNet.GetDefaultTitleWhisperTarget`, `subIcon` fields, enum `SubscriptionInterstitialType.SubscriptionPeriod`) plus `UNIT_COMBAT.amount` now `SecretValue` (ForteXorcist does not use UNIT_COMBAT) and `RolesetSystem.ApplyRolesetFilters` HasRestrictions |
 
 ForteXorcist's own client facts: interface **16001**, installed build **1.60.1.70707**
 (`.build.info`), `WOW_PROJECT_CAMELOT`. The catalogs are now pinned to that **same 70707**
