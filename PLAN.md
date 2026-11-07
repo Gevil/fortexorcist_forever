@@ -990,3 +990,12 @@ Upstream state measured 2026-11-07: Gethe/wow-ui-source `forever` has 70755, 707
 | M7 | Gate, uiforever battery, pre-release refresh, ledger | manager |
 
 Simulator law: one wow-ui-sim process at a time — workers in parallel waves do not run the sim; the manager gates.
+
+**Results so far (2026-11-07):** M1 gate PASS 977 on `d490e2e`. M4 `4d1650e` catalog → 70790 (70790→70862 changes no API doc). M6 `ebe781e` research. M5 data refresh done (uncommitted until the gate passes): wowsims 13896422 store 1.60.1.70790 @ hotfix 113715 (items leg 70862 @ 113763), mythicsim b998bbab (consumed base files byte-identical, base stays 70425); `tools/extract_store.py` + `tools/overrides_70790.json`; deltas: Shank 15617→1329549 (cd 10 s), Death Mark values, Chain Lightning cast 2.0→2.5 s, Totemic Projection cd 60→30 s, Abolish Poison 2893→14253, Holy Shield 20928→1239570 (loses noTarget — check); 9 dev-notes rows retired (equal the store), Blood Fury kept; report `docs/research/data-diff-live-2026-11-07.md`. Code review 10 (`docs/reviews/code-review-10.md`): 0 BLOCKER, 4 MAJOR (UNIT_DIED is a base event → RegisterEvent; AddExtras English-only racial names; `/fx log` argless LoggingChat; Log.lua top-level RegisterEvent), 8 MINOR, 16 untested behaviour changes.
+
+| # | Batch | Scope |
+|---|---|---|
+| M3a | data side (fx-worker `DataFixM3a`) | gate.py provenance pins generalised to the live overlay; tests updated for Shank/Death Mark/Holy Shield/overlay wording; Holy Shield noTarget verified; **Arcane Blast**: the tracked row was mythicsim's weapon proc 18091 (8 s category cd) — the Mage spell has no cooldown → track the 18 s self-buff 400573 on the Spell Timer, never a cooldown (manager's call, owner asked for unsupervised execution); review-10 M2+m4: the hand-typed racial ids (Berserking, Rapid Regeneration, Summon Hawk) move into GENERATED data so Locale aliases follow |
+| M3b | code side (fx-worker `CodeFixM3b`) | review-10 M1 (UNIT_DIED RegisterEvent), M3 (LoggingChat pcall/plain), M4 (Log.lua registration in the lifecycle), m1–m3, m5–m8; regression tests for the 16 untested behaviour changes of `d490e2e` |
+
+Both run in parallel; every simulator run goes through `flock /tmp/fx-wowsim.lock` so only one wow-ui-sim process exists at a time.
