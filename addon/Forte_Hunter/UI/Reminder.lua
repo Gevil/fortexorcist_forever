@@ -207,7 +207,14 @@ local UNKNOWN_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local function aspectTexture(name)
     local id = FX.Data and FX.Data.HunterByName and FX.Data.HunterByName[name]
     local C = _G.C_Spell
-    for _, key in ipairs({ id, name }) do
+    -- m2 (code-review-10): the old `ipairs({ id, name })` stored NOTHING at
+    -- index 1 when `id == nil`, so ipairs read nil at 1 and never ran -- the
+    -- "then by name" leg of this function's own docstring could not execute
+    -- for exactly the spells HunterByName lacks. Two fixed indices, holes
+    -- classified per leg.
+    local keys = { id, name }
+    for i = 1, 2 do
+        local key = keys[i]
         if key ~= nil and C then
             if C.GetSpellTexture then
                 local ok, v = pcall(C.GetSpellTexture, key)

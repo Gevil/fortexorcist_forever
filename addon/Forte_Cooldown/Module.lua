@@ -921,11 +921,27 @@ function M:OnEnable()
     if not M._renderFrame then
         local rf = CreateFrame("Frame", nil, UIParent)
         M._renderFrame = rf
-        local acc = 0
+        -- The accumulator rides a one-slot box so a test can start a leg
+        -- from a drained, known state (tests/test_render_pump.lua) -- the
+        -- ambient frame stream between the enable and a leg's scripted
+        -- calls would otherwise decide the gate's starting phase.
+        local accBox = { v = 0 }
+        M._renderAcc = accBox
         rf:SetScript("OnUpdate", function(_, elapsed)
-            acc = acc + (tonumber(elapsed) or 0)
-            if acc < RENDER_SECONDS then return end
-            acc = 0
+            local acc = accBox.v + (tonumber(elapsed) or 0)
+            if acc < RENDER_SECONDS then
+                accBox.v = acc
+                return
+            end
+            -- m6 (code-review-10): the old `acc = 0` THREW AWAY the remainder
+            -- every pass, so on a 60 Hz client (elapsed ~16.7 ms, jittered)
+            -- the realized cadence oscillated ~30-60 Hz -- the CHANGELOG's
+            -- "60 Hz" was nominal. One window is consumed per firing and the
+            -- remainder rides (clamped at the floor so a frame after a long
+            -- stall can not bank a catch-up burst).
+            acc = acc - RENDER_SECONDS
+            if acc < 0 then acc = 0 end
+            accBox.v = acc
             if FX.Cooldown.Display then
                 FX.Cooldown.Display:Update(Engine:Sorted(sortedScratch), GetTime())
             end

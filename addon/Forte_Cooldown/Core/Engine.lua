@@ -143,25 +143,6 @@ end
 --- rebuild carry, Forte_Cooldown/Module.lua): a same-class rebuild is a re-read
 --- of the known set, so its running windows are the same question they were,
 --- while a class change is a fresh question with nothing to carry across.
--- Spells that are not in the generated class data (racials carry no cooldown
--- in the spell store; talent spells are missing). Hand-kept, ID-keyed.
--- `name` may be omitted: it is then read from the live client. `shares` names
--- a tracked spell that shares this cooldown: a cast of either starts both.
-Engine.RACIALS = {
-    [20554] = { name = "Berserking", cooldownMs = 180000 },
-    [1260270] = { name = "Rapid Regeneration", cooldownMs = 180000 },   -- channel; 3 min per owner
-    [1293241] = { cooldownMs = 6000, shares = "Arcane Shot" },          -- Summon Hawk talent (owner, 2026-11-06)
-}
-
-local function liveSpellName(id)
-    local C = _G.C_Spell
-    if not (C and C.GetSpellInfo) then return nil end
-    local ok, info = pcall(C.GetSpellInfo, id)
-    local nm = ok and type(info) == "table" and FX.Compat.PlainOrNil(info.name)
-    if type(nm) == "string" and nm ~= "" then return nm end
-    return nil
-end
-
 function Engine:Build(classFile, isKnown)
     local classChanged = self.builtClass ~= classFile
     self.builtClass = classFile
@@ -176,7 +157,13 @@ function Engine:Build(classFile, isKnown)
     local n = 0
     for id, spell in pairs(data) do
         local cd = spell.cooldownMs and spell.cooldownMs / 1000
-        if cd and cd >= self.MIN_COOLDOWN and spell.name and isKnown(spell.name) then
+        if cd and cd >= self.MIN_COOLDOWN and spell.name
+            and not spell.racial and isKnown(spell.name) then
+            -- `racial = true` rows are the racials group (spell lists, wave
+            -- M3a): the SAME generated data, but tracked by AddExtras after
+            -- Build (the known-gate there is id-aware, `IsPlayerSpell(id)`,
+            -- because a racial is known by race, not by class spells).
+            -- Build's count stays the class-kit count its tests pin.
             self.tracked[spell.name] = { name = spell.name, dataId = id, baseDuration = cd }
             n = n + 1
         end
@@ -184,20 +171,37 @@ function Engine:Build(classFile, isKnown)
     return n, nil, classChanged
 end
 
---- The hand-kept spells (Engine.RACIALS), added AFTER Build by the Module's
---- Rebuild so Build's contract (class data only) and its count tests stay
---- exactly as they were. Tracked only when the player knows the spell;
---- returns how many were added. Cooldowns are measured on the live client
---- (Berserking 20554: 180 s, 2026-11-06).
+--- The racials (the generated `racial = true` rows of the class data —
+--- Berserking 20554, Rapid Regeneration 1260270, the Hunter's Summon Hawk
+--- 1293527, wave M3a), added AFTER Build by the Module's Rebuild so Build's
+--- contract (class kit only) and its count tests stay exactly as they were.
+--- Review-10 M2/m4 retired the hand-kept, ID-keyed `Engine.RACIALS` table
+--- this replaces: its English `name` keys broke the locale law (names
+--- entering this Engine ride `Locale.CanonicalName` and the generated data
+--- is the alias source — a hand-keyed English name on a deDE client was
+--- compared against a canonicalized client name and never matched, so the
+--- racial was never tracked); its hand-typed ids (20554/1260270/1293241)
+--- bypassed tools/gen_spell_data.py and every data refresh. The rows now
+--- ride the generated data (measured 180 s cooldowns cited in
+--- tools/overrides_devnotes_2026-11-03.json; the Summon Hawk id rides the
+--- `_pins` law at the store's captured Rank 4, NOT the 70425-era 1293241
+--- id-slot the hand table froze), the NAME key is the data's, and `shares`
+--- ("Summon Hawk" -> "Arcane Shot", the store's shared category 1173) is
+--- the data's. Tracked only when the player knows the spell; returns how
+--- many were added.
 function Engine:AddExtras(isKnown)
+    local key = TitleCase(self.builtClass)
+    local data = key and FX.Data and FX.Data[key]
+    if not data then return 0 end
     local n = 0
-    for id, spell in pairs(self.RACIALS) do
-        local name = spell.name or liveSpellName(id)
-        local known = name and (isKnown(name)
-            or (FX.Compat.IsPlayerSpell and FX.Compat.IsPlayerSpell(id)))
+    for id, spell in pairs(data) do
+        local cd = spell.racial and spell.cooldownMs and spell.cooldownMs / 1000
+        local known = cd and cd >= self.MIN_COOLDOWN and spell.name
+            and (isKnown(spell.name)
+                or (FX.Compat.IsPlayerSpell and FX.Compat.IsPlayerSpell(id)))
         if known then
-            self.tracked[name] = { name = name, dataId = id,
-                baseDuration = spell.cooldownMs / 1000, shares = spell.shares }
+            self.tracked[spell.name] = { name = spell.name, dataId = id,
+                baseDuration = cd, shares = spell.shares }
             n = n + 1
         end
     end

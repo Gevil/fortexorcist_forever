@@ -799,10 +799,21 @@ function M:OnEnable()
     -- token is ours to read (a unit token is plain text), classified at the
     -- callee -- that token is what routes the two feeds.
     f:RegisterUnitEvent("UNIT_AURA", "player", "target")
-    -- UNIT_DIED does not exist as a unit event on the live client (live
-    -- 2026-11-06: RegisterUnitEvent raised and aborted the whole module).
-    -- Optional: dead-target rows then retire on row expiry instead.
-    pcall(f.RegisterUnitEvent, f, "UNIT_DIED", "target")
+    -- UNIT_DIED is a BASE event in the Forever catalog (code-review-10 M1:
+    -- docs/api payload `[["unitGUID","WOWGUID",...]]`,
+    -- SecretWhenUnitIdentityRestricted): its payload is a GUID, not a unit
+    -- token, so the base form is the catalog shape and the live
+    -- 2026-11-06 "RegisterUnitEvent raised" observation was the signature of
+    -- a base event, NOT evidence of a missing event. The pcall wrapper stays
+    -- ONLY around this one registration (the review's open question: the
+    -- shipped client must confirm the base form); a raise must not abort
+    -- OnEnable, and it lands in chat as a probe fact -- with it the
+    -- dead-target cleanup falls back to row expiry.
+    local okDied = pcall(f.RegisterEvent, f, "UNIT_DIED")
+    if not okDied and FX.Print then
+        FX.Print("timer: UNIT_DIED registration raised; the dead-target"
+            .. " cleanup rides row expiry")
+    end
     f:RegisterEvent("PLAYER_TARGET_CHANGED")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
     f:RegisterEvent("PLAYER_REGEN_DISABLED")
@@ -949,17 +960,25 @@ function M:OnEvent(event, a1, a2, a3, a4)
     elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
         FX.Timer:RefreshSecretState()
     elseif event == "UNIT_DIED" then
-        -- the guid is SecretWhenUnitIdentityRestricted: it is classified and
-        -- never compared (design §2's death-cleanup verdict: cleanup rides
-        -- row-expiry, this is the opportunistic half).
+        -- The BASE-event payload is the dying unit's guid (unitGUID, a
+        -- WOWGUID string; SecretWhenUnitIdentityRestricted -- it is
+        -- classified through PlainOrNil and NEVER compared: a sealed guid
+        -- classifies nil and the branch stays inert, the exact contract the
+        -- "a SEALED payload" test leg pins). The event fires for EVERY death
+        -- in range, so the liveness gate is hoisted OUT of the row loop: one
+        -- pcall'd UnitExists("target") read per event -- the rows all key
+        -- against the same "target" token, and a living target answers the
+        -- whole event before any row is touched (design §2's death-cleanup
+        -- verdict: cleanup rides row-expiry, this is the opportunistic
+        -- half).
         local guid = FX.Compat.PlainOrNil(a1)
         if type(guid) == "string" then
-            for i = 1, Rows.rows_n do
-                local row = Rows.rows[i]
-                if row and row.state <= Laws.NORMAL
-                    and row.unitToken == "target" then
-                    local ok, exists = pcall(UnitExists, "target")
-                    if ok and FX.Compat.PlainOrNil(exists) == false then
+            local ok, exists = pcall(UnitExists, "target")
+            if ok and FX.Compat.PlainOrNil(exists) == false then
+                for i = 1, Rows.rows_n do
+                    local row = Rows.rows[i]
+                    if row and row.state <= Laws.NORMAL
+                        and row.unitToken == "target" then
                         Rows:Fade(row, Laws.REMOVE, GetTime())
                     end
                 end

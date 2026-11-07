@@ -3,6 +3,12 @@
   "_deferred_H7": [
     "Living Seed", "Nature's Grace", "Savage Defense"
   ],
+  "_pins": {
+    "Berserking": {
+      "id": 20554,
+      "reason": "all four 70790 rows (20554/23505/24378/1286304) are value-less name shells (no Cooldowns row), so the bare-row tiebreak rides the arbitrary max-id shell; 20554 is the id measured 180 s on the live client (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4). The druid carries Berserking (Troll) but NOT Rapid Regeneration (a Dwarf racial the druid roster cannot roll)"
+    }
+  },
   "cooldowns": [
     "Astral Power", "Barkskin", "Bash", "Challenging Roar", "Cower", "Enrage",
     "Feral Charge", "Frenzied Regeneration", "Growl", "Hurricane", "Innervate",
@@ -24,5 +30,8 @@
   ],
   "utility": [
     "Rebirth", "Teleport: Moonglade", "Cure Poison", "Remove Curse"
+  ],
+  "racials": [
+    "Berserking"
   ]
 }

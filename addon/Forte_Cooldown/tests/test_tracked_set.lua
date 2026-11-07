@@ -318,10 +318,14 @@ local H7_LANDED = {
     WARRIOR = { "Enrage", "Deep Wounds" },
 }
 local H7_UNTRACKED = {
-    ROGUE = {
-        ["Shank"] = "the store's Shank rows (15248/15617) are value-less Classic name shells: the post-9 10 s cd is post-9 text only, the launch-day probe row",
-        ["Death Mark"] = "the store's Death Mark rows (1316709/1325756-8) are value-less name shells: the post-9 10 s cd / 6 s mark are post-9 text only, the launch-day probe row",
-    },
+    -- Wave M3a (2026-11-07): the rogue pair LEFT. The 1.60.1.70790 capture
+    -- resolved the rank ladder with values: Shank 1329549 (Rank 2) carries
+    -- CooldownMs 10000 / GCDMs 1000 and Death Mark 1325758 (Rank 4) the
+    -- CooldownMs 10000, the 6 s mark window (DurationMs 6000) and the 6 s
+    -- tick capture -- the post-9 text the pair was pinned on is store fact
+    -- now, and both ride the bar (docs/research/data-diff-live-2026-11-07.md
+    -- §4/§5.1). The rows they were pinned against (15248/15617,
+    -- 1316709/1325756-8) are inert shells no longer picked.
     WARRIOR = {
         ["Deep Wounds"] = "12834 is the Classic-era passive row: the store's value row carries DurationMs 0 (the bleed window rides the Mortal Strike line, the S15 extra-spell feed, docs/class-port.md S15)",
     },
@@ -391,10 +395,12 @@ function()
     end
     for _, line in ipairs(report) do print("  " .. line) end
     -- Wave I-3e landed 12; the 2026-11-04 mage Clearcasting follow-up makes
-    -- the census 13, all 13 windowed (the 3 pinned no-window rows are the
-    -- rogue pair + Deep Wounds).
+    -- the census 13. Wave M3a (the 1.60.1.70790 capture): the rogue pair
+    -- landed rows with values (Shank 1329549 cd 10 s; Death Mark 1325758
+    -- cd 10 s + 6 s mark), so 12 of 13 are windowed and the pinned no-window
+    -- residual is the single Deep Wounds passive row.
     assertEquals(13, total)
-    assertEquals(3, pinned)
+    assertEquals(1, pinned)
 end)
 
 test("the four Clearcasting rows stay on their own class (family law)",

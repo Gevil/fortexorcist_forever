@@ -3,6 +3,12 @@
   "_deferred_H7": [
     "Ancient Power", "Grand Crusader", "The Art of War"
   ],
+  "_pins": {
+    "Rapid Regeneration": {
+      "id": 1260270,
+      "reason": "the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4). The paladin carries Rapid Regeneration (Dwarf) but NOT Berserking (an Orc/Troll racial the paladin roster cannot roll)"
+    }
+  },
   "cooldowns": [
     "Divine Intervention", "Templar's Bulwark", "Avenging Wrath",
     "Voice of Truth", "Divine Favor", "Hand of Sacrifice", "Repentance",
@@ -34,5 +40,8 @@
     "Lay on Hands", "Exorcism", "Rebuke", "Consecration", "Crusader Strike",
     "Hammer of Justice", "Hammer of Wrath", "Hammer of the Righteous",
     "Righteous Judgement"
+  ],
+  "racials": [
+    "Rapid Regeneration"
   ]
 }

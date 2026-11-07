@@ -250,6 +250,12 @@ D.fontFile = nil   -- set by validateFont() in Init; nil = template fallback
 local ANCHOR_W, ANCHOR_H = S.Width, 20
 local DEFAULT = { point = "CENTER", relPoint = "CENTER", x = 0, y = -150, locked = true }
 
+--- The overlap-lane cap (m3, code-review-10): the perpendicular step of the
+--- render pass is `lane * 0.75 * Height`, so the cap is the geometry budget --
+--- lane 3 is the last step off the axis (a 2.25-icon-width reach at H=24), and
+--- icons crowded past it fold into the last lane. 3 == four lanes.
+local LANE_MAX = 3
+
 -- Frame scale/alpha inputs (OP-06 header fields + General FrameAlpha/
 -- FrameScale), module-local so the setters are safe to call before Init
 -- (the values are live skin state; Init and ApplyFrameFX read them back).
@@ -2113,8 +2119,18 @@ function D:Update(entries, now)
         -- of an earlier icon (same-cooldown casts, a trap family) step sideways
         -- off the axis instead of hiding each other. The AXIS position stays
         -- true; only the perpendicular offset changes.
+        --
+        -- m3 (code-review-10): the walk is CAPPED at LANE_MAX. An unbounded
+        -- lane count is unbounded geometry -- a dense log-scale tail (a dozen
+        -- near-ready icons inside one icon width: a trap burst, the shared
+        -- Arcane Shot / Summon Hawk windows) chained lanes 0..11 and drew
+        -- icons ~165 px off the axis at H=18, over neighbouring UI. Past the
+        -- cap the icons FOLD into the last lane (they overlap each other,
+        -- the honest degraded state; the axis position stays true, as it
+        -- always is). Max perpendicular reach: LANE_MAX * 0.75 * H = 2.25 * H.
         local lane = 0
         while lanes[lane] and math.abs(x - lanes[lane]) < H do lane = lane + 1 end
+        if lane > LANE_MAX then lane = LANE_MAX end
         lanes[lane] = x
         local step = lane * H * 0.75
         if S.Vertical then ox = ox + step else oy = oy + step end

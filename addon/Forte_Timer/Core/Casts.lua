@@ -80,7 +80,7 @@ Casts.owners = {}
 --- The instrument (PLAN §8 mitigation 1).
 Casts.status = { seen = 0, plain = 0, secret = 0, resolved = 0,
     unresolved = 0, rows = 0, untracked = 0, evicted = 0, flushed = 0,
-    failed = 0, owned = 0, retired = 0 }
+    failed = 0, owned = 0, raised = 0, retired = 0 }
 Casts.rows = nil
 Casts.options = nil
 --- The injectable seams (tests).
@@ -187,7 +187,12 @@ function Casts:InitStatus()
     end
     for _, k in ipairs({ "seen", "plain", "secret", "resolved", "unresolved",
         "rows", "untracked", "evicted", "flushed", "failed", "owned",
-        "retired" }) do
+        -- m7 (code-review-10): the pump's raise counter (Casts.lua's
+        -- `self.status.raised`) lives in the same table; a key outside this
+        -- contract lands in FX.db.diag.timerCasts un-initialized (it worked
+        -- through the `or 0` in the increment and accumulated across
+        -- sessions). The list is the schema; the counter belongs to it.
+        "raised", "retired" }) do
         if type(d[k]) ~= "number" then d[k] = 0 end
     end
     self.status = d

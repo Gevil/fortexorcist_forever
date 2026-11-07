@@ -64,6 +64,11 @@ test("the classifier reads the colour intent out of a spell name", function()
     assertEquals("SelfBuff", Registry._kindFor("Ice Block"))
     assertEquals("SelfBuff", Registry._kindFor("Seal of Command"))
     assertEquals("SelfBuff", Registry._kindFor("Backdraft"))
+    -- Wave M3a: the Arcane Blast pin (the 400573 Arcane Focus STACK buff,
+    -- 18 s / 4 stacks) moved the name from the SelfDebuff band (the
+    -- original's AddSelfDebuff(36032) reading of the 18091 proc) to the
+    -- SelfBuff band it belongs on as a self window.
+    assertEquals("SelfBuff", Registry._kindFor("Arcane Blast"))
     assertEquals("SelfDebuff", Registry._kindFor("Health Funnel"))
     assertEquals("Pet", Registry._kindFor("Growl"))
     assertEquals("Pet", Registry._kindFor("Mend Pet"))

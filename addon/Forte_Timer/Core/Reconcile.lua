@@ -290,7 +290,16 @@ local function findRowForUnit(self, name, token)
     local r = self.rows
     for i = 1, r.rows_n do
         local row = r.rows[i]
-        if row and row.name == name and row.state <= Laws.REMOVE
+        -- The live band is NORMAL..REMOVE. `state <= REMOVE` alone admits
+        -- the IGNORE band (-1, the refuse-removal/zeroing band: a row the
+        -- pump is mid-evicting, zeroed by the next Fade, Rows.lua:590) --
+        -- such a row must not become the adopt target: OnAuraFact mutates
+        -- it, the verdict is never "inserted" so the insert is suppressed,
+        -- and the confirmed aura's bar rides a row that is leaving the
+        -- array (code-review-10 m1; the reproducible case is a re-applied
+        -- Hunter's Mark landing in the fade band).
+        if row and row.name == name and row.state >= Laws.NORMAL
+            and row.state <= Laws.REMOVE
             and row.targetKey ~= "none"
             and (row.unitToken == token or row.targetKey == token)
             and tokenHoldsRowUnit(self, row, token) then

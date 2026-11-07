@@ -53,6 +53,56 @@ Found and fixed in the running game (Hunter, build 1.60.1.70790). Items marked
 
 ---
 
+## Unreleased — 2026-11-07 (code-review-10 remediation: hardening the live fixes, then the gate runs)
+
+Hardening of the 2026-11-06 live fixes per `docs/reviews/code-review-10.md`,
+on top of the November balance data refresh. Behaviour notes where one
+changed; the rest is registration shape, defaults and test coverage
+(every fix below ships with a test that fails on the pre-fix shape).
+
+- **Spell Timer:** the death sweep registers `UNIT_DIED` as the base event it
+  is (payload: a unit GUID, never a unit token) — the per-unit form the live
+  client rejected is refused by a test, and the per-unit shape of every other
+  registration is pinned. Target sweeps read identity only from the unit
+  being swept, so a sweep can no longer retire a row that rode a token onto a
+  friendly unit (the "rides" rule now requires the unit's NAME to answer).
+  A recast of a one-target effect retires the old target's bar through the
+  localised spell name too, an aura confirming a cast takes over that cast's
+  row instead of adding a second one, and rows queued for eviction are no
+  longer adoption targets. The cast pump counts every job it raises on
+  (`/fx log`'s status line gained the count), and the unused Spark-Flare
+  tuning entry is gone.
+- **Cooldown bar:** the icon pump keeps its leftover time between frames, so
+  the 60 Hz draw rate is real on a 100 Hz+ client (it drew ~50 Hz before); the
+  overlap stack caps at 3 lanes so a dense cluster of short cooldowns stays
+  on the bar.
+- **Options:** the keyboard-trap and strata fixes are pinned by tests (text
+  boxes never auto-focus, Enter/Escape release the focus, the window rides
+  the dialog strata, the X and Esc close it).
+- **Aspect reminder:** an aspect whose name the client does not list now
+  reaches the name lookup (the lookup that runs the spell ID first, the name
+  second, stopped at the ID when the ID was missing).
+- **Developer logging:** `/fx log` (status) no longer calls the chat-logging
+  toggler with no arguments — the argless call raised on the live client and
+  killed the whole command, now the state is read from the client's query (or
+  reports false); `/fx log test` survives a client without the error-handler
+  getter; the login re-apply rides the module registry, so the add-on has one
+  login-time registrant again and a fresh install writes no save key.
+- **The review-10 test wave greens the gate (M3c).** The render pump's
+  accumulator rides a one-slot box so the cadence tests start from a drained,
+  known phase (the pump's draw law is unchanged); the shared
+  `Rows.options`/`FX.db` seam restores are idempotent, and the leg fixtures
+  that rode the pre-refresh world (the German client's druid sample, the
+  grace-window cast time, the bulk-sweep seam, the tracker roster, the
+  Enter-commit expectation, the sim's texture-identity form) follow the live
+  data and the sim's real answers — no law softened, every red traced to a
+  fixture or a leak. The gate's load probes now carry `Log` in the
+  always-loaded set (inert by default: no frame, no events, no save writes
+  until `/fx log on`), and `docs/research/data-diff-live-2026-11-07.md` §10
+  records the data-side wave.
+
+---
+
 ## Unreleased — 2026-11-04 (Iteration J: the Hunter swing bar reads your rotation)
 
 - **The Hunter bar starts in its Safe-window mode as intended, and two

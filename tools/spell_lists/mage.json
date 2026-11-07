@@ -3,6 +3,20 @@
   "_deferred_H7": [
     "Brain Freeze", "Chilled", "Mana Surge"
   ],
+  "_pins": {
+    "Arcane Blast": {
+      "id": 400573,
+      "reason": "the 18 s Arcane Focus self-buff the player's cast applies (the store's 18 s capture, MaxStacks 4); the live 70790 ladder carries NO cooldown for the name at all, and the only cooldown-carrying row of the name -- mythicsim's weapon-proc row 18091 -- is the Arcane Blast (18091) item proc the Forte_ItemProcs Archeus row already rides: tracking it would draw a fake 8 s cooldown bar (wave M3a, docs/research/data-diff-live-2026-11-07.md SS5.2)"
+    },
+    "Berserking": {
+      "id": 20554,
+      "reason": "all four 70790 rows (20554/23505/24378/1286304) are value-less name shells (no Cooldowns row), so the bare-row tiebreak rides the arbitrary max-id shell; 20554 is the id measured 180 s on the live client (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4)"
+    },
+    "Rapid Regeneration": {
+      "id": 1260270,
+      "reason": "the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4)"
+    }
+  },
   "cooldowns": [
     "Cold Snap", "Evocation", "Arcane Power", "Icy Veins", "Arcane Surge",
     "Frozen Orb", "Rewind Time", "Living Flame", "Displacement",
@@ -12,7 +26,7 @@
     "Portal: Undercity", "Portal: Darnassus", "Portal: Thunder Bluff",
     "Portal: Karazhan",
     "Combustion", "Cone of Cold", "Frost Nova", "Deep Freeze",
-    "Blast Wave", "Fire Blast", "Arcane Blast", "Ice Lance"
+    "Blast Wave", "Fire Blast", "Ice Lance"
   ],
   "buffs": [
     "Arcane Brilliance", "Arcane Intellect", "Fire Ward", "Frost Ward",
@@ -20,7 +34,7 @@
     "Ice Block", "Searing Blast", "Frigid Power", "Evoker",
     "Chronostatic Preservation", "Regeneration",
     "Blizzard", "Living Bomb", "Pyroblast", "Flamestrike", "Frostfire Bolt", "Freeze",
-    "Fingers of Frost", "Ignite", "Clearcasting"
+    "Fingers of Frost", "Ignite", "Clearcasting", "Arcane Blast"
   ],
   "utility": [
     "Mage Armor", "Frost Armor", "Ice Armor", "Molten Armor",
@@ -28,5 +42,8 @@
     "Teleport: Dalaran", "Teleport: Stormwind", "Teleport: Thunder Bluff",
     "Teleport: Ironforge", "Teleport: Undercity", "Teleport: Orgrimmar",
     "Teleport: Darnassus"
+  ],
+  "racials": [
+    "Berserking", "Rapid Regeneration"
   ]
 }

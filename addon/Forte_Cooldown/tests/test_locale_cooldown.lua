@@ -11,7 +11,15 @@ local _C_Spell, _IsPlayerSpell = C_Spell, IsPlayerSpell
 -- spell-known seam and the inventory readers -- are the test's stub surface.
 -- Generated-data ids stand in for the client spell ids (the sim resolves
 -- 3045 to nil; the data row's id IS the join key isKnown now uses).
-local DE_SPELL = { [3045] = "Schnellfeuer" }                    -- Rapid Fire
+local DE_SPELL = { [3045] = "Schnellfeuer",                 -- Rapid Fire
+                   [20554] = "Berserken" }                  -- Berserking (M2)
+-- The M3a German Berserking leg builds the DRUID kit on the stubbed German
+-- client: Build's known-gate is the data-id path, so the druid needs at
+-- least one NON-racial id the stub knows or the kit count is legitimately 0
+-- (the Berserking row is `racial = true` -- Build excludes it by contract
+-- and AddExtras enlists it; that split is the review-10 M2 law this leg
+-- pins). Barkskin stands in for the druid's German client table.
+DE_SPELL[22812] = "Rindenschild"                           -- Barkskin (M3a kit sample)
 local DE_ITEM = { [19336] = "Arkane Verstaerkte Essenz" }       -- Arcane Infused Gem
 
 local function german(on)
@@ -287,4 +295,53 @@ test("locale: the enUS read pass keeps asking the English name", function()
             "enUS: the English data name is the read key (bit-identical)")
     end
     rebuildEnglish()
+end)
+
+-- ============================================================ M3a racials ==
+-- review-10 M2's repro, now the pin: on the German client the racial's
+-- name is the CLIENT's word. Pre-M3a the Engine hand-keyed "Berserking"
+-- (English) -- `Locale.CanonicalName("Berserken")` had no alias to ride
+-- (the data named the name on no row), the racial never entered `tracked`,
+-- and casting it drew nothing. Wave M3a moved the row into the GENERATED
+-- data (the druid's Troll roster), so BuildSpellAliases registers
+-- Berserken -> Berserking off the data row + the client's own name, the
+-- known-gate rides the row id (locale-free, IsPlayerSpell(20554)), and the
+-- cast -- the client's word canonicalized onto the data key -- lands.
+test("locale: the German Berserking rides tracked and its cast lands (M3a)",
+function()
+    -- Every seam german(true) takes (the Locale stubs, _G.C_Spell,
+    -- _G.IsPlayerSpell) rides rebuildEnglish at the end; an assert that
+    -- throws mid-leg must not strand the German client for the files that
+    -- sort after this one (the stub leak once red-spread through
+    -- test_reconcile / test_tiers / test_test_mode / test_zz_* -- readKey
+    -- flips to the id path the moment a German stubLocale lives on).
+    local ok, err = pcall(function()
+    FX.LoadClassAddOn("DRUID")
+    Locale.Reset()
+    german(true)
+    local added = Locale.BuildSpellAliases()
+    assertTrue(added > 0, "the German client registers aliases")
+    assertEquals("Berserking", Locale.CanonicalName("Berserken"),
+        "the client's word canonicalizes onto the generated data key")
+    local n = Engine:Build("DRUID", M.IsKnown)
+    assertTrue(type(n) == "number" and n > 0, "the druid kit built")
+    assertNil(Engine.tracked["Berserking"],
+        "Build keeps its class-kit contract (the racials ride AddExtras)")
+    assertTrue(Engine:AddExtras(M.IsKnown) >= 1,
+        "the id half of the known-gate enlists the racial")
+    local t = Engine.tracked["Berserking"]
+    assertNotNil(t, "the localized Berserking is tracked off the data row")
+    assertEquals(20554, t.dataId)
+    assertTrue(math.abs(t.baseDuration - 180) < 1e-6,
+        "the owner's measured 180 s rides the generated row")
+    -- The cast event arrives with the client's word; the Module's cast path
+    -- canonicalizes it (Locale.CanonicalName is that resolve) and the
+    -- Engine starts the bar.
+    local e = Engine:OnCast(Locale.CanonicalName("Berserken"), 1000)
+    assertNotNil(e, "the German Berserking cast drew no bar")
+    assertAlmostEquals(180, e.endTime - e.start, 1e-6)
+        Engine.entries["Berserking"] = nil
+    end)
+    rebuildEnglish()
+    if not ok then error(err, 0) end
 end)

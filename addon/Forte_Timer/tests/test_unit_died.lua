@@ -1,19 +1,30 @@
 -- addon/Forte_Timer/tests/test_unit_died.lua
--- Code-review-5 M4: the `UNIT_DIED("target")` registration (Module.lua:577)
--- is payload-bearing (the catalog hands (unitToken)), and its branch
--- (Module.lua:672) is the target-death cleanup -- the OPPORTUNISTIC half of
--- the E5 liveness law: my target died inside the window, so the rows keyed
--- against the target unit die with it, SILENT -- no FX_TIMER_BROKEN, no
--- announce (the kill law test_expiry_identity.lua proved at the
--- Rows:TargetIsDead seam, here and there the same verdict).
+-- Code-review-5 M4 + code-review-10 M1: the `UNIT_DIED` registration
+-- (Module.lua:802, the BASE-event form `f:RegisterEvent("UNIT_DIED")`) is
+-- payload-bearing (the pinned catalog hands (unitGUID, WOWGUID),
+-- SecretWhenUnitIdentityRestricted), and its branch (Module.lua's OnEvent) is
+-- the target-death cleanup -- the OPPORTUNISTIC half of the E5 liveness law:
+-- my target died inside the window, so the rows keyed against the target unit
+-- die with it, SILENT -- no FX_TIMER_BROKEN, no announce (the kill law
+-- test_expiry_identity.lua proved at the Rows:TargetIsDead seam, here and
+-- there the same verdict).
+--
+-- M1 (code-review-10): this suite used to certify a feature that could not
+-- fire on the shipped client -- it drove the branch by hand while the
+-- registration (`pcall(RegisterUnitEvent, ..., "target")`) lost the whole
+-- feature on the live client, and no test touched the registration at all.
+-- The first test below pins the REGISTRATION SHAPE (the base-event
+-- `IsEventRegistered` pin, MT-1/MT-2 of the review), so the suite can not stay
+-- green on dead code; the payload legs then drive the REAL event frame.
 --
 -- The branch reads: the payload classifies through PlainOrNil and must be a
 -- PLAIN string (the guid is SecretWhenUnitIdentityRestricted -- it is
--- classified, never compared); every live row whose `unitToken` names the
--- "target" unit then faces the client's own `UnitExists("target")` -- a
--- PLAIN false (the unit token is gone: the death cleanup) fades the row
--- REMOVED at once. The payload's CONTENT is not compared: the liveness read
--- is the answer.
+-- classified, never compared; a plain GUID string like the catalog's WOWGUID
+-- payload is a plain string, and the content is inert to the branch); every
+-- live row whose `unitToken` names the "target" unit then faces the client's
+-- own `UnitExists("target")` -- a PLAIN false (the unit token is gone: the
+-- death cleanup) fades the row REMOVED at once. The payload's CONTENT is not
+-- compared: the liveness read is the answer.
 --
 -- Every test drives the REAL event frame with the exact client payload (the
 -- dispatch idiom of test_module.lua: the frame is argument 1) -- a test
@@ -119,6 +130,82 @@ test("the feed is live: the module is enabled, the frame bound", function()
     assertTrue(Registry.IsTracked("Serpent Sting"))
 end)
 
+-- ------------------------------------------------- the registration shape --
+-- MT-1 / MT-2 (code-review-10 section (c) 1+2): before this pair the suite
+-- grepped zero `IsEventRegistered` -- the multi-unit registration shape (the
+-- headline fix of d490e2e) and the UNIT_DIED base-event registration were
+-- BOTH unpinned, which is exactly how M1 stayed green while the live client
+-- lost the feature. These legs drive the real frame's registration, so the
+-- suite cannot stay green on dead code.
+
+--- The frame's registration report for one (event, unit) pair — the query
+--- form the client answers (`IsEventRegistered(event, unit)`; the event-only
+--- form answers nil for a unit-keyed event). The multi-unit law of
+--- d490e2e: one call carrying BOTH units registers BOTH, so the pair query is
+--- the shape that proves it — a per-event second call replacing the first
+--- unit set shows up here as the pet pair answering falsy.
+local function registration(f, event, unit)
+    local ok, isReg = pcall(f.IsEventRegistered, f, event, unit)
+    assertTrue(ok, "the client frame answers IsEventRegistered("
+        .. event .. ", " .. tostring(unit) .. ")")
+    if not ok then return nil end
+    return isReg and true or false
+end
+
+test("MT-2: UNIT_DIED is registered as a BASE event (M1: the feature fires on the live client)",
+function()
+    enableTimer()
+    local f = M._eventFrame
+    -- The base-event query (no unit) is the base form's own answer.
+    local base = registration(f, "UNIT_DIED", nil)
+    print(string.format("[unit-died] IsEventRegistered(UNIT_DIED): %s",
+        tostring(base)))
+    assertEquals(true, base, "UNIT_DIED is registered on the event frame (M1:"
+        .. " the base RegisterEvent form; the old RegisterUnitEvent leg lost"
+        .. " the whole feature on the live client and NO test touched the"
+        .. " registration, so the suite stayed green on dead code)")
+    -- The per-unit half of the M1 shape: a unit-keyed registration must
+    -- answer the (event, "target") pair. The pinned catalog answers it; the
+    -- SIM answers every pair query for a registered event as true (its
+    -- IsEventRegistered is event-keyed), so on the sim the falsy assertion
+    -- is NOT observable -- it prints what the client answers, and the
+    -- shipped client is where the pair query answering falsy (the base
+    -- form's whole point) is the fact the review's M1 rides.
+    local keyed = registration(f, "UNIT_DIED", "target")
+    print(string.format("[unit-died] IsEventRegistered(UNIT_DIED, target): %s"
+        .. " (the strict falsy leg is the real client's pair query)",
+        tostring(keyed)))
+    if keyed ~= nil and keyed ~= true then
+        assertFalse(keyed,
+            "UNIT_DIED is not registered for the target unit: the catalog"
+            .. " payload is unitGUID, so the base form is the shape")
+    end
+end)
+
+test("MT-1: the cast spine registers the multi-unit shape (player,pet), one call per event",
+function()
+    enableTimer()
+    local f = M._eventFrame
+    for _, event in ipairs({ "UNIT_SPELLCAST_SENT", "UNIT_SPELLCAST_SUCCEEDED" }) do
+        assertEquals(true, registration(f, event, "player"),
+            event .. " rides the player unit")
+        assertEquals(true, registration(f, event, "pet"),
+            event .. " rides the pet unit in the SAME registration (a second"
+            .. " call replaces the first unit set: the live finding of"
+            .. " 2026-11-06 -- the shape d490e2e fixed)")
+    end
+    for _, event in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_FAILED",
+    "UNIT_SPELLCAST_INTERRUPTED" }) do
+        assertEquals(true, registration(f, event, "player"),
+            event .. " rides the player unit")
+    end
+    -- UNIT_AURA: the player/target pair, one call.
+    assertEquals(true, registration(f, "UNIT_AURA", "player"),
+        "UNIT_AURA rides the player unit")
+    assertEquals(true, registration(f, "UNIT_AURA", "target"),
+        "UNIT_AURA rides the target unit in the same call")
+end)
+
 test("the target's death retires its rows at once, silent (the E5 kill law)",
 function()
     enableTimer()
@@ -169,6 +256,28 @@ function()
 end)
 
 -- ---------------------------------------------------------------- inert --
+
+test("the catalog payload itself (a WOWGUID string) retires the target rows",
+function()
+    -- M1: the base event hands a GUID, not a unit token -- the live client's
+    -- every real payload of this event is shaped like this. The branch is
+    -- content-agnostic (a plain string is a plain string), so a GUID-shaped
+    -- payload retires the rows exactly as the token-shaped ones do: this leg
+    -- is the shape the token-only legs could not answer for.
+    enableTimer()
+    buildHunterRegistry()
+    Rows:Clear()
+    local killed = seedTargetRow("Serpent Sting", "Vile Poacher")
+    local selfRow = seedSelfRow("Hunter's Mark")
+    local saved = installUnitExists(false)
+    -- The catalog's payload type for UNIT_DIED: unitGUID, a WOWGUID string.
+    dispatch("UNIT_DIED", "Creature-0-1142-65-1-1096-0")
+    restoreUnitExists(saved)
+    assertEquals(Laws.REMOVE, killed.state,
+        "the GUID-shaped payload retires the target row")
+    assertEquals(Laws.NORMAL, selfRow.state, "the self row rides on")
+    Rows:Clear()
+end)
 
 test("a SEALED payload is inert: the classified token gates the branch",
 function()

@@ -137,7 +137,11 @@ FX.Timer.Skin = {
     TickWidthFactor = 0.5,  -- :1621 Width = Height*0.5
     TickHeightFactor = 1.5, -- :1622 Height = Height*1.5
     SparkHeightFactor = 2,  -- :2384 spark height = Height*2
-    SparkFlareFactor = 2.2, -- :2534 icon spark height = vis*Height*2.2
+    -- SparkFlareFactor (:2534 "icon spark height = vis*Height*2.2") is GONE
+    -- (code-review-10 m8): the icon-glow swap (UI/Rows.lua's IconGlowFactor
+    -- sizing) retired its only two consumers, and a dead law value is the
+    -- constant a future reader "fixes" back. The figure rides in the
+    -- IconGlowFactor comment's source citation.
     IconGlowFactor = 64 / 34,  -- Spark2 ring (64 px texture, bright line px 15..49) -> wraps the icon edge exactly
     -- ---- the row gate (§1.1 / §5.5) -------------------------------------
     Max = 15,               -- :3315 Max = {[0]=false, 15} (the ON value)

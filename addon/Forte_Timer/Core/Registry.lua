@@ -29,10 +29,13 @@
 -- are read by `Build` onto every entry: `tickEvery` (seconds -- the periodic
 -- effect's period, base `Effects[].PeriodMs`), `maxStack` (the aura's stack
 -- cap, base `MaxStack` > 1) and `noTarget` (the original's column-1
--- `notTarget`: every effect of the generated row targets the caster). All
--- three are BASE DATA ONLY -- the 70707 overlay carries no `Effects`/
--- `MaxStack`/`Target` capture -- and are absent, never zero, when the data
--- says nothing about that shape.
+-- `notTarget`: every effect of the generated row targets the caster). The
+-- generator's feed law (its docstring; the 1.60.1.70790 capture): base rows
+-- first, the same-family RANK SIBLING's base shape for a picked row with no
+-- base row of its own (wave M3a), the overlay's per-id `periodMs`/
+-- `targetCode`/`maxStack` captures filling what neither can speak to -- and
+-- all three absent, never zero, when no source says anything about the
+-- shape.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -203,8 +206,11 @@ local KIND_RULES = {
         "^Health Funnel", "^Sacrifice", "^Hand of Sacrifice", "^Burning Rush",
         "^Blood Fury", "^Retaliate", "^Death Coil", "^Soul Siphon",
         "^Blood Leech", "^Blood Vortex", "^Blood Rage", "^Blood Sacrifice",
-        -- T1: Arcane Blast, the mage's AddSelfDebuff(36032) (Mage.lua:67).
-        "^Dark Pact", "^Pact of the", "^Shattered Illusions", "^Curse of Self", "^Arcane Blast",
+        -- T1 was Arcane Blast (the mage's AddSelfDebuff(36032), Mage.lua:67):
+        -- wave M3a moved the name to SelfBuff -- the 70790 pin tracks the
+        -- 18 s Arcane Focus STACK buff (400573, MaxStacks 4, a cyan self
+        -- window like Arcane Infused), not the 18091 proc the original keyed.
+        "^Dark Pact", "^Pact of the", "^Shattered Illusions", "^Curse of Self",
         -- the Succubus' self-pain window (70707 kit, wave 2a D3)
         "^Suffering",
     } },
@@ -284,9 +290,15 @@ local KIND_RULES = {
         "^Blood Pool", "^Blood Tap", "^Bloodburst", "^Dark Soul",
         "^Dark Transformation", "^Berserker Rage", "^Berserker Frenzy",
         "^Berserk", "Frenzy", "^Rabid", "^Bestial Wrath", "^Rapid Fire",
+        -- wave M3a racials: the Dwarf self-heal/haste window (the `^Regeneration`
+        -- term is start-anchored, the racial name starts with "Rapid").
+        "^Rapid Regeneration",
         "^Deterrence", "^Feign Death", "^Eagle Eye", "^Precision",
         "^Clever Strikes", "^Trick Shots", "^Heart of the Lion",
         "^Arcane Infused", "^Beast of the Unseen Path", "^Stalker's Ally",
+        -- wave M3a: the pinned 400573 Arcane Focus window (18 s, 4 stacks,
+        -- noTarget) -- a mage self window, from SelfDebuff (see there).
+        "^Arcane Blast",
         "^Enchant", "^Weapon Enchant", "^Sight", "^Sense", "Form$",
         "^Stride", "^Dash", "^Prowl", "^Stealth", "^Discipline", "^Focus",
         "^Endurance", "^Meditation", "^Barrier", "^Sanctuary", "^Freedom",

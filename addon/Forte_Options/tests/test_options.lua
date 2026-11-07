@@ -240,6 +240,114 @@ test("STR: Enter commits, Escape restores", function()
     assertEquals("typed", eb:GetText())
 end)
 
+-- ============================================================ MT-13 ==
+-- Code-review-10 section (c) item 13: the keyboard-trap fix (the live
+-- 2026-11-06: opening the options page grabbed the keyboard through the
+-- number boxes' default auto-focus, and Enter left it grabbed), the DIALOG
+-- strata (the live Esc/X-dead fix), and the close clickability. d490e2e
+-- shipped all three with no pin.
+
+--- Every EditBox built while installed records its SetAutoFocus argument.
+local function installAutoFocusRecorder()
+    local rec = {}
+    local real = _G.CreateFrame
+    _G.CreateFrame = function(ftype, name, owner, template)
+        local f = real(ftype, name, owner, template)
+        if ftype == "EditBox" then
+            local realAF = f.SetAutoFocus
+            f.SetAutoFocus = function(self, on)
+                rec[#rec + 1] = on
+                return realAF(self, on)
+            end
+        end
+        return f
+    end
+    return rec, function() _G.CreateFrame = real end
+end
+
+test("MT-13: every text row ships SetAutoFocus(false) -- the page never grabs the keyboard",
+function()
+    local rec, restore = installAutoFocusRecorder()
+    W.NUM(parent, { module = "WTest", key = "num", label = "N",
+        min = 1, max = 20, step = 1, width = 240 })
+    W.STR(parent, { module = "WTest", key = "str", label = "T", width = 320 })
+    restore()
+    assertTrue(#rec >= 2, "both rows drove SetAutoFocus (" .. #rec .. " calls)")
+    for i = 1, #rec do
+        assertEquals(false, rec[i],
+            "SetAutoFocus call " .. i .. " carries the literal false (true"
+            .. " is the keyboard trap the live client showed)")
+    end
+end)
+
+test("MT-13: Enter commits and RELEASES the focus (NUM and STR), Escape restores and releases",
+function()
+    local cleared = 0
+    local function countClear(w)
+        local eb = w.obj
+        local real = eb.ClearFocus
+        eb.ClearFocus = function(self)
+            cleared = cleared + 1
+            return real(self)
+        end
+    end
+    local n = W.NUM(parent, { module = "WTest", key = "num", label = "N",
+        min = 1, max = 20, step = 1, width = 240 })
+    countClear(n)
+    n.obj:SetText("12")
+    n.obj:GetScript("OnEnterPressed")(n.obj)
+    assertEquals(12, S:Get("WTest", "num"),
+        "the commit is the typed value (the Enter-commit law the NUM leg of"
+        .. " 'NUM: Enter commits with clamping' pins -- 12 is in range, the clamp passes it)")
+    assertEquals(1, cleared, "NUM's Enter CLEARS FOCUS (the keyboard release)")
+    n.obj:SetText("9")
+    n.obj:GetScript("OnEscapePressed")(n.obj)
+    assertEquals(2, cleared, "NUM's Escape restores AND releases")
+    assertEquals(12, S:Get("WTest", "num"), "the Escape leg writes nothing")
+
+    local st = W.STR(parent, { module = "WTest", key = "str", label = "T",
+        width = 320 })
+    countClear(st)
+    st.obj:SetText("typed2")
+    st.obj:GetScript("OnEnterPressed")(st.obj)
+    assertEquals("typed2", S:Get("WTest", "str"))
+    assertEquals(3, cleared, "STR's Enter CLEARS FOCUS")
+    S:Reset("WTest", "num")
+    S:Reset("WTest", "str")
+end)
+
+test("MT-13: the window rides the DIALOG strata and the X closes it",
+function()
+    O:Open("General")
+    local f = O.window
+    -- The strata is the Esc/X-dead fix of the live client (i10): MEDIUM strata
+    -- let other addons' frames cover the window (the X APPEARED dead) and
+    -- UISpecialFrames' Esc contract closes DIALOG strata windows.
+    assertNotNil(f.GetFrameStrata, "the client frame answers GetFrameStrata")
+    assertEquals("DIALOG", f:GetFrameStrata(),
+        "the options window rides the DIALOG strata")
+    -- The X is a real, clickable close: mouse-enabled, click-scripted, and
+    -- the click closes.
+    local x = O.closeBtn
+    assertNotNil(x, "the window owns its close button")
+    if x.IsMouseEnabled then
+        assertEquals(true, x:IsMouseEnabled(),
+            "EnableMouse(true): the X answers the mouse")
+    end
+    assertNotNil(x:GetScript("OnClick"))
+    x:GetScript("OnClick")(x)
+    assertEquals(false, O:IsOpen(), "the X click CLOSES the window")
+    -- The Esc contract: the registration in UISpecialFrames is what makes the
+    -- client's Esc reach this window (the array carries GLOBAL FRAME NAMES).
+    local found = false
+    for i = 1, #UISpecialFrames do
+        if UISpecialFrames[i] == "ForteXorcistOptionsWindow" then
+            found = true
+        end
+    end
+    assertTrue(found, "the window is in UISpecialFrames: Esc closes it")
+end)
+
 test("SEL picker: the button names the entry, popup items write the store",
 function()
     local items = {

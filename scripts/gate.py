@@ -12,7 +12,7 @@ Exit code 0 only if everything passes. Usage:
   scripts/gate.py            # everything
   scripts/gate.py --fast     # skip generators
 """
-import filecmp, glob, hashlib, os, re, subprocess, sys
+import filecmp, glob, hashlib, json, os, re, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ADDONS = os.path.join(ROOT, "addon")
@@ -71,7 +71,13 @@ def run_tests():
 # wow-ui-sim-specs/cli-class-spec.md), which has data and no modules -- the
 # shape that proves the gate keeps the other classes out.
 ALWAYS_DATA = {"Items"}
-ALWAYS_MODULES = {"Cooldown", "Locale", "Messages", "Probe", "Splash", "TestMode", "Timer"}  # TestMode: wave I-3c
+# TestMode: wave I-3c. Log: code-review-10 M3/M4 -- the /fx log module is a
+# Forte_Core module (registered through the module registry, no frame and no
+# event at file top, inert by default: OnEnable acts only on a stored
+# FX.db.logOn, writes SavedVariables only through Log:Enable, speaks in chat
+# only when a user calls FX.Log or /fx log), so it rides the always-loaded
+# Core load set like Locale/Messages/Probe.
+ALWAYS_MODULES = {"Cooldown", "Locale", "Log", "Messages", "Probe", "Splash", "TestMode", "Timer"}
 LOAD_PROBES = {
     None: {"data": {"Paladin"}, "modules": set()},
     "Hunter": {"data": {"Hunter"}, "modules": {"Hunter", "HunterUI", "HunterMelee", "HunterMeleeUI",
@@ -218,8 +224,106 @@ def api_lint():
     if p.returncode: failures.append("api-lint")
 
 
+# Data provenance (wave M3a, docs/research/data-diff-live-2026-11-07.md §9):
+# the generated spell data is only as trustworthy as its stamps. The 70790
+# refresh retired the three pins this check replaces, each welded to one
+# build: the hard-coded `1.60.1.70707` stamp string, the literal
+# "70707 overlay changes" wording and a research citation window that read
+# only the header's first 1800 characters. The law is now build-GENERAL: the
+# subject build/commit/hotfix are PARSED from tools/gen_spell_data.py's
+# `LIVE_OVERLAY` pointer (the file the generator's own docstring calls the
+# LIVE overlay -- the check follows the pointer, so the next refresh moves
+# this check by editing that one line), and the citation window spans the
+# WHOLE header comment block, so a citation may move as the header grows.
+OVERLAY_POINTER = re.compile(r'LIVE_OVERLAY = HERE / "([^"]+)"')
+DEVNOTES_POINTER = re.compile(r'DEFAULT_DEVNOTES = HERE / "([^"]+)"')
+
+
+def data_provenance():
+    gen = open(os.path.join(ROOT, "tools", "gen_spell_data.py"),
+               errors="replace").read()
+    overlay_m = OVERLAY_POINTER.search(gen)
+    devnotes_m = DEVNOTES_POINTER.search(gen)
+    if not overlay_m:
+        print("[provenance] FAIL tools/gen_spell_data.py carries no "
+               "LIVE_OVERLAY = HERE / \"...\" pointer")
+        failures.append("provenance pointer")
+        return
+    overlay_path = os.path.join(ROOT, "tools", overlay_m.group(1))
+    if not os.path.exists(overlay_path):
+        print(f"[provenance] FAIL the generator's live overlay "
+               f"tools/{overlay_m.group(1)} does not exist")
+        failures.append("provenance live overlay")
+        return
+    meta = json.load(open(overlay_path))["_meta"]
+    label = str(meta["build"]).split(".")[-1]          # 1.60.1.70790 -> 70790
+    files = sorted(glob.glob(os.path.join(ADDONS, "Forte_*", "Data", "*.lua")))
+    checked = 0
+    for path in files:
+        rel = os.path.relpath(path, ROOT)
+        lines = open(path, errors="replace").read().splitlines()
+        head = []
+        for line in lines:
+            if not line.startswith("--"): break
+            head.append(line)
+        header = "\n".join(head)
+        is_class = rel.endswith(("Druid.lua", "Hunter.lua", "Mage.lua",
+                                 "Paladin.lua", "Priest.lua", "Rogue.lua",
+                                 "Shaman.lua", "Warlock.lua", "Warrior.lua"))
+        wants = [
+            # The overlay stamp: commit and build straight from the meta.
+            (re.compile(rf"-- Overlay: wowsims/forever {meta['commit']} "
+                        rf"build {re.escape(meta['build'])}"),
+             f"overlay stamp (commit {meta['commit'][:10]}… build "
+             f"{meta['build']}", header),
+            (re.compile(rf"-- .*hotfix push {meta['hotfix_push']}"),
+             f"hotfix push {meta['hotfix_push']}", header),
+            # The builder: the overlay is extract_store.py's capture, not a
+            # hand list (the check the 70707 pin carried, worded generically).
+            (re.compile(r"-- .*built by tools/extract_store\.py"),
+             "built by tools/extract_store.py", header),
+            (re.compile(r"-- Source: mythicsim-forever-engine"),
+             "mythicsim base source", header),
+        ]
+        if is_class and devnotes_m:
+            wants.append((
+                re.compile(rf"-- Dev notes: tools/{re.escape(devnotes_m.group(1))}"),
+                f"dev-notes file {devnotes_m.group(1)}", header))
+        missing = [what for rx, what, _ in wants if not rx.search(_)]
+        # The change list: the header's "the live build's label overlay
+        # changes in this file (N):" line, when present, carries the live
+        # label and its bullet count is the list's true length (a stale
+        # "70707 overlay changes" header -- the exact drift of §9 -- fails
+        # the label test; a lying count fails the count test).
+        cl = re.search(r"-- (\S+) overlay changes in this file \((\d+)\):",
+                       header)
+        if cl:
+            n, bullets = int(cl.group(2)), 0
+            after = [l for l in header[cl.end():].splitlines() if l.strip()]
+            # The list is the CONTIGUOUS run of `--   ` bullets right under
+            # the header line; the run ends at the next section heading.
+            for line in after:
+                if line.startswith("--   "): bullets += 1
+                else: break
+            if cl.group(1) != label:
+                missing.append(f"change-list label {cl.group(1)!r}, the live "
+                               f"overlay is {label!r}")
+            elif bullets != n:
+                missing.append(f"change-list says {n}, the header lists {bullets}")
+        # A research citation anywhere in the header block (the whole block,
+        # not a fixed byte window).
+        if not re.search(r"docs/research/[A-Za-z0-9_\-.]+\.md", header):
+            missing.append("a docs/research/*.md citation in the header block")
+        checked += 1
+        if missing:
+            print(f"[provenance] FAIL {rel}: " + "; ".join(missing))
+            failures.append(f"provenance {rel}")
+    print(f"[provenance] {checked} generated data files audited against "
+          f"tools/{overlay_m.group(1)} (build {meta['build']}, "
+          f"{'all stamped' if not any(f.startswith('provenance') for f in failures) else 'SEE ABOVE'})")
+
 if __name__ == "__main__":
-    run_tests(); lua_errors(); toc_pairs(); syntax(); api_lint()
+    run_tests(); lua_errors(); toc_pairs(); syntax(); api_lint(); data_provenance()
     if "--fast" not in sys.argv: generators()
     print("\nGATE:", "PASS" if not failures else "FAIL -> " + ", ".join(failures))
     sys.exit(1 if failures else 0)

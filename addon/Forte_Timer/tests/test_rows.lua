@@ -864,6 +864,64 @@ test("the aura sweep retires a consumed aura's row while MAXLAG of its window re
     Rows:Clear()
 end)
 
+test("a player Arcane Blast self-buff aura draws its Mage row (M3a)",
+function()
+    -- review-10's regression row: the 1.60.1.70790 Arcane Blast pin (the
+    -- 400573 self-buff, 18 s, MaxStacks 4, caster-targeted) gives the Spell
+    -- TIMER a row the player's own aura ride can fill. On the pre-M3a data
+    -- the name keyed mythicsim's 18091 weapon-proc row -- no durationMs, no
+    -- registry entry -- so the bulk sweep found the name untracked and drew
+    -- NOTHING; the fake 8 s cooldown bar was the only (wrong) artefact.
+    Registry:AttachStorage({})
+    local n = Registry:Build("MAGE")
+    assertTrue(n and n > 0)
+    local entry = Registry.entries["Arcane Blast"]
+    assertNotNil(entry, "the pinned Arcane Blast is not in the Mage registry")
+    assertEquals(400573, entry.dataId)
+    near(entry.duration, 18)
+    assertEquals(4, entry.maxStack)
+    assertTrue(Registry.IsNoTarget("Arcane Blast"),
+        "a caster-targeted self-buff draws exactly one row (key 'none')")
+    Rows.options = opts()
+    Rows:Clear()
+    local base = 24000
+    installClock(base)
+    local savedInCombat, savedLiveness = Reconcile.inCombat, Reconcile.liveness
+    local savedRowsLiveness = Rows.liveness
+    Reconcile.inCombat = function() return false end
+    Reconcile:Init(Rows, opts())
+    Reconcile.readers = {
+        byName = function() return false end,
+        -- The SweepBulk test contract is the `byIndex` enumeration (the
+        -- same idiom tests/test_identity_sweeps.lua installs): the raw
+        -- list a `bulk` seam answers rides the SAME classified call as a
+        -- single aura, and the classifier wants one aura's
+        -- expirationTime -- a list has none, so a `bulk` seam here is
+        -- classified "no answer". One aura per call is what classifies.
+        byIndex = (function()
+            local auras = { {
+                name = "Arcane Blast", spellId = 400573,
+                expirationTime = base + 18,  -- the store's 18 s window
+                duration = 18,
+                applications = 3,            -- the third Arcane Focus stack
+            } }
+            return function(_, i) return auras[i] end
+        end)(),
+    }
+    local added = Reconcile.counts.added
+    local ins = Reconcile:SweepBulk("player", "HELPFUL", base)
+    assertTrue(ins >= 1, "the self-buff aura is a fact for the sweep")
+    assertTrue(Reconcile.counts.added > added, "and it adds a row")
+    local row = Rows:Find("Arcane Blast", "none")
+    assertNotNil(row, "the player aura drew no Timer row")
+    near(row.total, 18)
+    assertEquals(3, row.stacks, "the aura's stack count rides the row")
+    Reconcile.readers = Reconcile.LiveReaders()
+    Reconcile.inCombat, Reconcile.liveness = savedInCombat, savedLiveness
+    Rows.liveness = savedRowsLiveness
+    Rows:Clear()
+end)
+
 test("the counters and status line report the run", function()
     buildHunterRegistry()
     local line = Reconcile:StatusLine()

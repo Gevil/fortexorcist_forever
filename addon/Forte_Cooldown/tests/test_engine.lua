@@ -58,11 +58,16 @@ end
 
 --- Mirror of Engine:Build's tracking predicate (Core/Engine.lua), computed
 --- from the data table itself -- no magic constants. isKnown stubs true.
+--- Wave M3a: the `racial = true` rows (the racials group) are Build's
+--- deliberate SKIP -- Engine:AddExtras tracks them from the same data
+--- after Build (the Module's Rebuild), so the class-kit count this mirror
+--- pins stays the pre-M3a number.
 local function expectedTrackedCount(data)
     local n = 0
     for _, spell in pairs(data) do
         local cd = spell.cooldownMs and spell.cooldownMs / 1000
-        if cd and cd >= Engine.MIN_COOLDOWN and spell.name then
+        if cd and cd >= Engine.MIN_COOLDOWN and spell.name
+            and not spell.racial then
             n = n + 1
         end
     end

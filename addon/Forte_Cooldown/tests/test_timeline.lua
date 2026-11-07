@@ -2150,3 +2150,91 @@ test("CD-35 HideZero: no entries hides the bar, the first entry in the feed show
     Display:Update({}, now + 0.4)
     assertTrue(Display.anchor:IsShown())
 end)
+
+-- ===================================================== overlap lanes ==
+-- Code-review-10 m3 + section (c) MT-10: the overlap-lane pass of the render
+-- loop (Timeline.lua's `lanes` block) shipped with NO test -- two same-cd
+-- entries, the axis truth under a lane, the per-pass lane wipe, and now the
+-- LANE_MAX cap. The render mode here is the shipped horizontal one: the axis
+-- offset rides GetPoint's x (and must NOT move), the lane step rides y.
+
+test("MT-10: two same-cd entries step perpendicular; the axis position stays true",
+function()
+    Display:Init()
+    local now = 48000
+    local H = S.Height
+    -- The same duration and the same finish: the identical axis position x.
+    local feed = {
+        { name = "Trap A", start = 0, duration = 30, endTime = now + 20 },
+        { name = "Trap B", start = 0, duration = 30, endTime = now + 20 },
+    }
+    Display:Update(feed, now)
+    local _, _, _, ax, ay = slotOf("Trap A").frame:GetPoint()
+    local _, _, _, bx, by = slotOf("Trap B").frame:GetPoint()
+    local W, Hh, Max, Loga = S.Width, S.Height, S.Max, S.Loga
+    local axis = TM.pos(20, W, Hh, Max, Loga)
+    near3(ax, axis); near3(bx, axis)
+    assertTrue(math.abs(ax - bx) < 1e-3,
+        "both icons keep the TRUE axis position (the lane never fakes time)")
+    near3(math.abs(by - ay), H * 0.75,
+        "one icon-width apart on the axis: the second steps 0.75H perpendicular")
+end)
+
+test("MT-10: the lane set resets per pass (the per-pass wipe), and an isolated icon rides lane 0",
+function()
+    Display:Init()
+    local now = 48200
+    local H = S.Height
+    local pair = {
+        { name = "Lane A", start = 0, duration = 30, endTime = now + 20 },
+        { name = "Lane B", start = 0, duration = 30, endTime = now + 20 },
+    }
+    Display:Update(pair, now)
+    local _, _, _, _, ay1 = slotOf("Lane A").frame:GetPoint()
+    local _, _, _, _, by1 = slotOf("Lane B").frame:GetPoint()
+    -- A second pass with the SAME pair: the lanes rebuild from zero every
+    -- pass, so the offsets are identical (no lane drift across passes).
+    Display:Update(pair, now + 0.1)
+    local _, _, _, _, ay2 = slotOf("Lane A").frame:GetPoint()
+    local _, _, _, _, by2 = slotOf("Lane B").frame:GetPoint()
+    near3(ay2, ay1); near3(by2, by1)
+    -- Now the B alone: with no earlier icon to collide with it rides the axis
+    -- (lane 0, the zero perpendicular step) -- proof the lanes are per-pass,
+    -- not per-slot memory.
+    Display:Update({ pair[2] }, now + 0.2)
+    local _, _, _, _, by3 = slotOf("Lane B").frame:GetPoint()
+    assertTrue(math.abs(by3 - by2) >= H * 0.75 - 1e-3,
+        "the crowded offset steps back to the axis when the crowd leaves")
+    Display:Update({}, now + 0.3)
+end)
+
+test("m3: the lane walk is CAPPED (LANE_MAX): a dense same-cd tail stays on the bar",
+function()
+    Display:Init()
+    local now = 48400
+    local H = S.Height
+    -- Nine icons at the identical axis position: the greedy walk would chain
+    -- lanes 0..8 (the review's field case: icons ~165 px off the axis, over
+    -- neighbouring UI). The cap: lane 3 is the last step; the rest FOLD there.
+    local feed = {}
+    for i = 1, 9 do
+        feed[i] = { name = "Pack " .. i, start = 0, duration = 30,
+                    endTime = now + 20 }
+    end
+    Display:Update(feed, now)
+    local maxOff, minOff = -1e9, 1e9
+    for i = 1, 9 do
+        local slot = slotOf("Pack " .. i)
+        assertNotNil(slot)
+        local _, _, _, xoff, yoff = slot.frame:GetPoint()
+        local W, Hh, Max, Loga = S.Width, S.Height, S.Max, S.Loga
+        near3(xoff, TM.pos(20, W, Hh, Max, Loga))   -- the axis stays true
+        if yoff > maxOff then maxOff = yoff end
+        if yoff < minOff then minOff = yoff end
+    end
+    local spread = maxOff - minOff
+    assertTrue(spread <= 3 * H * 0.75 + 1e-3,
+        "the whole cluster stays within LANE_MAX steps of the axis: "
+        .. spread .. " <= " .. (3 * H * 0.75))
+    Display:Update({}, now + 0.1)
+end)

@@ -258,14 +258,14 @@ end)
 -- ---------------------------------------------------------------- Reminder --
 
 test("Init builds the 32x32 reminder, hidden while no aspect is missing", function()
-    Reminder:Init()
+    if not Reminder.anchor then Reminder:Init() end
     assertNotNil(Reminder.anchor)
     assertNotNil(ForteXorcistHunterReminderAnchor)
     assertEquals("ForteXorcistHunterReminderAnchor",
         ForteXorcistHunterReminderAnchor:GetName())
     assertEquals(32, Reminder.anchor:GetWidth())
     assertEquals(32, Reminder.anchor:GetHeight())
-    Reminder:Init()
+    Reminder:Init()   -- the idempotence leg: Init guards on self.anchor
     assertEquals(32, Reminder.anchor:GetWidth())
     -- Click-through chrome: the frame never takes mouse input.
     local f = Reminder.anchor
@@ -353,6 +353,146 @@ test("the pulse breathes between PulseMin and PulseMax", function()
     Reminder:HideNow()
     assertFalse(Reminder.anchor:IsShown())
     Reminder:SetAspects(saved)
+end)
+
+-- ------------------------------------------- MT-14: the icon by spell id --
+-- Code-review-10 m2 + section (c) item 14: the reminder's icon lookup -- the
+-- ID first (the name lookups fail for spells the client does not list), the
+-- NAME second -- had no test, and the m2 fix is exactly the shape a test must
+-- pin: `ipairs({ id, name })` with `id == nil` stores nothing at index 1, the
+-- loop body never runs, and the function's own docstring ("then by name")
+-- becomes a lie. The C_Spell surface is installed per leg.
+
+local function installCSpell(answers)
+    local saved = _G.C_Spell
+    local seen = {}
+    _G.C_Spell = {
+        GetSpellTexture = function(key)
+            seen[#seen + 1] = key
+            local a = answers[key]
+            if a then return a end
+            return nil
+        end,
+    }
+    return seen, function() _G.C_Spell = saved end
+end
+
+test("MT-14: the icon lookup tries the SPELL ID first, the name only as the fallback",
+function()
+    if not Reminder.anchor then Reminder:Init() end
+    local byName = FX.Data and FX.Data.HunterByName
+    assertNotNil(byName, "the derived name->id map is loaded")
+    local name = FX.Hunter.Tools.aspectNames[1]
+    local id = byName[name]
+    assertNotNil(id, "the first aspect resolves through the data")
+    local seen, restore = installCSpell({ [id] = "Interface\\TESTIDPATH" })
+    local saved = Reminder.Aspects
+    local fresh = FX.Hunter.NewAspectTracker({
+        names = FX.Hunter.Tools.aspectNames,
+        inCombat = function() return false end,
+    })
+    fresh:OnCast(name)
+    Reminder:SetAspects(fresh)
+    Reminder._tex = nil
+    Reminder:ApplyIcon()
+    restore()
+    Reminder:SetAspects(saved)
+    assertEquals(id, seen[1],
+        "the FIRST key consulted is the spell id (the id-first law)")
+end)
+
+test("m2: a name the data map lacks still reaches the NAME leg (the ipairs nil-hole witness)",
+function()
+    if not Reminder.anchor then Reminder:Init() end
+    local byName = FX.Data and FX.Data.HunterByName
+    local name = "Aspect of the Testwing"     -- not in the derived map
+    assertNil(byName[name], "the fixture is a name the data map lacks")
+    -- The review's scenario is "the moment a tracker carries a name the
+    -- data file lacks": the tracker adopts casts of its OWN roster names,
+    -- so the roster carries the name the derived HunterByName map does not.
+    local roster = { name }
+    local family = FX.Hunter.Tools.aspectNames
+    for i = 1, #family do roster[#roster + 1] = family[i] end
+    local seen, restore = installCSpell({ [name] = "Interface\\TESTNAMEPATH" })
+    local saved, savedTex = Reminder.Aspects, Reminder._tex
+    local fresh = FX.Hunter.NewAspectTracker({
+        names = roster,
+        inCombat = function() return false end,
+    })
+    fresh:OnCast(name)
+    assertTrue(fresh:Current() == name, "the tracker adopted the roster name")
+    Reminder:SetAspects(fresh)
+    Reminder._tex = nil
+    Reminder:ApplyIcon()
+    restore()
+    Reminder:SetAspects(saved)
+    Reminder._tex = savedTex
+    assertEquals(1, #seen,
+        "the id leg is skipped (no id) and the NAME leg RUNS -- the old"
+        .. " `ipairs({ id, name })` with id == nil ran neither")
+    assertEquals(name, seen[1], "and it consulted the name itself")
+end)
+
+test("MT-14: an icon neither path answers is the question mark, and the cache stays un-stamped",
+function()
+    if not Reminder.anchor then Reminder:Init() end
+    local seen, restore = installCSpell({})   -- every lookup answers nil
+    local saved, savedTex = Reminder.Aspects, Reminder._tex
+    local fresh = FX.Hunter.NewAspectTracker({
+        names = FX.Hunter.Tools.aspectNames,
+        inCombat = function() return false end,
+    })
+    fresh:OnCast(FX.Hunter.Tools.aspectNames[1])
+    Reminder:SetAspects(fresh)
+    Reminder._tex = nil
+    Reminder:ApplyIcon()
+    local tex = Reminder.icon:GetTexture()
+    local stamped = Reminder._tex
+    restore()
+    Reminder:SetAspects(saved)
+    Reminder._tex = savedTex
+    -- The cache stays un-stamped: a not-yet-ready spell DB is retried.
+    assertNil(stamped,
+        "a failed lookup must not stamp the name into the texture cache")
+    -- Representation-independent art identity: the sim's GetTexture answers
+    -- its own texture-registry NUMBER for the path, the real client echoes
+    -- the string, so compare against a scratch texture set to the very art
+    -- UNKNOWN_ICON names (equal by id in the sim, equal as the same string
+    -- on the client -- the one comparison true on both).
+    local probeTex = Reminder.anchor:CreateTexture()
+    probeTex:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    assertEquals(tostring(probeTex:GetTexture()), tostring(tex),
+        "the honest 'icon unknown' is the question-mark art: "
+        .. tostring(tex) .. " vs " .. tostring(probeTex:GetTexture()))
+end)
+
+test("MT-14: IconName's fallback is the first aspect THIS character knows",
+function()
+    if not Reminder.anchor then Reminder:Init() end
+    local names = FX.Hunter.Tools.aspectNames
+    local byName = FX.Data.HunterByName
+    -- The sim profile is not a Hunter: IsPlayerSpell answers false for the
+    -- whole aspect family, so the known-loop falls through to the generic
+    -- first entry. Install a seam that knows exactly ONE aspect (the second
+    -- of the list) and the loop must answer it -- the "Beast is not in every
+    -- spellbook" law of the setter's own comment.
+    local target = names[2]
+    local targetId = byName[target]
+    assertNotNil(targetId)
+    local savedCompat = FX.Compat.IsPlayerSpell
+    local savedAspects, savedLast = Reminder.Aspects, Reminder._lastAspect
+    FX.Compat.IsPlayerSpell = function(id) return id == targetId end
+    local fresh = FX.Hunter.NewAspectTracker({
+        names = names,
+        inCombat = function() return false end,
+    })
+    Reminder:SetAspects(fresh)
+    Reminder._lastAspect = nil
+    assertEquals(target, Reminder:IconName(),
+        "nothing cast, nothing remembered: the first KNOWN aspect of the list")
+    FX.Compat.IsPlayerSpell = savedCompat
+    Reminder:SetAspects(savedAspects)
+    Reminder._lastAspect = savedLast
 end)
 
 -- ================================================= the F2 migration fold ==

@@ -45,12 +45,22 @@ source's `proc.icd_ms` -- the internal cooldown a trinket/enchant proc rides (51
 this build: 49 in items.jsonl + 2 in enchants.jsonl, the Grand Arcanist/Sorcerer enchants;
 D2's G2 table counted the enchant leg as 0 because it censused the top-level `ICDMs` key,
 not nested `proc.icd_ms`). F15/F16 size the proc windows from it; without it the bar
-re-lights a proc window early on the second proc. The 70707 spell store (wowsims, MIT --
-stamped in the generated header; the cross-check lives in docs/research/data-diff-70707.md
-§3) confirms 9 of the 49 through the proc aura's `AuraOptions.ICDMs`; the rest are
-launch-day probe material (docs/research/forever-data-gaps.md G2). The store's item side
+re-lights a proc window early on the second proc. The live spell store (wowsims, MIT --
+stamped in the generated header) answers the aura side of this through the proc buff
+spell's `AuraOptions.ICDMs`: 7 of the 51 emitted `icdMs` rows have such a row at all (on
+1.60.1.70707 AND on 1.60.1.70790, both times reading `0`), so the store confirms NONE of
+them and contradicts none -- every one of the 51 stays mythicsim's hand/measured number,
+launch-day probe material (docs/research/forever-data-gaps.md G2). The earlier "confirms
+9 of the 49" line in this file's history is not reproducible on this join; the
+measured counts are restated in docs/research/data-diff-live-2026-11-07.md §4. The store's item side
 carries NO consumed-field deltas: every item/consumable cooldown, shared category and
-duration this generator consumes is identical 70425 -> 70707, so the item leg applies no
+duration this generator consumes is identical 70425 -> 70707 (D1 §3) and again
+70425 -> 70790 spells / 70862 items (wave M5, 2026-11-07: 707 compared consumed values --
+184 on-use cooldowns, 364 item effect durations, 13 item proc ICDs, 4 consumable
+cooldowns, 71 consumable category cooldowns, 71 category ids -- ALL 707 equal, 0 deltas;
+coverage, not readings, for the rest: 82 consumable buff durations, 6 `maxStacks`, 479
+item rows, 10 consumable rows and the 5 enchant rows carry no row in the capture),
+so the item leg applies no
 value overlays (and the 64 wowsims-side on-use category additions stay unemitted, matching
 the existing `category_cooldown_ms` "NOT emitted" law above).
 
@@ -85,6 +95,12 @@ import json
 import pathlib
 import sys
 from datetime import datetime, timezone
+
+# The live store overlay lives in ONE place -- gen_spell_data.py's
+# LIVE_OVERLAY constant -- so a data refresh (extract_store.py --build
+# <stamp>, point that constant at the new file) moves both generators at
+# once; the item header stamps its provenance from the overlay's _meta.
+from gen_spell_data import LIVE_OVERLAY
 
 HERE = pathlib.Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
@@ -384,17 +400,28 @@ def main() -> int:
         h.append("-- Source: mythicsim-forever-engine/data/{items,enchants,consumables}.jsonl")
         h.append(f"-- Build pin: client_build {build}, engine_revision {engine_rev}")
         ov_meta = None
-        ov_path = HERE / "overrides_70707.json"
-        if ov_path.exists():
-            ov_meta = json.loads(ov_path.read_text(encoding="utf-8")).get("_meta")
+        if LIVE_OVERLAY.exists():
+            ov_meta = json.loads(LIVE_OVERLAY.read_text(encoding="utf-8")).get("_meta")
         if ov_meta:
-            h.append(f"-- Overlay: wowsims/forever {ov_meta['commit']} build {ov_meta['build']} (MIT)")
-            h.append(f"--   (hotfix push {ov_meta['hotfix_push']}; spell-store cross-check, "
-                     f"docs/research/data-diff-70707.md §3: every item/consumable cooldown, shared "
-                     f"category and duration consumed here is identical 70425 -> 70707, so no value "
+            # The store's item leg rides its own build (the capture stamps
+            # per input group); spell it out so the header never reads as if
+            # the item numbers came from the spell build.
+            items_leg = (f"; item leg {ov_meta['items_build']} "
+                         f"@ hotfix {ov_meta['items_hotfix_push']}"
+                         if ov_meta.get("items_build") else "")
+            ov_build_short = str(ov_meta["build"]).rsplit(".", 1)[-1]
+            h.append(f"-- Overlay: wowsims/forever {ov_meta['commit']} build {ov_meta['build']} (MIT)"
+                     f"{items_leg}")
+            h.append(f"--   (hotfix push {ov_meta['hotfix_push']}; {ov_meta.get('store_inputs', 'spell-store capture')}; "
+                     f"built by {ov_meta.get('generated_by', 'tools/extract_store.py')}; "
+                     f"spell-store cross-check, "
+                     f"docs/research/data-diff-70707.md §3 + "
+                     f"docs/research/data-diff-live-2026-11-07.md §4: every item/consumable "
+                     f"cooldown, shared category and duration consumed here is identical "
+                     f"{build} -> {ov_meta['build']}, so no value "
                      f"overlays are applied to this file)")
         else:
-            h.append(f"-- Overlay: NONE (tools/overrides_70707.json missing) -- values are pure {build}")
+            h.append(f"-- Overlay: NONE (tools/{LIVE_OVERLAY.name} missing) -- values are pure {build}")
         h.append("-- File pins (sha256 prefix, manifest.json): "
                  f"items={pins['items.jsonl']} "
                  f"enchants={pins['enchants.jsonl']} consumables={pins['consumables.jsonl']}")
@@ -467,7 +494,10 @@ def main() -> int:
     B("--   enchant rows of Forte_Items carry the rest)")
     B(f"-- ICDs (proc.icd_ms, D2 G2 / F15-F16): {len(icd_rows)} rows carry icdMs")
     B(f"--   ({len(icd_rows_items)} here + {len(icd_rows_ench)} in Forte_Items enchantProcs); the store's")
-    B("--   AuraOptions.ICDMs confirm the aura side of 9, the rest are launch-day probe")
+    B("--   AuraOptions.ICDMs cover 125 of the 405 proc-buff auras on the 70790 capture and")
+    B("--   read 0 on every one (7 of the 51 emitted rows have a store row, all of them 0),")
+    B("--   so the store confirms NONE of these numbers and contradicts none -- the rest are")
+    B("--   launch-day probe")
     B("--   material (docs/research/forever-data-gaps.md G2). Forte_Cooldown/Core/Procs.lua")
     B("--   sizes the proc ICD window from it:")
     for e in icd_rows:

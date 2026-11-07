@@ -3,6 +3,16 @@
   "_deferred_H7": [
     "Poised"
   ],
+  "_pins": {
+    "Berserking": {
+      "id": 20554,
+      "reason": "all four 70790 rows (20554/23505/24378/1286304) are value-less name shells (no Cooldowns row), so the bare-row tiebreak rides the arbitrary max-id shell; 20554 is the id measured 180 s on the live client (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4)"
+    },
+    "Rapid Regeneration": {
+      "id": 1260270,
+      "reason": "the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4)"
+    }
+  },
   "cooldowns": [
     "Adrenaline Rush", "Blade Flurry", "Blind", "Cold Blood", "Distract", "Evasion",
     "Feint", "Ghostly Strike", "Gouge", "Kick", "Kidney Shot", "Between the Eyes",
@@ -20,5 +30,8 @@
   ],
   "stealth_utilities": [
     "Stealth", "Vanish", "Sap", "Cheap Shot", "Pick Pocket", "Disarm Trap"
+  ],
+  "racials": [
+    "Berserking", "Rapid Regeneration"
   ]
 }

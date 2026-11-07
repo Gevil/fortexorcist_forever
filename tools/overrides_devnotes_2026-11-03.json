@@ -1,72 +1,34 @@
 {
   "_meta": {
-    "generated_by": "hand-kept (wave I-2b, agent I2bData, 2026-11-03) -- NOT generated; edit by hand, one row per value, every row cites the note",
+    "generated_by": "hand-kept (wave I-2b, agent I2bData, 2026-11-03; rows retired by wave M5, agent DataRefreshM5, 2026-11-07; Berserking/Rapid Regeneration rows ADDED by wave M3a, agent DataFixM3a, 2026-11-07 per review-10 M2 -- their cite is the owner's live-client measurement, the sanctioned extension of this file's remit for measured values the store cannot answer) -- NOT generated; edit by hand, one row per value, every row cites the note",
     "source": "Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update)",
     "source_url": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9",
-    "law": "The post-9 layer rides AFTER the 70707 store capture in tools/gen_spell_data.py: these are values the notes promise for the 2026-11-04 opening that the captured client build (1.60.1.70707, hotfix push 113562) does NOT carry yet (docs/research/upstream-data-2026-11-03.md §5, §7 item 6). A cooldownMs/categoryCooldownMs pair folds to its max like the overlay's reading rule. The generator lists every applied row in the generated header. HOTFIX-WATCH: delete a row the day a store capture carries the value -- the layer must not outlive the capture gap it exists for.",
+    "law": "The post-9 layer rides AFTER the live store capture in tools/gen_spell_data.py (the live overlay is tools/overrides_70790.json as of wave M5): these are values the notes promised for the opening that the captured client build does NOT carry (docs/research/upstream-data-2026-11-03.md §5, §7 item 6). A cooldownMs/categoryCooldownMs pair folds to its max like the overlay's reading rule. The generator lists every applied row in the generated header. HOTFIX-WATCH: delete a row the day a store capture carries the value -- the layer must not outlive the capture gap it exists for.",
     "field_semantics": "times in ms; a row applies only to a picked row of the same id, so a row for a name no spell list tracks is inert here by design (recorded for the launch probes); cite = the post-9 line, quoted",
-    "cross_check": "docs/research/forever-dev-notes-2026-11-03.md §1 and upstream-data-2026-11-03.md §5 rows 1, 7, 8, 31; mythicsim keys its own copies of the Slam/Stormstrike rows to hotfix push 113554 (hotfix_113554.rs), the Riptide value is carried by nobody"
+    "cross_check": "docs/research/forever-dev-notes-2026-11-03.md §1 and upstream-data-2026-11-03.md §5 rows 1, 7, 8, 31; mythicsim keys its own copies of the Slam/Stormstrike rows to hotfix push 113554 (hotfix_113554.rs), the Riptide value is carried by nobody",
+    "retired_2026-11-07": "nine rows deleted per the HOTFIX-WATCH law: the 1.60.1.70790 capture (wowsims commit 138964222220ad3f01634a7cc116c329a630a65e, hotfix push 113715) now carries all of them, each store value EQUAL to the note's -- Slam CategoryCooldownMs 18000 -> 15000 on all TEN Slam rank rows the capture carries values for (1464, 8820, 11604, 11605, 1240193, 1310196, 1310197, 1310198, 1310199, 1310200), Stormstrike 17364 CooldownMs 8000 -> 6000, Riptide 408521/1239242/1239243 CategoryCooldownMs 6000 -> 12000. No row DISAGREED with the store (a disagreement would have been listed, not deleted). Evidence and the value-equality table: docs/research/data-diff-live-2026-11-07.md §6. Regenerating with the nine rows retired is byte-identical to generating with them (the store now supplies the same numbers). Blood Fury 20572/24571 stays: the store carries no Cooldowns row for either id on EITHER capture (it cannot answer), and no spell list tracks the racial, so the row is inert by design and is the pin the launch-day racial probe reads."
   },
   "spells": {
-    "1464": {
-      "name": "Slam (Rank 1)",
-      "cooldownMs": 15000,
-      "cite": "Warrior: Slam cooldown 15 s (was 18)",
-      "store_says": "CategoryCooldownMs 18000, Category 2412 (ranks 1464/8820/11604/11605/1310200)",
-      "upstream": "mythicsim hotfix_113554.rs:279-280, :378-381 (18000 -> 15000, SLAM_RANKS)"
-    },
-    "8820": {
-      "name": "Slam (Rank 2)",
-      "cooldownMs": 15000,
-      "cite": "Warrior: Slam cooldown 15 s (was 18)"
-    },
-    "11604": {
-      "name": "Slam (Rank 3)",
-      "cooldownMs": 15000,
-      "cite": "Warrior: Slam cooldown 15 s (was 18)"
-    },
-    "11605": {
-      "name": "Slam (Rank 4)",
-      "cooldownMs": 15000,
-      "cite": "Warrior: Slam cooldown 15 s (was 18)"
-    },
-    "1310200": {
-      "name": "Slam (Rank 5, the picked row)",
-      "cooldownMs": 15000,
-      "cite": "Warrior: Slam cooldown 15 s (was 18)",
-      "store_says": "CategoryCooldownMs 18000, Category 2412",
-      "upstream": "mythicsim hotfix_113554.rs:378-381"
-    },
-    "17364": {
-      "name": "Stormstrike",
-      "cooldownMs": 6000,
-      "cite": "Shaman: Stormstrike cd 6 s (was 8), 150 % WH",
-      "store_says": "CooldownMs 8000, DurationMs 12000",
-      "upstream": "mythicsim hotfix_113554.rs:391-392 (patch(17364, cooldown_ms = 6000))"
-    },
-    "1239243": {
-      "name": "Riptide",
-      "categoryCooldownMs": 12000,
-      "cite": "Shaman: Riptide cd 12 s (was 6), no initial heal",
-      "store_says": "CategoryCooldownMs 6000, Category 1228, DurationMs 15000",
-      "upstream": "carried by NO data source (mythicsim README.md:406-408: not modelled)"
-    },
-    "1239242": {
-      "name": "Riptide (sibling rank)",
-      "categoryCooldownMs": 12000,
-      "cite": "Shaman: Riptide cd 12 s (was 6), no initial heal"
-    },
-    "408521": {
-      "name": "Riptide (sibling rank)",
-      "categoryCooldownMs": 12000,
-      "cite": "Shaman: Riptide cd 12 s (was 6), no initial heal"
-    },
     "20572": {
       "name": "Blood Fury (Orc racial)",
       "cooldownMs": 120000,
       "cite": "Racials: Orc Blood Fury cd 2 min (was 3)",
-      "store_says": "no Cooldowns row at all (the store cannot answer); 24571 likewise",
+      "store_says": "no Cooldowns row at all on 70790 (the store cannot answer); 24571 likewise",
       "status": "inert by design: no spell list tracks Blood Fury (upstream-data §5 row 31 'racials are in no list'); the row is the pin the launch-day racial probe reads, and the value the day a list adds the name"
+    },
+    "20554": {
+      "name": "Berserking (Orc/Troll racial)",
+      "cooldownMs": 180000,
+      "cite": "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Berserking (Orc/Troll): 180 s real (hand-measured, the live 70790 store carries no Cooldowns row for any Berserking id)'); the November dev notes list Berserking only in the 'cooldowns we did NOT change' family note (docs/research/forever-dev-notes-2026-11-03.md), so no post-9 line restates the value; review-10 M2",
+      "store_says": "the 1.60.1.70790 store carries FOUR name shells (20554, 23505, 24378, 1286304) and NO Cooldowns row for any of them -- the store cannot answer the cooldown; the spell lists' _pins name 20554 as the measured subject",
+      "status": "LIVE as of wave M3a (2026-11-07): the nine spell lists' `racials` group lists Berserking (Orc/Troll classes), the rows ride the generated data (racial = true, cooldownMs 180000) and Forte_Cooldown's Engine:AddExtras tracks the NAME (the deDE/locale fix review-10 M2 named); HOTFIX-WATCH applies: retire the day a store capture carries the Cooldowns row"
+    },
+    "1260270": {
+      "name": "Rapid Regeneration (Dwarf racial)",
+      "cooldownMs": 180000,
+      "cite": "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Rapid Regeneration (Dwarf): 180 s real'); the November dev notes do not restate it; review-10 M2",
+      "store_says": "the 1.60.1.70790 store carries the name shell 1260270 with NO Cooldowns row -- the store cannot answer the cooldown; the spell lists' _pins name 1260270 as the measured subject",
+      "status": "LIVE as of wave M3a (2026-11-07): the seven Dwarf-capable spell lists' `racials` group lists Rapid Regeneration; same ride and HOTFIX-WATCH as Berserking"
     }
   }
 }

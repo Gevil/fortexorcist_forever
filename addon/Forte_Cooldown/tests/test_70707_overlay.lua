@@ -1,16 +1,20 @@
 -- addon/Forte_Cooldown/tests/test_70707_overlay.lua
--- DataRefresh (wave 2a, D3): the 70707 spell-store overlay is the pinning law
--- for every generated data file. The store (wowsims/forever, MIT, commit
--- stamped in each generated header) is the live build's capture of name,
--- family, rank, cooldown, category and ICD; the generators
--- (tools/gen_spell_data.py --overrides tools/overrides_70707.json,
--- tools/gen_item_data.py) read mythicsim 70425 and override with it, drop
--- rows the live build removed, exclude class-book ranks from the rank
--- ladder, and source rows for the names the 70425 pull lacks (the Warlock
--- pet kit).
+-- The live spell-store overlay is the pinning law for every generated data
+-- file. The store (wowsims/forever, MIT, commit + build stamped in each
+-- generated header and POLICED generically by scripts/gate.py's
+-- data_provenance, wave M3a) is the live build's capture of name, family,
+-- rank, cooldown, category, ICD and the feed shapes; the generators
+-- (tools/gen_spell_data.py, live overlay = its `LIVE_OVERLAY` pointer --
+-- tools/overrides_70790.json since the wave M5 refresh,
+-- docs/research/data-diff-live-2026-11-07.md) read mythicsim 70425 and
+-- override with it, drop rows the live build removed, exclude class-book
+-- ranks from the rank ladder, and source rows for the names the 70425 pull
+-- lacks (the Warlock pet kit, the racials shells).
 --
--- Every pin here is a row whose value the overlay CHANGED (docs/research/
--- data-diff-70707.md §2) -- each one fails on the pre-overlay data. This
+-- The FILE NAME carries the 70707 origin; the pins are the standing law of
+-- the data set. Every pin here is a row whose value an overlay CHANGED
+-- (docs/research/data-diff-70707.md §2, and the wave M3a block at the end for
+-- the 1.60.1.70790 moves) -- each one fails on the pre-overlay data. This
 -- suite lives in Forte_Cooldown because the audited artefact is the
 -- repo-level generated data set (the test_tracked_set.lua law), not one
 -- class's module.
@@ -256,4 +260,121 @@ test("item proc rows carry their ICDs", function()
     end
     assertTrue(withIcd >= 51,
         ("expected the 51 icdMs proc rows, found %d"):format(withIcd))
+end)
+
+-- Wave M3a (2026-11-07) -- the 1.60.1.70790 moves this census newly pins.
+-- Every assertion here fails on the pre-M3a generated data (the data as of
+-- commit d490e2e), docs/research/data-diff-live-2026-11-07.md §3-§5.
+test("wave M3a: the 70790 rank re-picks land with their values", function()
+    -- §4 the rogue pair, pinned no-window rows since I-3e, are value rows
+    -- now: Shank 1329549 (Rank 2) 10 s cooldown / 1 s GCD, Death Mark
+    -- 1325758 (Rank 4) the 10 s cooldown, the 6 s mark window, the 6 s tick
+    -- capture. On the pre-M3a data the picks were the value-less shells
+    -- 15248/1316709 and BOTH names sat in H7_UNTRACKED.
+    local rogue, rogueByName = FX.Data.Rogue, FX.Data.RogueByName
+    local shank = rogue[rogueByName["Shank"]]
+    assertNotNil(shank)
+    assertEquals(1329549, shank.id)
+    assertEquals("Rank 2", shank.rank)
+    assertEquals(10000, shank.cooldownMs)
+    assertEquals(1000, shank.gcdMs)
+    local mark = rogue[rogueByName["Death Mark"]]
+    assertNotNil(mark)
+    assertEquals(1325758, mark.id)
+    assertEquals("Rank 4", mark.rank)
+    assertEquals(10000, mark.cooldownMs)
+    assertEquals(6000, mark.durationMs)
+    assertEquals(6, mark.tickEvery)
+    -- §3 Holy Shield 20928 -> 1239570 (Rank 4). THE flag test: the store's
+    -- 1239570 capture carries no Target, so the `noTarget` flag (the base
+    -- 20928 row's caster `[1, 0]` shape) rides the generator's rank-sibling
+    -- feed inheritance -- on the data before the sibling law the re-pick
+    -- DROPPED the flag (the §3 "loses noTarget -- check" hazard), and the
+    -- Timer's one-row-per-caster law broke with it.
+    local paladin, paladinByName = FX.Data.Paladin, FX.Data.PaladinByName
+    local hs = paladin[paladinByName["Holy Shield"]]
+    assertNotNil(hs)
+    assertEquals(1239570, hs.id)
+    assertEquals("Rank 4", hs.rank)
+    assertEquals(true, hs.noTarget)
+    assertEquals(10000, hs.durationMs)
+    assertEquals(10000, hs.cooldownMs)
+end)
+
+test("wave M3a: Arcane Blast is the 18 s self-buff, the proc rides the proc layer",
+function()
+    -- §5.2: the pin moves the Mage row from mythicsim's weapon-proc row
+    -- 18091 (an 8 s cooldown -- the fake cooldown bar) to the player's own
+    -- 400573 self-buff: 18 s window, 4 stacks, caster-targeted, NO cooldown
+    -- at all. On the pre-M3a data the name keyed 18091 with cooldownMs
+    -- 8000 and no window.
+    local mage, mageByName = FX.Data.Mage, FX.Data.MageByName
+    assertEquals(400573, mageByName["Arcane Blast"])
+    local ab = mage[400573]
+    assertNotNil(ab)
+    assertEquals(18000, ab.durationMs)
+    assertEquals(4, ab.maxStack)
+    assertEquals(true, ab.noTarget)
+    assertNil(ab.cooldownMs)
+    assertNil(mage[18091], "the 18091 proc row has no business in the class data")
+    -- The proc has NOT vanished -- it rides the layer that names proc auras
+    -- by `<name> (<id>)`: the Archeus row (Forte_ItemProcs/Data/Procs.lua).
+    assertNotNil(FX.Data.ItemProcs.ProcsByBuffName["Arcane Blast (18091)"],
+        "the Arcane Blast weapon proc left the proc layer with the pin")
+end)
+
+test("wave M3a: the racials are generated rows (racial = true) on the right rosters",
+function()
+    -- review-10 M2/m4: the hand-kept Engine.RACIALS ids are data rows now.
+    -- Berserking (Orc/Troll) rides eight class files, Rapid Regeneration
+    -- (Dwarf) rides seven; the druid carries no Dwarf racial and the
+    -- paladin no Orc/Troll one -- the rosters are the game's, the rows are
+    -- the store's shells + the owner's measured 180 s (the dev-notes file).
+    -- On the pre-M3a data NO class file carried these rows at all.
+    local ALL = { "Druid", "Hunter", "Mage", "Paladin", "Priest", "Rogue",
+                  "Shaman", "Warlock", "Warrior" }
+    local berserking = { Druid = true, Hunter = true, Mage = true, Priest = true,
+                         Rogue = true, Shaman = true, Warlock = true,
+                         Warrior = true }
+    local rapid = { Hunter = true, Mage = true, Paladin = true, Priest = true,
+                    Rogue = true, Shaman = true, Warlock = true, Warrior = true }
+    for _, cls in ipairs(ALL) do
+        local data, byName = FX.Data[cls], FX.Data[cls .. "ByName"]
+        local b = byName["Berserking"]
+        if berserking[cls] then
+            assertNotNil(b, cls .. " carries no Berserking row")
+            assertEquals(20554, b)
+            local row = data[b]
+            assertEquals(true, row.racial)
+            assertEquals(180000, row.cooldownMs)
+            assertNil(row.durationMs)
+        else
+            assertNil(b, cls .. " cannot roll Berserking (Orc/Troll racial)")
+        end
+        local r = byName["Rapid Regeneration"]
+        if rapid[cls] then
+            assertNotNil(r, cls .. " carries no Rapid Regeneration row")
+            assertEquals(1260270, r)
+            local row = data[r]
+            assertEquals(true, row.racial)
+            assertEquals(180000, row.cooldownMs)
+        else
+            assertNil(r, cls .. " cannot roll Rapid Regeneration (Dwarf racial)")
+        end
+    end
+    -- Summon Hawk (the Hunter family-9 pet-control line): the store's Rank 4
+    -- 1293527, the shared 6 s cooldown with Arcane Shot (category 1173).
+    -- Pre-M3a the id was hand-typed in Engine.lua as the 70425-era 1293241
+    -- with no data row at all.
+    local hunter, hunterByName = FX.Data.Hunter, FX.Data.HunterByName
+    assertEquals(1293527, hunterByName["Summon Hawk"])
+    local hawk = hunter[1293527]
+    assertEquals(true, hawk.racial)
+    assertEquals(6000, hawk.cooldownMs)
+    assertEquals(1173, hawk.cooldownCategory)
+    assertEquals("Rank 4", hawk.rank)
+    assertEquals("Arcane Shot", hawk.shares)
+    -- The hand table is gone: the data is the one source.
+    assertNil(FX.Cooldown.Engine.RACIALS,
+        "Engine.RACIALS survived the M3a migration; the racials ride the data")
 end)

@@ -3,11 +3,15 @@
 -- docs/design-spell-timer.md §3.4): the generated row's `tickEvery` (the
 -- periodic effect's period, SECONDS), `maxStack` (the aura's stack cap) and
 -- `noTarget` (every effect of the row targets the caster -- the original's
--- `Track[spell][1]` `notTarget` column). All three come out of the mythicsim
--- BASE rows (`Effects[].PeriodMs`, `MaxStack`, the effect `Target` pair) in
--- `tools/gen_spell_data.py`; the 70707 overlay captures none of them, so they
--- are base-data-only and a 70707-sourced row carries none by construction
--- (test "the feeds are BASE DATA ONLY").
+-- `Track[spell][1]` `notTarget` column). The sources, in order (the law in
+-- `tools/gen_spell_data.py`, pinned by test "the feeds ride base rows
+-- first..."): the mythicsim BASE rows' `Effects[].PeriodMs`, `MaxStack` and
+-- effect `Target` pair answer first; a picked row with no base row of its
+-- own inherits the same-family rank SIBLING's base shape (wave M3a,
+-- docs/research/data-diff-live-2026-11-07.md); the live store's per-id feed
+-- captures (the 1.60.1.70790 overlay's `periodMs`/`targetCode`/`maxStack`)
+-- fill what neither can speak to. Absence is absence -- a feed the data
+-- says nothing about is absent, never zero.
 --
 -- The chain under test is data row -> `Registry:Build` -> registry entry ->
 -- the row the renderer draws, whose tick-mark branch (`Forte_Timer/UI/Rows.lua`
@@ -179,27 +183,70 @@ test("a self window is noTarget and a window on a target is not", function()
     assertFalse(Registry.IsNoTarget("Totally Made Up Nonsense"))
 end)
 
-test("the feeds are BASE DATA ONLY: the 70707 overlay carries none", function()
-    -- tools/overrides_70707.json captures per id only name/castMs/durationMs/
-    -- spellLevel/family/category(CooldownMs)/gcdMs/subtext/baseLevel/icdMs/
-    -- maxLevel/procFlag -- no Effects, no MaxStack, no Target. So a row the
-    -- 70707 store SOURCED (it has no base row at all: the Warlock pet kit) can
-    -- not carry a feed, and a value the overlay moved (a duration) can not
-    -- move a feed with it.
+test("the feeds ride base rows first, the store's captures and the rank siblings fill the gaps",
+function()
+    -- The law (gen_spell_data.py's feed sources, upstream-data §7.5 as the
+    -- 1.60.1.70790 capture moved it): the row's OWN base `Effects`/`MaxStack`
+    -- answer first; a picked row with no base row of its own INHERITS the
+    -- same-family rank sibling's base shape (the M3a law); the store's own
+    -- per-id feed captures (`periodMs`/`targetCode`/`maxStack`) fill what
+    -- neither can speak to. The old "BASE DATA ONLY" shape -- the 70707
+    -- overlay carrying no capture at all -- is what this test used to pin;
+    -- the 70790 store captures feeds, so the pin is now the SHAPE of each
+    -- source, one row per source, each failing on the pre-M3a data.
+    -- (1) The store's own capture: Consume Shadows (the Warlock pet kit row,
+    -- sourced -- no base row, no sibling) rides `periodMs` 2000 as the tick
+    -- feed. A sourced row with a capture is the old law's death; a sourced
+    -- row WITHOUT one still carries nothing (2).
     local w = registryFor("WARLOCK")
+    assertEquals(2, w["Consume Shadows"].tickEvery,
+        "the store's 2000 ms period capture arrives in SECONDS")
     for _, name in ipairs({ "Seduction", "Spell Lock", "Tainted Blood",
                             "Lesser Invisibility" }) do
         local entry = w[name]
         assertNotNil(entry, name .. " is not tracked")
-        assertNil(entry.tickEvery, name .. ": a 70707-sourced row has no tick feed")
-        assertNil(entry.maxStack, name .. ": a 70707-sourced row has no stack cap")
+        assertNil(entry.tickEvery,
+            name .. ": a sourced row with no capture carries no tick feed")
+        assertNil(entry.maxStack,
+            name .. ": a sourced row with no capture carries no stack cap")
         assertEquals(false, entry.noTarget,
-            name .. ": a 70707-sourced row can not prove a caster-only shape")
+            name .. ": nothing proves a caster-only shape for it")
     end
-    -- And the base rows still answer for a name the overlay DID move: Immolate
-    -- re-picked Rank 8 -> Rank 7 on 70707 (the generator's change list) and kept
-    -- the base row's 3 s period.
+    -- Seduction's targetCode capture answers the targeting half: 0 (a pet
+    -- CV on a target), so noTarget stays a proven false, not an absence.
+    assertEquals(false, w["Seduction"].noTarget)
+    -- (2) The base row answers for a name the overlay MOVED: Immolate
+    -- re-picked Rank 8 -> Rank 7 on 70707 and kept the base 3 s period.
     assertEquals(3, w["Immolate"].tickEvery)
+    -- (3) The rank-sibling inheritance (M3a): the paladin's Oath of Light
+    -- 1328548 is sourced (no base row); its class carries no sibling base
+    -- row; the store's OWN captures answer -- the 1500 ms period and the
+    -- `[1, *]` caster target code 1. On the pre-M3a capture it was an inert
+    -- name shell with no feed at all.
+    local p = registryFor("PALADIN")
+    assertEquals(1.5, p["Oath of Light"].tickEvery)
+    assertEquals(true, p["Oath of Light"].noTarget)
+    -- (4) The sibling law proper: Holy Shield re-picked 20928 -> 1239570
+    -- (Rank 4). The store's 1239570 capture carries NO Target field -- the
+    -- caster-only shape comes from the base 20928 row, the name's SAME-
+    -- FAMILY sibling. Before the sibling law the re-pick lost the flag
+    -- (data-diff-live-2026-11-07.md §3 "loses noTarget -- check").
+    assertEquals(true, p["Holy Shield"].noTarget,
+        "the noTarget flag rode the rank move on the sibling's base shape")
+    -- (5) The Mage pin: the 400573 self-buff brings its OWN feeds (a base
+    -- row's Effects/MaxStack: 4 stacks, caster-targeted, an 18 s window --
+    -- the store capture confirms the 4). Pre-M3a the name keyed the 18091
+    -- proc row: no window, so no registry entry at all.
+    local m = registryFor("MAGE")
+    local ab = m["Arcane Blast"]
+    assertNotNil(ab, "Arcane Blast is not in the Mage tracked set")
+    assertEquals(18, ab.duration)
+    assertEquals(4, ab.maxStack)
+    assertEquals(true, ab.noTarget)
+    assertNil(ab.tickEvery)
+    -- The registry law that keeps the bar honest: a noTarget row draws
+    -- exactly ONE self row (the target key is the constant "none").
+    assertTrue(Registry.IsNoTarget("Arcane Blast"))
 end)
 
 -- -------------------------------------------------------------------- row --

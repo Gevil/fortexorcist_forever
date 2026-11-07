@@ -30,7 +30,7 @@ row is reported as an info line "<name> -> <id> (uncoded fallback)" so the
 resolution is auditable, never silent.
 
 **Rank law: store coverage beats a value-less top** (wave I-2b,
-2026-11-03, upstream-data §7.7): when the 70707 store covers a tracked name
+2026-11-03, upstream-data §7.7): when the live store covers a tracked name
 (its `Names` table has rows for it), the pick key carries a
 `store-coverage` leg ABOVE the id tiebreak: a candidate the store covers
 with a value row or a Levels capture outranks a candidate the store names
@@ -44,12 +44,15 @@ data-diff-70707.md §2.4, now closed for the value-less-top family.
 03.json` (hand-kept, every row cites the 2026-11-03 Blizzard development
 notes, post 9) carries the few values NO data source has captured yet (Slam
 cooldown 15 s, Stormstrike 6 s, Riptide 12 s, Orc Blood Fury 120 s). The
-generator applies it AFTER the 70707 layer (a post-9 note is fresher than
-the store capture); the file's name and every applied row are listed in the
-generated header. It is a pin, not a hand edit: the generated file stays a
-pure function of (spell lists + base data + the two overlay files), so
-`scripts/gate.py`'s determinism law stands. Delete a row the day a store
-capture carries the value (hotfix-watch, upstream-data §7 item 6).
+generator applies it AFTER the live-store overlay (a post-9 note is fresher
+than an older store capture); the file's name and every applied row are
+listed in the generated header. It is a pin, not a hand edit: the generated
+file stays a pure function of (spell lists + base data + the two overlay
+files), so `scripts/gate.py`'s determinism law stands. Delete a row the day
+a store capture carries the value (hotfix-watch, upstream-data §7 item 6;
+wave M5 2026-11-07 retired the nine Slam/Stormstrike/Riptide rows the
+1.60.1.70790 capture absorbed -- only the Blood Fury pin outlives it,
+docs/research/data-diff-live-2026-11-07.md §6).
 
 **Rename aliases** (wave I-2b): a spell-list file may carry `_renames` =
 {data name: the build's other spelling} (Totemic Projection <-> Totemic
@@ -58,6 +61,32 @@ generator resolves the DATA name only and adds the alias spelling as an
 extra `ByName` key (both spellings find the same row); the runtime twin of
 the pair list is `Forte_Core/Core/Locale.lua`'s `Locale.RenameAliases`,
 which folds the alias through `CanonicalName` for name-keyed consumers.
+
+**Pinned picks, shared cooldowns and the racials group** (wave M3a,
+2026-11-07, review-10 M2/m4 + docs/research/data-diff-live-2026-11-07.md §5.2):
+a spell-list file may carry two more meta keys next to `_renames`.
+`_pins` = {data name: {"id": N, "reason": "..."} } forces the picked row to
+the store/base row of that id — the rank ladder stands for every other
+name, and every pin rides its cited reason into the generated header
+("Pinned picks"). The mechanism exists for the measured pick hazards the
+ladder cannot see: the Mage `Arcane Blast` pin to the 18 s self-buff
+`400573` (the live ladder carries NO cooldown at all; the only cooldown-
+carrying row of the name, mythicsim's weapon-proc row 18091, is the item
+proc the `Archeus` row already rides in Forte_ItemProcs — the Arcane Blast
+bar was a fake 8 s window; docs/research/data-diff-live-2026-11-07.md §5.2),
+and the `Berserking` pin to `20554` (all four store rows are value-less
+shells, so the bare-row tiebreak would ride the arbitrary max-id shell;
+20554 is the id the owner measured 180 s against on the live client).
+`_shares` = {name: the partner data name} emits `shares = "partner"` on the
+row: the runtime twin is `Forte_Cooldown/Core/Engine.lua`'s OnCast partner
+walk — a cast of either starts both bars (Summon Hawk ↔ Arcane Shot, the
+store's shared category 1173 with the 6 s CategoryCooldownMs). A top-level
+group named `racials` marks its rows with `racial = true`: they ride the
+same family/rank law as every class row (so Locale's alias walk covers their
+names on every client), and `Engine:Build` SKIPS them while
+`Engine:AddExtras` tracks them — the generated twin of the hand-kept
+`Engine.RACIALS` the review flagged (M2: English keys break the deDE path;
+m4: ids bypassing the generator bypass the refresh).
 
 **Companion-row shadows** (2026-11-01, agent `DataWave`): a *companion row* is a
 trigger row whose only effect applies the real spell's aura (single Effect
@@ -77,18 +106,20 @@ no cooldownMs), then the highest level, then the highest ID. Every name whose
 pick changed from a bare row to a data-carrying row is reported as an info line
 "<name> -> <id> (companion-row shadow: ...)".
 
-**70707 overlay + trainer-rank pick** (2026-11-02, agent `DataRefresh`, D3):
-the base rows stay the mythicsim 70425 pull; `tools/overrides_70707.json`
-(check in; rebuilt from a wowsims/forever clone by `tools/extract_70707.py`)
-carries the live 1.60.1.70707 store's per-id values. For the picked row the
+**Live-store overlay + trainer-rank pick** (2026-11-02, agent `DataRefresh`,
+D3; the live pin refreshed to 1.60.1.70790 by wave M5, 2026-11-07): the base
+rows stay the mythicsim 70425 pull; `LIVE_OVERLAY`
+(`tools/overrides_<build>.json`; check in; rebuilt from a wowsims/forever
+clone by `tools/extract_store.py --build <stamp>`) carries the live store's
+per-id values. For the picked row the
 overlay WINS on every field it captured (cooldownMs = max(CooldownMs,
 CategoryCooldownMs) as in the store's own reading rule, gcdMs, castMs,
 durationMs, cooldownCategory = Categories.Category, rank = Subtexts) --
 absence from the overlay is coverage, not zero (data-diff-70707.md §1). An
-id the census marks `removed` (the name has no row in the 70707 build-wide
+id the census marks `removed` (the name has no row in the store's build-wide
 Names table at all -- the 5 Paladin rows of §2.3 / G5) is DROPPED and listed
 in the generated header; a tracked name whose mythicsim rows are all gone
-re-lands on the 70707-only id of the same name when the store has one
+re-lands on the store-only id of the same name when the store has one
 (Blessing of Light 19979 -> bare 26650, values need the live probe).
 
 The default rank is the top TRAINER rank: the 35 AQ20 class-book rank ids of
@@ -106,13 +137,14 @@ known label like `Summon`) from the pool, which kills the Polymorph ->
 
 Store-captured rows of a tracked name (the overlay's `nameIndex`) join the
 same tier ladder: same-family store rows ride the in-family tier, family-less
-store rows the uncoded tier, so new 70707 rank rows (Charge Rank 6 27685,
-Cower Rank 6 16697) compete under the same rules. Pet-kit names that exist
-ONLY in the 70707 store (the Warlock Succubus/Felhunter/Voidwalker kit,
+store rows the uncoded tier, so new live-build rank rows (Charge Rank 6 27685,
+Cower Rank 6 16697; the 70790 capture adds Shank Rank 1/2 1329283/1329549)
+compete under the same rules. Pet-kit names that exist
+ONLY in the live store (the Warlock Succubus/Felhunter/Voidwalker kit,
 forever-data-gaps.md G6: Seduction 6358, Spell Lock 19244, Devour Magic
 19505, ... -- no row at all in the 70425 pull, so the family filter cannot
 see them) are emitted FROM the overlay and reported as info lines
-"<name> -> <id> (70707-sourced row ...)"; the generated header lists them.
+"<name> -> <id> (store-sourced row ...)"; the generated header lists them.
 
 **The Spell Timer's feed columns** (2026-11-03, agent `Feeds`, wave 4; the
 four data fields docs/design-spell-timer.md §3.4 asks for, of which the Timer
@@ -142,19 +174,26 @@ reads three today -- `Registry:Build`):
   any non-caster effect -- and a row with no captured effect at all -- is
   never marked (absence is not evidence).
 
-**These feeds ride the BASE rows and the 70707 feed captures** (wave I-2b,
-2026-11-03, upstream-data note §7.5; was "base-data-only" through wave 4): the
-70707 overlay now captures per id `periodMs` (smallest positive
+**These feeds ride the BASE rows and the live store's feed captures** (wave
+I-2b, 2026-11-03, upstream-data note §7.5; was "base-data-only" through wave
+4): the live-store overlay captures per id `periodMs` (smallest positive
 `Effects[].PeriodMs`), `targetCode` (the `Targets` scalar, the client
 SpellEffectTargetingCategory code, 1 = the caster) and `maxStack`
 (`AuraOptions.MaxStack` above 1). A row that HAS captured base `Effects`
 answers for itself (the base data stays authoritative for its own shape);
 the store captures fill the fields the picked row cannot speak to, and a
-70707-picked row (a store-rank pick like Primal Bite 1238070, a store-sourced
+store-picked row (a store-rank pick like Primal Bite 1238070, a store-sourced
 row like Oath of Light 1328548) also inherits the same-id base row's feed
-shape -- that is what stops a 70707 pick from dropping a feed (the five drops
+shape -- that is what stops a store pick from dropping a feed (the five drops
 measured in upstream-data §2.2: Dash, Pounce Bleed, Reckoning, Dismantle,
-Heroism). The generated header states the law per file.
+Heroism). **Rank-sibling inheritance** (wave M3a): when a store-picked row
+has NO base row of its own id (the store's Rank-4 capture of a name the
+70425 pull knows only at lower ranks -- Holy Shield 1239570, the
+data-diff-live §3 re-pick), the base feed shape is inherited from the name's
+base row in the SAME class family (Holy Shield 20928's caster-Target shape,
+the `[1, 0]` pair, carries the `noTarget` flag across the rank move); a
+family-less store row inherits nothing (no family evidence, absence is not
+evidence). The generated header states the law per file.
 
 `icdMs` (D2 G2, the strict join per Main's D3 review 2026-11-02): the
 internal cooldown a proc/proc-like spell rides, from mythicsim `ICDMs`
@@ -200,17 +239,26 @@ HERE = pathlib.Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
 DEFAULT_SPELLS_JSONL = REPO_ROOT.parent / "mythicsim-forever-engine" / "data" / "spells.jsonl"
 DEFAULT_MANIFEST = REPO_ROOT.parent / "mythicsim-forever-engine" / "data" / "manifest.json"
-# The checked-in 70707 overlay (tools/extract_70707.py output; wowsims/forever,
-# MIT). Absent file = pure 70425 run, with the header saying so.
-DEFAULT_OVERRIDES = HERE / "overrides_70707.json"
+# THE LIVE STORE OVERLAY -- the one place the newest checked-in capture is
+# named (gen_item_data.py imports this constant, so a refresh points both
+# generators at once). Built by `tools/extract_store.py --build <stamp>` from
+# the pinned wowsims/forever clone (MIT); the file is named by the build stamp
+# the store itself carries, so a refresh = run the extractor, point this one
+# line at its output, regenerate. Absent file = pure 70425 run, header says so.
+# History: 1.60.1.70707 (waves 2a..I-2b, tools/overrides_70707.json, still
+# checked in as the record of that pin), 1.60.1.70790 (wave M5, 2026-11-07).
+LIVE_OVERLAY = HERE / "overrides_70790.json"
+DEFAULT_OVERRIDES = LIVE_OVERLAY
 # The post-9 dev-notes layer (hand-kept, wave I-2b): the values NO captured
-# data source carries yet, applied after the 70707 layer. Absent file = the
-# layer is out, with the header saying so.
+# data source carries yet, applied after the live-store layer. A row is
+# retired the day the live store carries its value (the file's HOTFIX-WATCH
+# law; the retirement report is docs/research/data-diff-live-2026-11-07.md §6).
+# Absent file = the layer is out, with the header saying so.
 DEFAULT_DEVNOTES = HERE / "overrides_devnotes_2026-11-03.json"
 
 # Rank texts that are ranks, not skins: `Rank N` plus the known unnumbered
 # labels the store uses. Anything else ("Odd Melon", "Racial") is a
-# variant/holiday rank row and stays out of the 70707 rank pool
+# variant/holiday rank row and stays out of the live store's rank pool
 # (data-diff-70707.md §2.4/§4: the Polymorph -> "Odd Melon" pick hazard).
 RANK_LABEL_RE = re.compile(r"^Rank \d+$")
 KNOWN_RANK_LABELS = {"Summon"}
@@ -248,7 +296,8 @@ CD_SAMPLE_NAMES = {
 
 
 def load_overrides(path: pathlib.Path) -> dict | None:
-    """tools/overrides_70707.json with numeric ids, or None (pure 70425 run)."""
+    """A checked-in live-store overlay (`tools/overrides_<build>.json`) with
+    numeric ids, or None (pure 70425 run)."""
     if not path.exists():
         return None
     raw = json.loads(path.read_text(encoding="utf-8"))
@@ -259,6 +308,14 @@ def load_overrides(path: pathlib.Path) -> dict | None:
         "spells": {int(k): v for k, v in raw["spells"].items()},
         "names": raw["nameIndex"],
     }
+
+
+def overlay_label(ov: dict) -> str:
+    """The short build stamp of the overlay the run uses (`1.60.1.70790` ->
+    `70790`): every build word in the generated header rides it, so the file
+    names the capture it was built from and nothing here is welded to one
+    build (wave M5)."""
+    return str(ov["meta"]["build"]).rsplit(".", 1)[-1]
 
 
 def load_devnotes(path: pathlib.Path) -> dict | None:
@@ -622,6 +679,10 @@ def lua_escape(s: str) -> str:
 def emit_entry(row: dict, icd: int = 0,
                feeds: tuple[int, int, bool] | None = None) -> str:
     fields = [f'id = {row["ID"]}', f'name = "{lua_escape(row.get("Name",""))}"']
+    if row.get("_racial"):
+        # The Engine:AddExtras half of the racials law (wave M3a): Engine:
+        # Build skips these rows, AddExtras tracks them from the same data.
+        fields.append('racial = true')
     tick_ms, max_stack, caster_only = feeds if feeds is not None else row_feeds(row)
     if tick_ms:
         fields.append(f'tickEvery = {_seconds(tick_ms)}')
@@ -650,6 +711,11 @@ def emit_entry(row: dict, icd: int = 0,
         fields.append(f'icdMs = {icd}')
     if row.get("Rank"):
         fields.append(f'rank = "{lua_escape(row["Rank"])}"')
+    if row.get("_shares"):
+        # The Engine's OnCast partner walk keys by this NAME (the runtime
+        # `shares` link; the store's own fact for Summon Hawk <-> Arcane
+        # Shot is the shared category 1173 with the 6 s CategoryCooldownMs).
+        fields.append(f'shares = "{lua_escape(row["_shares"])}"')
     return "{ " + ", ".join(fields) + " }"
 
 
@@ -659,12 +725,13 @@ def main() -> int:
     ap.add_argument("--spells-jsonl", type=pathlib.Path, default=DEFAULT_SPELLS_JSONL)
     ap.add_argument("--manifest", type=pathlib.Path, default=DEFAULT_MANIFEST)
     ap.add_argument("--overrides", type=pathlib.Path, default=DEFAULT_OVERRIDES,
-                    help="the checked-in 70707 overlay (tools/extract_70707.py)")
+                    help=f"the checked-in live-store overlay (default: {DEFAULT_OVERRIDES.name}, "
+                         "built by tools/extract_store.py)")
     ap.add_argument("--devnotes", type=pathlib.Path, default=DEFAULT_DEVNOTES,
                     help="the post-9 dev-notes layer (Blizzard dev notes post 9, "
-                         "2026-11-03; applied after the 70707 layer)")
+                         "2026-11-03; applied after the live-store overlay)")
     ap.add_argument("--no-overlays", action="store_true",
-                    help="pure 70425 run: ignore the 70707 overlay (debug)")
+                    help="pure 70425 run: ignore the live-store overlay (debug)")
     ap.add_argument("--dry", action="store_true",
                     help="resolve + report ('N spells, M gaps' + gap lines); write nothing")
     args = ap.parse_args()
@@ -696,8 +763,16 @@ def main() -> int:
 
     ov = None if args.no_overlays else load_overrides(args.overrides)
     dn = None if args.no_overlays else load_devnotes(args.devnotes)
+    # The short stamp of the overlay in use (70790 for wave M5): every build
+    # word the run prints/emits rides it, so a refresh needs no text edit.
+    label = overlay_label(ov) if ov is not None else "store"
     # Rename aliases (wave I-2b): {data name: the build's other spelling}.
     renames = dict(spec.get("_renames") or {})
+    # Pinned picks / shared cooldowns (wave M3a, see the module docstring):
+    # the pins force the picked id, the shares emit the row's `shares` link.
+    pins: dict[str, dict] = dict(spec.get("_pins") or {})
+    shares: dict[str, str] = dict(spec.get("_shares") or {})
+    RACIAL_GROUPS = {"racials"}
 
     groups: dict[str, list[tuple[str, dict, int, tuple[int, int, bool]]]] = {}
     gaps: list[str] = []
@@ -707,6 +782,9 @@ def main() -> int:
     removed_report: list[str] = []  # rows dropped because 70707 removed the id
     sourced: list[str] = []    # rows with no 70425 base (70707-sourced, pet kit)
     devnotes_applied: list[str] = []  # rows a post-9 dev-notes value moved
+    pins_report: list[str] = []       # names the spell list's `_pins` forced
+    shares_report: list[str] = []     # rows carrying a `_shares` link
+    racials_report: list[str] = []    # rows of the `racials` group (M3a)
     resolved_ids: dict[str, int] = {}  # name -> picked id (the rename alias join)
 
     def _row_duration(r: dict) -> int:
@@ -796,16 +874,30 @@ def main() -> int:
             base, _ = rank_pick(rows, store_aware=False, totem_window=totem_cast)
             base_text = emit_entry(base) if base is not None else None
 
-            picked, is_fallback = rank_pick(pool + ov_rows, store_aware=True,
-                                            store_covered=store_covered,
-                                            totem_window=totem_cast)
+            pin = pins.get(n)
+            if pin is not None:
+                # The `_pins` law (wave M3a): the listed id IS the pick, the
+                # rank ladder is overridden, the reason rides the header.
+                pid = int(pin["id"])
+                cands = [r for r in pool + ov_rows if r.get("ID") == pid]
+                if not cands:
+                    gaps.append(f"{group}: {n!r} _pins id {pid} has no row of "
+                                f"this name in this build")
+                    continue
+                picked, is_fallback = cands[0], False
+                pins_report.append(
+                    f"{n} -> {pid} ({pin.get('reason', 'no reason given')})")
+            else:
+                picked, is_fallback = rank_pick(pool + ov_rows, store_aware=True,
+                                                store_covered=store_covered,
+                                                totem_window=totem_cast)
             if picked is None:
                 if removed_here:
-                    # The name is gone from the 70707 build: reported once as
-                    # removed, never as a family/coverage gap.
+                    # The name is gone from the overlay's build: reported once
+                    # as removed, never as a family/coverage gap.
                     ids_s = ", ".join(str(r.get("ID")) for r in removed_here)
                     removed_report.append(
-                        f"{n}: id(s) {ids_s} removed on 70707 -- the name is gone "
+                        f"{n}: id(s) {ids_s} removed on {label} -- the name is gone "
                         f"from the build's Names table, row dropped")
                     continue
                 if not rows:
@@ -821,12 +913,12 @@ def main() -> int:
                 else:
                     gaps.append(f"{group}: {n!r} has rows with no class family in this build")
                 continue
-            if removed_here:  # the name survived on a 70707-only id (Blessing of Light)
+            if removed_here:  # the name survived on a store-only id (Blessing of Light)
                 ids_s = ", ".join(str(r.get("ID")) for r in removed_here)
                 note = "" if (ov["spells"].get(picked.get("ID")) or {}).get("v") \
-                    else " -- no captured 70707 values, live probe needed"
+                    else f" -- no captured {label} values, live probe needed"
                 removed_report.append(
-                    f"{n}: id(s) {ids_s} removed on 70707 -> re-picked {picked.get('ID')}"
+                    f"{n}: id(s) {ids_s} removed on {label} -> re-picked {picked.get('ID')}"
                     f"{note}")
             if is_fallback:
                 fallbacks.append(f"{n} -> {picked['ID']} (uncoded fallback)")
@@ -846,8 +938,27 @@ def main() -> int:
                     f"{n}: " + ", ".join(applied)
                     + (f" -- post 9: {cite!r}" if cite else ""))
             icd = spell_icd(picked, out_row, ov, rows + ov_rows)
+            if shares.get(n):
+                out_row["_shares"] = shares[n]
+                shares_report.append(f"{n} starts the cooldown of {shares[n]} too")
+            if group in RACIAL_GROUPS:
+                out_row["_racial"] = True
+                racials_report.append(f"{n} ({out_row['ID']})")
             base_by_id = {r.get("ID"): r for r in rows}
-            feeds = row_feeds(out_row, base_by_id.get(out_row.get("ID")))
+            base_row = base_by_id.get(out_row.get("ID"))
+            if base_row is None and out_row.get("_store"):
+                # Rank-sibling feed inheritance (wave M3a, the docstring law):
+                # the store's rank capture of a name the base pull knows only
+                # at lower ranks inherits the base feed shape of the SAME-
+                # FAMILY sibling (Holy Shield 1239570 <- 20928); a family-less
+                # store row inherits nothing.
+                sfam = _icd_fam(out_row)
+                sibs = ([r for r in rows if row_family(r) == sfam]
+                        if sfam is not None and sfam != 0 else [])
+                if sibs:
+                    base_row = max(sibs, key=lambda r: r.get("MaxLevel")
+                                   or r.get("SpellLevel") or 0)
+            feeds = row_feeds(out_row, base_row)
             if base_text is None:
                 sourced.append(f"{n} ({picked['ID']})")
             else:
@@ -869,8 +980,9 @@ def main() -> int:
     total = sum(len(v) for v in groups.values())
 
     if args.dry:
-        print(f"dry {klass}: {total} spells, {len(gaps)} gaps (build {build}"
-              + (f" + overlay {ov['meta']['build']})" if ov is not None else ")") + ")")
+        print(f"dry {klass}: {total} spells, {len(gaps)} gaps (base {build}"
+              + (f" + overlay {ov['meta']['build']} @ hotfix {ov['meta']['hotfix_push']})"
+                 if ov is not None else ")"))
         for g in gaps:
             print(f"  gap: {g}", file=sys.stderr)
         for f in fallbacks:
@@ -878,17 +990,23 @@ def main() -> int:
         for s in shadows:
             print(f"  info: {s}")
         for c in changes:
-            print(f"  70707: {c}")
+            print(f"  {label}: {c}")
         for r in removed_report:
             print(f"  removed: {r}")
         for s in sourced:
-            print(f"  70707-sourced: {s}")
+            print(f"  {label}-sourced: {s}")
         for entries in groups.values():
             for name, row, icd, feeds in entries:
                 if name in CD_SAMPLE_NAMES:
                     print(f"  sample [{row['ID']}] {name}: {emit_entry(row, icd, feeds)}")
         for d in devnotes_applied:
             print(f"  devnotes: {d}")
+        for p in pins_report:
+            print(f"  pin: {p}")
+        for s in shares_report:
+            print(f"  shares: {s}")
+        for r in racials_report:
+            print(f"  racial: {r}")
         return 0
 
     class_title = klass.capitalize()
@@ -903,36 +1021,59 @@ def main() -> int:
         m = ov["meta"]
         lines.append(f"-- Overlay: wowsims/forever {m['commit']} build {m['build']} (MIT)")
         lines.append(f"--   (hotfix push {m['hotfix_push']}; {m['store_inputs']}; built by "
-                      f"tools/extract_70707.py -- 70707 values win; absent fields = the store "
+                      f"{m.get('generated_by', 'tools/extract_store.py')} -- {label} values win; "
+                      f"absent fields = the store "
                       f"carries no row, mythicsim stands)")
     else:
-        lines.append("-- Overlay: NONE (tools/overrides_70707.json missing) -- values are pure "
-                      f"{build}")
+        lines.append(f"-- Overlay: NONE (tools/{DEFAULT_OVERRIDES.name} missing) "
+                      f"-- values are pure {build}")
     if dn is not None:
         dm = dn["meta"]
         lines.append(f"-- Dev notes: tools/{dn['file']} ({dm['source']}; "
                       f"{dm['source_url']}) -- post-9 values the captured data does not "
-                      f"carry, applied AFTER the 70707 layer; delete a row the day a "
+                      f"carry, applied AFTER the {label} layer; delete a row the day a "
                       f"store capture carries the value (hotfix-watch)")
     else:
         lines.append(f"-- Dev notes: NONE (tools/{DEFAULT_DEVNOTES.name} missing)")
     lines.append(f"-- Regenerated: {datetime.now(timezone.utc).isoformat(timespec='seconds')}")
     if changes:
-        lines.append(f"-- 70707 overlay changes in this file ({len(changes)}):")
+        lines.append(f"-- {label} overlay changes in this file ({len(changes)}):")
         for c in changes:
             lines.append(f"--   {c}")
     if devnotes_applied:
         lines.append(f"-- Post-9 dev-notes values applied ({len(devnotes_applied)}):")
         for d in devnotes_applied:
             lines.append(f"--   {d}")
+    if pins_report:
+        lines.append(f"-- Pinned picks ({len(pins_report)}); the spell list's `_pins` "
+                      f"force the picked row -- the rank law stands for every "
+                      f"other name (wave M3a law, see the generator docstring):")
+        for p in pins_report:
+            lines.append(f"--   {p}")
+    if shares_report:
+        lines.append(f"-- Shared cooldowns (`_shares`: a cast of either starts "
+                      f"both bars, Forte_Cooldown/Core/Engine.lua's partner walk):")
+        for s in shares_report:
+            lines.append(f"--   {s}")
+    if racials_report:
+        lines.append(f"-- Racial rows ({len(racials_report)}); the `racials` group -- "
+                      f"`racial = true` rows are skipped by Engine:Build and "
+                      f"tracked by Engine:AddExtras from this data, so the Locale "
+                      f"alias walk covers their names on localized clients "
+                      f"(review-10 M2/m4):")
+        for r in racials_report:
+            lines.append(f"--   {r}")
     if removed_report:
-        lines.append(f"-- Rows dropped on 70707 ({len(removed_report)}):")
+        lines.append(f"-- Rows dropped on {label} ({len(removed_report)}):")
         for r in removed_report:
             lines.append(f"--   {r}")
     if sourced:
-        lines.append(f"-- 70707-sourced rows: no row in the {build} pull, the row is the "
-                      f"70707 store's capture of the name ({len(sourced)}; Warlock pet kit, "
-                      f"docs/research/forever-data-gaps.md G6):")
+        lines.append(f"-- {label}-sourced rows: no row in the {build} pull, the row is the "
+                      f"{label} store's capture of the name ({len(sourced)}; the "
+                      f"source-eligible rows are the Warlock pet kit "
+                      f"(docs/research/forever-data-gaps.md G6) and the M3a "
+                      f"racials group (the racial shells the 70425 pull names "
+                      f"under other keys):")
         for s in sourced:
             lines.append(f"--   {s}")
     all_rows = [(name, row, feeds) for entries in groups.values()
@@ -945,11 +1086,11 @@ def main() -> int:
                   "effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the "
                   "aura's `MaxStack` when above 1, `noTarget` = every captured effect "
                   "targets the CASTER (effect `Target[0]` == 1). Feed sources (wave "
-                  "I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own "
-                  "base `Effects`/`MaxStack` answer first, a 70707-picked row inherits "
-                  "the same-id base row's shape, and the 70707 overlay's own feed "
+                  f"I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own "
+                  f"base `Effects`/`MaxStack` answer first, a {label}-picked row inherits "
+                  f"the same-id base row's shape, and the {label} overlay's own feed "
                   "captures (per-id `periodMs`/`targetCode`/`maxStack` of "
-                  "tools/overrides_70707.json) fill what neither can speak to. "
+                  f"tools/{args.overrides.name}) fill what neither can speak to. "
                   f"This file: {len(ticked)} tickEvery, {len(stacked)} maxStack, "
                   f"{len(self_only)} noTarget.")
     for group, entries in groups.items():

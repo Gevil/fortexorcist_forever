@@ -5,6 +5,16 @@
     "Totemic Projection": "Totemic Call",
     "Elemental Mastery": "Lightning Mastery"
   },
+  "_pins": {
+    "Berserking": {
+      "id": 20554,
+      "reason": "all four 70790 rows (20554/23505/24378/1286304) are value-less name shells (no Cooldowns row), so the bare-row tiebreak rides the arbitrary max-id shell; 20554 is the id measured 180 s on the live client (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4)"
+    },
+    "Rapid Regeneration": {
+      "id": 1260270,
+      "reason": "the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4)"
+    }
+  },
   "cooldowns": [
     "Earth Shock", "Flame Shock", "Frost Shock", "Riptide", "Chain Lightning",
     "Molten Blast", "Lava Lash", "Fire Nova", "Healing Rain", "Decoy Totem",
@@ -33,5 +43,8 @@
     "Ghost Wolf", "Ancestral Spirit", "Far Sight", "Call of Flame", "Call of Thunder",
     "Call of the Elements", "Call of the Spirits", "Call of the Ancestors",
     "Purge", "Cure Poison", "Cure Disease"
+  ],
+  "racials": [
+    "Berserking", "Rapid Regeneration"
   ]
 }
