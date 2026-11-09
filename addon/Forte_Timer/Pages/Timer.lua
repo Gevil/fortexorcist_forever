@@ -21,10 +21,12 @@
 -- and `/fx lock|unlock` all agree.
 --
 -- `Scale` / `Alpha` are wired live (Module.lua's SetScale/SetAlphaValue drive
--- the anchor frame). `ExpandUpwards` and `ShowTooltips` are stored and
--- labelled as the project's own page law labels them ("not wired yet"): v1
--- growth is fixed upward (design §5.4) and the tooltip is the frozen path of
--- §5.5. Every widget tip lives in `P.WIDGET_TIPS` (one table, the page and
+-- the anchor frame). `ExpandUpwards` is wired too (PLAN §11.8): ticked = the
+-- stack grows upward from the first bar's bottom edge, unticked = downward
+-- from the first bar's top; the first bar stays where the panel was placed.
+-- `ShowTooltips` is stored and labelled as the project's own page law labels
+-- it ("not wired yet"): the tooltip is the frozen path of §5.5. Every widget
+-- tip lives in `P.WIDGET_TIPS` (one table, the page and
 -- the settings-consumer census in tests/test_module.lua read the same text:
 -- a tip may claim "Applied live" only where a consumer reads the key).
 
@@ -227,9 +229,10 @@ FX.Timer.Pages.WIDGET_TIPS = {
         .. "print a chat line when a row's window ends; rows born while off "
         .. "stay silent. The source ships its announce pages dimmed, so this "
         .. "defaults off. Applied live.",
-    ExpandUpwards = "The Classic cascade grows upward from the frame's "
-        .. "bottom edge (:3321). v1 is always upward. Not wired yet (stored "
-        .. "for the layout work).",
+    ExpandUpwards = "Ticked (the default) the stack grows upward from the "
+        .. "first bar's position; unticked it grows downward from it, the "
+        .. "first bar staying exactly where you placed the panel and later "
+        .. "bars appearing below it (:3321). Applied live.",
     ColourNormal = "The row TEXT colour -- the source's NormalColor (:3396: "
         .. "the time text :1856, the group label :2073, the names :2528), "
         .. "de-saturated over a bright fill. Applied live.",

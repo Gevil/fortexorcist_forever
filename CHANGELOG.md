@@ -12,6 +12,18 @@ headless interface simulator and on uiforever.com — not in a live game.
 
 ---
 
+## Unreleased — 2026-11-09 (Spell Timer growth direction)
+
+- **"Expand up" unticked now grows the Spell Timer downward, and the stack no
+  longer drifts.** The option only moved the title: the bars still stacked
+  upward, and the whole stack crept up as bars appeared (the panel was pinned
+  by its centre). The panel is now pinned by its first bar's corner: ticked
+  (the default) the first bar stays put and new bars appear above it;
+  unticked the first bar stays put and new bars appear below it. Toggling the
+  option, changing Width/Height or changing Scale no longer moves the first
+  bar, and a saved Scale now applies at login. Your existing position carries
+  over to the same spot, and `/fx timer reset` restores the default spot.
+
 ## Unreleased — 2026-11-06 (first live session on the Forever client)
 
 Found and fixed in the running game (Hunter, build 1.60.1.70790). Items marked

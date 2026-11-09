@@ -53,6 +53,14 @@
 -- (delta D15). `/fx lock|unlock` reaches it through the FX.Settings mirroring
 -- in Module.lua; the title is the "you can drag this" affordance and shows only
 -- while unlocked.
+--
+-- Growth direction (PLAN §11.8): `options.expand` nil/true = UP (the stack
+-- cascades up from the anchor's BOTTOMLEFT), false = DOWN (from its TOPLEFT,
+-- group 1 on top, rows top-first). The anchor frame is resized to the whole
+-- stack, so it is pinned by the first-slot corner (cfg.corner/x/y, see
+-- D:ApplyPosition): adding bars never moves that corner. The corner is the
+-- first BAR's bottom (up) / top (down) edge, so bar 1 never moves with the
+-- group label (going down the label sits above the pin, outside the box).
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -194,8 +202,18 @@ function D:Init(options, skin, cfg)
     self.groups = {}      -- the group pool (frame + backdrop + label + mark)
     self.rows = {}        -- the bar pool, flat; index -> row table
     self._shown = false
-    self:ApplyPosition()
+    self._down = options.expand == false
+    -- Size and scale FIRST: the legacy migration and the corner pin below
+    -- are expressed in the frame's own scale units over the idle box. The
+    -- stored Scale reaches the module at ApplyStoredSettings, BEFORE this
+    -- frame exists, so it is applied here (a live change rides D:SetScale).
     self:ApplySize()
+    if type(options.scale) == "number" and options.scale > 0 then
+        f:SetScale(options.scale)
+    end
+    self:MigratePosition()
+    self:SyncCorner(self._down)
+    self:ApplyPosition()
     f:Hide()
 end
 
@@ -238,32 +256,168 @@ function D:SetEnabled(on)
 end
 
 -- ------------------------------------------------------------- position --
+-- The saved placement is the FIRST SLOT's fixed corner (PLAN §11.8):
+--   cfg = { corner = "BOTTOMLEFT" | "TOPLEFT", x, y, locked }
+-- with x/y measured from UIParent's BOTTOMLEFT in the anchor frame's OWN scale
+-- units (what SetPoint offsets are). BOTTOMLEFT = growing UP (the first bar's
+-- bottom edge), TOPLEFT = growing DOWN (group 1's top edge). The anchor frame
+-- is resized to the whole stack at the end of every Update, so it must be
+-- pinned by the corner the stack grows AWAY from: a CENTER pin made the stack
+-- grow in both directions and drift. y is never negative on screen, so the
+-- top-corner form needs no UIParent height.
+local POINT_FRAC = {
+    BOTTOMLEFT = { 0, 0 }, BOTTOM = { 0.5, 0 }, BOTTOMRIGHT = { 1, 0 },
+    LEFT = { 0, 0.5 }, CENTER = { 0.5, 0.5 }, RIGHT = { 1, 0.5 },
+    TOPLEFT = { 0, 1 }, TOP = { 0.5, 1 }, TOPRIGHT = { 1, 1 },
+}
+
+--- One numeric frame read, pcall'd and secret-filtered: nil = unreadable.
+local function readNumber(obj, method)
+    if not obj or type(obj[method]) ~= "function" then return nil end
+    local ok, v = pcall(obj[method], obj)
+    if not ok then return nil end
+    v = FX.Compat.PlainOrNil(v)
+    if type(v) ~= "number" or v ~= v then return nil end
+    return v
+end
+
+--- One source for the first-run placement (Module.DEFAULT_POSITION, the legacy
+--- CENTER form); the literal copy is only what a headless unit run, where the
+--- module file is not loaded, falls back to.
+local function defaultPosition()
+    return (FX.Timer.Module and FX.Timer.Module.DEFAULT_POSITION)
+        or { point = "CENTER", relPoint = "CENTER", x = 261, y = -150 }
+end
+
+--- Growing down? (nil = the default, up).
+function D:IsDown(o)
+    o = o or self.options
+    return o ~= nil and o.expand == false
+end
+
+--- The corner form for the stack's growth direction.
+local function cornerFor(down)
+    return down and "TOPLEFT" or "BOTTOMLEFT"
+end
+
+--- Re-pin for a growth direction change: the first slot stays where it is, so
+--- the bottom-corner y and the top-corner y differ by the slot's height.
+--- Returns true when the saved corner changed.
+function D:SyncCorner(down)
+    local cfg = self.cfg
+    if not cfg or cfg.corner == nil then return false end
+    local want = cornerFor(down)
+    if cfg.corner == want then return false end
+    local h = (self.options and self.options.height) or 0
+    if type(cfg.y) == "number" then cfg.y = cfg.y + (down and h or -h) end
+    cfg.corner = want
+    return true
+end
+
+--- Legacy -> corner form, once. A cfg with point/relPoint and no corner (every
+--- install before 2026-11-09, and Module.DEFAULT_POSITION's CENTER/CENTER) is
+--- converted over the IDLE box (groupWidth x height) -- the box the frame is
+--- when no row shows, so the default lands where it always did -- and written
+--- back; the legacy keys are dropped. An unreadable UIParent leaves the legacy
+--- cfg untouched (ApplyPosition still anchors it) for a later retry.
+function D:MigratePosition()
+    local cfg, o, f = self.cfg, self.options, self.anchor
+    if not cfg or not o or not f then return false end
+    if cfg.corner ~= nil then
+        if (cfg.corner == "BOTTOMLEFT" or cfg.corner == "TOPLEFT")
+            and type(cfg.x) == "number" and type(cfg.y) == "number" then
+            return false
+        end
+        cfg.corner = nil           -- unusable: rebuild from what is left
+    end
+    local src = cfg
+    if not (POINT_FRAC[cfg.point] and POINT_FRAC[cfg.relPoint]
+        and type(cfg.x) == "number" and type(cfg.y) == "number") then
+        src = defaultPosition()
+    end
+    local pf, rf = POINT_FRAC[src.point], POINT_FRAC[src.relPoint]
+    local uiW, uiH = readNumber(UIParent, "GetWidth"),
+        readNumber(UIParent, "GetHeight")
+    if not (pf and rf and uiW and uiH) then return false end
+    local fs = readNumber(f, "GetScale") or 1
+    if fs <= 0 then fs = 1 end
+    local gw, h = o.groupWidth, o.height
+    -- the idle box's bottom-left corner, in the frame's own scale units
+    local left = rf[1] * uiW / fs + src.x - pf[1] * gw
+    local bottom = rf[2] * uiH / fs + src.y - pf[2] * h
+    local down = self:IsDown()
+    cfg.corner = cornerFor(down)
+    cfg.x = left
+    cfg.y = down and (bottom + h) or bottom
+    cfg.point, cfg.relPoint = nil, nil
+    return true
+end
+
 function D:ApplyPosition()
-    if not self.anchor then return end
+    if not self.anchor or not self.cfg then return end
     local cfg = self.cfg
     self.anchor:ClearAllPoints()
-    self.anchor:SetPoint(cfg.point, UIParent, cfg.relPoint, cfg.x, cfg.y)
+    if cfg.corner then
+        self.anchor:SetPoint(cfg.corner, UIParent, "BOTTOMLEFT", cfg.x, cfg.y)
+    else
+        self.anchor:SetPoint(cfg.point or "CENTER", UIParent,
+            cfg.relPoint or "CENTER", cfg.x or 0, cfg.y or 0)
+    end
 end
 
---- Snapshot the anchor's current anchoring after a native drag.
+--- Snapshot the anchor's rect after a native drag, in the corner form of the
+--- current growth direction. Every read is pcall'd + PlainOrNil; an unreadable
+--- rect keeps the old cfg. The engine leaves the dragged frame anchored its
+--- own way, so the saved corner is re-applied to put it back in ours.
 function D:SavePosition(f)
     f = f or self.anchor
-    if not f then return end
-    local point, _, relPoint, x, y = f:GetPoint()
-    if not point then return end
     local cfg = self.cfg
-    cfg.point, cfg.relPoint, cfg.x, cfg.y = point, relPoint, x, y
+    if not f or not cfg then return end
+    local down = self:IsDown()
+    local left = readNumber(f, "GetLeft")
+    local edge = readNumber(f, down and "GetTop" or "GetBottom")
+    if not left or not edge then return end
+    cfg.corner, cfg.x, cfg.y = cornerFor(down), left, edge
+    cfg.point, cfg.relPoint = nil, nil
+    if f == self.anchor then self:ApplyPosition() end
 end
 
+--- Default placement, at the SAME visual spot as the old CENTER default: the
+--- legacy default is written and migrated over the idle box.
 function D:Reset()
-    -- One source for the first-run placement (Module.DEFAULT_POSITION); the
-    -- literal copy is only what a headless unit run, where the module file is
-    -- not loaded, falls back to.
-    local d = (FX.Timer.Module and FX.Timer.Module.DEFAULT_POSITION)
-        or { point = "CENTER", relPoint = "CENTER", x = 261, y = -150 }
+    local d = defaultPosition()
     local cfg = self.cfg
+    cfg.corner = nil
     cfg.point, cfg.relPoint, cfg.x, cfg.y = d.point, d.relPoint, d.x, d.y
+    self:MigratePosition()
     self:ApplyPosition()
+end
+
+--- A live scale change must not move the stack's pinned corner: the offsets
+--- are in the frame's own scale units, so they are re-expressed
+--- (old * oldScale / newScale) around the new scale.
+function D:SetScale(v)
+    local f = self.anchor
+    if not f or type(v) ~= "number" or v <= 0 then return end
+    local old = readNumber(f, "GetScale") or 1
+    if old <= 0 then old = 1 end
+    f:SetScale(v)
+    local cfg = self.cfg
+    if cfg and cfg.corner and old ~= v
+        and type(cfg.x) == "number" and type(cfg.y) == "number" then
+        cfg.x, cfg.y = cfg.x * old / v, cfg.y * old / v
+        self:ApplyPosition()
+    end
+end
+
+--- The growth direction changed (`down` = Expand up UNticked): re-pin so the
+--- first slot stays put, move the title; the next Update re-anchors the
+--- groups (their cache keys carry the mode).
+function D:ApplyExpand(down)
+    self._down = down and true or false
+    self:ApplyTitleAnchor(not self._down)
+    if not self.anchor then return end
+    if self:SyncCorner(self._down) then self:ApplyPosition() end
 end
 
 --- Locked = NOT draggable + the title hidden. The mouse stays live: the
@@ -675,6 +829,11 @@ function D:Update(links, n, options, skin)
         self._shown = true
         self.anchor:Show()
     end
+    -- The growth direction (nil/true = up, false = down). A change re-pins the
+    -- anchor (first slot stays) and, through the `_down` keys below, re-anchors
+    -- every group and bar ONCE; a steady pass compares one boolean.
+    local down = o.expand == false
+    if self._down ~= down then self:ApplyExpand(down) end
 
     -- Pass A: collapse the sorted array into group runs, applying the alpha
     -- law (:2340-2344): target/failed rows full, the rest NormalAlpha.
@@ -704,11 +863,25 @@ function D:Update(links, n, options, skin)
         end
     end
 
-    -- Pass B: draw the runs, cascading UPWARD from the frame's BOTTOM
-    -- (`Expand`, :2320-2332). A group's box is `height*count +
-    -- space*(count-1)` plus `LabelHeight` 18 (:3344); groups are separated by
-    -- `SpacingHeight` 2 (:3345); the bars sit inside the box at the x-inset
-    -- `Height + 1 + Backdrop[6]` = 18 (:2322).
+    -- Pass B: draw the runs, cascading from the frame's first-slot corner.
+    -- UP (the default, `Expand`, :2320-2332): from the frame's BOTTOMLEFT,
+    -- group 1 at the bottom, bars bottom-first, the label strip above them.
+    -- DOWN (Expand unticked): from the frame's TOPLEFT. The pin is the TOP OF
+    -- THE FIRST BAR, whatever group 1 carries above it: group 1's box is
+    -- raised by its own label strip (`shift`, 0 when group 1 is unlabelled),
+    -- so the label sits just ABOVE the pin, outside the anchor box, and bar 1
+    -- never moves when group 1 gains or loses its label. Each further group
+    -- hangs BELOW (`y` accumulates negative) and inside a group the label
+    -- strip comes first, then the bars top-first, so the visual order top ->
+    -- bottom is the link order. A group's box is
+    -- `height*count + space*(count-1)` plus `LabelHeight` 18 (:3344); groups
+    -- are separated by `SpacingHeight` 2 (:3345); the bars sit inside the box
+    -- at the x-inset `Height + 1 + Backdrop[6]` = 18 (:2322).
+    local shift = 0
+    if down and ng > 0 and o.label ~= false and o.showTarget ~= false
+        and runs[1].key > Laws.PRIOR_NONE then
+        shift = o.labelHeight
+    end
     local y, ri = 0, 0
     for gi = 1, ng do
         local run = runs[gi]
@@ -729,16 +902,21 @@ function D:Update(links, n, options, skin)
             counts.sizeGroup = counts.sizeGroup + 1
             g.frame:SetSize(o.groupWidth, h)
         end
-        -- The box rides the anchor's BOTTOMLEFT at a y that ONLY a layout
-        -- change moves (the cascade height, the group width): re-anchor on
-        -- change, not per tick (docs/perf.md §4 fix 3). The anchor frame's own
-        -- move/resize needs no re-anchoring here -- an anchored child tracks
-        -- its parent.
-        if g._ax ~= 0 or g._ay ~= y then
-            g._ax, g._ay = 0, y
+        -- The box rides the anchor's first-slot corner at a y that ONLY a
+        -- layout change moves (the cascade height, the group width, the growth
+        -- direction): re-anchor on change, not per tick (docs/perf.md §4 fix
+        -- 3). The anchor frame's own move/resize needs no re-anchoring here --
+        -- an anchored child tracks its parent.
+        local gy = down and (shift - y) or y
+        if g._ax ~= 0 or g._ay ~= gy or g._down ~= down then
+            g._ax, g._ay, g._down = 0, gy, down
             counts.anchorGroup = counts.anchorGroup + 1
             g.frame:ClearAllPoints()
-            g.frame:SetPoint("BOTTOMLEFT", self.anchor, "BOTTOMLEFT", 0, y)
+            if down then
+                g.frame:SetPoint("TOPLEFT", self.anchor, "TOPLEFT", 0, gy)
+            else
+                g.frame:SetPoint("BOTTOMLEFT", self.anchor, "BOTTOMLEFT", 0, gy)
+            end
         end
         if not g.frame:IsShown() then g.frame:Show() end
         if g._alpha ~= run.alpha then
@@ -838,11 +1016,15 @@ function D:Update(links, n, options, skin)
         end
         if o.smartSpace == false then usewidth = 0 end
 
-        local barOffset = 0
+        -- Up: bar 1 at the box bottom, each next one above. Down: bar 1 right
+        -- under the label strip, each next one below (negative offsets from
+        -- the box's TOPLEFT).
+        local step = o.height + o.space
+        local barOffset = down and (0 - (labelled and o.labelHeight or 0)) or 0
         for j = 1, run.count do
             self:BindRow(run.links[j], run.slot[j], g, o, s, now, barOffset,
-                usewidth)
-            barOffset = barOffset + o.height + o.space
+                usewidth, down)
+            barOffset = barOffset + (down and -step or step)
         end
         y = y + h + o.spacingHeight
     end
@@ -857,8 +1039,10 @@ function D:Update(links, n, options, skin)
         if g.frame:IsShown() then g.frame:Hide() end
         if g.label:IsShown() then g.label:Hide() end
     end
+    -- Down: the box runs from the pin (bar 1's top) to the stack's bottom, so
+    -- the label strip raised above the pin is not part of it.
     self.anchor:SetSize(o.groupWidth,
-        math.max(o.height, y - o.spacingHeight))
+        math.max(o.height, y - o.spacingHeight - shift))
     return ri
 end
 
@@ -886,7 +1070,7 @@ end
 
 --- One live row: geometry, colours, fill, texts, icon, spark, slice, mark,
 --- ticks. Every setter dirty-checked.
-function D:BindRow(link, r, g, o, s, now, barOffset, usewidth)
+function D:BindRow(link, r, g, o, s, now, barOffset, usewidth, down)
     local row = Rows.rows[link[1]]
     if not r.bar:IsShown() then r.bar:Show() end
     self:ApplyRowGeometry(r, o, s, link[4])
@@ -900,11 +1084,16 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth)
     local extra = (row.targetKey == "none") and (o.offsetSelf or 0)
         or ((row.targetKey == "target") and (o.offsetTarget or 0) or 0)
     local ax = o.barInset + extra
-    if r._ap ~= g.frame or r._ax ~= ax or r._ay ~= barOffset then
-        r._ap, r._ax, r._ay = g.frame, ax, barOffset
+    if r._ap ~= g.frame or r._ax ~= ax or r._ay ~= barOffset
+        or r._down ~= down then
+        r._ap, r._ax, r._ay, r._down = g.frame, ax, barOffset, down
         counts.anchorRow = counts.anchorRow + 1
         r.bar:ClearAllPoints()
-        r.bar:SetPoint("BOTTOMLEFT", g.frame, "BOTTOMLEFT", ax, barOffset)
+        if down then
+            r.bar:SetPoint("TOPLEFT", g.frame, "TOPLEFT", ax, barOffset)
+        else
+            r.bar:SetPoint("BOTTOMLEFT", g.frame, "BOTTOMLEFT", ax, barOffset)
+        end
     end
 
     -- the colours (:2366-2369): ColorVal decides once, the fill takes the

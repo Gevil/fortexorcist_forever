@@ -1002,3 +1002,15 @@ Simulator law: one wow-ui-sim process at a time — workers in parallel waves do
 Both run in parallel; every simulator run goes through `flock /tmp/fx-wowsim.lock` so only one wow-ui-sim process exists at a time.
 
 **Done 2026-11-07 (`647ddd7`, `860aefa`; gate 1030; pre-release refreshed).** Open: the next live session's checklist (`docs/launch-day.md`), and a data re-pull after the 2026-11-10 Warlock changes.
+
+### 11.8 Iteration N — Spell Timer growth direction + stable anchor (2026-11-09, owner report)
+
+Owner (2026-11-09, installed on the PC + live client): with 'Expand up' UNTICKED the more bars come up the more they drift upward; they should grow downward. Diagnosis (code, no client data: no ForteXorcist SavedVariables exist yet on this PC): (1) `ExpandUpwards`/`options.expand` is stored but never read by the layout — `Forte_Timer/Pages/Timer.lua` tip says 'v1 is always upward. Not wired yet'; `Rows.lua` Pass B always cascades up from the anchor's BOTTOMLEFT. (2) The anchor frame is resized to the whole stack (`Rows.lua` end of `Update`) while the saved point is `CENTER`, so the stack grows from its middle in both directions and shifts when Width/Height/Scale change. (3) A live Scale change moves the frame (offsets are in the frame's own scale).
+
+Design: the saved position is the FIRST BAR SLOT's fixed corner on UIParent — BOTTOMLEFT when Expand up, TOPLEFT when down — so adding bars never moves that corner; groups cascade away from it (up: as today; down: group 1 at the top, later groups below, rows inside a group top-first). Toggling Expand keeps the first slot where it is. A legacy saved `CENTER` position migrates once to the corner form (idle box). Scale change re-expresses the corner so the stack does not jump. Default stays 'Expand up' (original behaviour, the option is the switch); unticked is the owner's setting.
+
+| # | Work |
+|---|---|
+| N1 | wire `expand` into `Rows.lua` layout (group + in-group order, anchor box growth direction, title placement already exists) |
+| N2 | corner-based position save/load + legacy migration + Expand toggle + Scale compensation; `/fx timer reset` still works |
+| N3 | options tip/label updated (no 'not wired yet'); tests through the real display/drag scripts; CHANGELOG |

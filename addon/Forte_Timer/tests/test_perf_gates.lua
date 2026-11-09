@@ -553,6 +553,71 @@ function()
     cleanUp(o)
 end)
 
+-- PLAN §11.8: the growth direction rides the dirty keys (`_down` on every
+-- group and bar), so a steady pass in EITHER direction applies zero anchoring,
+-- and a direction toggle re-anchors once, not per tick.
+-- FAILS-ON-THE-OLD-CODE: the old layout had no direction (SetExpand only moved
+-- the title), so the toggle moved no anchor and `assertMoved` raises.
+test("expand DOWN: a steady pass applies zero anchoring; a toggle re-anchors once",
+function()
+    local o = ensureEnabled()
+    local saved = { maxOn = o.maxOn, ticks = o.ticks, groupID = o.groupID,
+        outwands = o.outwands, label = o.label, showTarget = o.showTarget,
+        expand = o.expand }
+    o.maxOn, o.ticks = false, false
+    o.groupID, o.outwands = true, true
+    o.label, o.showTarget = true, true
+    local base = epoch()
+    withFixedClock(base, function()
+        installClock(base)
+        M:SetExpand(false)
+        seed(6, base, 120)
+        for i = 1, 6 do remaining(i, base, 60) end
+        M:Draw()
+        local pinY = D.cfg.y
+        local before = snapshot()
+        for i = 1, 40 do
+            for k = 1, 6 do
+                Rows.rows[k].drawExpireAt = base + 60 - i * 0.04
+            end
+            M:Draw()
+        end
+        assertStatic(before, "anchorGroup")
+        assertStatic(before, "anchorRow")
+        assertStatic(before, "anchorLabel")
+        assertStatic(before, "anchorTicks")
+        assertStatic(before, "sizeGroup")
+        assertStatic(before, "geometry")
+        assertEquals(pinY, D.cfg.y, "the pin moved on a steady pass")
+        assertEquals("TOPLEFT", D.cfg.corner)
+        -- the toggle: one relayout re-anchors every group and bar ...
+        before = snapshot()
+        M:SetExpand(true)
+        assertMoved(before, "anchorGroup")
+        assertMoved(before, "anchorRow")
+        -- ... and the next passes are steady again, in the new direction
+        before = snapshot()
+        for _ = 1, 20 do M:Draw() end
+        assertStatic(before, "anchorGroup")
+        assertStatic(before, "anchorRow")
+        assertStatic(before, "anchorLabel")
+        assertEquals("BOTTOMLEFT", D.cfg.corner)
+        -- and back down: again once, then steady
+        before = snapshot()
+        M:SetExpand(false)
+        assertMoved(before, "anchorGroup")
+        before = snapshot()
+        for _ = 1, 20 do M:Draw() end
+        assertStatic(before, "anchorGroup")
+        assertStatic(before, "anchorRow")
+        assertEquals(pinY, D.cfg.y, "the round trip returns to the same pin")
+    end)
+    M:SetExpand(saved.expand ~= false)
+    saved.expand = nil
+    for k, v in pairs(saved) do o[k] = v end
+    cleanUp(o)
+end)
+
 -- -------------------------------------------------- fix 5: the comparator --
 
 --- The CPU counter of docs/perf.md: seconds per call, times 1e6.

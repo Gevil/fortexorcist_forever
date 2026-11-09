@@ -628,7 +628,7 @@ function()
         Max = { "maxRows" }, ShowTargetNames = { "showTarget" },
         Label = { "label" }, ShowID = { "showID" },
         ShowSpellNames = { "spell" }, MaxDisplayTime = { "maxTime" },
-        ExpandUpwards = { "__stored__" }, EnableBackdrop = { "__stored__" },
+        ExpandUpwards = { "expand" }, EnableBackdrop = { "__stored__" },
         NormalAlpha = { "normalAlpha", "NormalAlpha" },
         BarBackgroundAlpha = { "barBgAlpha", "BarBackgroundAlpha" },
         EnableSpark = { "spark" },

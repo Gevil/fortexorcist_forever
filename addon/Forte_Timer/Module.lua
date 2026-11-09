@@ -60,16 +60,20 @@ local DRAW_SECONDS = 0.04   -- the display cadence (:2851/:2854, Forte_Core.lua:
 local LOGIC_SECONDS = 0.5   -- the logic/rescan cadence (:2855, Forte_Core.lua:2475)
 
 -- The panel's first-run placement, in one place: OnEnable seeds the saved
--- config from it and `/fx timer reset` restores it.
+-- config from it and `/fx timer reset` restores it. It stays in the LEGACY
+-- CENTER form (the idle box's centre, 261 right of and 150 below the screen
+-- centre); UI/Rows.lua's D:MigratePosition converts it ONCE, over the idle
+-- box, to the saved corner form (cfg.corner/x/y) -- so the default lands on
+-- the spot it always had, in either growth direction.
 --
 -- The Cooldown bar defaults to CENTER/CENTER at (0, -150) with a 250x24 strip
 -- (`Forte_Cooldown/Core/Pages/PanelHost.lua` DEFAULT_POSITION, the bar size
 -- `UI/Timeline.lua` Width/Height). This panel is 256 px wide (Skin.Width +
--- GrowPad) and its stack grows DOWNWARD from its centre, so any centre placed
--- on the bar's vertical band ends up overprinting the bar as soon as two rows
--- show. The reference addon gives no help: `/tmp/fxref` centres both panels on
--- UIParent (Forte_Timer.lua's `frame:SetPoint("CENTER", UIParent, "CENTER")`
--- and the same in Forte_Cooldown.lua), i.e. the original overlapped them too.
+-- GrowPad), so any placement on the bar's vertical band overprints the bar as
+-- soon as two rows show. The reference addon gives no help: `/tmp/fxref`
+-- centres both panels on UIParent (Forte_Timer.lua's
+-- `frame:SetPoint("CENTER", UIParent, "CENTER")` and the same in
+-- Forte_Cooldown.lua), i.e. the original overlapped them too.
 --
 -- So the two panels become a PAIR side by side at the same height: the bar at
 -- x=0, this stack centred at x=261 -- (250 + 256)/2 = 253 needed, 261 with an
@@ -376,10 +380,14 @@ end
 function M:SetLabel(on) self.options.label = not not on end
 function M:SetShowID(on) self.options.showID = not not on end
 function M:SetSpellName(on) self.options.spell = not not on end
+--- Growth direction (PLAN §11.8): the display re-pins the first slot (the
+--- saved corner flips BOTTOMLEFT <-> TOPLEFT at the same slot), moves the
+--- title, and the redraw re-anchors every group and bar to the new direction.
 function M:SetExpand(on)
     self.options.expand = not not on
     local D = FX.Timer and FX.Timer.Display
-    if D and D.ApplyTitleAnchor then D:ApplyTitleAnchor(self.options.expand) end
+    if D and D.ApplyExpand then D:ApplyExpand(not self.options.expand) end
+    if D and D.anchor then self:Draw() end
 end
 function M:SetOutwands(on) self.options.outwands = not not on end
 --- The bar direction (`Flip`, :3332, the "Flip bar direction" row :3149): the
@@ -479,7 +487,7 @@ function M:SetScale(v)
     if type(v) ~= "number" or v <= 0 then return end
     self.options.scale = v
     local d = FX.Timer.Display
-    if d and d.anchor and d.anchor.SetScale then d.anchor:SetScale(v) end
+    if d and d.SetScale then d:SetScale(v) end   -- keeps the pinned corner
 end
 function M:SetAlphaValue(v)
     if type(v) ~= "number" then return end
@@ -758,8 +766,14 @@ function M:OnEnable()
         self.cfg = {}
         FX.Timer.Registry:AttachStorage({})
     end
-    for k, v in pairs(M.DEFAULT_POSITION) do
-        if self.cfg[k] == nil then self.cfg[k] = v end
+    -- Position keys seed only while the saved placement is still the legacy
+    -- form: a corner-form cfg (UI/Rows.lua's migration wrote it) must not grow
+    -- the legacy keys back.
+    if self.cfg.locked == nil then self.cfg.locked = M.DEFAULT_POSITION.locked end
+    if self.cfg.corner == nil then
+        for _, k in ipairs({ "point", "relPoint", "x", "y" }) do
+            if self.cfg[k] == nil then self.cfg[k] = M.DEFAULT_POSITION[k] end
+        end
     end
 
     FX.Timer.Registry:Build(FX._playerClass)
@@ -1125,8 +1139,12 @@ FX.RegisterSlash("timer", function(rest)
         FX.Print(string.format("timer: seeded %d predicted rows",
             #picked))
         M:Kick()
+    elseif sub == "reset" then
+        local d = FX.Timer.Display
+        if d and d.anchor and d.Reset then d:Reset() end
+        FX.Print("timer: position reset")
     else
-        FX.Print("timer: /fx timer status | clear | test")
+        FX.Print("timer: /fx timer status | clear | test | reset")
         M:Status()
     end
 end)
