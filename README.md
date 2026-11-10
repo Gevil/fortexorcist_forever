@@ -96,15 +96,15 @@ write into the git tree through a symlink).
 | `Forte_Timer` | **Spell Timer**: stacked rows per spell and target. |
 | `Forte_Messages` | **Messages & Sound**: self messages, banner, sounds, opt-in party/raid announcements. |
 | `Forte_Options` | The options window (`/fx options`) with profiles. |
-| `Forte_Items` | Generated item data: 238 on-use items, 79 consumables, 5 weapon enchants. |
-| `Forte_ItemProcs` | Generated item proc data (400 rows). Load-on-demand; only read when you switch on **Procs** on the Cooldown Timer page (off by default). |
+| `Forte_Items` | Generated item data: 250 on-use items, 174 consumables, 5 weapon enchants. |
+| `Forte_ItemProcs` | Generated item proc data (401 rows). Load-on-demand; only read when you switch on **Procs** on the Cooldown Timer page (off by default). |
 | `Forte_Druid`, `Forte_Mage`, `Forte_Paladin`, `Forte_Priest`, `Forte_Rogue`, `Forte_Warrior` | Generated spell data for that class (cooldowns, durations, GCD, cast times). Load-on-demand: only your own class's folder is loaded. |
 | `Forte_Hunter` | Hunter spell data plus the Hunter tools (swing bar, range light, melee rail, aspect reminder). |
 | `Forte_Shaman` | Shaman spell data plus the totem tracker. |
 | `Forte_Warlock` | Warlock spell data plus the four Warlock plates and group comms. |
 
 The class folders are `LoadOnDemand`; Forte_Core loads yours at login. Spell data is generated from
-the game's own data (about 630 spell rows for the nine classes, live build 1.60.1.70862) and works on
+the game's own data (about 635 spell rows for the nine classes, live build 1.60.1.70888) and works on
 localized clients; rows are keyed by the English name and joined to your client's names by spell and
 item id.
 
@@ -130,7 +130,7 @@ item id.
 | **Druid, Mage, Paladin, Priest, Rogue, Warrior** | Cooldown bar and Spell Timer rows from the generated class data; Mage Polymorph and Rogue Sap have fade/break warnings; Rogue poisons and other weapon enchants are tracked as windows on the bar; Druid, Paladin and Warrior have opt-in raid announcements for 20 defensive/utility cast rows (6 / 8 / 6). No class-specific frames. |
 
 Item data covers on-use items and consumables (cooldown windows) and weapon enchants. Item **procs**
-(400 rows, with internal cooldowns where the data has them) are an opt-in setting on the Cooldown
+(401 rows, with internal cooldowns where the data has them) are an opt-in setting on the Cooldown
 Timer page.
 
 ### Why some things are predicted
@@ -197,6 +197,10 @@ values the game keeps readable in combat, and corrects itself whenever real valu
 
 ## Known limitations
 
+- **Balance changes that are not in the data.** Spell data comes from the game's own spell store. An
+  effect the game applies at run time (for example Wrack's effect on the Warlock's damage-over-time
+  spells, changed on 2026-11-10) may not be in that store, so a timer row can keep the base length
+  until the game's own readings correct it.
 - **Predicted timers.** In combat, buff, debuff and many cooldown values are hidden. Rows show
   predicted times from your own casts and are corrected when the real values can be read, so a row can
   be off by a little until then, and a haste or talent effect the data does not model can make the

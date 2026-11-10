@@ -261,7 +261,7 @@ DEFAULT_MANIFEST = REPO_ROOT.parent / "mythicsim-forever-engine" / "data" / "man
 # History: 1.60.1.70707 (waves 2a..I-2b, tools/overrides_70707.json, still
 # checked in as the record of that pin), 1.60.1.70790 (wave M5, 2026-11-07,
 # tools/overrides_70790.json, kept as history), 1.60.1.70862 (2026-11-10).
-LIVE_OVERLAY = HERE / "overrides_70862.json"
+LIVE_OVERLAY = HERE / "overrides_70888.json"
 DEFAULT_OVERRIDES = LIVE_OVERLAY
 # The post-9 dev-notes layer (hand-kept, wave I-2b): the values NO captured
 # data source carries yet, applied after the live-store layer. A row is

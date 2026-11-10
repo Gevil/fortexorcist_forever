@@ -12,13 +12,13 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
 
 ---
 
-## [1.0.0] - 2026-11-10
+## [1.0.0] - 2026-11-11
 
 First full release for **WoW Forever 1.60.1** (interface 16001). Everything from the
 pre-release builds below is included; this section is what changed since the last one.
 
-- **Spell data refreshed to the live game (build 1.60.1.70862).** The cooldown bar and timers now
-  follow the live numbers: Chain Lightning casts in 2.5 s, Totemic Call has a 30 s cooldown, Shank
+- **Spell data refreshed to the live game (build 1.60.1.70888).** The cooldown bar and timers now
+  follow the live numbers: Chain Lightning casts in 2.5 s, Totemic Projection has a 30 s cooldown, Shank
   is the real Forever spell with its 10 s cooldown, Vengeance stacks to 5.
 - **Wrong spells fixed.** Several bars were tracking a look-alike spell (a hunter pet's version, an
   item proc, a Season of Discovery copy) instead of the class spell, so their cooldowns or
@@ -34,6 +34,9 @@ pre-release builds below is included; this section is what changed since the las
 - **Item cooldowns corrected** (Adaptive Combat Assistant, Weakness Analyzer, Serenity Field) and
   the item data re-checked against the live game.
 - **Spell Timer "Expand up" works** (see the 2026-11-09 entry), and the stack stays where you put it.
+- **Known gap:** effects the game applies at run time (for example Tuesday's Wrack change for Warlock
+  damage-over-time spells) are not in the game's spell data, so those timers keep the base length until
+  the game's own readings correct them.
 - **Packaged for CurseForge and GitHub** as `ForteXorcist-1.0.0-forever.zip`.
 
 

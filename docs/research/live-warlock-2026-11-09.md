@@ -366,3 +366,13 @@ Edit `tools/spell_lists/warlock.json` `_pins` only, then regenerate with `python
 Expected generated effect of the two pins: `Corruption` `durationMs 12000 → 18000`, `castMs` becomes 2000 and gains
 `gcdMs = 1500`; `Unstable Affliction` `durationMs 5000 → 18000`, `tickEvery = 3`, `castMs = 1500`, `gcdMs = 1500`. `[I]` I
 did not run the generator (read-only task); check the diff before accepting.
+
+## Update 2026-11-11 (store 1.60.1.70888 / hotfix push 113904)
+
+Post-Tuesday re-read of the store (`tools/overrides_70888.json`, wowsims `c1c29def`). The picked Warlock rows carry
+the same values as the pre-change baseline above: Corruption 11672 18 s / 3 s tick (cast 2 s), Bane of Agony 11713
+24 s / 2 s, Siphon Life 18881 30 s / 3 s, Wrack 1316697 6 s / 1 s tick, Immolate 11668 15 s / 3 s, Summon Voidwalker
+697. Between 70862 and 70888 the store changed two ids in total; the only tracked one is Bane of Havoc 1225228,
+which gained `gcdMs = 1500`. Wrack's "speeds up the warlock's dots" is not a period in the store: wowsims applies it
+at run time from Wrack's dummy effect (`sim/warlock/wrack.go`, `wrackSpeedup`), so no `tickEvery` changes. Details:
+`docs/research/data-diff-live-2026-11-11.md`.
