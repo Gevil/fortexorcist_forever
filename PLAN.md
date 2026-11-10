@@ -1015,3 +1015,17 @@ Design: the saved position is the FIRST BAR SLOT's fixed corner on UIParent — 
 | N1 | wire `expand` into `Rows.lua` layout (group + in-group order, anchor box growth direction, title placement already exists) |
 | N2 | corner-based position save/load + legacy migration + Expand toggle + Scale compensation; `/fx timer reset` still works |
 | N3 | options tip/label updated (no 'not wired yet'); tests through the real display/drag scripts; CHANGELOG |
+
+### 11.9 Iteration O — research refresh + 1.0.0 release (2026-11-09, owner request)
+
+Owner (2026-11-09): 'looks great now' (Iteration N). Asks: (1) an online research pass over ALL classes and relevant spell / item-proc ids to freshen the addon's functionality; (2) then bump to release version 1.0 and release on GitHub as a package with updated READMEs/docs; (3) release on CurseForge too. Standing: workers are Sonnet 5.5 (`pd-sonnet-researcher` / `pd-sonnet-builder`), NOT basalt. Supersedes the earlier 'version stays 0.1.0-dev / GitHub pre-release only' decision (owner, 2026-11-09).
+
+State 2026-11-09: wowsims/forever pulled to `9ca4d977` (store now mixed builds: Paladin 70862, rest 70790, items 70862 — `tools/extract_store.py` refuses mixed builds and must learn per-group stamps), mythicsim to `ff6a43cf` (new live item/spell audit rows). Live client 70862; Blizzard's announced Nov 10 class changes (Siphon Life, Corruption, Bane of Agony, Wrack, hunter pets, Voidwalker) are NOT live yet — data is as of today, re-pull after.
+
+| # | Work | Who |
+|---|---|---|
+| O1 | 9 per-class research reports + items/procs/enchants + CurseForge packaging research → `docs/research/live-*-2026-11-09.md` | 11 Sonnet researchers (read-only; report only) |
+| O2 | triage into one change list (manager), owner-visible decisions flagged | manager |
+| O3 | apply: extractor per-group builds, spell-list/pin changes through the generators, tests, gate, uiforever | Sonnet builders |
+| O4 | 1.0.0: VERSION, tocs, docs, README, CHANGELOG, release notes, `.pkgmeta`/CurseForge metadata | Sonnet builder + manager |
+| O5 | publish: GitHub release 1.0.0 (full release, zip asset, sha256), CurseForge upload (needs owner's project/API token) | manager |
