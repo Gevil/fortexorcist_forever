@@ -12,6 +12,14 @@
     "Rapid Regeneration": {
       "id": 1260270,
       "reason": "the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4)"
+    },
+    "Serpent Sting": {
+      "id": 13555,
+      "reason": "Rank 8 trainer row, 15000 ms / 3000 ms tick; the rank law lands on the BaseLevel-0 helper row 425737 (12000 ms, pre-hotfix 111/tick); the Nov 3 hotfix retuned the 1978..13555 (+25295 book) ladder (docs/research/live-hunter-2026-11-09.md §3.1)"
+    },
+    "Raptor Strike": {
+      "id": 14266,
+      "reason": "Rank 8 trainer row (ON_NEXT_SWING attr0 0x40004, GCD 0, category 40 / 6000 ms); the rank law lands on the BaseLevel-0 ladder 415343 (GCD 1500, no next-swing bit) which no character knows, so the id-path known gate can never match it (live-hunter-2026-11-09.md §3.2)"
     }
   },
   "_shares": {

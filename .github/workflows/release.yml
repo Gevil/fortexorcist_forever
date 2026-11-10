@@ -1,0 +1,60 @@
+# Tag-triggered release: package with the BigWigs packager (.pkgmeta) and publish to
+# CurseForge + a GitHub release (zip + release.json, which WowUp reads for Forever).
+# Wago is intentionally not used.
+#
+# Owner setup (details: docs/release/CURSEFORGE-STEPS.md):
+#   * Repo secret CF_API_KEY      = CurseForge API token.  Absent -> the CurseForge upload is skipped.
+#   * Project id (NOT a secret)   = `## X-Curse-Project-ID: <digits>` in addon/Forte_Core/Forte_Core.toc and
+#                                   Forte_Core_Camelot.toc (both twins). Absent -> the packager skips CurseForge.
+#   * GITHUB_TOKEN is provided by Actions; `permissions: contents: write` below lets it create the release.
+# Release: bump VERSION + tocs + CHANGELOG.md heading `## [X.Y.Z] - date`, commit, then
+#   git tag -a vX.Y.Z -m "ForteXorcist X.Y.Z" && git push origin vX.Y.Z
+# A tag containing `alpha` or `beta` is published as alpha / beta (GitHub pre-release); anything else as Release.
+name: Package and release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the packager needs the tag history for previous-tag detection
+
+      - name: Tag must match the VERSION file
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          ver="$(tr -d '[:space:]' < VERSION)"
+          if [ "$tag" != "$ver" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match VERSION ($ver)"
+            exit 1
+          fi
+
+      - name: Release notes for this tag
+        run: python3 scripts/release_notes.py --version "${GITHUB_REF_NAME#v}" --out RELEASE_NOTES.md
+
+      - name: Choose upload channels
+        id: channels
+        run: |
+          # Packager flag -p 0 = skip CurseForge. A missing secret must skip the channel, not fail the job.
+          args='-n ForteXorcist-{project-version}{classic}:{project-version}{classic}'
+          if [ -z "$CF_API_KEY" ]; then
+            echo "::warning::CF_API_KEY secret not set - skipping the CurseForge upload"
+            args="$args -p 0"
+          fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+
+      - name: Package and release
+        uses: BigWigsMods/packager@v2
+        with:
+          args: ${{ steps.channels.outputs.args }}

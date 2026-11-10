@@ -201,9 +201,13 @@ local AIM_SECONDS = 0.5
 local RETRY_SECONDS = 0.5
 --- A cast-time shot whose phase gates the cycle display (the interlock
 --- set). Name-keyed (AGENTS.md: resolve by NAME; the Steady id 34120 WST
---- hard-codes does not exist on Forever -- §B9).
+--- hard-codes does not exist on Forever -- §B9). Sniper Shot (a 4 s cast,
+--- docs/research/live-hunter-2026-11-09.md §4.2: Blizzard names it beside
+--- Aimed Shot, "your character will still fire Auto Shot while casting
+--- spells like Aimed Shot or Sniper Shot") rides the same interlock.
 local SHOT_CAST_SET = {
     ["Aimed Shot"] = true, ["Multi-Shot"] = true, ["Steady Shot"] = true,
+    ["Sniper Shot"] = true,
 }
 --- The flying stamp self-clears after this many seconds past the cycle
 --- (a SUCCEEDED whose next PLAYER_SWING never arrives).

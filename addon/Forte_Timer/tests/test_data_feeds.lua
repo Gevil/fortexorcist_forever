@@ -220,12 +220,18 @@ function()
     assertEquals(3, w["Immolate"].tickEvery)
     -- (3) The rank-sibling inheritance (M3a): the paladin's Oath of Light
     -- 1328548 is sourced (no base row); its class carries no sibling base
-    -- row; the store's OWN captures answer -- the 1500 ms period and the
-    -- `[1, *]` caster target code 1. On the pre-M3a capture it was an inert
-    -- name shell with no feed at all.
+    -- row; the store's OWN capture answers the 1500 ms period. Live 70862
+    -- store / review 2026-11-10: the target-code half moved -- noTarget is a
+    -- proven FALSE now (paladin.json `_feeds`: the oath is cast on an ALLY,
+    -- every store effect targets code 21; live-paladin-2026-11-09.md §1.1);
+    -- re-pinned from `true`. The tick stays 1.5 s.
     local p = registryFor("PALADIN")
     assertEquals(1.5, p["Oath of Light"].tickEvery)
-    assertEquals(true, p["Oath of Light"].noTarget)
+    assertEquals(false, p["Oath of Light"].noTarget)
+    -- The echo family and Shieldsworn are the caster-side ones (`_feeds`):
+    assertEquals(true, p["Shieldsworn"].noTarget)
+    assertEquals(true, p["Echo of Fury"].noTarget)
+    assertEquals(true, p["Echo of Command"].noTarget)
     -- (4) The sibling law proper: Holy Shield re-picked 20928 -> 1239570
     -- (Rank 4). The store's 1239570 capture carries NO Target field -- the
     -- caster-only shape comes from the base 20928 row, the name's SAME-

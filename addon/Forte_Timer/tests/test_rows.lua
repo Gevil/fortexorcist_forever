@@ -61,7 +61,9 @@ test("the registry is built from generated data, with generated durations",
 function()
     local n = buildHunterRegistry()
     -- Spot-checks of the duration law (durationMs / 1000), spells by NAME.
-    near(Registry.BestDuration("Serpent Sting"), 12)
+    -- Serpent Sting 13555 is 15 s (live 70862 store / review 2026-11-10; it was
+    -- the 12 s 425737 row before the Hunter refresh).
+    near(Registry.BestDuration("Serpent Sting"), 15)
     near(Registry.BestDuration("Hunter's Mark"), 120)
     assertTrue(Registry.IsTracked("Serpent Sting"))
     assertTrue(Registry.IsTracked("Hunter's Mark"))
@@ -85,15 +87,20 @@ function()
     buildHunterRegistry()
     local data = FX.Data.Hunter
     local before = data[Registry.entries["Serpent Sting"].dataId].durationMs
-    Registry.Learn("Serpent Sting", 15)
-    near(Registry.BestDuration("Serpent Sting"), 15)
+    -- A value that is NOT the generated one (15 s on live 70862 / review
+    -- 2026-11-10): the old literal 15 equalled the data and made the
+    -- "learned beats generated" law vacuous. Derived, so a data move can
+    -- never make it vacuous again.
+    local learned = before / 1000 + 5
+    Registry.Learn("Serpent Sting", learned)
+    near(Registry.BestDuration("Serpent Sting"), learned)
     assertEquals(before,
         data[Registry.entries["Serpent Sting"].dataId].durationMs)
     -- A prediction never teaches (the law is the caller's; Learn's own gate is
     -- the type/positivity one).
     Registry.Learn("Serpent Sting", 0)
     Registry.Learn("Serpent Sting", nil)
-    near(Registry.BestDuration("Serpent Sting"), 15)
+    near(Registry.BestDuration("Serpent Sting"), learned)
     Registry:AttachStorage({})
 end)
 
@@ -122,8 +129,9 @@ test("a cast inserts one predicted row with the data's duration", function()
     assertEquals(1, Rows:Count())
     local row = Rows:Find("Serpent Sting", "Vile Poacher")
     assertNotNil(row)
-    near(row.total, 12)
-    near(row.expireAt, base + Laws.SETTLE + 0.01 + 12)
+    -- live 70862 store / review 2026-11-10: 15 s (Serpent Sting 13555), was 12 s
+    near(row.total, 15)
+    near(row.expireAt, base + Laws.SETTLE + 0.01 + 15)
     assertEquals(true, row.predicted)         -- the row is a prediction
     assertEquals(1, #seen)
     assertEquals("inserted", seen[1][2])

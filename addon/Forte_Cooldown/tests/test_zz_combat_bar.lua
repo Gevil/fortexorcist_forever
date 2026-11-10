@@ -143,6 +143,24 @@ local function restorePlain()
     FX.Compat.PlainOrNil = realPlainOrNil
 end
 
+--- A rider is a spell the fight casts to fill the bar, NOT a sharing probe.
+--- A tracked row that carries a `shares` pair link, is the named partner of
+--- one, or sits in an equal non-zero engine category with another tracked row
+--- starts its partners on every cast (the Engine group rule,
+--- test_shared_cooldowns.lua), which breaks this file's exact one-row-per-cast
+--- counts. Live 70862 store / review 2026-11-10: Paladin Divine Shield +
+--- Divine Protection share category 37 and were picked as the two riders.
+local function sharesOthers(name, row)
+    if row.shares then return true end
+    for other, t in pairs(Engine.tracked) do
+        if other ~= name and (t.shares == name
+            or (row.category ~= nil and t.category == row.category)) then
+            return true
+        end
+    end
+    return false
+end
+
 --- A spell the injected cast of which lands in Engine:OnCast as a tracked
 --- window: one the Engine tracks with a base duration inside [minS, maxS]
 --- whose id resolves (the RecordCastEvent resolve: C_Spell.GetSpellInfo by
@@ -156,7 +174,8 @@ local function pickSpell(minS, maxS, taken)
     for name, row in pairs(Engine.tracked) do
         local cd = row.baseDuration
         if cd and cd >= Engine.MIN_COOLDOWN
-            and cd >= minS and cd <= maxS and not taken[name] then
+            and cd >= minS and cd <= maxS and not taken[name]
+            and not sharesOthers(name, row) then
             local okN, infoN = pcall(C_Spell.GetSpellInfo, row.dataId)
             local nm = okN and infoN and realPlainOrNil(infoN.name)
             if type(nm) == "string" then
@@ -269,6 +288,7 @@ function()
         for name, row in pairs(Engine.tracked) do
             if row.baseDuration and row.baseDuration >= 30
                 and row.baseDuration <= 400 and not taken[name]
+                and not sharesOthers(name, row)
                 and M.IsKnown(name) then
                 longName = name
                 longCd = row.baseDuration

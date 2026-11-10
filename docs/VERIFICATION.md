@@ -8,6 +8,13 @@ cannot produce secrets, so SECRET-shape answers are client-only) and
 `client` = the launch-day 2026-11-04 answer, read per
 `docs/launch-day.md` F-check.
 
+**Status at 1.0.0 (2026-11-10).** The game launched on 2026-11-04. The only live client session
+recorded in this repository is the Hunter session of 2026-11-06 (build 1.60.1.70790), whose fixes are in
+`CHANGELOG.md`. The probe *answers* (the `client` column below) were not recorded here, so every
+`PENDING` row stays `PENDING`: nothing in this ledger claims a live answer that is not written down.
+To close a row, run the `/fx probe` step it names in `docs/launch-day.md`, paste the block, and
+change the cell to the measured result with the date and build.
+
 > Scope note: wave I-2 slice I2c (2026-11-03) created this file —
 > `docs/VERIFICATION.md` is cited from `PLAN.md` §9/§11.2 rows but had no
 > file in the public repo (public-scrub casualty at most, pre-launch rows

@@ -52,7 +52,7 @@ test("the overlaid classes' data is in the session", function()
     assertNotNil(Registry, "Forte_Timer's registry is not in the session")
 end)
 
-test("the store's corrected cooldowns land: Shifting Power 8 s, Charge Rank VI",
+test("the store's corrected cooldowns land: Shifting Power 8 s, Charge Rank 3",
 function()
     -- data-diff §2: Shifting Power 1322605 Cooldowns 16000 -> 8000 (the store
     -- row rides family 3). Pre-overlay the data said 16000.
@@ -61,28 +61,39 @@ function()
     assertNotNil(shifting)
     assertEquals(1322605, shifting.id)
     assertEquals(8000, shifting.cooldownMs)
-    -- Charge: the pick moved off the book-rank ladder to Rank VI 27685
-    -- (data-diff §2.4 "Charge 1240289 -> 27685"), carrying the store's 25 s
-    -- charge-stun cooldown + shared category 44. Pre-overlay: 1240289,
-    -- Rank III, no cooldown at all.
+    -- Charge: Rank 3 11578 (live 70862 store / review 2026-11-10). History:
+    -- 1240289 (Rank III, no cooldown) -> 27685 (Rank VI, data-diff §2.4,
+    -- 25 s charge-stun cooldown) -> 11578 on the final 70862 overlay: the 15 s
+    -- Warrior charge, shared category 44, off the GCD. Re-pinned from 27685.
     local warrior, warriorByName = FX.Data.Warrior, FX.Data.WarriorByName
     local charge = warrior[warriorByName["Charge"]]
     assertNotNil(charge)
-    assertEquals(27685, charge.id)
-    assertEquals("Rank 6", charge.rank)
-    assertEquals(25000, charge.cooldownMs)
+    assertEquals(11578, charge.id)
+    assertEquals("Rank 3", charge.rank)
+    assertEquals(15000, charge.cooldownMs)
     assertEquals(44, charge.cooldownCategory)
-    -- Cower: Rank VI 16697 (data-diff §2.4), 5 s + category 82.
-    local cower = druid[druidByName["Cower"]]
-    assertNotNil(cower)
-    assertEquals(16697, cower.id)
-    assertEquals(5000, cower.cooldownMs)
-    assertEquals(82, cower.cooldownCategory)
+    assertNil(charge.gcdMs, "Charge is off the GCD")
+    -- (Cower moved out: its own test below, so a Warrior pin never masks it)
     -- Wild Growth: the store's Levels capture adds the 3 s cast (pre-overlay
     -- the row carried no cast at all).
     local wild = druid[druidByName["Wild Growth"]]
     assertNotNil(wild)
     assertEquals(3000, wild.castMs)
+end)
+
+-- Live 70862 store / review 2026-11-10: the druid Cower is 9892 (Rank 3, cat
+-- 84, 10 s, GCD 1 s). Re-pinned from the Hunter pet's Cower Rank VI 16697
+-- (5 s, category 82, which the engine refuses as the pet/threat label).
+test("the druid Cower is the druid's own row, not the Hunter pet's", function()
+    local druid, druidByName = FX.Data.Druid, FX.Data.DruidByName
+    local cower = druid[druidByName["Cower"]]
+    assertNotNil(cower)
+    assertEquals(9892, cower.id)
+    assertEquals("Rank 3", cower.rank)
+    assertEquals(10000, cower.cooldownMs)
+    assertEquals(84, cower.cooldownCategory)
+    assertEquals(1000, cower.gcdMs)
+    assertNil(druid[16697], "the Hunter pet's Cower Rank VI is not a druid row")
 end)
 
 test("rows the live build removed are gone, bare and value-less alike",
@@ -223,10 +234,12 @@ test("the D3 watch-list picks ride family-correct rows", function()
     -- duration; 691 is the family-5 cast (10 s, permanent) -- the cast-time
     -- tiebreak re-lands 691.
     assertEquals(691, FX.Data.WarlockByName["Summon Felhunter"])
-    -- Cripple 89: family-less in the store (no ClassOptions row) but the
-    -- line's ONLY castable capture (Rank 1, 30 s cd, range 30); 18381 is a
-    -- name-only row on 70707. Kept.
-    assertEquals(89, FX.Data.WarriorByName["Cripple"])
+    -- Cripple: the 70862 store dropped the family-less 89 capture (it was the
+    -- line's only castable row; 18381 stayed a name-only row) and the Warrior
+    -- spell list no longer carries the name -- live 70862 store / review
+    -- 2026-11-10. Re-pinned from `assertEquals(89, ...)`: absence is the pin.
+    assertNil(FX.Data.WarriorByName["Cripple"],
+        "Cripple returned to the Warrior data (it was removed on 70862)")
     -- Shield Mastery: 426981 (family-less, 3 s block-proc effect) over the
     -- old 408525 (family 11 passive proc aura, MaxStack 7): a passive line
     -- both ways, no castable row was lost. Kept.
@@ -377,4 +390,162 @@ function()
     -- The hand table is gone: the data is the one source.
     assertNil(FX.Cooldown.Engine.RACIALS,
         "Engine.RACIALS survived the M3a migration; the racials ride the data")
+end)
+
+-- Live 70862 store / review 2026-11-10 -- the CENSUS of corrected picks. The
+-- stage-A diff report let Thorns (the item-proc aura 15438 out-ranked the real
+-- Rank 6 9910 on level) and Summon Voidwalker (the Abyss Shard no-reagent
+-- summon 25112 tied 697 on level and won on id) slip through because no test
+-- pinned the id: a future refresh that silently re-picks a decoy must go RED
+-- here. One row per corrected pick, id + the values that distinguish it from
+-- the decoy. The picks are the spell lists' `_pins` / the rank law's results
+-- (tools/spell_lists/<class>.json, docs/research/data-diff-live-2026-11-10.md).
+local function pin(className, name, id, fields)
+    local byName = FX.Data[className .. "ByName"]
+    assertNotNil(byName, className .. "ByName did not load")
+    assertEquals(id, byName[name],
+        className .. ": " .. name .. " re-picked off " .. tostring(id)
+        .. " -- a decoy row won the rank law")
+    local row = FX.Data[className][id]
+    assertNotNil(row, className .. ": " .. name .. " has no row at " .. id)
+    assertEquals(name, row.name)
+    for field, want in pairs(fields or {}) do
+        assertEquals(want, row[field],
+            className .. ": " .. name .. " (" .. id .. ") field " .. field)
+    end
+    return row
+end
+
+test("census 70862: the Druid picks (Thorns, Dash, Cower, Abolish Poison)", function()
+    -- Thorns 9910 (Rank 6, 600 s) -- NOT the item-proc aura 15438.
+    local thorns = pin("Druid", "Thorns", 9910,
+        { durationMs = 600000, gcdMs = 1500, rank = "Rank 6" })
+    assertNil(FX.Data.Druid[15438], "the Thorns item-proc decoy is in the druid data")
+    assertNil(thorns.cooldownMs)
+    -- Dash 9821 (Rank 2, 300 s, off the GCD) -- NOT the Hunter pet's 23110.
+    local dash = pin("Druid", "Dash", 9821,
+        { durationMs = 15000, cooldownMs = 300000, cooldownCategory = 44,
+          rank = "Rank 2", noTarget = true })
+    assertNil(dash.gcdMs, "the druid Dash is off the GCD")
+    assertNil(FX.Data.Druid[23110], "the Hunter pet's Dash is in the druid data")
+    -- Cower 9892 (Rank 3, cat 84, 10 s, GCD 1 s) -- NOT the pet's 16697.
+    pin("Druid", "Cower", 9892,
+        { cooldownMs = 10000, cooldownCategory = 84, gcdMs = 1000, rank = "Rank 3" })
+    assertNil(FX.Data.Druid[16697], "the Hunter pet's Cower is in the druid data")
+    -- Abolish Poison 2893 -- NOT Black Husk Shield's on-use spell 14253.
+    pin("Druid", "Abolish Poison", 2893,
+        { durationMs = 8000, tickEvery = 2, gcdMs = 1500 })
+    assertNil(FX.Data.Druid[14253], "the Black Husk Shield spell is in the druid data")
+    -- The rows the store removed stay gone; the deferred note is the new one.
+    for _, gone in ipairs({ "Astral Power", "Force of Nature", "Wild Rejuvenation",
+                            "Fury of Stormrage", "Thrash", "Eclipse" }) do
+        assertNil(FX.Data.DruidByName[gone], gone .. " returned to the Druid data")
+    end
+end)
+
+test("census 70862: the Mage picks (Fire Blast, Frost Armor)", function()
+    -- Fire Blast 10199 (Rank 7, 8 s, cat 19, GCD 1.5 s) -- NOT 400623.
+    pin("Mage", "Fire Blast", 10199,
+        { cooldownMs = 8000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 7" })
+    assertNil(FX.Data.Mage[400623], "the Season-of-Discovery Fire Blast is in the mage data")
+    pin("Mage", "Frost Armor", 7301,
+        { noTarget = true, durationMs = 1800000, rank = "Rank 3" })
+end)
+
+test("census 70862: the Warlock picks (Corruption, Unstable Affliction, Summon Voidwalker)",
+function()
+    -- Corruption 11672 (Rank 6, 18 s, 2 s cast, 3 s tick) -- NOT 1223963 (12 s).
+    pin("Warlock", "Corruption", 11672,
+        { durationMs = 18000, castMs = 2000, gcdMs = 1500, tickEvery = 3,
+          rank = "Rank 6" })
+    assertNil(FX.Data.Warlock[1223963], "the Scarlet Enclave Corruption is in the warlock data")
+    -- Unstable Affliction 427717 (18 s DoT, 1.5 s cast) -- NOT 427719 (5 s).
+    pin("Warlock", "Unstable Affliction", 427717,
+        { durationMs = 18000, castMs = 1500, tickEvery = 3, rank = "Rank 1" })
+    assertNil(FX.Data.Warlock[427719], "the 5 s dispel trigger is in the warlock data")
+    -- Summon Voidwalker 697 (values identical) -- NOT the Abyss Shard 25112.
+    pin("Warlock", "Summon Voidwalker", 697,
+        { durationMs = -1, castMs = 10000, gcdMs = 1500, rank = "Summon" })
+    assertNil(FX.Data.Warlock[25112], "the Abyss Shard summon is in the warlock data")
+end)
+
+test("census 70862: the Shaman picks (Earth Shock, Lightning Shield)", function()
+    -- Earth Shock 10414 (Rank 7, cat 19, 6 s) -- NOT 408690 (cat 2171).
+    pin("Shaman", "Earth Shock", 10414,
+        { cooldownMs = 6000, cooldownCategory = 19, durationMs = 2000, rank = "Rank 7" })
+    assertNil(FX.Data.Shaman[408690], "the cat-2171 Earth Shock is in the shaman data")
+    -- Flame Shock 10448 and Frost Shock 10473 share the category: the 3-group.
+    pin("Shaman", "Flame Shock", 10448, { cooldownCategory = 19 })
+    pin("Shaman", "Frost Shock", 10473, { cooldownCategory = 19 })
+    -- Lightning Shield 10432 (Rank 7, 600 s, 3.5 s ICD, caster-side) -- NOT
+    -- 28821 (the permanent -1 set-bonus passive, which drew no Timer row).
+    pin("Shaman", "Lightning Shield", 10432,
+        { durationMs = 600000, gcdMs = 1500, icdMs = 3500, noTarget = true,
+          rank = "Rank 7" })
+    assertNil(FX.Data.Shaman[28821], "the set-bonus Lightning Shield is in the shaman data")
+end)
+
+test("census 70862: the Rogue poison ranks and Venom", function()
+    for _, p in ipairs({ { "Deadly Poison II", 2819, "Rank 2" },
+                         { "Deadly Poison III", 11353, "Rank 3" },
+                         { "Deadly Poison IV", 11354, "Rank 4" } }) do
+        pin("Rogue", p[1], p[2], { durationMs = 12000, tickEvery = 3, maxStack = 5,
+                                   rank = p[3] })
+    end
+    pin("Rogue", "Mind-numbing Poison II", 8692, { durationMs = 12000, rank = "Rank 2" })
+    -- Venom 1310703 (the 6 s Shank aura) -- NOT the level-30 passive 1329328.
+    pin("Rogue", "Venom", 1310703, { durationMs = 6000, gcdMs = 1000 })
+    assertNil(FX.Data.Rogue[1329328], "the Venom talent passive is in the rogue data")
+end)
+
+test("census 70862: the Warrior picks (Charge, Rend, Reckless Swings, Gore Drinker)",
+function()
+    pin("Warrior", "Charge", 11578,
+        { cooldownMs = 15000, cooldownCategory = 44, rank = "Rank 3" })
+    pin("Warrior", "Rend", 11574,
+        { durationMs = 21000, tickEvery = 3, gcdMs = 1500, rank = "Rank 7" })
+    pin("Warrior", "Reckless Swings", 1329555,
+        { cooldownMs = 15000, durationMs = 8000, gcdMs = 1000 })
+    pin("Warrior", "Gore Drinker", 1323969, { durationMs = 8000, noTarget = true })
+    for _, gone in ipairs({ "Cripple", "Cheat Death", "Howling Blade",
+                            "Spell Vulnerability", "Retaliate", "Deep Wounds",
+                            "Intervene" }) do
+        assertNil(FX.Data.WarriorByName[gone], gone .. " returned to the Warrior data")
+    end
+end)
+
+test("census 70862: the Paladin picks (Cleanse, Exorcism, Judgement of Light, the new casts)",
+function()
+    -- Cleanse 4987 (the level-42 spell) -- NOT the passive 28787.
+    pin("Paladin", "Cleanse", 4987, { gcdMs = 1500 })
+    assertNil(FX.Data.Paladin[28787], "the Cleanse passive is in the paladin data")
+    -- Exorcism 10314 (Rank 6, 15 s, cat 19) -- NOT the rune ladder 415073.
+    pin("Paladin", "Exorcism", 10314,
+        { cooldownMs = 15000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 6" })
+    assertNil(FX.Data.Paladin[415073], "the rune Exorcism is in the paladin data")
+    pin("Paladin", "Judgement of Light", 20346, { durationMs = 40000, rank = "Rank 4" })
+    pin("Paladin", "Holy Strike", 10333,
+        { cooldownMs = 10000, cooldownCategory = 2404, gcdMs = 1500, rank = "Rank 8" })
+    pin("Paladin", "Holy Wrath", 10318,
+        { cooldownMs = 60000, castMs = 2000, gcdMs = 1500, rank = "Rank 2" })
+    pin("Paladin", "Light's Vigil", 1311595,
+        { cooldownMs = 6000, castMs = 1500, gcdMs = 1500, rank = "Rank 3" })
+    for _, e in ipairs({ { "Echo of Righteousness", 1311704 },
+                         { "Echo of Justice", 1311705 },
+                         { "Echo of Light", 1328198 },
+                         { "Echo of Wisdom", 1328206 } }) do
+        pin("Paladin", e[1], e[2], { durationMs = 15000, maxStack = 3, noTarget = true })
+    end
+end)
+
+test("census 70862: the Hunter picks (Serpent Sting, Raptor Strike)", function()
+    -- Serpent Sting 13555 (Rank 8, 15 s) -- NOT the 12 s 425737 row.
+    pin("Hunter", "Serpent Sting", 13555,
+        { durationMs = 15000, tickEvery = 3, gcdMs = 1500, rank = "Rank 8" })
+    assertNil(FX.Data.Hunter[425737], "the 12 s Serpent Sting is in the hunter data")
+    -- Raptor Strike 14266 (Rank 8, 6 s, cat 40, off the GCD) -- NOT 415343.
+    local raptor = pin("Hunter", "Raptor Strike", 14266,
+        { cooldownMs = 6000, cooldownCategory = 40, rank = "Rank 8" })
+    assertNil(raptor.gcdMs, "Raptor Strike is off the GCD")
+    assertNil(FX.Data.Hunter[415343], "the 415343 Raptor Strike is in the hunter data")
 end)

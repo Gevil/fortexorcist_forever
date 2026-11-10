@@ -1,0 +1,64 @@
+# BigWigs packager config (https://github.com/BigWigsMods/packager).
+# Used by .github/workflows/release.yml on a `v*` tag push; CurseForge + GitHub release only.
+#
+# The addon folders live under addon/ in this repo, so the package is built with
+# move-folders. Tested 2026-11-09 (research: docs/research/curseforge-forever-publishing-2026-11-09.md):
+# the zip root is exactly the 16 Forte_* folders, tagged game version 1.60.1 (Forever).
+#
+# `package-as` is the packager's internal package directory (it is the first path
+# component of every move-folders key below), NOT the CurseForge project name and NOT the
+# zip name. The project is selected by `## X-Curse-Project-ID` in addon/Forte_Core/*.toc
+# (docs/release/CURSEFORGE-STEPS.md), and the zip name is set by `-n` in the workflow.
+# Do not rename it without re-running the packager dry run.
+package-as: Forte_Core
+
+# CurseForge / GitHub changelog = generated per-release file (scripts/release_notes.py),
+# not the whole CHANGELOG.md.
+manual-changelog:
+  filename: RELEASE_NOTES.md
+  markup-type: markdown
+
+move-folders:
+  Forte_Core/addon/Forte_Core: Forte_Core
+  Forte_Core/addon/Forte_Cooldown: Forte_Cooldown
+  Forte_Core/addon/Forte_Timer: Forte_Timer
+  Forte_Core/addon/Forte_Messages: Forte_Messages
+  Forte_Core/addon/Forte_Options: Forte_Options
+  Forte_Core/addon/Forte_Items: Forte_Items
+  Forte_Core/addon/Forte_ItemProcs: Forte_ItemProcs
+  Forte_Core/addon/Forte_Druid: Forte_Druid
+  Forte_Core/addon/Forte_Hunter: Forte_Hunter
+  Forte_Core/addon/Forte_Mage: Forte_Mage
+  Forte_Core/addon/Forte_Paladin: Forte_Paladin
+  Forte_Core/addon/Forte_Priest: Forte_Priest
+  Forte_Core/addon/Forte_Rogue: Forte_Rogue
+  Forte_Core/addon/Forte_Shaman: Forte_Shaman
+  Forte_Core/addon/Forte_Warlock: Forte_Warlock
+  Forte_Core/addon/Forte_Warrior: Forte_Warrior
+
+ignore:
+  - docs
+  - tools
+  - scripts
+  - dist
+  - scratch
+  - .github
+  - PLAN.md
+  - AGENTS.md
+  - README.md
+  - CHANGELOG.md
+  - CONTRIBUTING.md
+  - SECURITY.md
+  - RELEASE_NOTES.md
+  - VERSION
+  # each addon folder already ships Forte_Core/gpl-3.0.txt; the packager would otherwise copy LICENSE into every folder
+  - LICENSE
+  # simulator test suites are never shipped
+  - addon/*/tests
+  - addon/*/docs
+  # the OpenType build of the font; the client loads the .ttf build only
+  - "*.otf"
+
+# Large generated data tables: copy as-is, no keyword processing.
+plain-copy:
+  - addon/*/Data

@@ -13,6 +13,14 @@
     "Rapid Regeneration": {
       "id": 1260270,
       "reason": "the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4)"
+    },
+    "Earth Shock": {
+      "id": 10414,
+      "reason": "408690 is the S03 Way-of-Earth ladder (category 2171, not in any shaman skill line); 10414 Rank 7 is the learnable row, category 19 shared with Flame Shock and Frost Shock (client SpellCategories 70862; SkillLineAbility 5578; docs/research/live-shaman-2026-11-09.md 4.1)"
+    },
+    "Lightning Shield": {
+      "id": 10432,
+      "reason": "28821 is a level-60 set-bonus passive (durationMs -1); 10432 Rank 7 is the cast: 600000 ms, 3 charges, 3500 ms ICD, GCD 1500 (store AuraOptions, SkillLineAbility 5589; docs/research/live-shaman-2026-11-09.md 4.5)"
     }
   },
   "cooldowns": [

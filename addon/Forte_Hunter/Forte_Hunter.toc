@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: |cffC41F3BForte|r Hunter
 ## Notes: ForteXorcist Hunter spell data (generated -- see tools/gen_spell_data.py) + class tools.
-## Version: 0.1.0-dev
+## Version: 1.0.0
 ## Author: Gevil
 ## Dependencies: Forte_Core
 ## OptionalDeps: Forte_Options, Forte_Cooldown

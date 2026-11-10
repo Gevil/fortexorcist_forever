@@ -1,0 +1,896 @@
+{
+ "_meta": {
+  "what": "Live-game item data the pinned mythicsim 70425 files do not carry. Read by tools/gen_item_data.py; with the mythicsim data + the spell overlay it is the generator's whole input, so generation is deterministic.",
+  "report": "docs/research/live-items-procs-2026-11-09.md",
+  "source_db": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890)",
+  "source_store": "wowsims/forever 5f766b07 assets/db_inputs/spell_store_inputs.json (gzip JSON); Builds/Hotfixes of every group 1.60.1.70862 / 113890",
+  "slotType": "composed from the db.json integer enums in the field order of gen_item_data.SLOT_FIELDS (type, hand_type, weapon_type, ranged_weapon_type, armor_type). Checked against mythicsim items.jsonl on the 6626 ids both carry: 30 differ (handType 1/2 is ambiguous in the db enum on 7 weapons, 23 more differ on other fields); none of the 10 rows used here is among them.",
+  "categories": "category ids / category cooldowns of on-use rows are NOT emitted (the gen_item_data law: shared-category lockouts of on-use rows stay out); consumables carry them",
+  "edit_rule": "edit this file, then run python3 tools/gen_item_data.py; never hand-edit Items.lua / Procs.lua"
+ },
+ "onUseOverride": {
+  "272437": {
+   "name": "Adaptive Combat Assistant",
+   "cooldownMs": 300000,
+   "was": 90000,
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (5 Min Cooldown) (report s1.1); sibling Defenders Grip Stabilizer 272440 is already 360000"
+  },
+  "272438": {
+   "name": "Weakness Analyzer",
+   "cooldownMs": 360000,
+   "was": 90000,
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (6 Min Cooldown) (report s1.1); sibling Defenders Grip Stabilizer 272440 is already 360000"
+  },
+  "272439": {
+   "name": "Serenity Field",
+   "cooldownMs": 360000,
+   "was": 90000,
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (6 Min Cooldown) (report s1.1); sibling Defenders Grip Stabilizer 272440 is already 360000"
+  },
+  "18537": {
+   "name": "Counterattack Lodestone",
+   "durationMs": 10000,
+   "was": 8000,
+   "source": "aura 1302356 (Magnetize, the item effect buff) DurationMs 10000 in the spell store (1.60.1.70862 @ 113890) AND in mythicsim spells.jsonl; the item effect rows (mythicsim items.jsonl, db.json) say 8000, which is the duration of the triggered spell 1302357 (docs/research/data-diff-live-2026-11-10.md s6)"
+  }
+ },
+ "onUseAdd": [
+  {
+   "itemId": 280065,
+   "name": "Behemoth Bones",
+   "cooldownMs": 300000,
+   "buffId": 1315849,
+   "buffName": "Behemoth Bone (1315849)",
+   "slotType": "ItemTypeTrinket",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (5 Min Cooldown) (report s2)"
+  },
+  {
+   "itemId": 275009,
+   "name": "Emblem of Slamming",
+   "cooldownMs": 900000,
+   "buffId": 1315972,
+   "buffName": "Slammed (1315972)",
+   "durationMs": 3000,
+   "slotType": "ItemTypeTrinket",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (15 Min Cooldown) (report s2)"
+  },
+  {
+   "itemId": 287026,
+   "name": "Escape Plan",
+   "cooldownMs": 900000,
+   "buffId": 13534,
+   "buffName": "Disarm (13534)",
+   "durationMs": 10000,
+   "slotType": "ItemTypeRanged / RangedWeaponTypeGun",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (15 Min Cooldown) (report s2)"
+  },
+  {
+   "itemId": 4376,
+   "name": "Flame Deflector",
+   "cooldownMs": 900000,
+   "buffId": 4057,
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890) (consumables table); item cooldown only, no category: Core/Items.lua tracks consumables by CATEGORY cooldown, so these ride the on-use path (report s3.2 \"none / 900000\")"
+  },
+  {
+   "itemId": 280071,
+   "name": "Flamebreak Talisman",
+   "cooldownMs": 300000,
+   "buffId": 1315878,
+   "buffName": "Flamebreak Talisman (1315878)",
+   "durationMs": 30000,
+   "slotType": "ItemTypeTrinket",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (5 Min Cooldown) (report s2)"
+  },
+  {
+   "itemId": 10646,
+   "name": "Goblin Sapper Charge",
+   "cooldownMs": 300000,
+   "buffId": 13241,
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890) (consumables table); Goblin Sapper Charge: item cooldown 300000 beside the 60000 explosive category -- on the on-use path so the bar shows its own 300 s cooldown (report s3.2)"
+  },
+  {
+   "itemId": 4386,
+   "name": "Ice Deflector",
+   "cooldownMs": 900000,
+   "buffId": 4077,
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890) (consumables table); item cooldown only, no category: Core/Items.lua tracks consumables by CATEGORY cooldown, so these ride the on-use path (report s3.2 \"none / 900000\")"
+  },
+  {
+   "itemId": 280060,
+   "name": "Lucky Shovelnose Tuft",
+   "cooldownMs": 300000,
+   "buffId": 1315844,
+   "buffName": "Lucky Shovelnose Snout (1315844)",
+   "durationMs": 15000,
+   "slotType": "ItemTypeTrinket",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (5 Min Cooldown) (report s2)"
+  },
+  {
+   "itemId": 280074,
+   "name": "Scalding Flamehoof",
+   "cooldownMs": 300000,
+   "buffId": 1309551,
+   "buffName": "Scalding Flamehoof (1309551)",
+   "durationMs": 20000,
+   "slotType": "ItemTypeTrinket",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (5 Min Cooldown) (report s2)"
+  },
+  {
+   "itemId": 274609,
+   "name": "Serpentbane Crown",
+   "cooldownMs": 300000,
+   "buffId": 1295039,
+   "buffName": "Serpentbane (1295039)",
+   "durationMs": 10000,
+   "slotType": "ItemTypeHead / ArmorTypeMail",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (5 Min Cooldown) (report s2)"
+  },
+  {
+   "itemId": 277559,
+   "name": "Shen'dralar Relic",
+   "cooldownMs": 420000,
+   "buffId": 1302359,
+   "buffName": "Forbidden Magic (1302359)",
+   "durationMs": 8000,
+   "slotType": "ItemTypeTrinket",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (7 Min Cooldown) (report s2)"
+  },
+  {
+   "itemId": 274641,
+   "name": "Theka's Last Breath",
+   "cooldownMs": 420000,
+   "buffId": 1294617,
+   "buffName": "Theka's Last Breath (1294617)",
+   "durationMs": 10000,
+   "slotType": "ItemTypeTrinket",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (7 Min Cooldown) (report s2)"
+  }
+ ],
+ "procAdd": [
+  {
+   "itemId": 17943,
+   "name": "Fist of Stone",
+   "buffId": 1294794,
+   "buffName": "Fist of Stone (1294794)",
+   "slotType": "ItemTypeWeapon / HandTypeMainHand / WeaponTypeMace",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); passive in mythicsim 70425, a proc in the live db; droppable mace, Landslide (report s4)"
+  }
+ ],
+ "procPreferId": {
+  "Fist of Stone": {
+   "itemId": 17943,
+   "source": "17733 has no drop source and is in neither db.json nor mythicsim forever-live-items.jsonl (orphan row); 17943 is in both (report s4). The 17733 row stays in the list; only the ProcsByName pick changes."
+  }
+ },
+ "consumablesAdd": [
+  {
+   "group": "healing-mana-rejuvenation-potion",
+   "selection": "potions, shared category 4 (120 s)",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltips show a cooldown line on every id (report s3.2)",
+   "rows": [
+    {
+     "itemId": 18839,
+     "name": "Combat Healing Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 18841,
+     "name": "Combat Mana Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 6049,
+     "name": "Fire Protection Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 6050,
+     "name": "Frost Protection Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 929,
+     "name": "Healing Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 6051,
+     "name": "Holy Protection Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 858,
+     "name": "Lesser Healing Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 3385,
+     "name": "Lesser Mana Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 14894,
+     "name": "Lily Root",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 118,
+     "name": "Minor Healing Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 3384,
+     "name": "Minor Magic Resistance Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 2455,
+     "name": "Minor Mana Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 2456,
+     "name": "Minor Rejuvenation Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 6052,
+     "name": "Nature Protection Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 268883,
+     "name": "Perishable Healing Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 268882,
+     "name": "Perishable Lesser Healing Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 268881,
+     "name": "Perishable Minor Healing Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 282011,
+     "name": "Restored Healing Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 282013,
+     "name": "Restored Mana Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 6048,
+     "name": "Shadow Protection Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 274935,
+     "name": "Tessa's Tonic",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 9144,
+     "name": "Wildvine Potion",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 255663,
+     "name": "Windstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    }
+   ]
+  },
+  {
+   "group": "draught",
+   "selection": "Major/Superior Healing and Mana Draughts, category 4 (300 s)",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltips show a cooldown line on every id (report s3.2)",
+   "rows": [
+    {
+     "itemId": 17348,
+     "name": "Major Healing Draught",
+     "categoryCooldownMs": 300000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 17351,
+     "name": "Major Mana Draught",
+     "categoryCooldownMs": 300000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 17349,
+     "name": "Superior Healing Draught",
+     "categoryCooldownMs": 300000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    },
+    {
+     "itemId": 17352,
+     "name": "Superior Mana Draught",
+     "categoryCooldownMs": 300000,
+     "categoryId": 4,
+     "consumableType": "ConsumableTypePotion"
+    }
+   ]
+  },
+  {
+   "group": "healthstone-and-mana-gem",
+   "selection": "Healthstones (both id families), Mana Jade/Citrine/Ruby, Tea with Sugar, category 1153 (120 s)",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltips show a cooldown line on every id (report s3.2)",
+   "rows": [
+    {
+     "itemId": 1703,
+     "name": "Crystal Basilisk Spine",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 5510,
+     "name": "Greater Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 19010,
+     "name": "Greater Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 19011,
+     "name": "Greater Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 5509,
+     "name": "Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 19008,
+     "name": "Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 19009,
+     "name": "Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 5511,
+     "name": "Lesser Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 19006,
+     "name": "Lesser Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 19007,
+     "name": "Lesser Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 19012,
+     "name": "Major Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 19013,
+     "name": "Major Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 8007,
+     "name": "Mana Citrine",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 5513,
+     "name": "Mana Jade",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 8008,
+     "name": "Mana Ruby",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 5512,
+     "name": "Minor Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 19004,
+     "name": "Minor Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 19005,
+     "name": "Minor Healthstone",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 11952,
+     "name": "Night Dragon's Breath",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 17747,
+     "name": "Razorlash Root",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 15723,
+     "name": "Tea with Sugar",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    },
+    {
+     "itemId": 11951,
+     "name": "Whipper Root Tuber",
+     "categoryCooldownMs": 120000,
+     "categoryId": 1153
+    }
+   ]
+  },
+  {
+   "group": "engineering-explosive",
+   "selection": "engineering explosives, shared engineering category 24 (60 s)",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltips show a cooldown line on every id (report s3.2)",
+   "rows": [
+    {
+     "itemId": 22151,
+     "name": "Anthion's Holy Water",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 4380,
+     "name": "Big Bronze Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 4394,
+     "name": "Big Iron Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 1402,
+     "name": "Brimstone",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 4365,
+     "name": "Coarse Dynamite",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 11566,
+     "name": "Crystal Charge",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 16005,
+     "name": "Dark Iron Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 18641,
+     "name": "Dense Dynamite",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 1178,
+     "name": "Explosive Rocket",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 276145,
+     "name": "Explosive Runeshard",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 260795,
+     "name": "EZ-Thro Copper Bomb XL",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 260817,
+     "name": "EZ-Thro Dark Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 6714,
+     "name": "Ez-Thro Dynamite",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 18588,
+     "name": "Ez-Thro Dynamite II",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 260803,
+     "name": "EZ-Thro Grenade",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 215168,
+     "name": "Ez-Thro Radiation Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 260816,
+     "name": "EZ-Thro Thorium Grenade",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 5013,
+     "name": "Fertile Bulb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 4598,
+     "name": "Goblin Fishing Pole",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 4378,
+     "name": "Heavy Dynamite",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 10562,
+     "name": "Hi-Explosive Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 284868,
+     "name": "Holy Hand Grenade of Alterac",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 4390,
+     "name": "Iron Grenade",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 4370,
+     "name": "Large Copper Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 10830,
+     "name": "M73 Frag Grenade",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 1399,
+     "name": "Magic Candle",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 10514,
+     "name": "Mithril Frag Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 4403,
+     "name": "Portable Bronze Mortar",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 4360,
+     "name": "Rough Copper Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 4358,
+     "name": "Rough Dynamite",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 260805,
+     "name": "SAF-T Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 260797,
+     "name": "SAF-T Bronze Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 260814,
+     "name": "SAF-T Clever Dynamite",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 260793,
+     "name": "SAF-T Copper Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 260792,
+     "name": "SAF-T Dynamite",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 260798,
+     "name": "SAF-T Jumbo Dynamite",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 277499,
+     "name": "Scroll of Greater Cryoblast",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 4374,
+     "name": "Small Bronze Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 10507,
+     "name": "Solid Dynamite",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 13180,
+     "name": "Stratholme Holy Water",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 10586,
+     "name": "The Big One",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 15993,
+     "name": "Thorium Grenade",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    },
+    {
+     "itemId": 260809,
+     "name": "Tru-Trigger Frag Bomb",
+     "categoryCooldownMs": 60000,
+     "categoryId": 24
+    }
+   ]
+  },
+  {
+   "group": "engineering-misc",
+   "selection": "Flash Bundle, category 24 (120 s)",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltips show a cooldown line on every id (report s3.2)",
+   "rows": [
+    {
+     "itemId": 1127,
+     "name": "Flash Bundle",
+     "categoryCooldownMs": 120000,
+     "categoryId": 24
+    }
+   ]
+  },
+  {
+   "group": "token",
+   "selection": "Swiftfeather Token, category 28 (300 s)",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltips show a cooldown line on every id (report s3.2)",
+   "rows": [
+    {
+     "itemId": 1400,
+     "name": "Swiftfeather Token",
+     "categoryCooldownMs": 300000,
+     "categoryId": 28
+    }
+   ]
+  },
+  {
+   "group": "firewater",
+   "selection": "Distilled Firewater, item + category cooldown 60 s (the Winterfall Firewater shape)",
+   "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltips show a cooldown line on every id (report s3.2)",
+   "rows": [
+    {
+     "itemId": 246948,
+     "name": "Distilled Firewater",
+     "cooldownMs": 60000,
+     "categoryCooldownMs": 60000
+    }
+   ]
+  }
+ ],
+ "icdStoreAudit": {
+  "source": "spell store AuraOptions.ICDMs, wowsims/forever 5f766b07 (1.60.1.70862 @ 113890); null = the store has no AuraOptions row for that id",
+  "byBuffNameAuraId": {
+   "15594": 30000,
+   "15600": 2000,
+   "16620": 10000,
+   "16982": 0,
+   "17350": 20000,
+   "20847": null,
+   "21185": null,
+   "21969": 120000,
+   "21978": 100,
+   "22618": 1000,
+   "22620": 1000,
+   "27561": 20000,
+   "424336": 1000,
+   "424339": 1000,
+   "1213390": null,
+   "1213395": null,
+   "1231152": 100,
+   "1231163": 100,
+   "1291568": 10,
+   "1291686": 10,
+   "1293342": 60000,
+   "1293980": 100,
+   "1294055": 10,
+   "1294255": 60000,
+   "1294530": 10,
+   "1297370": 100,
+   "1299948": 10,
+   "1300781": 10,
+   "1301046": null,
+   "1302108": null,
+   "1302348": null,
+   "1305424": null,
+   "1314143": 60000
+  },
+  "byBuffId": {
+   "13441": 0,
+   "15494": null,
+   "15595": null,
+   "15601": null,
+   "16621": 0,
+   "16939": null,
+   "17351": null,
+   "18083": null,
+   "18946": null,
+   "21186": null,
+   "21970": null,
+   "22600": 0,
+   "22619": 0,
+   "27559": 0,
+   "27860": null,
+   "423192": 0,
+   "423194": 0,
+   "1213381": null,
+   "1213393": null,
+   "1231138": null,
+   "1231162": null,
+   "1291570": null,
+   "1291662": null,
+   "1293345": null,
+   "1294058": 0,
+   "1294258": null,
+   "1294537": 0,
+   "1297369": null,
+   "1299943": 0,
+   "1300782": null,
+   "1302109": null,
+   "1302350": null,
+   "1305426": null
+  }
+ },
+ "icdTooltipAudit": {
+  "source": "docs/research/live-items-procs-2026-11-09.md s1.2 (Wowhead Forever tooltips fetched 2026-11-09; not regenerable from the pinned files)",
+  "itemsChecked": 37,
+  "itemsMatchingTooltip": 29,
+  "itemsWithoutCooldownLine": 2,
+  "itemsNotOnWowhead": 6,
+  "ambiguous": [
+   "Orb of Fire (12805)"
+  ]
+ }
+}

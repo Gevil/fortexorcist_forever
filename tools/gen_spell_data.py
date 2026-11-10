@@ -88,6 +88,15 @@ names on every client), and `Engine:Build` SKIPS them while
 `Engine.RACIALS` the review flagged (M2: English keys break the deDE path;
 m4: ids bypassing the generator bypass the refresh).
 
+**Feed overrides** (2026-11-10, docs/research/live-paladin-2026-11-09.md §1.1):
+a spell-list file may carry `_feeds` = {data name: {"noTarget": bool,
+"reason": "..."}}. It forces the row's `noTarget` feed for the few
+store-sourced rows whose captured shape cannot speak (no base `Effects`;
+the overlay's `Targets` scalar says "caster" for the ally-cast Oath of
+Light and says nothing for the caster-side Echoes / Shieldsworn). Applied
+after `row_feeds`; every forced row rides the generated header
+("Feed overrides"). Only `noTarget` is overridable.
+
 **Companion-row shadows** (2026-11-01, agent `DataWave`): a *companion row* is a
 trigger row whose only effect applies the real spell's aura (single Effect
 Type=6, Aura=332, BasePoints = the real spell's ID) and which carries **no**
@@ -158,10 +167,14 @@ reads three today -- `Registry:Build`):
   delta D6). The smallest, not the first: a row can carry a periodic damage
   effect and a periodic heal, and the marks show the fastest cadence the
   player sees.
-* `maxStack` -- the row's own `MaxStack`, emitted only when it is above 1 (a
+* `maxStack` -- the aura's stack cap, emitted only when it is above 1 (a
   cap of 1 says "no stacking", which the absence already says): Sunder
   Armor 7386's 5, Deadly Poison 2818's 5, Scorpid Poison 24583's 5, Lacerate
-  414644's 5. The `Stacks` cap the row draws (design §3.4).
+  414644's 5. The `Stacks` cap the row draws (design §3.4). **The live
+  store's cap wins over the base row's** (2026-11-10, the LIVE-WINS law,
+  `row_feeds`): the base `MaxStack` is the frozen 70425 value, the store's
+  `AuraOptions.MaxStack` (captured above 1) is the live one -- Paladin
+  Vengeance 20050 is 3 in the base pull and 5 live (Nov 3 notes).
 * `noTarget` -- `true` when EVERY effect of the row lands on the caster: the
   effect `Target` pair's first code is `1` (the client's
   `SpellEffectTargetingCategory` code of the caster: Fade 586 / Inner Fire
@@ -246,8 +259,9 @@ DEFAULT_MANIFEST = REPO_ROOT.parent / "mythicsim-forever-engine" / "data" / "man
 # the store itself carries, so a refresh = run the extractor, point this one
 # line at its output, regenerate. Absent file = pure 70425 run, header says so.
 # History: 1.60.1.70707 (waves 2a..I-2b, tools/overrides_70707.json, still
-# checked in as the record of that pin), 1.60.1.70790 (wave M5, 2026-11-07).
-LIVE_OVERLAY = HERE / "overrides_70790.json"
+# checked in as the record of that pin), 1.60.1.70790 (wave M5, 2026-11-07,
+# tools/overrides_70790.json, kept as history), 1.60.1.70862 (2026-11-10).
+LIVE_OVERLAY = HERE / "overrides_70862.json"
 DEFAULT_OVERRIDES = LIVE_OVERLAY
 # The post-9 dev-notes layer (hand-kept, wave I-2b): the values NO captured
 # data source carries yet, applied after the live-store layer. A row is
@@ -632,15 +646,31 @@ def _seconds(ms: float) -> str:
 def row_feeds(row: dict, base_row: dict | None = None) -> tuple[int, int, bool]:
     """The row's (tickMs, maxStack, casterOnly) feed triple.
 
-    Sources, in order (the I-2b law, upstream-data §7.5): the row's OWN
-    captured base `Effects`/`MaxStack`; for a row picked out of the store
-    (no base `Effects` of its own) the SAME-ID base data row (`base_row`);
-    then the 70707 feed captures the row carries (`_periodMs`, `_maxStack`,
-    `_targetCode` from the overlay). A capture fills a field the earlier
-    source can not speak to -- it never overwrites a base answer.
+    Sources for the periodic and caster shape, in order (the I-2b law,
+    upstream-data §7.5): the row's OWN captured base `Effects`; for a row
+    picked out of the store (no base `Effects` of its own) the SAME-ID base
+    data row (`base_row`); then the live-store feed captures the row carries
+    (`_periodMs`, `_targetCode` from the overlay). For those two a capture
+    fills a field the earlier source can not speak to -- it never overwrites
+    a base answer.
+
+    **maxStack is the exception -- the LIVE-WINS law** (2026-11-10, the
+    Paladin Vengeance finding, docs/research/live-paladin-2026-11-09.md
+    §1.1): the stack cap is a number live balance patches move (Nov 3:
+    Vengeance "stacking up to 5 times (Was 3)"), and the 70425 base pull is
+    a frozen older build, so on the cap the store's capture is the NEWER
+    word. When the live store carries `AuraOptions.MaxStack` above 1 for the
+    picked id (the overlay's `_maxStack`; the extractor captures it only
+    above 1 -- a cap of 1 says "no stacking" and the store's 0 on a
+    ProcCharges aura such as Holy Shield is no reading), it WINS over the
+    base row's `MaxStack`, whether the base said more, less or nothing.
+    Without a store capture the base cap stands, as before: a name the
+    store does not speak to is bit-identical to the pre-law pick. The law
+    touches ONLY this column; the header's "changes in this file" list shows
+    every row whose emitted maxStack moved against the pure-70425 baseline.
 
     tickMs: the smallest positive `PeriodMs` (0 = no periodic effect, so no
-    tick schedule). maxStack: `MaxStack` when it is above 1, else 0.
+    tick schedule). maxStack: the cap when it is above 1, else 0.
     casterOnly: every captured effect lands on `CASTER_TARGET_CODE`; with no
     captured effect at all the store's `targetCode` capture answers (1 = the
     caster); no answer is False (absence is not evidence)."""
@@ -663,9 +693,9 @@ def row_feeds(row: dict, base_row: dict | None = None) -> tuple[int, int, bool]:
         cap = _num(row.get("_periodMs"))
         if cap is not None and cap > 0:
             tick_ms = int(cap)
-    stacks = _num(max_stack_owner.get("MaxStack"))
-    if stacks is None:
-        stacks = _num(row.get("_maxStack"))
+    stacks = _num(row.get("_maxStack"))                  # the live store's cap wins ...
+    if stacks is None or stacks <= 1:
+        stacks = _num(max_stack_owner.get("MaxStack"))   # ... else the base row's
     if not caster_only and not effects:
         code = _num(row.get("_targetCode"))
         caster_only = code is not None and int(code) == CASTER_TARGET_CODE
@@ -772,6 +802,14 @@ def main() -> int:
     # the pins force the picked id, the shares emit the row's `shares` link.
     pins: dict[str, dict] = dict(spec.get("_pins") or {})
     shares: dict[str, str] = dict(spec.get("_shares") or {})
+    # Feed overrides (2026-11-10, live-paladin-2026-11-09.md §1.1 rows 2/5/6):
+    # {data name: {"noTarget": bool, "reason": "..."}} forces the row's
+    # `noTarget` feed where the captured shape cannot speak (a store-sourced
+    # row with no base Effects carries only the overlay's `Targets` scalar,
+    # which says caster for the ally-cast Oath of Light and says nothing for
+    # the caster-side Echoes / Shieldsworn). Only `noTarget` is overridable.
+    feed_overrides: dict[str, dict] = dict(spec.get("_feeds") or {})
+    feeds_report: list[str] = []      # names the spell list's `_feeds` forced
     RACIAL_GROUPS = {"racials"}
 
     groups: dict[str, list[tuple[str, dict, int, tuple[int, int, bool]]]] = {}
@@ -959,6 +997,12 @@ def main() -> int:
                     base_row = max(sibs, key=lambda r: r.get("MaxLevel")
                                    or r.get("SpellLevel") or 0)
             feeds = row_feeds(out_row, base_row)
+            fo = feed_overrides.get(n)
+            if fo is not None and "noTarget" in fo:
+                feeds = (feeds[0], feeds[1], bool(fo["noTarget"]))
+                feeds_report.append(
+                    f"{n} ({out_row['ID']}) noTarget = {str(bool(fo['noTarget'])).lower()}"
+                    f" ({fo.get('reason', 'no reason given')})")
             if base_text is None:
                 sourced.append(f"{n} ({picked['ID']})")
             else:
@@ -1003,6 +1047,8 @@ def main() -> int:
             print(f"  devnotes: {d}")
         for p in pins_report:
             print(f"  pin: {p}")
+        for p in feeds_report:
+            print(f"  feed override: {p}")
         for s in shares_report:
             print(f"  shares: {s}")
         for r in racials_report:
@@ -1024,6 +1070,11 @@ def main() -> int:
                       f"{m.get('generated_by', 'tools/extract_store.py')} -- {label} values win; "
                       f"absent fields = the store "
                       f"carries no row, mythicsim stands)")
+        if m.get("mixed"):
+            stamps_s = ", ".join(f"{g} {s['build'].rsplit('.', 1)[-1]}@{s['hotfix_push']}"
+                                 for g, s in sorted(m["group_stamps"].items()))
+            lines.append(f"--   MIXED per-group stamps (extract_store.py --allow-mixed; the "
+                         f"headline is the newest): {stamps_s}")
     else:
         lines.append(f"-- Overlay: NONE (tools/{DEFAULT_OVERRIDES.name} missing) "
                       f"-- values are pure {build}")
@@ -1049,6 +1100,12 @@ def main() -> int:
                       f"force the picked row -- the rank law stands for every "
                       f"other name (wave M3a law, see the generator docstring):")
         for p in pins_report:
+            lines.append(f"--   {p}")
+    if feeds_report:
+        lines.append(f"-- Feed overrides ({len(feeds_report)}); the spell list's `_feeds` "
+                      f"force the `noTarget` feed where the captured effect shape "
+                      f"cannot speak (tools/gen_spell_data.py, 2026-11-10):")
+        for p in feeds_report:
             lines.append(f"--   {p}")
     if shares_report:
         lines.append(f"-- Shared cooldowns (`_shares`: a cast of either starts "
@@ -1084,13 +1141,15 @@ def main() -> int:
     lines.append("-- Feed columns (docs/design-spell-timer.md §3.4; read by "
                   "Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic "
                   "effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the "
-                  "aura's `MaxStack` when above 1, `noTarget` = every captured effect "
+                  "aura's stack cap when above 1 (the live store's `MaxStack` WINS over "
+                  "the base row's -- the LIVE-WINS law, tools/gen_spell_data.py "
+                  "`row_feeds`), `noTarget` = every captured effect "
                   "targets the CASTER (effect `Target[0]` == 1). Feed sources (wave "
                   f"I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own "
-                  f"base `Effects`/`MaxStack` answer first, a {label}-picked row inherits "
+                  f"base `Effects` answer first, a {label}-picked row inherits "
                   f"the same-id base row's shape, and the {label} overlay's own feed "
-                  "captures (per-id `periodMs`/`targetCode`/`maxStack` of "
-                  f"tools/{args.overrides.name}) fill what neither can speak to. "
+                  "captures (per-id `periodMs`/`targetCode`) fill what neither can "
+                  f"speak to (tools/{args.overrides.name}). "
                   f"This file: {len(ticked)} tickEvery, {len(stacked)} maxStack, "
                   f"{len(self_only)} noTarget.")
     for group, entries in groups.items():

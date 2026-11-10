@@ -139,12 +139,31 @@ end
 local saved = {}
 local taken = {}
 
+--- A rider fills the bar; it is NOT a sharing probe. A tracked row that
+--- carries a `shares` pair link, is the named partner of one, or sits in an
+--- equal non-zero engine category with another tracked row starts its
+--- partners on every cast (the Engine group rule, test_shared_cooldowns.lua),
+--- which breaks this file's exact window counts. Live 70862 store / review
+--- 2026-11-10: Paladin Divine Shield + Divine Protection share category 37
+--- and were picked as riders, so a cast of one opened both.
+local function sharesOthers(name, row)
+    if row.shares then return true end
+    for other, t in pairs(Engine.tracked) do
+        if other ~= name and (t.shares == name
+            or (row.category ~= nil and t.category == row.category)) then
+            return true
+        end
+    end
+    return false
+end
+
 --- A tracked spell of the class data with a base duration in [minS, maxS]
 --- the run has not claimed yet.
 local function pickRider(minS, maxS)
     for name, row in pairs(Engine.tracked) do
         local cd = row.baseDuration
-        if cd and cd >= minS and cd <= maxS and not taken[name] then
+        if cd and cd >= minS and cd <= maxS and not taken[name]
+            and not sharesOthers(name, row) then
             taken[name] = true
             return name, cd
         end
@@ -160,7 +179,8 @@ end
 local function pickCastRider(minS, maxS)
     for name, row in pairs(Engine.tracked) do
         local cd = row.baseDuration
-        if cd and cd >= minS and cd <= maxS and not taken[name] then
+        if cd and cd >= minS and cd <= maxS and not taken[name]
+            and not sharesOthers(name, row) then
             local okD, infoD = pcall(C_Spell.GetSpellInfo, row.dataId)
             local nm = okD and infoD and infoD.name
             if type(nm) == "string" then

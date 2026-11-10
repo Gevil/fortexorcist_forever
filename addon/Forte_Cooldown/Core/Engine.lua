@@ -106,6 +106,53 @@ Engine.MIN_COOLDOWN = 2.99
 -- (owner law, single value; kept local there so that file stays self-contained).
 Engine.PREDICTION_GRACE = 1.6
 
+-- Shared cooldowns (a cast of tracked spell X also starts other tracked rows).
+-- Two data-driven links, both ONE HOP (no transitive closure, so no loop):
+--  * `shares = "<name>"` on a row: a symmetric PAIR (either side's cast starts
+--    the other). Honoured for every tracked row that carries it.
+--  * equal non-zero `cooldownCategory`: a GROUP (the four Hunter traps' 411,
+--    the Shaman shocks' 19, Aimed Shot/Multi-Shot's 2, ...). Any tracked row
+--    of the group starts every OTHER tracked row of it.
+-- What the generated data does and does not say (tools/gen_spell_data.py
+-- `_row_fields`): `cooldownMs` is already max(CooldownMs, CategoryCooldownMs)
+-- and NO row carries a separate category lockout length, so a partner is
+-- started with its OWN duration (`BestDuration`: learned beats base). A
+-- shorter/longer real lockout is corrected by the next plain read (OnRead
+-- anchors; a plain "ready" read clears the prediction after the grace). A
+-- partner already running LONGER than the new window is never shortened. A
+-- charge spell is never started by a partner's cast (a lockout is not a charge
+-- spent; the charge read owns that bar).
+-- `cooldownCategory` also rides rows whose category carries NO shared lockout
+-- (the store's Categories row is captured even with CategoryCooldownMs 0), so
+-- the data alone cannot prove a group. Category 82 is the pet/threat label
+-- (Growl, Cower, Feint, Tease, Menace, Soothing Kiss, Disengage: unrelated
+-- spells of one or two classes that merely share the label) and the Hunter's
+-- 19 / 63 rows are PET abilities (Bite, Scorpid Poison; Pinch, Tendon Rip,
+-- Web): none is a shared player lockout. They are listed in
+-- UNSHARED_CATEGORIES and never form a group; a new group needs a deliberate
+-- change to tests/test_shared_cooldowns.lua's census.
+-- Keys: "*" = every class; else the upper-case class file.
+Engine.UNSHARED_CATEGORIES = {
+    ["*"] = { [82] = true },
+    HUNTER = { [19] = true, [63] = true },
+}
+
+--- The category a row contributes to the group rule, or nil.
+local function groupCategory(classFile, spell)
+    local cat = spell.cooldownCategory
+    if type(cat) ~= "number" or cat == 0 then return nil end
+    local all = Engine.UNSHARED_CATEGORIES["*"]
+    local mine = classFile and Engine.UNSHARED_CATEGORIES[classFile:upper()]
+    if (all and all[cat]) or (mine and mine[cat]) then return nil end
+    return cat
+end
+
+--- true when a cast of `a` starts `b` (and, symmetric, vice versa).
+local function sharesWith(a, aName, b, bName)
+    return a.shares == bName or b.shares == aName
+        or (a.category ~= nil and a.category == b.category)
+end
+
 Engine.tracked = {}   -- [name] = { name, dataId, baseDuration, maxCharges? (runtime, DetectCharges) }
 -- [name] = { name, start, duration, endTime, predicted, source =
 --            "cast"|"read"|"edge", anchored?, charges? = {max, current,
@@ -164,7 +211,8 @@ function Engine:Build(classFile, isKnown)
             -- Build (the known-gate there is id-aware, `IsPlayerSpell(id)`,
             -- because a racial is known by race, not by class spells).
             -- Build's count stays the class-kit count its tests pin.
-            self.tracked[spell.name] = { name = spell.name, dataId = id, baseDuration = cd }
+            self.tracked[spell.name] = { name = spell.name, dataId = id, baseDuration = cd,
+                shares = spell.shares, category = groupCategory(classFile, spell) }
             n = n + 1
         end
     end
@@ -201,7 +249,8 @@ function Engine:AddExtras(isKnown)
                 or (FX.Compat.IsPlayerSpell and FX.Compat.IsPlayerSpell(id)))
         if known then
             self.tracked[spell.name] = { name = spell.name, dataId = id,
-                baseDuration = cd, shares = spell.shares }
+                baseDuration = cd, shares = spell.shares,
+                category = groupCategory(self.builtClass, spell) }
             n = n + 1
         end
     end
@@ -260,11 +309,18 @@ function Engine:OnCast(name, now, _partner)
         if c.nextAt == nil then c.nextAt = now + duration end
     end
     self.entries[name] = e
-    -- Shared cooldown: the partner spell goes on cooldown with this one.
+    -- Shared cooldown: every linked partner goes on cooldown with this one
+    -- (file header). One hop: the `_partner` call never walks again.
     if not _partner then
         for pname, pt in pairs(self.tracked) do
-            if pname ~= name and (t.shares == pname or pt.shares == name) then
-                self:OnCast(pname, now, true)
+            if pname ~= name and not pt.maxCharges
+                and sharesWith(t, name, pt, pname) then
+                local pd = self:BestDuration(pname)
+                local pe = self.entries[pname]
+                -- Never shorten a partner that is already running longer.
+                if pd and not (pe and pe.endTime > now + pd) then
+                    self:OnCast(pname, now, true)
+                end
             end
         end
     end

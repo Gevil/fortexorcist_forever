@@ -2,12 +2,22 @@
 """Build the ForteXorcist release zip (PLAN §11.1 slice H2).
 
     scripts/release.py [--dry-run] [--version X] [--out DIR] [--name NAME]
-                     [--ref GIT-REF]
+                     [--suffix SUFFIX] [--ref GIT-REF]
 
 One source of truth for the version: the repo-root `VERSION` file. The
 version is stamped into every shipped addon's toc twins as `## Version:`
 (both twins get the identical bytes, so `gate.py`'s byte-identical toc-pair
 check and its `## Interface: 16001` check keep passing on a stamped tree).
+
+Output, in `dist/`:
+  ForteXorcist-<version>-forever.zip         the GitHub release asset. WowUp
+                                             offers a GitHub zip to a Forever
+                                             install only when its name ends
+                                             in `-forever.zip` (an unsuffixed
+                                             zip is treated as Retail).
+  ForteXorcist-<version>-forever.zip.sha256  `sha256sum` format, so
+                                             `sha256sum -c` works next to it.
+`--suffix ""` produces the old unsuffixed name (`ForteXorcist-<version>.zip`).
 
 The payload is `git archive HEAD addon` -- the COMMITTED tree, so the zip can
 never be built from half-finished working-copy files. The release set is what
@@ -25,8 +35,12 @@ Nothing in the repo working tree is written: the staging tree lives in a temp
 dir, the output goes to `dist/` (created on demand). `--dry-run` builds the
 whole staging tree, prints the plan (file list + sizes + stamp table) and
 writes nothing.
+
+The CurseForge / Wago / GitHub-release pipeline is the tag-triggered
+workflow in `.github/workflows/release.yml` (BigWigs packager, `.pkgmeta`).
+This script is the local, offline builder of the same payload.
 """
-import argparse, os, re, shutil, subprocess, sys, tempfile, zipfile
+import argparse, hashlib, os, re, shutil, subprocess, sys, tempfile, zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VERSION_FILE = os.path.join(ROOT, "VERSION")
@@ -50,11 +64,11 @@ def read_version(override=None):
     else:
         if not os.path.isfile(VERSION_FILE):
             die(f"no version source: {os.path.relpath(VERSION_FILE, ROOT)} is missing "
-                "(create it: one line, e.g. 0.1.0)")
+                "(create it: one line, e.g. 1.0.0)")
         with open(VERSION_FILE, errors="replace") as fh:
             raw, src = fh.read().strip(), os.path.relpath(VERSION_FILE, ROOT)
     if not re.fullmatch(r"\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-]+)?", raw):
-        die(f"version {raw!r} is not a release version (want e.g. 0.1.0 or 1.0.0-rc1)")
+        die(f"version {raw!r} is not a release version (want e.g. 1.0.0 or 1.0.1-rc1)")
     return raw, src
 
 
@@ -137,7 +151,7 @@ def toc_pairs(addon_root):
     return out
 
 
-def build(version, version_source, out_dir, name, dry_run, ref="HEAD"):
+def build(version, version_source, out_dir, name, suffix, dry_run, ref="HEAD"):
     staging = tempfile.mkdtemp(prefix="fxrelease-")
     try:
         addon_root, head = git_archive_addon(staging, ref)
@@ -183,7 +197,9 @@ def build(version, version_source, out_dir, name, dry_run, ref="HEAD"):
                 die(f"stamping broke the twin law: {rel} != {twin}", 1)
 
         # --- the archive ------------------------------------------------
-        zip_path = os.path.join(out_dir, f"{name}-{version}.zip")
+        stem = f"{name}-{version}" + (f"-{suffix}" if suffix else "")
+        zip_path = os.path.join(out_dir, stem + ".zip")
+        sha_path = zip_path + ".sha256"
         entries = []
         total = 0
         for rel, _size in kept:
@@ -192,6 +208,7 @@ def build(version, version_source, out_dir, name, dry_run, ref="HEAD"):
             total += size
             entries.append((rel.replace(os.sep, "/"), size))
 
+        digest = None
         if not dry_run:
             os.makedirs(out_dir, exist_ok=True)
             with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
@@ -199,6 +216,10 @@ def build(version, version_source, out_dir, name, dry_run, ref="HEAD"):
                     zi = zipfile.ZipInfo(rel, date_time=ZIP_DATE)
                     zi.compress_type = zipfile.ZIP_DEFLATED
                     zf.writestr(zi, open(os.path.join(addon_root, rel), "rb").read())
+            with open(zip_path, "rb") as fh:
+                digest = hashlib.sha256(fh.read()).hexdigest()
+            with open(sha_path, "w", newline="\n") as fh:
+                fh.write(f"{digest}  {os.path.basename(zip_path)}\n")
 
         # --- the report --------------------------------------------------
         print(f"release.py  version {version}  (source: {version_source}; "
@@ -215,13 +236,14 @@ def build(version, version_source, out_dir, name, dry_run, ref="HEAD"):
             print(f"    {action:<10} {rel}  ## Version: {version}")
         if dry_run:
             print(f"  DRY RUN: nothing written; the build would be "
-                  f"{os.path.join(out_dir, name + '-' + version + '.zip')} "
+                  f"{zip_path} + {sha_path} "
                   f"({len(entries)} files, {total / 1024:.1f} KiB raw)")
         else:
             size = os.path.getsize(zip_path)
             print(f"  wrote:    {os.path.relpath(zip_path, ROOT)} "
                   f"{size:,} bytes ({size / 1024:.1f} KiB), "
                   f"{len(entries)} entries")
+            print(f"  wrote:    {os.path.relpath(sha_path, ROOT)}  sha256 {digest}")
         return 0
     finally:
         shutil.rmtree(staging, ignore_errors=True)
@@ -238,12 +260,16 @@ def main(argv=None):
                     help="output dir (default: <repo>/dist)")
     ap.add_argument("--name", default="ForteXorcist",
                     help="archive base name (default: ForteXorcist)")
+    ap.add_argument("--suffix", default="forever",
+                    help="archive name suffix: <name>-<version>-<suffix>.zip "
+                         "(default: forever, which WowUp needs for a Forever "
+                         "install; '' = unsuffixed <name>-<version>.zip)")
     ap.add_argument("--ref", default="HEAD",
                     help="git ref to release (default: HEAD -- the committed "
                          "tree; a tag or commit id for a re-release)")
     a = ap.parse_args(argv)
     version, source = read_version(a.version)
-    return build(version, source, a.out, a.name, a.dry_run, a.ref)
+    return build(version, source, a.out, a.name, a.suffix, a.dry_run, a.ref)
 
 
 if __name__ == "__main__":

@@ -140,8 +140,10 @@ local T1_ADDED = {
     -- Bite replaces it -- docs/research/forever-dev-notes-2026-11-03.md §1
     -- Druid row) and Lava Burst left with it (same §1 Shaman row: gone from
     -- the live client). docs/class-port.md 6.2 item 5.
+    -- live 70862 store / review 2026-11-10: Thrash left the Druid list (the
+    -- name-only row 21919 is gone from the store); the cast adds are six now.
     DRUID = { "Lifebloom", "Skull Bash", "Pounce", "Pounce Bleed", "Starfall",
-              "Dash", "Thrash" },
+              "Dash" },
     MAGE = { "Blizzard", "Living Bomb", "Pyroblast", "Flamestrike", "Combustion",
              "Cone of Cold", "Frost Nova", "Deep Freeze", "Frostfire Bolt",
              "Arcane Blast", "Blast Wave", "Fire Blast", "Freeze" },
@@ -160,9 +162,8 @@ local T1_CLASS_ORDER = { "DRUID", "MAGE", "PALADIN", "PRIEST", "ROGUE", "SHAMAN"
 -- field the engine gates on. A row that grows a window on a later data pull
 -- trips the test below, which is the signal to delete its entry.
 local T1_UNTRACKED = {
-    DRUID = {
-        ["Thrash"] = "21919 is a name-only row (no cooldownMs, no durationMs)",
-    },
+    -- (DRUID: Thrash's no-window pin left with the row, 70862 / 2026-11-10;
+    -- Dash 9821 is tracked: 15 s window, 300 s cooldown.)
     PALADIN = {
         ["Beacon of Light"] = "409906 is a name-only row (no cooldownMs, no durationMs)",
         ["Reckoning"] = "1326084 rides durationMs = -1, the permanent-aura sentinel",
@@ -189,13 +190,17 @@ local T1_UNTRACKED = {
 -- family-law gap. The mirror now carries the full note set (Poised and
 -- Reckless Swings join the mirror in the same pass).
 local T1_DEFERRED = {
-    DRUID = { "Living Seed", "Nature's Grace", "Savage Defense" },
+    -- live 70862 store / review 2026-11-10: the Druid note is Living Seed,
+    -- Nature's Grace, Savage Defense and Eclipse (spell list `_deferred_H7`).
+    DRUID = { "Living Seed", "Nature's Grace", "Savage Defense", "Eclipse" },
     MAGE = { "Brain Freeze", "Chilled", "Mana Surge" },
     PALADIN = { "Ancient Power", "Grand Crusader", "The Art of War" },
     PRIEST = { "Serendipity", "Surge of Light" },
     ROGUE = { "Poised" },
     SHAMAN = {},
-    WARRIOR = { "Vigilance", "Reckless Swings" },
+    -- Reckless Swings left the note on 70862 / 2026-11-10: 1329555 is a value
+    -- row now (cd 15 s, 8 s window) and rides H7_LANDED below.
+    WARRIOR = { "Vigilance" },
 }
 
 local function dataKey(classToken)
@@ -266,12 +271,13 @@ function()
         local f = io.open("/tmp/t1_tracked_report.txt", "w")
         if f then f:write(line .. "\n"); f:close() end
     end
-    -- 7 + 13 + 5 + 8 + 5 + 3 = 41 added names, 8 of them no-window rows; the
+    -- 6 + 13 + 5 + 8 + 5 + 3 = 40 added names, 7 of them no-window rows; the
     -- Warrior adds none (all three of its §6.1 names are H7 deferrals).
     -- Wave I-2b cut the count 43 -> 41 (Berserk, Lava Burst: post-9 removals,
-    -- docs/class-port.md 6.2 item 5).
-    assertEquals(41, total)
-    assertEquals(8, pinned)
+    -- docs/class-port.md 6.2 item 5); live 70862 store / review 2026-11-10
+    -- cut it 41 -> 40 and the pinned residual 8 -> 7 (Thrash left the data).
+    assertEquals(40, total)
+    assertEquals(7, pinned)
 end)
 
 test("the H7 proc/passive deferrals are out of the generated data", function()
@@ -295,7 +301,8 @@ test("the H7 proc/passive deferrals are out of the generated data", function()
             .. " entered the Warrior data: it is an H7 deferral")
         seen = seen + 1
     end
-    -- Wave I-3e: 3 + 3 + 3 + 2 + 1 + 0 + 2 = 14 deferred names.
+    -- Wave I-3e: 3 + 3 + 3 + 2 + 1 + 0 + 2 = 14 deferred names; 70862 /
+    -- 2026-11-10: Druid +Eclipse, Warrior -Reckless Swings = still 14.
     assertEquals(14, seen)
 end)
 
@@ -315,7 +322,9 @@ local H7_LANDED = {
     PALADIN = { "Forbearance", "Infusion of Light", "Vengeance", "Vindication" },
     ROGUE = { "Shank", "Death Mark" },
     SHAMAN = { "Maelstrom Weapon" },
-    WARRIOR = { "Enrage", "Deep Wounds" },
+    -- 70862 / 2026-11-10: Deep Wounds left the Warrior data (12834 is gone);
+    -- Reckless Swings 1329555 landed out of _deferred_H7 (cd 15 s, 8 s window).
+    WARRIOR = { "Enrage", "Reckless Swings" },
 }
 local H7_UNTRACKED = {
     -- Wave M3a (2026-11-07): the rogue pair LEFT. The 1.60.1.70790 capture
@@ -326,9 +335,8 @@ local H7_UNTRACKED = {
     -- now, and both ride the bar (docs/research/data-diff-live-2026-11-07.md
     -- §4/§5.1). The rows they were pinned against (15248/15617,
     -- 1316709/1325756-8) are inert shells no longer picked.
-    WARRIOR = {
-        ["Deep Wounds"] = "12834 is the Classic-era passive row: the store's value row carries DurationMs 0 (the bleed window rides the Mortal Strike line, the S15 extra-spell feed, docs/class-port.md S15)",
-    },
+    -- (WARRIOR: the Deep Wounds no-window pin left with the row, 70862 /
+    -- 2026-11-10; no pinned no-window residual remains.)
 }
 
 test("every Wave I-3e H7 proc add is tracked, or is a pinned no-window row",
@@ -395,12 +403,13 @@ function()
     end
     for _, line in ipairs(report) do print("  " .. line) end
     -- Wave I-3e landed 12; the 2026-11-04 mage Clearcasting follow-up makes
-    -- the census 13. Wave M3a (the 1.60.1.70790 capture): the rogue pair
-    -- landed rows with values (Shank 1329549 cd 10 s; Death Mark 1325758
-    -- cd 10 s + 6 s mark), so 12 of 13 are windowed and the pinned no-window
-    -- residual is the single Deep Wounds passive row.
+    -- the census 13. Wave M3a: the rogue pair landed rows with values. Live
+    -- 70862 store / review 2026-11-10: Deep Wounds left the Warrior data
+    -- (-1) and Reckless Swings landed out of _deferred_H7 (+1), so the
+    -- census stays 13, and with the Deep Wounds passive gone every one of
+    -- the 13 is windowed: pinned 1 -> 0.
     assertEquals(13, total)
-    assertEquals(1, pinned)
+    assertEquals(0, pinned)
 end)
 
 test("the four Clearcasting rows stay on their own class (family law)",

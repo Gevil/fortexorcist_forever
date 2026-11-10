@@ -11,8 +11,12 @@
 -- "Caveats", the generated file's `trackable = "buff-window"` law), so there
 -- is no spell to put on the bar. What the bar can show is the *internal*
 -- cooldown the proc rides: the generated data's `icdMs` (docs/research/
--- forever-data-gaps.md G2: proc.icd_ms, 51 rows on this pin, 9 confirmed by
--- the 70707 store's AuraOptions.ICDMs). Seeing the proc buff is the fact
+-- forever-data-gaps.md G2: proc.icd_ms, 51 rows on this pin; the spell-store
+-- audit of them -- 24 equal, 1 store-0, 0 contradict -- joins on the aura id the
+-- `buffName` carries, NOT on `buffId` (that join finds 10 rows and every one
+-- reads 0, because `buffId` is the triggered spell, not the aura). The counts
+-- are restated in the generated Forte_ItemProcs header.
+-- Seeing the proc buff is the fact
 -- "the proc fired"; `icdMs` is the length. So the entry is the original
 -- addon's `CD:AddHiddenCooldown(item, buff, sec)`
 -- (/tmp/fxref/Forte_Cooldown/Forte_Cooldown.lua:1636-1693, the trinket-ICD
@@ -101,6 +105,15 @@ Procs.counts = { reads = 0, plain = 0, secret = 0, raised = 0,
 --- party-unit registration + per-unit sweeps) is a design step, not a
 --- documentation one (docs/design-combat-procs.md §3 channels).
 Procs.coverage = "self only"
+
+--- The proc-ICD floor in seconds, INDEPENDENT of the user's `IgnoreShort`.
+--- 33 of the 51 data rows are 10/100/200 ms debounces (Searing Dagger's tooltip
+--- reads "10ms cooldown"), not cooldowns: a bar for one is born and retired
+--- inside a single sweep tick. `Engine.MIN_COOLDOWN` (default 2.99, and the
+--- Options page lets it drop to 0) already hides them by default; this floor
+--- keeps them hidden when the user lowers `IgnoreShort` to chase short class
+--- windows. A 1 s row (Unbalanced Idol, 1000 ms) still qualifies.
+Procs.MIN_ICD = 1
 
 -- The injectable seams (the tests script them; the live defaults are below).
 Procs.readers = nil
@@ -207,9 +220,11 @@ end
 
 --- Rebuild the watched set from the loaded data. Rows qualify on a plain
 --- numeric `buffId` (the aura's spell id -- the join key of both seen-routes)
---- and a plain `icdMs` whose seconds clear Engine.MIN_COOLDOWN (a 200 ms
---- Timeworn prock is GCD-band noise by the same law that keeps 1-3 s potion
---- categories out of Core/Items.lua). Returns the row count.
+--- and a plain `icdMs` whose seconds clear BOTH Engine.MIN_COOLDOWN (user
+--- floor; a 200 ms Timeworn prock is GCD-band noise by the same law that keeps
+--- 1-3 s potion categories out of Core/Items.lua) and Procs.MIN_ICD (fixed
+--- debounce floor, so a lowered IgnoreShort cannot unmask them). Returns the
+--- row count.
 function Procs:Build()
     wipe(self.tracked)
     wipe(self.byBuff)
@@ -224,6 +239,7 @@ function Procs:Build()
             local icdMs = plain(row.icdMs)
             if type(buffID) == "number" and type(icdMs) == "number"
                 and icdMs / 1000 >= Engine.MIN_COOLDOWN
+                and icdMs / 1000 >= Procs.MIN_ICD
                 and type(row.name) == "string" and classAllows(row, token) then
                 local key = row.name .. "#" .. buffID
                 if not self.tracked[key] then

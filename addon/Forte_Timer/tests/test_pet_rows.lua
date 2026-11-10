@@ -50,7 +50,7 @@ local function useWarlockData()
     -- client; the ids are the generated data's, never hand-invented.
     Casts.resolveName = function(id)
         return id == 6358 and "Seduction"          -- the pet CC, 15 s window
-            or id == 1223963 and "Corruption"       -- the player DoT, 12 s
+            or id == 11672 and "Corruption"         -- the player DoT, 18 s (70862 / 2026-11-10; was 1223963, 12 s)
             or id == 999999 and "Bite"              -- not in any data row
             or nil
     end
@@ -261,7 +261,7 @@ function()
     installClock(55000)
     local saved = installUnits({ pettarget = "Vile Poacher" })
     -- The player's cast is in flight (a record, not yet settled)...
-    dispatch("UNIT_SPELLCAST_SENT", "player", "Dummy-Pet", "G:p", 1223963)
+    dispatch("UNIT_SPELLCAST_SENT", "player", "Dummy-Pet", "G:p", 11672)
     -- ...and the pet fires. The fresh pet SENT runs the "garbage sent"
     -- sweep over the PET's records only (the feeds never eat each other's
     -- queue entries).
@@ -305,14 +305,16 @@ function()
     Rows:Clear()
     installClock(56000)
     local saved = installUnits({ target = "Dummy-Pet" })
-    dispatch("UNIT_SPELLCAST_SENT", "player", "Dummy-Pet", "G:s", 1223963)
-    dispatch("UNIT_SPELLCAST_SUCCEEDED", "player", "G:s", 1223963, 9)
+    dispatch("UNIT_SPELLCAST_SENT", "player", "Dummy-Pet", "G:s", 11672)
+    dispatch("UNIT_SPELLCAST_SUCCEEDED", "player", "G:s", 11672, 9)
     clock[1] = clock[1] + Laws.SETTLE + 0.01
     M:Logic()
     assertEquals(1, Rows:Count())
     local row = Rows:Find("Corruption", "Dummy-Pet")
     assertNotNil(row)
-    near(row.total, 12)
+    -- live 70862 store / review 2026-11-10: Corruption 11672 is the 18 s Rank 6
+    -- DoT (it was the 12 s decoy 1223963 before the refresh)
+    near(row.total, 18)
     restoreUnits(saved)
     Rows:Clear()
 end)

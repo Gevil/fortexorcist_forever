@@ -3,6 +3,9 @@ __pycache__/
 .DS_Store
 /scratch/
 /dist/
+# Packager build dir and the generated per-release notes (scripts/release_notes.py)
+/.release/
+/RELEASE_NOTES.md
 docs/media/
 # Third-party reference screenshots of the 2012 original (design references, not ours to publish)
 docs/refs/

@@ -8,14 +8,20 @@ verifiable against an expected `--build`) instead of being welded to 70707.
 Source: the wowsims/forever clone (MIT licence, "Copyright (c) 2022 wowsims
 team"), whose spell-store capture `assets/db_inputs/spell_store_inputs.json`
 (gzip JSON) is stamped with the live client build per input group. The stamp
-moves every few days (70707 -> 70755 -> 70790; the 2026-11-07 pin carries spells
-on 1.60.1.70790 / hotfix push 113715 and the ITEMS group on 1.60.1.70862 / hotfix
-push 113763 -- the build-wide `Builds`/`Hotfixes` map), so this tool reads it
-from `Builds`/`Hotfixes` and stamps the output with it. The **spell** leg is
-what the overlay carries, so the build consistency check spans every group
-except `items`; the item leg is recorded alongside it (`items_build` /
-`items_hotfix_push`) for the item generator's header (the build stamp
-`docs/research/data-diff-live-2026-11-07.md` reports).
+moves every few days (70707 -> 70755 -> 70790 -> 70862; the 2026-11-07 pin
+carried spells on 1.60.1.70790 / hotfix push 113715 and the ITEMS group on
+1.60.1.70862 / hotfix push 113763, the 2026-11-10 pin carries every group on
+1.60.1.70862 / push 113890 -- the build-wide `Builds`/`Hotfixes` maps), so
+this tool reads it from `Builds`/`Hotfixes` and stamps the output with it.
+**Per-group stamps** (2026-11-10): the headline `build`/`hotfix_push` is the
+one pair every SPELL group agrees on; a store whose spell groups disagree is
+REFUSED unless `--allow-mixed` is given, which accepts it with the NEWEST
+build and push as the headline and records EVERY group's build + push in
+`_meta.group_stamps` (plus `mixed: true`) -- see `resolve_stamps`. The
+**spell** leg is what the overlay carries, so the consistency check spans
+every group except `items`; the item leg is recorded alongside it
+(`items_build` / `items_hotfix_push`) for the item generator's header (the
+build stamp `docs/research/data-diff-live-2026-11-07.md` reports).
 
 This file is the checked-in, deterministic bridge between that capture and
 `gen_spell_data.py` / `gen_item_data.py`: the generators never read the store
@@ -67,6 +73,7 @@ file is byte-stable for identical inputs.
 
 Usage:
     python3 tools/extract_store.py                        # stamp from the store
+    python3 tools/extract_store.py --allow-mixed          # accept per-group build drift
     python3 tools/extract_store.py --build 70790          # assert the stamp
     python3 tools/extract_store.py --wowsims /tmp/wowsims-forever --dry
     python3 tools/extract_store.py --wowsims /tmp/wowsims-old \\
@@ -194,19 +201,62 @@ def mythicsim_ids_for(names: set[str], spells_jsonl: pathlib.Path) -> dict[str, 
     return out
 
 
-def group_stamp(stamps: dict, label: str, out) -> tuple[str, int]:
-    """The single (build, hotfix) of a set of store input groups; refuse a mix.
+def build_key(build: str) -> tuple[int, ...]:
+    """`1.60.1.70862` -> (1, 60, 1, 70862): builds order numerically, never
+    as strings (a 5-digit and a 6-digit build must still compare right)."""
+    return tuple(int(p) for p in re.findall(r"\d+", str(build)))
 
-    `stamps` is the store's `Builds` or `Hotfixes` map; `out` is the group list
-    the caller's data spans. One value across the span is the law (a capture
-    that moved only some classes is not one overlay)."""
-    vals = {stamps.get(g) for g in out}
-    if len(vals) != 1 or None in vals:
-        print(f"store carries mixed {label} {stamps} for {sorted(out)}; refusing",
+
+def resolve_stamps(store: dict, allow_mixed: bool) -> dict | None:
+    """The store's per-group (build, hotfix push) stamps, resolved to ONE
+    headline pair for the overlay; None = refuse (the reason is printed).
+
+    The store's `Builds`/`Hotfixes` maps carry one row per input group
+    (druid, hunter, ..., racials, shared, items). The overlay is the SPELL
+    legs, so the consistency law spans every group except `items` (the item
+    leg rides its own cadence and is recorded alongside, never compared):
+
+      * every spell group has a build AND a push, else refuse (an unstamped
+        group is unprovable, not "the same");
+      * all spell groups carry ONE build and ONE push: the headline is that
+        pair, `mixed` is False;
+      * spell groups that DISAGREE (a capture that moved only some classes)
+        refuse by default; with `allow_mixed` the overlay is accepted, the
+        headline is the NEWEST build and the NEWEST push of the spell groups
+        (the file is named by it), `mixed` is True, and `_meta.group_stamps`
+        records EVERY group's build + push so no reader mistakes the
+        headline for a store-wide stamp.
+    """
+    builds, hotfixes = store["Builds"], store["Hotfixes"]
+    groups = sorted(set(builds) | set(hotfixes))
+    spell_groups = [g for g in groups if g != ITEM_GROUP]
+    gaps = [g for g in spell_groups if builds.get(g) is None or hotfixes.get(g) is None]
+    if gaps or not spell_groups:
+        print(f"store carries no build/hotfix stamp for groups {gaps or '(none)'}; "
+              f"refusing (Builds {builds}, Hotfixes {hotfixes})", file=sys.stderr)
+        return None
+    span_builds = {str(builds[g]) for g in spell_groups}
+    span_pushes = {int(hotfixes[g]) for g in spell_groups}
+    mixed = len(span_builds) != 1 or len(span_pushes) != 1
+    if mixed and not allow_mixed:
+        print(f"store carries mixed per-group stamps for {spell_groups}: builds "
+              f"{ {g: builds[g] for g in spell_groups} }, hotfix pushes "
+              f"{ {g: hotfixes[g] for g in spell_groups} }; refusing "
+              f"(pass --allow-mixed to accept; the overlay then records every group)",
               file=sys.stderr)
-        return None, None
-    v = vals.pop()
-    return (v if isinstance(v, str) else str(v)), v
+        return None
+    group_stamps = {g: {"build": None if builds.get(g) is None else str(builds[g]),
+                        "hotfix_push": None if hotfixes.get(g) is None else int(hotfixes[g])}
+                    for g in groups}
+    return {
+        "build": max(span_builds, key=build_key),
+        "hotfix_push": max(span_pushes),
+        "mixed": mixed,
+        "spell_groups": spell_groups,
+        "group_stamps": group_stamps,
+        "items_build": group_stamps.get(ITEM_GROUP, {}).get("build"),
+        "items_hotfix_push": group_stamps.get(ITEM_GROUP, {}).get("hotfix_push"),
+    }
 
 
 def main() -> int:
@@ -223,6 +273,10 @@ def main() -> int:
     ap.add_argument("--out", type=pathlib.Path, default=None,
                     help="output path; default tools/overrides_<build>.json")
     ap.add_argument("--dry", action="store_true", help="report counts, write nothing")
+    ap.add_argument("--allow-mixed", action="store_true",
+                    help="accept a store whose spell groups carry different builds/hotfix "
+                         "pushes (headline = the newest of each; every group's stamp is "
+                         "recorded in _meta.group_stamps); the default refuses")
     args = ap.parse_args()
 
     store_path = args.wowsims / "assets" / "db_inputs" / "spell_store_inputs.json"
@@ -245,17 +299,12 @@ def main() -> int:
 
     with gzip.open(store_path, "rt", encoding="utf-8") as f:
         store = json.load(f)
-    groups = sorted(store["Builds"])
-    spell_groups = [g for g in groups if g != ITEM_GROUP]
-    build, hotfix = None, None
-    build, hotfix = group_stamp(store["Builds"], "builds", spell_groups)
-    if build is None:
+    stamps = resolve_stamps(store, args.allow_mixed)
+    if stamps is None:
         return 1
-    _, hotfix = group_stamp(store["Hotfixes"], "hotfixes", spell_groups)
-    if hotfix is None:
-        return 1
-    items_build, items_hotfix = group_stamp(store["Builds"], "builds", [ITEM_GROUP])
-    _, items_hotfix = group_stamp(store["Hotfixes"], "hotfixes", [ITEM_GROUP])
+    build, hotfix = stamps["build"], stamps["hotfix_push"]
+    spell_groups = stamps["spell_groups"]
+    items_build, items_hotfix = stamps["items_build"], stamps["items_hotfix_push"]
     stamp = short_build(build)
     if args.build is not None and args.build != stamp:
         print(f"--build {args.build} is not the store's spell build {stamp} "
@@ -358,6 +407,8 @@ def main() -> int:
             "build": build,
             "hotfix_push": hotfix,
             "spell_groups": spell_groups,
+            "mixed": stamps["mixed"],
+            "group_stamps": stamps["group_stamps"],
             "items_build": items_build,
             "items_hotfix_push": items_hotfix,
             "store_inputs": "assets/db_inputs/spell_store_inputs.json (gzip JSON)",
@@ -369,9 +420,10 @@ def main() -> int:
                               "Effects[].PeriodMs, targetCode = the Targets scalar "
                               "(client SpellEffectTargetingCategory code, 1 = the caster), "
                               "maxStack = AuraOptions.MaxStack above 1; "
-                              f"build: spells {build} @ hotfix {hotfix}, item leg "
-                              f"{items_build} @ hotfix {items_hotfix} "
-                              "(data-diff-live-2026-11-07.md)",
+                              f"build: spells {build} @ hotfix {hotfix}"
+                              f"{' (MIXED per-group stamps, --allow-mixed; see group_stamps)' if stamps['mixed'] else ''}"
+                              f", item leg {items_build} @ hotfix {items_hotfix} "
+                              "(data-diff-live-2026-11-10.md)",
         },
         "bookRanks": parse_book_ranks(book_go),
         "nameIndex": {n: ids for n, ids in sorted(name_index.items()) if ids},
@@ -384,6 +436,10 @@ def main() -> int:
           f"spells={len(spells)} nameIndex={len(out['nameIndex'])} "
           f"removed={len(out['removed'])} bookRanks={len(out['bookRanks'])} "
           f"-> {len(text)} bytes")
+    if stamps["mixed"]:
+        print("  MIXED per-group stamps (--allow-mixed): "
+              + ", ".join(f"{g}={s['build']}@{s['hotfix_push']}"
+                          for g, s in stamps["group_stamps"].items()))
     for i, n in sorted(out["removed"].items(), key=lambda kv: int(kv[0])):
         print(f"  removed: {n} ({i})")
     if args.dry:

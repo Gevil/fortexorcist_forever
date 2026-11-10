@@ -8,6 +8,14 @@
       "id": 400573,
       "reason": "the 18 s Arcane Focus self-buff the player's cast applies (the store's 18 s capture, MaxStacks 4); the live 70790 ladder carries NO cooldown for the name at all, and the only cooldown-carrying row of the name -- mythicsim's weapon-proc row 18091 -- is the Arcane Blast (18091) item proc the Forte_ItemProcs Archeus row already rides: tracking it would draw a fake 8 s cooldown bar (wave M3a, docs/research/data-diff-live-2026-11-07.md SS5.2)"
     },
+    "Fire Blast": {
+      "id": 10199,
+      "reason": "the trainer Rank 7 (SkillLineAbility AcquireMethod 0, 8 s cooldown + 1.5 s GCD, category 19, the cooldown Ice Lance shares); 400623 is the Season-of-Discovery Overheat action-bar copy (AcquireMethod 3, 15 s, no GCD; sim/mage/fire_blast.go:9-11) that ties it on level 54 so the id tiebreak took it; 1316039 is Whipfang's Skinsearer's item proc (docs/research/live-mage-2026-11-09.md SS3.1)"
+    },
+    "Frost Armor": {
+      "id": 7301,
+      "reason": "the trainer Rank 3 (SkillLineAbility AcquireMethod 0, level 20); 1283419 (70840) is an NPC-style copy with a 10 s cooldown and no SkillLineAbility row -- defensive: not picked today only because the store has no value row for it, the day the overlay captures one its cooldown makes it the carrier (docs/research/live-mage-2026-11-09.md SS3.2)"
+    },
     "Berserking": {
       "id": 20554,
       "reason": "all four 70790 rows (20554/23505/24378/1286304) are value-less name shells (no Cooldowns row), so the bare-row tiebreak rides the arbitrary max-id shell; 20554 is the id measured 180 s on the live client (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4)"

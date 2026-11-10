@@ -201,6 +201,11 @@ local KIND_RULES = {
         -- T1 (docs/class-port.md 6.1): Beacon of Light -- the original's
         -- `AddSpell(53563, 1, "Buff", F.BUFF)` (Paladin.lua:22).
         "^Beacon of Light",
+        -- live 70862 store / review 2026-11-10: the paladin's new cast rows --
+        -- Holy Strike 10333 (10 s cadence, no aura), Holy Wrath 10318 (60 s,
+        -- 2 s cast, no aura -- ahead of the SelfBuff band's "Wrath" substring
+        -- that used to claim it) and Light's Vigil 1311595 (6 s cadence).
+        "^Holy Strike", "^Holy Wrath", "^Light's Vigil",
     } },
     { key = "SelfDebuff", terms = {
         "^Health Funnel", "^Sacrifice", "^Hand of Sacrifice", "^Burning Rush",
@@ -265,9 +270,10 @@ local KIND_RULES = {
         "Shot$", "Judgement", "^Exorcism", "^Redemption", "on Hands",
         -- Wave I-2b (docs/class-port.md 6.2): the druid's feral finisher line
         -- this band's bleeds ride (Ferocious Bite is the 2026 bite of the Rip
-        -- / Rake family); Shieldsworn is the paladin Judgement echo's window
-        -- ON THE TARGET (the "Judgement" term above is its parent line).
-        "^Ferocious Bite", "^Shieldsworn",
+        -- / Rake family). Shieldsworn (the paladin Judgement echo's window)
+        -- LEFT for SelfBuff 2026-11-10: the store's row is a caster-side
+        -- noTarget aura (`_feeds`), so it is a self window, not a target one.
+        "^Ferocious Bite",
         -- Wave I-3e H7 (docs/class-port.md 6.3): the mage's Ignite DoT proc
         -- (412538, the Pyroblast family this block's "^Pyroblast" rides) and
         -- the paladin's Forbearance heal-reduce debuff (25771) -- both
@@ -308,6 +314,10 @@ local KIND_RULES = {
         "^Recklessness", "^Sprint", "^Blade Dance", "^Blade Flurry",
         "^Slice and Dice", "^Adrenaline Rush", "^Premeditation",
         "^Resilient", "^Remorseless", "^Evasion",
+        -- live 70862 store / review 2026-11-10: Venom (1310703), the 6 s self
+        -- aura Shank casts with the Venom talent (+30% poison damage). Exact
+        -- name: `^Venom` alone would also claim the Venomhide Poison coat.
+        "^Venom$",
         "^Ghostly Strike", "^Glimpse of Madness", "^Sudden Death",
         "^Gladiator's Cunning", "^Spell Block", "^Single-Minded Fury",
         "^Victorious", "^Battle Forecast", "^Defensive Forecast",
@@ -362,11 +372,16 @@ local KIND_RULES = {
         -- Wave I-2b (docs/class-port.md 6.2): the 2026 casts that are a window
         -- of their own -- Dark Inspiration (1326168, the priest's 10 s haste
         -- proc aura), Setup (13983, the rogue's self parry stance), Oath of
-        -- Light (1328548, the paladin's 5 min self oath aura), and the Echo of
-        -- Fury / Echo of Command proc stacks (1311701/1311703, maxStack 3) --
+        -- Light (1328548, the paladin's 5 min self oath aura). Live 70862 store /
+        -- review 2026-11-10: the whole `Echo of` proc-stack family (Fury 1311701,
+        -- Command 1311703, Righteousness 1311704, Justice 1311705, Light
+        -- 1328198, Wisdom 1328206 -- 15 s, maxStack 3, noTarget) and Shieldsworn
+        -- (1328551, 6 s, noTarget) are caster-side windows; Reckless Swings
+        -- (1329555, warrior 8 s window) and Gore Drinker (1323969, 8 s,
+        -- noTarget) are warrior self windows --
         -- this band's "generated proc windows" family.
         "^Dark Inspiration", "^Setup", "^Oath of Light",
-        "^Echo of Fury", "^Echo of Command",
+        "^Echo of", "^Shieldsworn", "^Reckless Swings", "^Gore Drinker",
         -- Wave I-3e H7 (docs/class-port.md 6.3, upstream-data §3.1): the
         -- self proc windows landed out of _deferred_H7 -- Fingers of Frost
         -- (400669, 15 s), Infusion of Light (437063, 15 s) and the Maelstrom

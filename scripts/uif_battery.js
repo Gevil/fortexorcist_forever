@@ -92,7 +92,7 @@
 // verbatim in the zip. If the constant is ever dropped from the repo, set
 // this to null and the CODE row skips with a note.
 const DEFAULT_CODE_MARKER =
-  '(ForteXorcist.CONST and ForteXorcist.CONST.VERSION) == "0.1.0-dev"';
+  '(ForteXorcist.CONST and ForteXorcist.CONST.VERSION) == "1.0.0"';
 
 // ------------------------------------------------------- fx-clear-forte ----
 // The fresh-clear sweep, at module scope on purpose: the mock harness

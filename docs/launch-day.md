@@ -1,5 +1,7 @@
 # Launch day runbook — 2026-11-04 (WoW Forever launch)
 
+status: launched 2026-11-04 (the runbook below is kept as the record of the probe protocol; answers not yet recorded are listed in `docs/VERIFICATION.md`)
+
 One addon session that answers every open live question from
 `docs/research/secrets-unknowns.md` (Q1–Q10) and `docs/design-combat-procs.md` §5.
 The collector is `/fx probe` (`addon/Forte_Core/Core/Probe.lua`): every probe
@@ -84,7 +86,7 @@ the relog persistence proof — same probe code, different restriction state.
 `scripts/uif_battery.js` is one async function for the browser kernel that
 already has an open uiforever.com tab — it needs the kernel's `uifTab`,
 `clickText(text)` and `lua(cmd, waitMs)`. Call
-`await uifBattery({ zip: 'dist/ForteXorcist-<version>.zip', fresh: true })`
+`await uifBattery({ zip: 'dist/ForteXorcist-<version>-forever.zip', fresh: true })`
 and it clears the previous import, uploads the zip, waits (polling up to
 15 s) for the `Import addons?` dialog and clicks **that dialog's** Import
 button, waits for the dialog to close, then presses `/reload` and returns

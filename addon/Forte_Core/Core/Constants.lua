@@ -5,7 +5,7 @@ local FX = ForteXorcist
 FX.CONST = {
     ADDON_NAME = "Forte_Core",
     ADDON_DISPLAY = "ForteXorcist",
-    VERSION = "0.1.0-dev",
+    VERSION = "1.0.0",
 
     SLASH_COMMANDS = { "/fx", "/fortexorcist" },
 

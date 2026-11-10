@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: |cffC41F3BForte|r Messages
 ## Notes: ForteXorcist for WoW Forever -- self messages, sounds and legality-gated party/raid announcements on the event bus.
-## Version: 0.1.0-dev
+## Version: 1.0.0
 ## Author: Gevil
 ## Dependencies: Forte_Core
 ## OptionalDeps: Forte_Options, Forte_Cooldown, Forte_Timer

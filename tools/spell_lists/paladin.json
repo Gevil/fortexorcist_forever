@@ -7,6 +7,52 @@
     "Rapid Regeneration": {
       "id": 1260270,
       "reason": "the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4). The paladin carries Rapid Regeneration (Dwarf) but NOT Berserking (an Orc/Troll racial the paladin roster cannot roll)"
+    },
+    "Judgement of Light": {
+      "id": 20346,
+      "reason": "Rank 4 debuff row (40 s, family 10); the rank law lands on 28775, the set-bonus passive (DurationMs -1) (docs/research/live-paladin-2026-11-09.md Proposed patch note)"
+    },
+    "Cleanse": {
+      "id": 4987,
+      "reason": "28787 is the set-bonus passive 'Your Cleanse spell also heals the target for 200'; the castable Cleanse is 4987 (level 42, GCD 1.5 s, no window); neither id carries a rank subtext so the highest-id tiebreak picks the passive (docs/research/live-paladin-2026-11-09.md §1.1 row 7)"
+    },
+    "Exorcism": {
+      "id": 10314,
+      "reason": "415068-415073 are the Season-of-Discovery Exorcist ladder; the Forever client ladder is 879/5614/5615/10312/10313/10314 (wowsims spell_data_auto_gen.go:194); same 15 s / category 19 (docs/research/live-paladin-2026-11-09.md §1.1 row 8)"
+    }
+  },
+  "_feeds": {
+    "Oath of Light": {
+      "noTarget": false,
+      "reason": "cast on an ally: every store effect targets code 21 (ally), the overlay's `Targets` scalar (1) is not the effect shape (live-paladin-2026-11-09.md §1.1 row 2)"
+    },
+    "Echo of Fury": {
+      "noTarget": true,
+      "reason": "aura on the paladin: all three store effects Target[0] = 1 (row 5)"
+    },
+    "Echo of Command": {
+      "noTarget": true,
+      "reason": "aura on the paladin: all three store effects Target[0] = 1 (row 5)"
+    },
+    "Echo of Righteousness": {
+      "noTarget": true,
+      "reason": "same Unsealed Wrath Echo shape as Echo of Fury (§4 rank 3)"
+    },
+    "Echo of Justice": {
+      "noTarget": true,
+      "reason": "same Unsealed Wrath Echo shape as Echo of Fury (§4 rank 3)"
+    },
+    "Echo of Light": {
+      "noTarget": true,
+      "reason": "same Unsealed Wrath Echo shape as Echo of Fury (§4 rank 3)"
+    },
+    "Echo of Wisdom": {
+      "noTarget": true,
+      "reason": "same Unsealed Wrath Echo shape as Echo of Fury (§4 rank 3)"
+    },
+    "Shieldsworn": {
+      "noTarget": true,
+      "reason": "store text 'Able to Block spells for $d.', effect Target[0] = 1: a self block window, not a target window (row 6)"
     }
   },
   "cooldowns": [
@@ -14,7 +60,7 @@
     "Voice of Truth", "Divine Favor", "Hand of Sacrifice", "Repentance",
     "Ancestral Guidance", "Swift Judgement", "Blessing of Freedom",
     "Judgement", "Divine Storm", "Divine Light", "Shield of Righteousness",
-    "Holy Shield", "Holy Shock"
+    "Holy Shield", "Holy Shock", "Holy Strike", "Holy Wrath", "Light's Vigil"
   ],
   "buffs": [
     "Divine Shield", "Divine Protection", "Blessing of Kings",
@@ -25,7 +71,9 @@
     "Turn Undead",
     "Beacon of Light", "Reckoning", "Aura Mastery",
     "Oath of Light", "Shieldsworn",
-    "Forbearance", "Infusion of Light", "Vengeance", "Vindication"
+    "Forbearance", "Infusion of Light", "Vengeance", "Vindication",
+    "Judgement of Light", "Judgement of Wisdom", "Judgement of the Crusader",
+    "Judgement of Justice"
   ],
   "auras": [
     "Seal of Fury", "Seal of Righteousness", "Seal of Command",
@@ -33,7 +81,8 @@
     "Seal of the Crusader", "Devotion Aura", "Retribution Aura",
     "Concentration Aura", "Shadow Resistance Aura", "Frost Resistance Aura",
     "Fire Resistance Aura",
-    "Echo of Fury", "Echo of Command", "Unsealed Wrath"
+    "Echo of Fury", "Echo of Command", "Echo of Righteousness", "Echo of Justice",
+    "Echo of Light", "Echo of Wisdom", "Unsealed Wrath"
   ],
   "utility": [
     "Righteous Fury", "Cleanse", "Purify", "Redemption",

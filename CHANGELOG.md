@@ -1,16 +1,42 @@
 # Changelog
 
-User-facing changes to **ForteXorcist for WoW Forever**, newest first. Each
+User-facing changes to **ForteXorcist Forever**, newest first. Each
 entry says what a player sees or can do; the engineering reasoning behind it
 lives in `PLAN.md` §9 (dated log) and `docs/`. The release number comes from
-the `VERSION` file and is written into every add-on manifest by
-`scripts/release.py`.
+the `VERSION` file; `scripts/release.py` (and the CI packager) write it into
+every add-on manifest.
 
-**WoW Forever 1.60.1 (interface 16001).** The client opens to the public
-launch on 2026-11-04, so everything below was built and verified in the
-headless interface simulator and on uiforever.com — not in a live game.
+**WoW Forever 1.60.1 (interface 16001).** The sections dated before 1.0.0
+record the pre-release builds, which were verified in headless interface
+simulators and uiforever.com and, from 2026-11-06, in the live game.
 
 ---
+
+## [1.0.0] - 2026-11-10
+
+First full release for **WoW Forever 1.60.1** (interface 16001). Everything from the
+pre-release builds below is included; this section is what changed since the last one.
+
+- **Spell data refreshed to the live game (build 1.60.1.70862).** The cooldown bar and timers now
+  follow the live numbers: Chain Lightning casts in 2.5 s, Totemic Call has a 30 s cooldown, Shank
+  is the real Forever spell with its 10 s cooldown, Vengeance stacks to 5.
+- **Wrong spells fixed.** Several bars were tracking a look-alike spell (a hunter pet's version, an
+  item proc, a Season of Discovery copy) instead of the class spell, so their cooldowns or
+  durations were wrong. Corrected: Warrior Charge, Druid Dash / Cower / Thorns / Abolish Poison,
+  Mage Fire Blast, Shaman Earth Shock and Lightning Shield (which now gets a timer), Warlock
+  Corruption (18 s, was 12 s) and Unstable Affliction (18 s, was 5 s), Hunter Serpent Sting (15 s,
+  was 12 s) and Raptor Strike, Paladin Cleanse and Exorcism.
+- **Shared cooldowns work.** Casting one spell now starts the cooldown bars of the spells that
+  share its lockout: the four Hunter traps, Multi-Shot and Aimed Shot, the three Shaman shocks,
+  Ice Lance and Fire Blast, Summon Hawk and Arcane Shot.
+- **New tracked spells:** Warrior Rend, Reckless Swings and Gore Drinker; Rogue poisons and Venom;
+  Paladin Holy Strike, Light's Vigil, Holy Wrath and the Unsealed Wrath echoes.
+- **Item cooldowns corrected** (Adaptive Combat Assistant, Weakness Analyzer, Serenity Field) and
+  the item data re-checked against the live game.
+- **Spell Timer "Expand up" works** (see the 2026-11-09 entry), and the stack stays where you put it.
+- **Packaged for CurseForge and GitHub** as `ForteXorcist-1.0.0-forever.zip`.
+
+
 
 ## Unreleased — 2026-11-09 (Spell Timer growth direction)
 

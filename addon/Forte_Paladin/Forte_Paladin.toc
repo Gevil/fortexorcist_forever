@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: |cffF58CBAForte|r Paladin
 ## Notes: ForteXorcist Paladin spell data (generated -- see tools/gen_spell_data.py).
-## Version: 0.1.0-dev
+## Version: 1.0.0
 ## Author: Gevil
 ## Dependencies: Forte_Core
 ## LoadOnDemand: 1

@@ -64,7 +64,7 @@ local Sounds = FX.Messages.Sounds
 local Announce = FX.Messages.Announce
 local Banner = FX.Messages.Banner
 
-local M = { name = "Messages", version = "0.1.0" }
+local M = { name = "Messages", version = "1.0.0" }
 FX.Messages.Module = M
 FX.RegisterModule("Messages", M)
 

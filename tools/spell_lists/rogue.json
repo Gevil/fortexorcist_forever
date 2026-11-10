@@ -11,6 +11,10 @@
     "Rapid Regeneration": {
       "id": 1260270,
       "reason": "the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4)"
+    },
+    "Venom": {
+      "id": 1310703,
+      "reason": "two family-8 rows share the name: 1329328 is the level-30 passive talent (no duration), 1310703 is the 6 s aura Shank casts with the talent (docs/research/live-rogue-2026-11-09.md section 8; store Misc['1310703'].DurationMs = 6000)"
     }
   },
   "cooldowns": [
@@ -26,7 +30,9 @@
     "Sebacious Poison", "Venomhide Poison", "Occult Poison II", "Expose Armor",
     "Garrote", "Hemorrhage", "Rupture", "Slice and Dice", "Punch Harder",
     "Glimpse of Madness", "Remorseless", "Resilient", "Blood Corruption",
-    "Crimson Tempest", "Mind-numbing Poison", "Deadly Poison", "Envenom"
+    "Crimson Tempest", "Mind-numbing Poison", "Deadly Poison", "Envenom",
+    "Deadly Poison II", "Deadly Poison III", "Deadly Poison IV",
+    "Mind-numbing Poison II", "Venom"
   ],
   "stealth_utilities": [
     "Stealth", "Vanish", "Sap", "Cheap Shot", "Pick Pocket", "Disarm Trap"

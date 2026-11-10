@@ -40,29 +40,33 @@ An `enchant_effect` (Crusader and the four Grand-* enchants) has the same shape;
 `cooldown_duration`/`category_cooldown_duration`/`buff_duration`, converted to ms) go to a
 separate `consumables` list; records without any cooldown are skipped and counted.
 
-**ICDs (2026-11-02, agent `DataRefresh`, D2 G2 / D3)**: proc rows carry `icdMs` from the
-source's `proc.icd_ms` -- the internal cooldown a trinket/enchant proc rides (51 rows on
-this build: 49 in items.jsonl + 2 in enchants.jsonl, the Grand Arcanist/Sorcerer enchants;
-D2's G2 table counted the enchant leg as 0 because it censused the top-level `ICDMs` key,
-not nested `proc.icd_ms`). F15/F16 size the proc windows from it; without it the bar
-re-lights a proc window early on the second proc. The live spell store (wowsims, MIT --
-stamped in the generated header) answers the aura side of this through the proc buff
-spell's `AuraOptions.ICDMs`: 7 of the 51 emitted `icdMs` rows have such a row at all (on
-1.60.1.70707 AND on 1.60.1.70790, both times reading `0`), so the store confirms NONE of
-them and contradicts none -- every one of the 51 stays mythicsim's hand/measured number,
-launch-day probe material (docs/research/forever-data-gaps.md G2). The earlier "confirms
-9 of the 49" line in this file's history is not reproducible on this join; the
-measured counts are restated in docs/research/data-diff-live-2026-11-07.md §4. The store's item side
-carries NO consumed-field deltas: every item/consumable cooldown, shared category and
-duration this generator consumes is identical 70425 -> 70707 (D1 §3) and again
-70425 -> 70790 spells / 70862 items (wave M5, 2026-11-07: 707 compared consumed values --
-184 on-use cooldowns, 364 item effect durations, 13 item proc ICDs, 4 consumable
-cooldowns, 71 consumable category cooldowns, 71 category ids -- ALL 707 equal, 0 deltas;
-coverage, not readings, for the rest: 82 consumable buff durations, 6 `maxStacks`, 479
-item rows, 10 consumable rows and the 5 enchant rows carry no row in the capture),
-so the item leg applies no
-value overlays (and the 64 wowsims-side on-use category additions stay unemitted, matching
-the existing `category_cooldown_ms` "NOT emitted" law above).
+**ICDs (2026-11-02, agent `DataRefresh`, D2 G2 / D3; audit restated 2026-11-10)**: proc rows
+carry `icdMs` from the source's `proc.icd_ms` -- the internal cooldown a trinket/enchant proc
+rides (51 rows on this build: 49 in items.jsonl + 2 in enchants.jsonl, the Grand
+Arcanist/Sorcerer enchants). F15/F16 size the proc windows from it; without it the bar
+re-lights a proc window early on the second proc. THE STORE AUDIT joins on the AURA id the
+row's `buffName` carries ("Sear (1291568)" -> 1291568), NOT on `buff_id`: `buff_id` is often
+the damage spell the aura triggers, and that spell has no `AuraOptions` row (the old
+`buff_id` join found 10 rows, all reading 0, hence the earlier, wrong, "the store confirms
+NONE" line). The store readings live in tools/item_lists/live_items.json (`icdStoreAudit`,
+captured from the spell store the overlay is stamped from); this generator computes the
+counts (equal / reads 0 / contradicts / no store row) and writes them into the Forte_ItemProcs
+header, listing every row the store reads 0 on (those keep mythicsim's number). The live
+tooltip confirmation (29 of 37 ICD items) is quoted from
+docs/research/live-items-procs-2026-11-09.md section 1.2 and cannot be regenerated from the pinned
+files. Sub-second values (10/100/200 ms) are debounces, not cooldowns:
+Forte_Cooldown/Core/Procs.lua draws no bar for them (its own 1 s floor, `Procs.MIN_ICD`).
+
+**Live layer (2026-11-10, tools/item_lists/live_items.json)**: the mythicsim item rows are
+pinned at 1.60.1.70425 and the game moved afterwards (ItemEffect hotfixes never show in the
+spell store: wave M5's "707 of 707 equal" was true of the store and missed three on-use
+cooldowns). The list file carries, each row with its source: `onUseOverride` (a value change
+to a mythicsim on-use row, with the value it replaces -- a stale or redundant override is an
+error), `onUseAdd` (live on-use items mythicsim does not have), `procAdd` / `procPreferId`
+(a live proc row, and the ByName pick for a duplicated name), `consumablesAdd` (live
+consumables with a cooldown that the 106-row sim list omits) and the ICD audit readings.
+The 64 wowsims-side on-use category additions stay unemitted, matching the
+`category_cooldown_ms` "NOT emitted" law above.
 
 **Relevance policy**: no hand filtering by class -- most items are class-agnostic. `classAllowlist`
 is emitted ONLY where the source row has `class_allowlist` (e.g. trinkets restricted to one class
@@ -81,8 +85,21 @@ the data states (`type`, `hand_type`, `weapon_type`, `ranged_weapon_type`, `armo
 
 Name handling: Forever keys by NAME at runtime; ids are informational. Same item name with
 multiple ids exists (PvP rank variants, e.g. "Insignia of the Horde" x16): every entry is kept in
-the lists, and ByName keys resolve deterministically to the LOWEST itemId; every such collision
-is printed by this generator and listed in the generated file header.
+the lists, and ByName keys resolve deterministically to the LOWEST itemId (or the
+`procPreferId` pick); every such collision is printed by this generator and listed in the
+generated file header. Two refinements:
+  * CLASS-VARIANT names (every row of the name has its own `classAllowlist`, e.g. the 16
+    Insignia rows, one per class and effect): Core/Items.lua gates the ByName row on the
+    player's class, and the lowest-id row is ONE class's row, so every other class would never
+    track it. `OnUseByName[name]` is then a merged row (name, lowest id, cooldown,
+    `classAllowlist` = the union; buff/duration fields only where every variant agrees) and
+    `OnUseByNameClass[name][ClassToken]` is each class's own row (lowest id per class).
+  * `ProcsByBuffName` keeps the first row per buff name; the buff names shared by DIFFERENT
+    items are also listed in `ProcsByBuffNameAll[buffName]` (one row per item name).
+An on-use/consumable name equal to a class spell name is checked against
+addon/Forte_*/Data/*.lua: Engine.entries is keyed by plain name, so a class spell row that
+carries a `cooldownMs` would share its key with the item (error); rows without one (the
+Warlock Healthstone use-spells) are only reported.
 
 Usage:
     python3 tools/gen_item_data.py            # write + report
@@ -93,6 +110,7 @@ import argparse
 import hashlib
 import json
 import pathlib
+import re
 import sys
 from datetime import datetime, timezone
 
@@ -107,6 +125,7 @@ REPO_ROOT = HERE.parent
 DEFAULT_DATA_DIR = REPO_ROOT.parent / "mythicsim-forever-engine" / "data"
 OUT_PATH = REPO_ROOT / "addon" / "Forte_Items" / "Data" / "Items.lua"
 PROCS_OUT_PATH = REPO_ROOT / "addon" / "Forte_ItemProcs" / "Data" / "Procs.lua"
+LIVE_ITEMS = HERE / "item_lists" / "live_items.json"
 
 # Fixed composition order for slotType: only fields the row actually states.
 SLOT_FIELDS = ("type", "hand_type", "weapon_type", "ranged_weapon_type", "armor_type")
@@ -168,22 +187,80 @@ def emit_entries(entries: list[dict], indent: str) -> list[str]:
     return lines
 
 
-def by_name_keyed(entries: list[dict], key_field: str) -> tuple:
-    """(pairs [(key, list_index_1based)], collisions [(key, [itemIds...])]) -- first (lowest id) wins."""
-    seen: dict[str, int] = {}
-    pairs: list[tuple[str, int]] = []
-    collide: dict[str, list[int]] = {}
+def by_name_keyed(entries: list[dict], key_field: str, prefer: dict | None = None) -> tuple:
+    """(pairs [(key, list_index_0based)], collisions [(key, [itemIds...])]).
+    The lowest id wins a key unless `prefer` {key: itemId} names another row of that key."""
+    members: dict[str, list[int]] = {}
     for i, e in enumerate(entries):
-        k = e[key_field]
-        if k in seen:
-            collide.setdefault(k, []).append(e["itemId"])
+        members.setdefault(e[key_field], []).append(i)
+    pairs: list[tuple[str, int]] = []
+    collide: list[tuple[str, list[int]]] = []
+    for k, idxs in members.items():
+        win = idxs[0]
+        want = (prefer or {}).get(k)
+        if want is not None:
+            for i in idxs:
+                if entries[i]["itemId"] == want:
+                    win = i
+                    break
+        pairs.append((k, win))
+        if len(idxs) > 1:
+            collide.append((k, [entries[win]["itemId"]]
+                            + [entries[i]["itemId"] for i in idxs if i != win]))
+    return pairs, sorted(collide)
+
+
+def class_variant_groups(entries: list[dict]) -> dict:
+    """{name: [rows]} for the names with several rows where EVERY row has its own
+    classAllowlist (the Insignia family)."""
+    by: dict[str, list[dict]] = {}
+    for e in entries:
+        by.setdefault(e["name"], []).append(e)
+    return {n: rows for n, rows in by.items()
+            if len(rows) > 1 and all("classAllowlist" in r for r in rows)}
+
+
+def merged_class_row(rows: list[dict]) -> tuple:
+    """The name-level ByName row of a class-variant name: lowest id, the union of the
+    class allowlists, and a field only where every variant states the same value.
+    Returns (row, problems); the cooldown must agree or the merge is refused."""
+    first = rows[0]
+    row = {"name": first["name"], "itemId": first["itemId"], "source": first["source"]}
+    problems = []
+    for f in ("cooldownMs", "buffId", "buffName", "durationMs", "maxStacks", "slotType"):
+        vals = {json.dumps(r.get(f)) for r in rows}
+        if len(vals) == 1 and f in first:
+            row[f] = first[f]
+        elif f == "cooldownMs":
+            problems.append(f"class-variant {first['name']!r}: cooldownMs differs across variants")
+    row["classAllowlist"] = sorted({c for r in rows for c in r["classAllowlist"]})
+    row["trackable"] = first["trackable"]
+    return row, problems
+
+
+def load_live_items(path: pathlib.Path) -> dict | None:
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def class_spell_rows() -> dict:
+    """{spell name: [has_cooldownMs, ...]} and {spell id: name} over the generated class
+    data (addon/Forte_*/Data/*.lua except the two item files); comment lines are skipped."""
+    names: dict[str, list[bool]] = {}
+    ids: dict[int, str] = {}
+    row_re = re.compile(r'\{ id = (\d+), name = "((?:[^"\\]|\\.)*)"([^}]*)\}')
+    for f in sorted((REPO_ROOT / "addon").glob("Forte_*/Data/*.lua")):
+        if f.name in ("Items.lua", "Procs.lua"):
             continue
-        seen[k] = i
-        pairs.append((k, i))
-    for k in collide:
-        # include the winner's id in the reported id list
-        collide[k].insert(0, entries[seen[k]]["itemId"])
-    return pairs, sorted(collide.items())
+        for line in f.read_text(encoding="utf-8").splitlines():
+            if line.lstrip().startswith("--"):
+                continue
+            for m in row_re.finditer(line):
+                cd = re.search(r"\bcooldownMs = (\d+)", m.group(3))
+                names.setdefault(m.group(2), []).append(bool(cd and int(cd.group(1)) > 0))
+                ids[int(m.group(1))] = m.group(2)
+    return {"names": names, "ids": ids}
 
 
 def main() -> int:
@@ -216,7 +293,13 @@ def main() -> int:
     enchants = load_jsonl(data / "enchants.jsonl")
     consumables = load_jsonl(data / "consumables.jsonl")
 
+    live = load_live_items(LIVE_ITEMS)
     errors: list[str] = []
+    if live is None:
+        errors.append(f"missing {LIVE_ITEMS}: the live layer (value overrides, live on-use items, "
+                      f"consumables, ICD audit readings) is part of this generator's input")
+        live = {}
+
     on_use: list[dict] = []
     procs: list[dict] = []
     skipped_passive_effects = 0
@@ -319,6 +402,82 @@ def main() -> int:
         d["trackable"] = "cooldown"
         consumable_out.append(d)
 
+    # ---- the live layer (tools/item_lists/live_items.json; see the module docstring) ----
+    ov_applied: list[str] = []
+    for sid, ov in sorted((live.get("onUseOverride") or {}).items(), key=lambda kv: int(kv[0])):
+        iid = int(sid)
+        hit = [d for d in on_use if d["itemId"] == iid and d["source"] == "item"]
+        fields = [f for f in ("cooldownMs", "durationMs") if f in ov]
+        if len(hit) != 1 or len(fields) != 1 or "was" not in ov:
+            errors.append(f"onUseOverride {sid}: needs exactly one mythicsim on-use row, ONE of "
+                          f"cooldownMs/durationMs and `was`")
+            continue
+        f, row = fields[0], hit[0]
+        if ov.get("name") != row["name"]:
+            errors.append(f"onUseOverride {sid}: names {row['name']!r}, the list says {ov.get('name')!r}")
+        elif row.get(f) == ov[f]:
+            errors.append(f"onUseOverride {sid} ({row['name']}): the source row already says "
+                          f"{f} = {ov[f]} -- remove the override from live_items.json")
+        elif row.get(f) != ov["was"]:
+            errors.append(f"onUseOverride {sid} ({row['name']}): the source row's {f} is "
+                          f"{row.get(f)}, the list expects {ov['was']} -- the pinned data moved, "
+                          f"re-check the override")
+        else:
+            row[f] = ov[f]
+            ov_applied.append(f"{row['name']} ({iid}) {f} {ov['was']} -> {ov[f]}")
+
+    have_on_use = {d["itemId"] for d in on_use if d["source"] == "item"}
+    n_add_on_use = 0
+    for a in live.get("onUseAdd") or []:
+        if a["itemId"] in have_on_use:
+            errors.append(f"onUseAdd {a['itemId']} ({a['name']}) is already in the mythicsim data -- "
+                          f"remove it from live_items.json")
+            continue
+        d = {"name": a["name"], "itemId": a["itemId"], "source": "item"}
+        for f in ("slotType", "cooldownMs", "buffId", "buffName", "durationMs", "maxStacks",
+                  "classAllowlist"):
+            if f in a:
+                d[f] = a[f]
+        d["trackable"] = "cooldown"
+        on_use.append(d)
+        have_on_use.add(a["itemId"])
+        n_add_on_use += 1
+
+    have_procs = {d["itemId"] for d in procs if d["source"] == "item"}
+    n_add_proc = 0
+    for a in live.get("procAdd") or []:
+        if a["itemId"] in have_procs:
+            errors.append(f"procAdd {a['itemId']} ({a['name']}) is already in the mythicsim data -- "
+                          f"remove it from live_items.json")
+            continue
+        d = {"name": a["name"], "itemId": a["itemId"], "source": "item"}
+        for f in ("slotType", "buffId", "buffName", "durationMs", "maxStacks", "icdMs",
+                  "classAllowlist"):
+            if f in a:
+                d[f] = a[f]
+        d["trackable"] = "buff-window"
+        procs.append(d)
+        have_procs.add(a["itemId"])
+        n_add_proc += 1
+
+    have_cons = {d["itemId"] for d in consumable_out}
+    n_add_cons = 0
+    for grp in live.get("consumablesAdd") or []:
+        for a in grp["rows"]:
+            if a["itemId"] in have_cons or a["itemId"] in have_on_use:
+                errors.append(f"consumablesAdd {a['itemId']} ({a['name']}) is already emitted -- "
+                              f"remove it from live_items.json")
+                continue
+            d = {"name": a["name"], "itemId": a["itemId"], "source": "consumable"}
+            for f in ("cooldownMs", "categoryCooldownMs", "categoryId", "durationMs",
+                      "consumableType"):
+                if f in a:
+                    d[f] = a[f]
+            d["trackable"] = "cooldown"
+            consumable_out.append(d)
+            have_cons.add(a["itemId"])
+            n_add_cons += 1
+
     # Deterministic order: name (casefold), itemId, buffId.
     def order(e: dict):
         return (e["name"].casefold(), e["itemId"], e.get("buffId", 0))
@@ -326,8 +485,28 @@ def main() -> int:
     procs.sort(key=order)
     consumable_out.sort(key=order)
 
+    prefer_ids = {n: v["itemId"] for n, v in (live.get("procPreferId") or {}).items()}
     onuse_by, onuse_collide = by_name_keyed(on_use, "name")
-    procs_by, procs_collide = by_name_keyed(procs, "name")
+    procs_by, procs_collide = by_name_keyed(procs, "name", prefer_ids)
+
+    # Class-variant names (the Insignia family): a merged ByName row + a per-class index.
+    on_use_pos = {id(e): i for i, e in enumerate(on_use)}
+    variant_rows = class_variant_groups(on_use)
+    merged_by_name: dict[str, dict] = {}
+    class_rows: dict[str, dict[str, int]] = {}
+    for vname, vrows in sorted(variant_rows.items()):
+        mrow, probs = merged_class_row(vrows)
+        errors.extend(probs)
+        merged_by_name[vname] = mrow
+        per_class: dict[str, list[dict]] = {}
+        for r in vrows:
+            for c in r["classAllowlist"]:
+                per_class.setdefault(c, []).append(r)
+        class_rows[vname] = {c: on_use_pos[id(rs[0])] for c, rs in sorted(per_class.items())}
+        for c, rs in sorted(per_class.items()):
+            if len({r.get("buffId") for r in rs}) > 1:
+                print(f"report: class-variant {vname!r} {c}: rows {[r['itemId'] for r in rs]} "
+                      f"disagree on buffId; OnUseByNameClass takes the lowest id")
     proc_buff_pairs: list[tuple[str, int]] = []
     proc_buff_seen: dict[str, int] = {}
     proc_buff_collide: list[tuple[str, list[int]]] = []
@@ -346,6 +525,56 @@ def main() -> int:
     n_proc_items = sum(1 for e in procs if e["source"] == "item")
     n_proc_ench = enchant_procs
 
+    # ---- the ICD audit (module docstring "ICDs"): readings from live_items.json, joined on
+    # the aura id in buffName; counted here, written into the Forte_ItemProcs header ----
+    audit_src = live.get("icdStoreAudit") or {}
+    by_aura = audit_src.get("byBuffNameAuraId") or {}
+    by_buff = audit_src.get("byBuffId") or {}
+    audit = {"equal": 0, "norow": 0, "zero": [], "diff": [], "buff_rows": 0, "buff_nonzero": 0}
+    icd_all = [e for e in procs if "icdMs" in e]
+    for e in icd_all:
+        m = re.search(r"\((\d+)\)\s*$", e.get("buffName", ""))
+        key = m.group(1) if m else None
+        if key not in by_aura or str(e["buffId"]) not in by_buff:
+            errors.append(f"icdStoreAudit has no reading for {e['name']} ({e['itemId']}) "
+                          f"aura {key} / buffId {e['buffId']}: re-capture the readings")
+            continue
+        v = by_aura[key]
+        if v is None:
+            audit["norow"] += 1
+        elif v == e["icdMs"]:
+            audit["equal"] += 1
+        elif v == 0:
+            audit["zero"].append((e, key))
+        else:
+            audit["diff"].append((e, key, v))
+        bv = by_buff[str(e["buffId"])]
+        if bv is not None:
+            audit["buff_rows"] += 1
+            if bv:
+                audit["buff_nonzero"] += 1
+    n_subsec = sum(1 for e in icd_all if e["icdMs"] < 1000)
+
+    # ---- item names / buff ids against the generated class data (docstring "Name handling") ----
+    cls = class_spell_rows()
+    benign_clash: list[str] = []
+    for cname in sorted({e["name"] for e in on_use + consumable_out}):
+        flags = cls["names"].get(cname)
+        if not flags:
+            continue
+        if any(flags):
+            errors.append(f"item name {cname!r} equals a class spell name whose row carries a "
+                          f"cooldownMs: both would key Engine.entries[{cname!r}]")
+        else:
+            benign_clash.append(cname)
+    seen_id_clash: set[tuple[int, str]] = set()
+    id_clash: list[str] = []
+    for e in on_use + procs:
+        bid = e.get("buffId")
+        if bid in cls["ids"] and (bid, e["name"]) not in seen_id_clash:
+            seen_id_clash.add((bid, e["name"]))
+            id_clash.append(f"{e['name']} ({e['itemId']}) buffId {bid} = class spell {cls['ids'][bid]!r}")
+
     print(f"counts: onUse={len(on_use)} procs={len(procs)} "
           f"(item={n_proc_items} enchant={n_proc_ench}) consumables={len(consumable_out)} "
           f"(skipped no-cooldown consumables={consumable_no_cd}) "
@@ -354,9 +583,22 @@ def main() -> int:
     print(f"report: entries with a buff but no duration: onUse={nodur_onuse} procs={nodur_procs}")
     for label, coll in (("onUse", onuse_collide), ("procs", procs_collide)):
         for name, ids in coll:
-            print(f"report: {label} name collision {name!r} ids={ids} -> ByName resolves to lowest id")
+            print(f"report: {label} name collision {name!r} ids={ids} -> ByName resolves to the "
+                  f"first id listed (lowest, or the procPreferId pick)")
     for name, ids in proc_buff_collide:
         print(f"report: proc buffName collision {name!r} ids={ids} -> ByBuffName resolves to first")
+    for line in id_clash:
+        print(f"report: item buff id == class spell id (no name shadowing: buff names carry their "
+              f"id, class rows key by plain name): {line}")
+    for cname in benign_clash:
+        print(f"report: item name {cname!r} equals a class spell name whose rows carry no "
+              f"cooldownMs (not tracked by name): benign")
+    print(f"report: live layer: overrides applied={len(ov_applied)} onUse added={n_add_on_use} "
+          f"procs added={n_add_proc} consumables added={n_add_cons}")
+    print(f"report: ICD audit (join on the buffName aura id): equal={audit['equal']} "
+          f"store-reads-0={len(audit['zero'])} contradicts={len(audit['diff'])} "
+          f"no-store-row={audit['norow']} of {len(icd_all)}; the old buff_id join: "
+          f"{audit['buff_rows']} rows, {audit['buff_nonzero']} non-zero; sub-second rows={n_subsec}")
     print(f"errors: {len(errors)}")
     for e in errors:
         print(f"  error: {e}", file=sys.stderr)
@@ -372,7 +614,7 @@ def main() -> int:
     # module's name fallback reads them) under the name `enchantProcs`.
     proc_item_rows = [e for e in procs if e["source"] == "item"]
     enchant_proc_rows = [e for e in procs if e["source"] != "item"]
-    proc_items_by, proc_items_collide = by_name_keyed(proc_item_rows, "name")
+    proc_items_by, proc_items_collide = by_name_keyed(proc_item_rows, "name", prefer_ids)
     proc_buff_pairs = []
     proc_buff_seen = {}
     for i, e in enumerate(proc_item_rows):
@@ -383,6 +625,16 @@ def main() -> int:
             continue
         proc_buff_seen[k] = i
         proc_buff_pairs.append((k, i))
+    # Buff names shared by DIFFERENT items: ProcsByBuffName keeps the first, this lists all.
+    buff_items: dict[str, list[int]] = {}
+    buff_item_names: dict[str, set[str]] = {}
+    for i, e in enumerate(proc_item_rows):
+        k = e.get("buffName")
+        if k is None or e["name"] in buff_item_names.setdefault(k, set()):
+            continue
+        buff_item_names[k].add(e["name"])
+        buff_items.setdefault(k, []).append(i)
+    buff_all = [(k, idxs) for k, idxs in sorted(buff_items.items()) if len(idxs) > 1]
     nodur_proc_items = sum(1 for e in proc_item_rows
                            if "buffName" in e and "durationMs" not in e)
     nodur_proc_ench = sum(1 for e in enchant_proc_rows
@@ -416,12 +668,17 @@ def main() -> int:
                      f"built by {ov_meta.get('generated_by', 'tools/extract_store.py')}; "
                      f"spell-store cross-check, "
                      f"docs/research/data-diff-70707.md §3 + "
-                     f"docs/research/data-diff-live-2026-11-07.md §4: every item/consumable "
-                     f"cooldown, shared category and duration consumed here is identical "
-                     f"{build} -> {ov_meta['build']}, so no value "
-                     f"overlays are applied to this file)")
+                     f"docs/research/data-diff-live-2026-11-10.md §4: where the store "
+                     f"carries a row for a consumed buff id its duration equals the "
+                     f"{build} pull except the divergences that report lists, and the "
+                     f"item/consumable cooldowns and shared categories carry no spell "
+                     f"id in the pull to join on; the store applies no value overlay "
+                     f"to this file -- the live item layer is tools/item_lists/live_items.json)")
         else:
             h.append(f"-- Overlay: NONE (tools/{LIVE_OVERLAY.name} missing) -- values are pure {build}")
+        lmeta = live.get("_meta") or {}
+        h.append(f"-- Live item layer: tools/item_lists/live_items.json ({lmeta.get('source_db', 'source unknown')};")
+        h.append(f"--   {lmeta.get('report', 'report unknown')})")
         h.append("-- File pins (sha256 prefix, manifest.json): "
                  f"items={pins['items.jsonl']} "
                  f"enchants={pins['enchants.jsonl']} consumables={pins['consumables.jsonl']}")
@@ -439,18 +696,28 @@ def main() -> int:
         return h
 
     def collisions_leg(lines: list[str]) -> None:
-        lines.append("-- Name collisions (same name, multiple ids -- ByName keys resolve to the LOWEST id;")
-        lines.append("--   all rank variants remain in the lists): "
+        lines.append("-- Name collisions (same name, multiple ids -- ByName keys resolve to the LOWEST id,")
+        lines.append("--   or the procPreferId pick; all variants remain in the lists): "
                      f"{len(onuse_collide) + len(procs_collide)}")
         for label, coll in (("onUse", onuse_collide), ("procs", procs_collide)):
             for name, ids in coll:
-                lines.append(f"--   {label}: {name} ids={','.join(str(i) for i in ids)}")
+                note = ""
+                if label == "onUse" and name in merged_by_name:
+                    note = " (class variants: merged ByName row + OnUseByNameClass)"
+                elif label == "procs" and name in prefer_ids:
+                    note = f" (ProcsByName pick {prefer_ids[name]}, procPreferId)"
+                lines.append(f"--   {label}: {name} ids={','.join(str(i) for i in ids)}{note}")
 
     # ------------------------------------------------ Forte_Items/Items.lua --
     L: list[str] = common_header()
     A = L.append
     A(f"-- Counts: onUse={len(on_use)} consumables={len(consumable_out)} "
       f"enchantProcs={len(enchant_proc_rows)}")
+    A("-- Live layer (tools/item_lists/live_items.json): value overrides applied to mythicsim rows:")
+    for s in ov_applied:
+        A(f"--   {s}")
+    A(f"--   rows added: onUse={n_add_on_use} procs={n_add_proc} consumables={n_add_cons} "
+      f"(each row's source is in the list file)")
     collisions_leg(L)
     A("-- trackable = \"cooldown\"    -- item-use/consumable: the item cooldown API path")
     A("-- trackable = \"buff-window\" -- procs: NO cast to predict from (a proc fires off a hit, no")
@@ -477,7 +744,18 @@ def main() -> int:
     A("  local items = ForteXorcist.Data.Items")
     A("  items.OnUseByName = {}")
     for k, i in onuse_by:
-        A(f"  items.OnUseByName[{lua_str(k)}] = items.onUse[{i + 1}]")
+        if k in merged_by_name:
+            A("  -- class-variant name: merged row (lowest id, union allowlist), not a list entry")
+            A(f"  items.OnUseByName[{lua_str(k)}] = {{ " + ", ".join(entry_fields(merged_by_name[k])) + " }")
+        else:
+            A(f"  items.OnUseByName[{lua_str(k)}] = items.onUse[{i + 1}]")
+    A("  -- class-variant names: each class's own row (lowest id per class)")
+    A("  items.OnUseByNameClass = {}")
+    for vname, per in class_rows.items():
+        A(f"  items.OnUseByNameClass[{lua_str(vname)}] = {{")
+        for c, i in per.items():
+            A(f"    [{lua_str(c)}] = items.onUse[{i + 1}],")
+        A("  }")
     A("end")
     A("")
 
@@ -493,16 +771,37 @@ def main() -> int:
     B(f"-- Entries with a buff but no duration: procs={nodur_proc_items} (the {nodur_proc_ench}")
     B("--   enchant rows of Forte_Items carry the rest)")
     B(f"-- ICDs (proc.icd_ms, D2 G2 / F15-F16): {len(icd_rows)} rows carry icdMs")
-    B(f"--   ({len(icd_rows_items)} here + {len(icd_rows_ench)} in Forte_Items enchantProcs); the store's")
-    B("--   AuraOptions.ICDMs cover 125 of the 405 proc-buff auras on the 70790 capture and")
-    B("--   read 0 on every one (7 of the 51 emitted rows have a store row, all of them 0),")
-    B("--   so the store confirms NONE of these numbers and contradicts none -- the rest are")
-    B("--   launch-day probe")
-    B("--   material (docs/research/forever-data-gaps.md G2). Forte_Cooldown/Core/Procs.lua")
-    B("--   sizes the proc ICD window from it:")
+    B(f"--   ({len(icd_rows_items)} here + {len(icd_rows_ench)} in Forte_Items enchantProcs).")
+    B("--   Store audit (tools/item_lists/live_items.json icdStoreAudit = AuraOptions.ICDMs read from")
+    B("--   the spell store), joined on the AURA id each row's buffName carries -- buffId is often")
+    B("--   the damage spell the aura triggers and has no AuraOptions row:")
+    B(f"--   {audit['equal']} of {len(icd_all)} rows equal the store, {len(audit['zero'])} read 0 there, "
+      f"{len(audit['diff'])} contradict it, {audit['norow']} have no store row.")
+    B(f"--   (The old buffId join found {audit['buff_rows']} rows, {audit['buff_nonzero']} non-zero.)")
+    for e, key in audit["zero"]:
+        B(f"--   store reads 0, mythicsim number kept: {e['name']} ({e['itemId']}) "
+          f"icdMs = {e['icdMs']} (aura {key})")
+    for e, key, v in audit["diff"]:
+        B(f"--   CONTRADICTED by the store: {e['name']} ({e['itemId']}) icdMs = {e['icdMs']}, "
+          f"aura {key} reads {v}")
+    tip = live.get("icdTooltipAudit")
+    if tip:
+        B(f"--   Live tooltips (quoted, not regenerated -- {tip['source']}): "
+          f"{tip['itemsMatchingTooltip']} of {tip['itemsChecked']} ICD items state the same number, "
+          f"{tip['itemsWithoutCooldownLine']} show no cooldown line, {tip['itemsNotOnWowhead']} are not on "
+          f"Wowhead; ambiguous: {', '.join(tip['ambiguous'])}.")
+    B(f"--   {n_subsec} of {len(icd_rows)} rows are sub-second (< 1000 ms) debounces, not cooldowns:")
+    B("--   Forte_Cooldown/Core/Procs.lua draws no bar for them (Procs.MIN_ICD).")
+    B("--   Forte_Cooldown/Core/Procs.lua sizes the proc ICD window from icdMs:")
     for e in icd_rows:
         B(f"--   {e['name']} ({e['itemId']}) icdMs = {e['icdMs']}")
     collisions_leg(P)
+    B(f"-- Live layer: {n_add_proc} proc row(s) added from tools/item_lists/live_items.json (procAdd).")
+    B(f"-- Proc buff names shared by DIFFERENT items: {len(buff_all)} (ProcsByBuffName keeps the first;")
+    B("--   ProcsByBuffNameAll lists one row per item name, first = the ProcsByBuffName row)")
+    for k, idxs in buff_all:
+        B(f"--   {k}: " + ", ".join(f"{proc_item_rows[i]['name']} ({proc_item_rows[i]['itemId']})"
+                                    for i in idxs))
     B("-- trackable = \"buff-window\" -- procs: NO cast to predict from (a proc fires off a hit, no")
     B("--   UNIT_SPELLCAST_SUCCEEDED anchor). Forever aura reads are secret in combat")
     B("--   (PLAN.md §8), so the window can ONLY be read OUT OF COMBAT (C_UnitAuras via")
@@ -525,6 +824,11 @@ def main() -> int:
     B("  procs.ProcsByBuffName = {}")
     for k, i in proc_buff_pairs:
         B(f"  procs.ProcsByBuffName[{lua_str(k)}] = procs.procs[{i + 1}]")
+    B("  -- buff names shared by different items: every item (ProcsByBuffName keeps the first only)")
+    B("  procs.ProcsByBuffNameAll = {}")
+    for k, idxs in buff_all:
+        B(f"  procs.ProcsByBuffNameAll[{lua_str(k)}] = {{ "
+          + ", ".join(f"procs.procs[{i + 1}]" for i in idxs) + " }")
     B("end")
     B("")
 

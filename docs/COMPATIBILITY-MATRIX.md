@@ -7,6 +7,12 @@ exercised, and the launch-day 2026-11-04 answer where the sim cannot give one
 `AGENTS.md` "Verification"). Spell out what a *sim* row proves: the contract
 of our code against a declared shape, not the client's own plumbing.
 
+**Status at 1.0.0 (2026-11-10).** The "client PENDING" cells below are still pending: the comms
+rows were verified in the simulator only, and no live group-comms session (F-comms 1-3) is recorded in
+this repository. The shipped default for the Warlock group comms is **on** (`CommsEnable = true`,
+`Forte_Warlock/Pages/Warlock.lua`); they send only inside a group and are skipped or queued under the
+lockdown rules in the rows above.
+
 > Scope note: wave I-3 slice I3b (2026-11-03) created this file. Like
 > `docs/VERIFICATION.md` (created by I2c for the same reason), the path is
 > cited from `PLAN.md` §11.2 (`I3b`, `I3d` rows) and from
