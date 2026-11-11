@@ -9,6 +9,13 @@ What is already in the repo: `.pkgmeta` (16 folders, ignores tests/docs), `.gith
 `scripts/release.py` (local build of the same payload). What only you can do: the CurseForge account,
 project, logo, API token, GitHub secret, the tag.
 
+> **Status 2026-11-11:** the owner created the project (**ID 1796794**) and the 1.0.0 file was uploaded
+> through the API (file ID 9554784, Release, Forever 1.60.1); it is **Under Review**. `X-Curse-Project-ID`
+> is in both `Forte_Core` tocs for the packager. What remains: regenerate the API token (the first one was
+> pasted in a chat), store the new one as the repo secret `CF_API_KEY`, and answer moderator feedback.
+> Sections B and C below stay as the reference for later releases (the first-upload fallback in step 11 was
+> not needed).
+
 ## A. CurseForge account and project
 
 1. **Account.** Sign in (or register) at <https://www.curseforge.com/> and open the authors area:

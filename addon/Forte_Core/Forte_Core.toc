@@ -3,6 +3,7 @@
 ## Notes: ForteXorcist for WoW Forever -- shared bootstrap, compat layer and constants.
 ## Version: 1.0.0
 ## Author: Gevil
+## X-Curse-Project-ID: 1796794
 ## SavedVariables: ForteXorcistDB
 
 Core/Compat.lua
