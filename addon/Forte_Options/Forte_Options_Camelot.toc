@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: |cffC41F3BForte|r Options
 ## Notes: ForteXorcist for WoW Forever -- the original-shape options window (settings, widgets, pages).
-## Version: 1.0.0
+## Version: 1.0.1
 ## Author: Gevil
 ## Dependencies: Forte_Core
 ## OptionalDeps: Forte_Cooldown

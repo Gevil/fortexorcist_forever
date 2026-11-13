@@ -5,7 +5,7 @@ It is a rebuild of the classic **ForteXorcist** addon (2012, by Xus) for the For
 API and its combat restrictions. It keeps the original's look (Classic skin, URW Gothic font, the
 original's textures). It is not a port of the 2012 code.
 
-**Version 1.0.0** · client **WoW Forever 1.60.1** (interface `16001`) · license **GPL-3.0**
+**Version 1.0.1** · client **WoW Forever 1.60.1** (interface `16001`) · license **GPL-3.0**
 
 ## Who it is for
 

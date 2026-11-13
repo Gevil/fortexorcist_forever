@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: |cffC41F3BForte|r Timer
 ## Notes: ForteXorcist for WoW Forever -- Spell Timer: stacked per-spell / per-target rows from own-cast predictions.
-## Version: 1.0.0
+## Version: 1.0.1
 ## Author: Gevil
 ## Dependencies: Forte_Core
 ## OptionalDeps: Forte_Options, Forte_Cooldown

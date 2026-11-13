@@ -12,7 +12,9 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
 
 ---
 
-## Unreleased
+## [1.0.1] - 2026-11-13
+
+Fixes found by testing in the live game.
 
 - **The Hunter aspect reminder no longer blinks after a reload or login when an aspect is already
   active, and it now reacts when an aspect is cancelled out of combat.** The addon only looked at your

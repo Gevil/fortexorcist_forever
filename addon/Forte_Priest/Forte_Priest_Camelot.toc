@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: |cffFFFFFFForte|r Priest
 ## Notes: ForteXorcist Priest spell data (generated -- see tools/gen_spell_data.py).
-## Version: 1.0.0
+## Version: 1.0.1
 ## Author: Gevil
 ## Dependencies: Forte_Core
 ## LoadOnDemand: 1
