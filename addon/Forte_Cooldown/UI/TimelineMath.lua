@@ -40,6 +40,25 @@ function TM.pos(t, W, H, Max, Loga)
     return v * W - ih * 0.5
 end
 
+--- The ONE position function of an icon: LEFT-edge x for `t` seconds
+--- remaining plus the position factor v = centre / W (the original's t7:
+--- the segment's TexCoord slice and alpha ride it). The full pass
+--- (Timeline:Update) and the per-frame motion pass (Timeline:Motion) both
+--- call exactly this, so an icon is at the same place whichever pass wrote it.
+--- Pure arithmetic: returns two numbers, allocates nothing.
+function TM.place(t, W, H, Max, Loga)
+    local x = TM.pos(t, W, H, Max, Loga)
+    return x, (x + H * 0.5) / W
+end
+
+--- Does an icon with `t` seconds remaining MOVE along the axis? Not before
+--- it enters the curve (t > Max parks at the right end) and not once it
+--- reached the left end (t <= 0 clamps). The motion pass runs only while
+--- at least one entry answers true.
+function TM.moves(t, Max)
+    return t > 0 and t <= Max
+end
+
 --- Minute-label rule of the original's custom-tag path: a value is printed
 --- divided by 60 ONLY when STRICTLY greater than 60
 --- (`if v>60 then v=(v/60);end`, :1267 and :1286; the uniform-tag branch at

@@ -17,7 +17,6 @@ FX.Cooldown.Module = M
 FX.RegisterModule("Cooldown", M)
 
 local TICK_SECONDS = 0.1        -- 10 Hz display/sweep cadence
-local RENDER_SECONDS = 1 / 60     -- bar redraw cadence (icon motion smoothness)
 local READ_DEBOUNCE = 0.1       -- coalesce a SPELL_UPDATE_COOLDOWN burst
 local REBUILD_DEBOUNCE = 0.5    -- coalesce a SPELLS_CHANGED burst
 local RESCAN_DEBOUNCE = 0.5     -- coalesce an inventory-change burst
@@ -54,6 +53,40 @@ local readPending, rebuildPending, rescanPending = false, false, false
 local reasonShown = false
 local zeroShown = false
 
+
+-- ===================================== the display pump state (PLAN §11.13) ==
+-- The render frame carries ONE script, and only when it has work:
+--   wanted  the Display says the bar is shown AND something animates
+--           (travel, fade-in, cross-fade, attention) -> the per-frame motion
+--           pass;
+--   dirty   the entry SET (or an end time / charge count) changed outside the
+--           10 Hz beat -> ONE full pass on the next rendered frame, however
+--           many changes land in the frame;
+--   armedAt the crossing moment a one-shot timer is armed for (a row parked
+--           beyond Max entering the curve).
+-- Exposed as M._pump so tests can read and reset the state.
+local pump = { wanted = false, dirty = false, armedAt = nil }
+M._pump = pump
+
+--- A cheap, allocation-free fingerprint of the Engine's entry table: how many
+--- entries, and the sum of every finish time and charge count. An adoption,
+--- a removal, a re-anchor or a charge change moves it.
+local function entrySignature()
+    local n, s = 0, 0
+    for _, e in pairs(Engine.entries) do
+        n = n + 1
+        s = s + (e.rechargeEnd or e.endTime or 0) + (e.charges or 0) * 7.31
+    end
+    return n, s
+end
+
+--- Called after any code path OUTSIDE the tick that may have changed the
+--- entries: asks for one full pass at the next frame when they did.
+local function noteEntries(n0, s0)
+    local n1, s1 = entrySignature()
+    if n1 ~= n0 or s1 ~= s0 then M:RequestPass() end
+end
+
 --- Coalesced item rescan (PLAYER_ENTERING_WORLD / BAG_UPDATE_COOLDOWN /
 --- PLAYER_EQUIPMENT_CHANGED / BAG_UPDATE_DELAYED -- all four verified in
 --- the pinned Forever catalog). A looting spree fires the bag events per
@@ -67,8 +100,10 @@ local function requestRescan()
     rescanPending = true
     C_Timer.After(RESCAN_DEBOUNCE, function()
         rescanPending = false
+        local n0, s0 = entrySignature()
         if Engine.Items then Engine.Items:Rescan() end
         if Engine.Enchants then Engine.Enchants:ReadAll() end
+        noteEntries(n0, s0)
     end)
 end
 
@@ -419,6 +454,21 @@ local function demoCount()
     return n
 end
 
+--- The feeders the test mode drives, watched: a fill or a scrub outside the
+--- tick asks for a full pass at the next frame like any other entry change.
+local function watchedFill(now)
+    local n0, s0 = entrySignature()
+    local created = demoFill(now)
+    noteEntries(n0, s0)
+    return created
+end
+local function watchedScrub()
+    local n0, s0 = entrySignature()
+    local n = demoScrub()
+    noteEntries(n0, s0)
+    return n
+end
+
 -- ================================================== The rebuild carry (FX7a) ==
 -- A `SPELLS_CHANGED` rebuild is a re-read of the KNOWN set. It is not a
 -- statement about the cooldowns running right now, and the old shape --
@@ -476,7 +526,7 @@ local function carryRestore()
     end
 end
 
-function M:Rebuild()
+local function rebuildBody()
     -- The source line and the zero notice below describe THIS pass: clear
     -- the recorded source so Build's isKnown calls repopulate it (nil =
     -- no source answered during this Rebuild).
@@ -535,6 +585,14 @@ function M:Rebuild()
     -- on, so the feeder puts its own rows back. Out of demo mode this is one
     -- boolean; the real feeds resume as soon as the mode is off.
     if FX.TestMode then FX.TestMode:Refill() end
+end
+
+--- The rebuild, watched (see entrySignature): the carry may drop or re-add
+--- windows outside the tick.
+function M:Rebuild()
+    local n0, s0 = entrySignature()
+    rebuildBody()
+    noteEntries(n0, s0)
 end
 
 --- Core FX.RefreshPlayerClass notification (uiforever T4 class guard):
@@ -740,6 +798,94 @@ function M:ProcessReadyPops(now)
     end
 end
 
+--- The full display pass: sort, grouping, tag text, visibility, colours
+--- (Display:Update, which also runs the shared time-driven pass once at its
+--- own clock). It rides the 10 Hz heartbeat (M:Tick) and the one-shot pass
+--- requested by RequestPass; the per-frame motion is the render frame's job.
+function M:RefreshDisplay(now)
+    pump.dirty = false              -- this pass satisfies any pending request
+    local disp = FX.Cooldown.Display
+    if disp then
+        disp:Update(Engine:Sorted(sortedScratch), now or GetTime())
+    end
+    M:SyncPump()                    -- the request is consumed: a script nobody needs leaves
+end
+
+local tickCount = 0
+
+--- The 10 Hz heartbeat body (the ticker calls it; tests drive it directly
+--- because the headless sim never fires a C_Timer.NewTicker callback):
+--- ready pops, the 1 Hz read net, then the full display pass.
+function M:Tick(now)
+    now = now or GetTime()
+    tickCount = tickCount + 1
+    M:ProcessReadyPops(now)
+    if tickCount % READ_NET_TICKS == 0 then
+        M:ReadAll()
+    end
+    M:RefreshDisplay(now)
+end
+
+--- The render frame's one script. It reads the clock ONCE per frame
+--- (GetTime, never a summed elapsed, so positions are exact at any frame
+--- rate and after a hitch). A pending request runs ONE full pass (which
+--- includes the motion pass at this clock); otherwise it is the motion pass
+--- alone, and the script removes itself the frame nothing animates any more.
+local function renderPump()
+    local now = GetTime()
+    if pump.dirty then
+        M:RefreshDisplay(now)
+        M:SyncPump()                -- nothing animating: the one-shot leaves
+        return
+    end
+    local disp = FX.Cooldown.Display
+    if not (disp and disp.Motion and disp:Motion(now)) then
+        M:SetMotion(false)
+    end
+end
+
+--- Install / remove the render frame's OnUpdate: present exactly while the
+--- Display wants motion or a full pass was requested; idle or hidden = no
+--- script = zero per-frame Lua.
+function M:SyncPump()
+    local rf = M._renderFrame
+    if not rf then return end
+    local has = rf:GetScript("OnUpdate") ~= nil
+    local want = pump.wanted or pump.dirty
+    if want and not has then
+        rf:SetScript("OnUpdate", renderPump)
+    elseif has and not want then
+        rf:SetScript("OnUpdate", nil)
+    end
+end
+
+--- The Display's end-of-pass verdict: shown AND something animates.
+function M:SetMotion(on)
+    pump.wanted = on and true or false
+    M:SyncPump()
+end
+
+--- The entry set changed outside the tick: run ONE full pass on the next
+--- rendered frame. A burst of changes inside one frame is one flag.
+function M:RequestPass()
+    pump.dirty = true
+    M:SyncPump()
+end
+
+--- A row parked beyond Max enters the curve at `at`: arm ONE timer for that
+--- moment so it starts moving on its own frame, not at the next beat. The
+--- Display re-reports the same moment every pass; only a new one arms.
+function M:ArmCrossing(at)
+    if not at or at == pump.armedAt then return end
+    pump.armedAt = at
+    local delay = at - GetTime()
+    if delay < 0 then delay = 0 end
+    C_Timer.After(delay, function()
+        if pump.armedAt == at then pump.armedAt = nil end
+        M:RequestPass()
+    end)
+end
+
 function M:OnEnable()
     -- FX.db is set by Forte_Core at ADDON_LOADED; if SavedVariables never
     -- arrived (beta-era bug class), keep learned durations session-local.
@@ -795,7 +941,7 @@ function M:OnEnable()
     -- catalog (ItemDocumentation.lua:1920, UniqueEvent, no payload) before
     -- registration; Core/Enchants.lua rides it.
     f:RegisterEvent("WEAPON_ENCHANT_CHANGED")
-    f:SetScript("OnEvent", function(_, event, unit, castGUID, spellID, castBarID)
+    local function onEvent(_, event, unit, castGUID, spellID, castBarID)
         if event == "UNIT_SPELLCAST_SUCCEEDED" then
             -- Our own casts: the signal most likely to stay readable in
             -- combat, but the 4-field payload (unit, castGUID, spellID,
@@ -825,7 +971,9 @@ function M:OnEnable()
                 readPending = true
                 C_Timer.After(READ_DEBOUNCE, function()
                     readPending = false
+                    local n0, s0 = entrySignature()
                     M:ReadAll()
+                    noteEntries(n0, s0)
                 end)
             end
         elseif event == "UNIT_AURA" then
@@ -888,6 +1036,14 @@ function M:OnEnable()
                 Engine.Enchants:ReadAll()
             end
         end
+    end
+    -- Every event may adopt, re-anchor or clear an entry (a cast, a read, a
+    -- regen pass, an aura ICD, a weapon enchant): when the entry table moved,
+    -- ask for ONE full pass at the next frame instead of waiting for the beat.
+    f:SetScript("OnEvent", function(self, event, a, b, c, d)
+        local n0, s0 = entrySignature()
+        onEvent(self, event, a, b, c, d)
+        noteEntries(n0, s0)
     end)
 
     -- `/fx test` (Forte_Core/Core/TestMode.lua): this add-on owns the bar, so
@@ -896,57 +1052,26 @@ function M:OnEnable()
     -- re-enable cannot double the fill, and the pair is only live while the
     -- module is.
     if FX.TestMode then
-        FX.TestMode.RegisterFeeder({ Name = "Cooldown", Fill = demoFill,
-            Scrub = demoScrub, Live = demoCount, Target = DEMO_ROWS })
+        FX.TestMode.RegisterFeeder({ Name = "Cooldown", Fill = watchedFill,
+            Scrub = watchedScrub, Live = demoCount, Target = DEMO_ROWS })
     end
 
-    -- 10 Hz heartbeat: sweep ready alerts + feed the display. Every 10th
-    -- tick do a full read pass: the 1 Hz safety net self-heals any spell
-    -- whose events we missed (a hidden event, a combat-locked read).
-    local ticks = 0
+    -- 10 Hz heartbeat: sweep ready alerts, feed the display (the FULL pass:
+    -- sort, grouping, text, visibility, colours). Every 10th tick do a full
+    -- read pass: the 1 Hz safety net self-heals any spell whose events we
+    -- missed (a hidden event, a combat-locked read).
     C_Timer.NewTicker(TICK_SECONDS, function()
-        local now = GetTime()
-        ticks = ticks + 1
-        M:ProcessReadyPops(now)
-        if ticks % READ_NET_TICKS == 0 then
-            M:ReadAll()
-        end
+        M:Tick(GetTime())
     end)
 
-    -- Smooth render pump. The 10 Hz ticker above stepped icons 10x/s, which
-    -- looks choppy on a log-scaled bar. Display:Update is dirty-checked, so
-    -- calling it at ~60 Hz only moves what changed. This frame is never
-    -- hidden (a hidden frame gets no OnUpdate); it only runs while the module
-    -- is enabled and is created once.
+    -- The render frame carries the per-frame icon MOTION pass (Display:Motion)
+    -- and ONLY while the bar is shown and something moves: it is created here
+    -- once, with no script; Display:Update installs/removes it through
+    -- M:SetMotion (a hidden or idle bar costs no per-frame Lua).
     if not M._renderFrame then
-        local rf = CreateFrame("Frame", nil, UIParent)
-        M._renderFrame = rf
-        -- The accumulator rides a one-slot box so a test can start a leg
-        -- from a drained, known state (tests/test_render_pump.lua) -- the
-        -- ambient frame stream between the enable and a leg's scripted
-        -- calls would otherwise decide the gate's starting phase.
-        local accBox = { v = 0 }
-        M._renderAcc = accBox
-        rf:SetScript("OnUpdate", function(_, elapsed)
-            local acc = accBox.v + (tonumber(elapsed) or 0)
-            if acc < RENDER_SECONDS then
-                accBox.v = acc
-                return
-            end
-            -- m6 (code-review-10): the old `acc = 0` THREW AWAY the remainder
-            -- every pass, so on a 60 Hz client (elapsed ~16.7 ms, jittered)
-            -- the realized cadence oscillated ~30-60 Hz -- the CHANGELOG's
-            -- "60 Hz" was nominal. One window is consumed per firing and the
-            -- remainder rides (clamped at the floor so a frame after a long
-            -- stall can not bank a catch-up burst).
-            acc = acc - RENDER_SECONDS
-            if acc < 0 then acc = 0 end
-            accBox.v = acc
-            if FX.Cooldown.Display then
-                FX.Cooldown.Display:Update(Engine:Sorted(sortedScratch), GetTime())
-            end
-        end)
+        M._renderFrame = CreateFrame("Frame", nil, UIParent)
     end
+    M:SyncPump()                -- a request made before the enable gets its frame
 
     -- Display arrives with UI/Display.lua; nil-safe until that lands.
     if FX.Cooldown.Display then FX.Cooldown.Display:Init() end

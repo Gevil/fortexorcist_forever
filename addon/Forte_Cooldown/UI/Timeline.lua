@@ -1764,6 +1764,9 @@ function D:SpawnSplash(cx, texPath, col, now)
         local iconTex = f:CreateTexture(nil, "OVERLAY")
         iconTex:SetPoint("CENTER", f, "CENTER", 0, 0)
         s = { frame = f, tex = iconTex, spark = sparkTex }
+        -- The splash's own per-frame driver, built ONCE with the pool entry
+        -- (never per spawn): SpawnSplash installs it, _StepSplash removes it.
+        s.onUpdate = function() self:_StepSplash(s, GetTime()) end
         pool[#pool + 1] = s
     end
     s.tex:SetTexture(texPath)
@@ -1790,6 +1793,10 @@ function D:SpawnSplash(cx, texPath, col, now)
     s._endAt = now + S.SplashSeconds
     self:_SplashCurve(s, 1)              -- t = 0: size 0, alpha SplashAlpha
     s.frame:Show()
+    -- Motion follows the frame (PLAN §11.13): the curve runs on every
+    -- rendered frame while the splash is shown, from GetTime (never an
+    -- accumulated elapsed), and the script leaves with the splash.
+    s.frame:SetScript("OnUpdate", s.onUpdate)
 end
 
 --- End-of-cooldown pulse: the source's SAME t15==-1 expiry curve
@@ -1828,6 +1835,8 @@ function D:SpawnPulse(name, texPath, col, endAt)
         spark:SetPoint("CENTER", f, "CENTER", 0, 0)
         if not S.SparkOn then spark:Hide() end
         s = { frame = f, tex = tex, spark = spark }
+        -- Per-frame driver of this pulse entry, built once (see SpawnSplash).
+        s.onUpdate = function() self:_StepPulse(s, GetTime()) end
         pool[#pool + 1] = s
     end
     s.tex:SetTexture(texPath)
@@ -1845,51 +1854,71 @@ function D:SpawnPulse(name, texPath, col, endAt)
     s._name = name
     s._endAt = endAt
     s.frame:Show()
+    -- Per-frame fade while the pulse is shown (PLAN §11.13); removed by
+    -- _StepPulse when the window ends.
+    s.frame:SetScript("OnUpdate", s.onUpdate)
+end
+
+--- One pulse at clock `now`: the fade (plus the optional spark wave), or the
+--- end of its window (frame hidden, per-frame script removed). The body of
+--- BOTH drivers -- the full pass (UpdatePulses, injected clocks, hidden bar)
+--- and the pulse's own per-frame OnUpdate (`s.onUpdate`).
+function D:_StepPulse(s, now)
+    local endAt = s._endAt
+    if not endAt then return end
+    local t = (endAt - now) / S.PulseSeconds
+    if t <= 0 then
+        s._endAt = nil
+        s.frame:Hide()
+        s.frame:SetScript("OnUpdate", nil)
+        return
+    end
+    s.frame:SetAlpha(S.SplashAlpha * t)  -- bar:SetAlpha(t14), :1403
+    local sa
+    if S.PulseCycle > 0 then
+        local wave = (math.sin((endAt - now) / S.PulseCycle * 2 * math.pi) + 1) * 0.5
+        sa = 0.3 + 0.7 * wave
+    else
+        -- The source law: the spark rides a constant alpha
+        -- (SetVertexColor(r,g,b) -> alpha 1, :1418); the frame
+        -- alpha t14 modulates it. PulseCycle > 0 keeps the
+        -- legacy wave available as an option.
+        sa = S.SparkAlpha
+    end
+    if s._sparkA ~= sa then
+        s._sparkA = sa
+        s.spark:SetAlpha(sa)
+    end
 end
 
 function D:UpdatePulses(now)
     local pool = self.pulsePool
     for i = 1, #pool do
-        local s = pool[i]
-        local endAt = s._endAt
-        if endAt then
-            local t = (endAt - now) / S.PulseSeconds
-            if t <= 0 then
-                s._endAt = nil
-                s.frame:Hide()
-            else
-                s.frame:SetAlpha(S.SplashAlpha * t)  -- bar:SetAlpha(t14), :1403
-                if S.PulseCycle > 0 then
-                    local wave = (math.sin((endAt - now) / S.PulseCycle * 2 * math.pi) + 1) * 0.5
-                    s.spark:SetAlpha(0.3 + 0.7 * wave)
-                else
-                    -- The source law: the spark rides a constant alpha
-                    -- (SetVertexColor(r,g,b) -> alpha 1, :1418); the frame
-                    -- alpha t14 modulates it. PulseCycle > 0 keeps the
-                    -- legacy wave available as an option.
-                    s.spark:SetAlpha(S.SparkAlpha)
-                end
-            end
-        end
+        self:_StepPulse(pool[i], now)
+    end
+end
+
+--- One cast splash at clock `now` (the body of the full pass and of the
+--- splash's own per-frame OnUpdate, like _StepPulse).
+function D:_StepSplash(s, now)
+    local endAt = s._endAt
+    if not endAt then return end
+    -- t14: the source's bar visibility, decaying -1/s clamped
+    -- (:629-632); the bar's draw gate is t14 > 0 (:1371).
+    local t14 = (endAt - now) / S.SplashSeconds
+    if t14 <= 0 then
+        s._endAt = nil
+        s.frame:Hide()
+        s.frame:SetScript("OnUpdate", nil)
+    else
+        self:_SplashCurve(s, t14)
     end
 end
 
 function D:UpdateSplashes(now)
     local pool = self.splashPool
     for i = 1, #pool do
-        local s = pool[i]
-        local endAt = s._endAt
-        if endAt then
-            -- t14: the source's bar visibility, decaying -1/s clamped
-            -- (:629-632); the bar's draw gate is t14 > 0 (:1371).
-            local t14 = (endAt - now) / S.SplashSeconds
-            if t14 <= 0 then
-                s._endAt = nil
-                s.frame:Hide()
-            else
-                self:_SplashCurve(s, t14)
-            end
-        end
+        self:_StepSplash(pool[i], now)
     end
 end
 
@@ -1955,6 +1984,32 @@ local function groupSignature(g)
     return sig
 end
 
+--- The focus state of a group at clock `now` as a PURE function of the
+--- committed state (`st.idx`, `st.phase`, `st.t`, `st.n`): the phase grows
+--- 1/s from `st.t`, and every whole CrossfadeSeconds hands the focus to the
+--- next member. Returns (idx, phase), writes nothing -- the full pass commits
+--- the answer (_RotateFocus), the per-frame motion pass only reads it, so
+--- both see the same value at the same instant.
+function D:_FocusAt(st, now)
+    local dt = now - st.t
+    if dt < 0 then dt = 0 end
+    local total, cf = st.phase + dt, S.CrossfadeSeconds
+    if total >= cf then
+        local wraps = math.floor(total / cf)
+        return ((st.idx - 1 + wraps) % st.n) + 1, total - wraps * cf
+    end
+    return st.idx, total
+end
+
+--- Member `mi` of an `n`-group whose focus is (idx, phase): the focused
+--- member ramps 0 -> 1, the outgoing one decays 1 -> 0, the rest are 0.
+local function memberAlpha(idx, phase, n, mi)
+    local frac = phase / S.CrossfadeSeconds
+    if mi == idx then return frac end
+    if mi == ((idx - 2) % n) + 1 then return 1 - frac end
+    return 0
+end
+
 --- Focus rotation over an overlap group (render loop :608-637): the focused
 --- member's visibility ramps 0 -> 1 over ~1 s; at the boundary the focus
 --- passes to the next member and the ramp restarts. `phase/CrossfadeSeconds`
@@ -1966,27 +2021,30 @@ function D:_RotateFocus(sig, count, now)
         self._xf[sig] = st
     end
     st.n = count
-    local dt = now - st.t
-    if dt < 0 then dt = 0 end
+    st.idx, st.phase = self:_FocusAt(st, now)
     st.t = now
-    st.phase = st.phase + dt
-    if st.phase >= S.CrossfadeSeconds then
-        st.phase = st.phase - S.CrossfadeSeconds
-        st.idx = (st.idx % st.n) + 1
-    end
     return st
 end
 
---- Segment fill for one slot: the Aluminium slice from the group's left
---- border to the icon's own centre (original bar.texture, :1441-1450:
---- TOPLEFT +t12 / BOTTOMRIGHT t9-Width, TexCoord (t8,0, t8,1, t7,0, t7,1),
---- VertexColor = raw category rgb, alpha AlphaMax-(AlphaMax-Alpha)*t7
---- :1404-1406; frame alpha rides the bar visibility, :1402). The two anchor
---- pairs and the TexCoord slice come from the CD-35 helpers, so the slice
---- runs up the bar in Vertical and mirrors in Flip exactly as the source's
---- :1427-1450 branch. The applied values are cached in _segSet*; the CURRENT
---- values are mirrored to _segL/_segR/_segVL/_segV/_segA for the tests.
-function D:_SetSegment(slot, leftX, rightX, uvL, uvR, a)
+--- One icon's place on the axis (shared by the full pass and the motion
+--- pass): the anchor triple of `x` plus the lane's perpendicular step,
+--- dirty-checked on (x, point, lane).
+function D:_PlaceIcon(slot, x, lane)
+    local point, ox, oy = axisPoint(x)
+    local step = lane * S.Height * 0.75
+    if S.Vertical then ox = ox + step else oy = oy + step end
+    if slot._cx ~= x or slot._cp ~= point or slot._cl ~= lane then
+        slot._cx, slot._cp, slot._cl = x, point, lane
+        slot.frame:ClearAllPoints()
+        slot.frame:SetPoint(point, self.bar, point, ox, oy)
+    end
+end
+
+--- The segment's GEOMETRY (anchors + TexCoord slice, shared by the full
+--- pass and the motion pass): everything of the slice that moves with the
+--- icon. The colour alpha is _PaintSegment's.
+function D:_PlaceSegment(slot, leftX, rightX, uvL, uvR)
+    slot._segL, slot._segR, slot._segVL, slot._segV = leftX, rightX, uvL, uvR
     local seg = slot.seg
     if not seg:IsShown() then seg:Show() end
     if slot._segSetL ~= leftX or slot._segSetR ~= rightX then
@@ -2006,10 +2064,24 @@ function D:_SetSegment(slot, leftX, rightX, uvL, uvR, a)
         slot._segSetMode = self._geoMode
         setSegmentUV(seg, uvL, uvR)
     end
+end
+
+--- Segment fill for one slot: the Aluminium slice from the group's left
+--- border to the icon's own centre (original bar.texture, :1441-1450:
+--- TOPLEFT +t12 / BOTTOMRIGHT t9-Width, TexCoord (t8,0, t8,1, t7,0, t7,1),
+--- VertexColor = raw category rgb, alpha AlphaMax-(AlphaMax-Alpha)*t7
+--- :1404-1406; frame alpha rides the bar visibility, :1402). The two anchor
+--- pairs and the TexCoord slice come from the CD-35 helpers, so the slice
+--- runs up the bar in Vertical and mirrors in Flip exactly as the source's
+--- :1427-1450 branch. The applied values are cached in _segSet*; the CURRENT
+--- values are mirrored to _segL/_segR/_segVL/_segV/_segA for the tests.
+--- This is the colour half (alpha `a` is a function of the position factor,
+--- so it moves with the icon); the geometry half is _PlaceSegment.
+function D:_PaintSegment(slot, a)
     local col = slot._segCol
     if col and (slot._segSetCol ~= col or slot._segSetA ~= a) then
         slot._segSetCol, slot._segSetA = col, a
-        seg:SetVertexColor(col[1], col[2], col[3], a)
+        slot.seg:SetVertexColor(col[1], col[2], col[3], a)
     end
 end
 
@@ -2060,12 +2132,15 @@ function D:Update(entries, now)
     -- running so nothing resurfaces when it returns.
     self:UpdateVisibility()
     if not self._shown then
+        self._mvN, self._nAnim, self._crossAt = 0, 0, nil
+        self:_SyncMotion()
         self:UpdatePulses(now)
         self:UpdateSplashes(now)
         return
     end
     local byName, islot, seen = self._byName, self._islot, self._seen
     wipe(seen)
+    local cross = nil          -- earliest moment a row parked beyond Max enters the curve
     local lanes = self._lanes
     if not lanes then lanes = {}; self._lanes = lanes end
     for k in pairs(lanes) do lanes[k] = nil end
@@ -2078,9 +2153,9 @@ function D:Update(entries, now)
         -- rechargeEnd, so they read exactly as before.
         local finishAt = e.rechargeEnd or e.endTime
         local remaining = finishAt - now
-        local x = TM.pos(remaining, W, H, Max, Loga)
+        local x, v = TM.place(remaining, W, H, Max, Loga)   -- the ONE position fn
         e.x = x                                   -- transient tag (see above)
-        e.v = (x + H * 0.5) / W                   -- the position factor t7
+        e.v = v                                   -- the position factor t7
         local cx = x + H * 0.5 - (W - 2 * S.Inset) * 0.5  -- centre for the splash
         local slot = byName[e.name]
         if not slot then
@@ -2102,7 +2177,6 @@ function D:Update(entries, now)
         -- edge of the bar it is measured from and in which direction:
         -- icon centre = origin + pos(t) + ih/2 = t9, the very right edge of
         -- the segment span.
-        local point, ox, oy = axisPoint(x)
         -- Overlap lanes: icons whose axis positions fall within one icon width
         -- of an earlier icon (same-cooldown casts, a trap family) step sideways
         -- off the axis instead of hiding each other. The AXIS position stays
@@ -2120,12 +2194,13 @@ function D:Update(entries, now)
         while lanes[lane] and math.abs(x - lanes[lane]) < H do lane = lane + 1 end
         if lane > LANE_MAX then lane = LANE_MAX end
         lanes[lane] = x
-        local step = lane * H * 0.75
-        if S.Vertical then ox = ox + step else oy = oy + step end
-        if slot._cx ~= x or slot._cp ~= point or slot._cl ~= lane then
-            slot._cx, slot._cp, slot._cl = x, point, lane
-            slot.frame:ClearAllPoints()
-            slot.frame:SetPoint(point, self.bar, point, ox, oy)
+        self:_PlaceIcon(slot, x, lane)
+        -- What the per-frame motion pass reads (Display:Motion): the cached
+        -- end time; the lane stays a full-pass fact.
+        slot._mEnd = finishAt
+        if remaining > Max then
+            local c = finishAt - Max
+            if not cross or c < cross then cross = c end
         end
         if not slot._shown then
             slot._shown = true
@@ -2235,57 +2310,31 @@ function D:Update(entries, now)
             if stealIdx then
                 st.idx, st.phase = stealIdx, S.CrossfadeSeconds
             end
-            local frac = st.phase / S.CrossfadeSeconds
-            local prev = ((st.idx - 2) % st.n) + 1
+            -- What the per-frame motion pass reads: the committed focus
+            -- state of the group and its members' places in it.
+            g._mst, g._mn, g._mAt = st, #g, nil
             for mi = 1, #g do
-                if mi == st.idx then
-                    g[mi].alpha = frac
-                elseif mi == prev then
-                    g[mi].alpha = 1 - frac
-                else
-                    g[mi].alpha = 0
-                end
+                local slot = g[mi].slot
+                slot._mG, slot._mMi = g, mi
             end
+        else
+            g[1].slot._mG = nil
         end
     end
 
     -- Segment fills (:1441-1450): every visible cooldown owns one Aluminium
     -- slice from its group's left border (previous visible icon's centre,
     -- shared across an overlap group by the t8/t12 propagation, :560-570) to
-    -- the icon's own centre; bright left, faint right.
+    -- the icon's own centre. The full pass only records WHOSE centre is the
+    -- left border (`_mLeft`); the geometry, the colour alpha and the icon
+    -- alpha (fade-in ramp * group visibility) are time-driven and are
+    -- computed by Motion, the one function both passes use.
     for gi = 1, #groups do
         local g = groups[gi]
-        local leftX, leftV
-        if gi == 1 then
-            leftX, leftV = 0, 0
-        else
-            local anchor = groups[gi - 1][1]
-            leftX, leftV = anchor.x + H * 0.5, anchor.v
-        end
+        local leftSlot = (gi > 1) and groups[gi - 1][1].slot or nil
         for mi = 1, #g do
-            local it = g[mi]
-            local slot = it.slot
-            local rightX = it.x + H * 0.5
-            local a = S.AlphaMax - (S.AlphaMax - S.Alpha) * it.v
-            slot._segL, slot._segR = leftX, rightX
-            slot._segVL, slot._segV, slot._segA = leftV, it.v, a
-            self:_SetSegment(slot, leftX, rightX, leftV, it.v, a)
+            g[mi].slot._mLeft = leftSlot
         end
-    end
-
-    -- Icon alpha = fade-in ramp * group visibility (dirty-checked).
-    for i = 1, n do
-        local slot = islot[i]
-        local it = items[i]
-        local p = (now - slot._fadeStart) / S.FadeSeconds
-        local a = (p >= 1) and S.AlphaMax or (S.Alpha + (S.AlphaMax - S.Alpha) * p)
-        a = a * it.alpha
-        if slot._alpha ~= a then
-            slot._alpha = a
-            slot.frame:SetAlpha(a)
-            slot.seg:SetAlpha(a)           -- bar:SetAlpha(t14), :1402
-        end
-        self:_UpdateAttention(slot, now)
     end
 
     -- Slots are name-bound: the release pass above already hid and freed
@@ -2311,7 +2360,100 @@ function D:Update(entries, now)
 
     self:UpdatePulses(now)
     self:UpdateSplashes(now)
+    -- The time-driven half of the pass: ONE function for both passes. It
+    -- places icons and segments, paints the segment colour, applies the
+    -- icon alpha and the attention spark, and answers whether anything
+    -- still animates (the Module keeps its render script for exactly that).
+    self._mvN, self._crossAt = n, cross
+    self._nAnim = self:Motion(now) and 1 or 0
+    self:_SyncMotion()
 end
+
+--- The per-frame MOTION PASS (PLAN §11.13): everything of the bar that is a
+--- pure function of time -- from numbers the full pass cached (slot `_mEnd`
+--- end time, `_cl` lane, `_mLeft` the slot whose centre is the segment's
+--- left border, `_fadeStart`, `_alertEnd`, the group's committed focus
+--- state `_mG`/`_mMi`) and the clock. The full pass calls this same function
+--- at its own `now`, so both passes write the same value at the same
+--- instant. Per slot: the icon and segment placement (TM.place + the shared
+--- _PlaceIcon/_PlaceSegment), the segment colour alpha (a function of the
+--- position factor), the icon alpha = fade-in ramp x group cross-fade
+--- (_FocusAt, pure), and the attention spark (_UpdateAttention, pure).
+--- Time base: ONE `now` per frame. No client reads, no strings, no tables,
+--- no sort; the icon's time/charge text and glows are children of the icon
+--- frame and travel with it. Returns true while anything is still
+--- animating (travelling, fading in, cross-fading, attention); the Module
+--- removes the render script on false.
+function D:Motion(now)
+    if not self._shown then return false end
+    local n = self._mvN or 0
+    local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
+    local half = H * 0.5
+    local alphaLo, alphaHi, fadeSeconds = S.Alpha, S.AlphaMax, S.FadeSeconds
+    local slots = self._islot
+    local active = false
+    for i = 1, n do
+        local slot = slots[i]
+        local remaining = slot._mEnd - now
+        if TM.moves(remaining, Max) then active = true end
+        local x, v = TM.place(remaining, W, H, Max, Loga)
+        slot._mx, slot._mv = x, v
+        self:_PlaceIcon(slot, x, slot._cl)
+        local left = slot._mLeft
+        if left then
+            self:_PlaceSegment(slot, left._mx + half, x + half, left._mv, v)
+        else
+            self:_PlaceSegment(slot, 0, x + half, 0, v)
+        end
+        local sa = alphaHi - (alphaHi - alphaLo) * v   -- :1404-1406
+        slot._segA = sa
+        self:_PaintSegment(slot, sa)
+        -- Icon alpha = fade-in ramp * group visibility (dirty-checked).
+        local p = (now - slot._fadeStart) / fadeSeconds
+        local a
+        if p >= 1 then
+            a = alphaHi
+        else
+            a = alphaLo + (alphaHi - alphaLo) * p
+            active = true
+        end
+        local g = slot._mG
+        if g then
+            if g._mAt ~= now then
+                g._mIdx, g._mPhase = self:_FocusAt(g._mst, now)
+                g._mAt = now
+            end
+            a = a * memberAlpha(g._mIdx, g._mPhase, g._mn, slot._mMi)
+            active = true                      -- a group cross-fades for as long as it stands
+        end
+        if slot._alpha ~= a then
+            slot._alpha = a
+            slot.frame:SetAlpha(a)
+            slot.seg:SetAlpha(a)               -- bar:SetAlpha(t14), :1402
+        end
+        self:_UpdateAttention(slot, now)
+        local alertEnd = slot._alertEnd
+        if alertEnd and now < alertEnd then active = true end
+    end
+    return active
+end
+
+--- Tell the Module what the bar needs: its render script while shown AND
+--- something animates (idle = no script = zero per-frame Lua), and the
+--- moment the earliest parked row enters the curve (a one-shot timer, so a
+--- parked row starts moving on its own frame, not at the next beat).
+function D:_SyncMotion()
+    local m = FX.Cooldown.Module
+    if not m then return end
+    local shown = self._shown and true or false
+    if m.SetMotion then
+        m:SetMotion(shown and (self._nAnim or 0) > 0)
+    end
+    if shown and self._crossAt and m.ArmCrossing then
+        m:ArmCrossing(self._crossAt)
+    end
+end
+
 
 --- CD-21/CD-31: the attention spark of one slot (`bar.icon.attentionspark`,
 --- :1408-1415). The source's state is cd[i][20], set to 1 + focustime by
