@@ -74,54 +74,37 @@ W.C = {
     -- atlas glyph markup sizes
     GLYPH_RESET = 12, GLYPH_LOCK = 12, GLYPH_CLOSE = 14,
 
-    FONT_FILE = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf",
+    FONT_FILE = FX.CLASSIC_FONT,
     FONT_SIZE = 11,
 }
 local C = W.C
 
 -- ------------------------------------------------------------------ fonts --
--- Same validate-once round trip as Forte_Cooldown/UI/Timeline.lua: accepted
--- only when GetFont returns the file back; every fontstring then falls back
--- to its GameFont* template. The verdict is recorded on FX.Options.
+-- The shared font law (PLAN §11.12, FX.Compat.FontUsable/ApplyFont): the
+-- shipped file is kept unless SetFont RAISES on it; only then does every
+-- fontstring fall back to its GameFont* template. No GetFont round trip --
+-- a usable file that has not rendered yet reads false/nil. The verdict is
+-- recorded on FX.Options.
 local function validateFont()
     if FX.Options.fontFile ~= nil and FX.Options.fontVerified then
         return FX.Options.fontFile
     end
-    local okCreate, fontObj = pcall(CreateFont, C.FONT_FILE, C.FONT_SIZE)
     local accepted
-    if okCreate and fontObj then
-        local probe = UIParent:CreateFontString(nil, "OVERLAY")
-        if probe then
-            local okSet = pcall(probe.SetFont, probe, C.FONT_FILE, C.FONT_SIZE)
-            local got = okSet and probe:GetFont()
-            probe:Hide()
-            if type(got) == "string" and got:lower() == C.FONT_FILE:lower() then
-                accepted = C.FONT_FILE
-            end
-        end
-    end
+    if FX.Compat.FontUsable(C.FONT_FILE) then accepted = C.FONT_FILE end
     FX.Options.fontFile = accepted   -- nil => template fallback everywhere
     FX.Options.fontVerified = true
     return accepted
 end
 W.validateFont = validateFont
 
---- Set the validated file font on a fontstring (dirty-checked), restoring
---- the string's own template on rejection. The template is what the
---- fontstring was CREATED with, so the fallback keeps per-role sizing.
+--- Set the configured file font on a fontstring (dirty-checked), restoring
+--- the string's own template only when SetFont raised. The template is what
+--- the fontstring was CREATED with, so the fallback keeps per-role sizing.
 function W.applyFont(fs, size, flags)
     local file = validateFont()
     local key = tostring(size) .. "|" .. (flags or "") .. "|" .. (file or "tpl")
     if fs._fxFont == key then return end
-    local ok = false
-    if file then
-        ok = pcall(fs.SetFont, fs, file, size, flags)
-        if ok then ok = (fs:GetFont()) == file end
-    end
-    if not ok then
-        if fs._fxTemplate then
-            pcall(fs.SetFontTemplate, fs, fs._fxTemplate)
-        end
+    if not FX.Compat.ApplyFont(fs, file, size, flags, fs._fxTemplate) then
         key = nil
     end
     fs._fxFont = key
@@ -212,7 +195,15 @@ local function attachLabel(w, spec, colour)
     local rowW = w.row:GetWidth() or 0
     local textW = (w.label.GetUnboundedStringWidth
         and w.label:GetUnboundedStringWidth()) or 0
-    w.labelWidth = labelColumnFor(rowW, textW, spec.labelCol)
+    local ratio = spec.labelCol
+    if not ratio and FX.Compat.TextWidthPending(textW, spec.label) then
+        -- The shipped font has not rendered yet (PLAN §11.12): the label
+        -- reads width 0. Lay the column out like a spanned row (the ratio
+        -- law) rather than collapsing it to nothing; the layout is fixed at
+        -- build, so rows built after the font loaded measure for real.
+        ratio = C.LABEL_COL_RATIO
+    end
+    w.labelWidth = labelColumnFor(rowW, textW, ratio)
     w.label:SetWidth(w.labelWidth)
     w.labelCol = C.LABEL_INSET + w.labelWidth
 end
@@ -618,20 +609,11 @@ local function closePickerPopup(p)
 end
 
 --- Draw the string in `path`'s file, restoring its creation template
---- when the client refuses it (the applyFont/validateFontFile round trip
---- of Forte_Cooldown/UI/Timeline.lua, on the widget's own strings).
+--- only when SetFont RAISES (the shared font law, PLAN §11.12: a path that
+--- raises is refused, anything else -- including a file that has not
+--- rendered yet, which reads false/nil -- is applied).
 local function tryPreviewFont(fs, path, size)
-    local ok = false
-    if type(path) == "string" and path ~= "" then
-        ok = pcall(fs.SetFont, fs, path, size)
-        if ok then
-            local got = fs:GetFont()
-            ok = type(got) == "string" and got:lower() == path:lower()
-        end
-    end
-    if not ok and fs._fxTemplate then
-        pcall(fs.SetFontTemplate, fs, fs._fxTemplate)
-    end
+    FX.Compat.ApplyFont(fs, path, size, nil, fs._fxTemplate)
 end
 
 function W.SEL(parent, spec)

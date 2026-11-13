@@ -89,8 +89,6 @@ Laws.INSTANT_FADE = { SelfDebuff = true, TargetDebuff = true, Cooldown = true,
 -- Forte_Cooldown/UI/Rows.lua's ClassicSkin uses, with the deltas D1-D15 of
 -- docs/design-spell-timer.md §5.1 applied. `Textures`/`Font` ride Forte_Core.
 local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
-FX.CLASSIC_FONT = FX.CLASSIC_FONT
-    or "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
 local FONT_SIZE = 11                     -- FW.Default.Font[2] (GOTHIC 11, Forte_Core.lua:2509)
 
 FX.Timer.Skin = {

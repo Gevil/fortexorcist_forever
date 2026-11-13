@@ -134,7 +134,7 @@ local D = {}
 FX.Hunter.Swing = D
 
 local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
-local FONT_FILE = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
+local FONT_FILE = FX.CLASSIC_FONT
 
 --- The fill's design default: the Forte_Cooldown timeline's Spell category
 --- colour at FULL alpha, read off the Display's skin
@@ -458,35 +458,21 @@ local function armNum(v)
 end
 
 -- ---------------------------------------------------------------- font --
---- The shipped-file validator (the Timeline's / the Widgets' round trip:
---- CreateFont + SetFont on a throwaway string, accepted only when GetFont
---- returns the file back). Rejection keeps every string on the
---- GameFontHighlightSmall template it was created with.
+--- The font law (PLAN §11.12): the path itself unless SetFont RAISES on it,
+--- nil when it raised (FX.Compat.FontUsable). Never a GetFont round trip --
+--- a usable file that has not rendered yet reads false/nil. Rejection keeps
+--- every string on the GameFontHighlightSmall template.
 local function validateFontFile(path)
     if type(path) ~= "string" or path == "" then return nil end
-    local okCreate, fontObj = pcall(CreateFont, path, S.FontSize)
-    if not okCreate or not fontObj then return nil end
-    local probe = UIParent:CreateFontString(nil, "OVERLAY")
-    if not probe then return nil end
-    local okSet = pcall(probe.SetFont, probe, path, S.FontSize)
-    local got = okSet and probe:GetFont()
-    probe:Hide()
-    if type(got) == "string" and got:lower() == path:lower() then
-        return path
-    end
+    if FX.Compat.FontUsable(path) then return path end
     return nil
 end
 
 local function applyFont(fs, size, flags)
     local key = (D.fontFile or "tpl") .. "|" .. tostring(size) .. "|" .. (flags or "")
     if fs._font == key then return end
-    local ok = false
-    if D.fontFile then
-        ok = pcall(fs.SetFont, fs, D.fontFile, size, flags)
-        if ok then ok = (fs:GetFont()) == D.fontFile end
-    end
-    if not ok then
-        pcall(fs.SetFontTemplate, fs, "GameFontHighlightSmall")
+    if not FX.Compat.ApplyFont(fs, D.fontFile, size, flags,
+            "GameFontHighlightSmall") then
         key = nil
     end
     fs._font = key

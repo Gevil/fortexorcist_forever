@@ -205,6 +205,10 @@ function FX.RunLoginPass()
     local ok, _, classFile = pcall(UnitClass, "player")
     FX._playerClass = (ok and type(classFile) == "string") and classFile or nil
         -- e.g. "HUNTER", "WARLOCK" -- matches ForteXorcist.Data keys title-cased below
+    -- The font law (PLAN §11.12): the client loads a font file lazily, on its
+    -- first render. Show one (alpha 0) fontstring in the shipped font NOW so the
+    -- file is loaded within seconds of login, before any display measures it.
+    pcall(FX.Compat.WarmFont, FX.CLASSIC_FONT)
     -- Load-on-demand: every Forte_<Class> add-on is metadata-only until
     -- this call (Core/Loader.lua). Its files run to completion before
     -- LoadClassAddOn returns, so its data table and its modules are in the

@@ -699,12 +699,16 @@ test("the General BarFont drives the swing text live", function()
     local shipped = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
     assertNotNil(Swing.text)
     -- The options file is the vendored one the General page registers, and
-    -- login applied it through this very seam (ApplyStoredSettings).
+    -- login applied it through this very seam (ApplyStoredSettings). The sim
+    -- echoes the path from GetFont so this reads it back; the live client
+    -- answers false/nil until the file has rendered once -- PLAN §11.12: the
+    -- old law "GetFont must echo the path" was the bug (test_font_law.lua
+    -- pins the pending case).
     assertEquals(shipped, ST:Get("General", "BarFont"))
     assertTrue(Swing.text:GetFont():lower() == shipped:lower())
-    -- General -> Swing:SetFont -> validateFontFile + applyFont (the sim's
-    -- font loader accepts every path CreateFont takes, so what this proves
-    -- is the live re-apply of the bar's own fontstring).
+    -- General -> Swing:SetFont -> validateFontFile (a raise rejects, nothing
+    -- else) + applyFont (in the sim no path raises, so what this proves is
+    -- the live re-apply of the bar's own fontstring).
     ST:Set("General", "BarFont", "Interface\\AddOns\\Forte_Core\\Fonts\\NOPE.ttf")
     assertTrue(Swing.text:GetFont():lower()
         == "interface\\addons\\forte_core\\fonts\\nope.ttf")

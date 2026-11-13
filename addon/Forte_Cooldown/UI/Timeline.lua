@@ -53,10 +53,12 @@
 --
 -- Font: the owner font decision (2026-11-01) is the libre Century-Gothic
 -- lookalike URWGothic-Book.ttf at size 11 (the .otf twin next to it is license
--- source only). The file is validated once (CreateFont + SetFont/GetFont
--- round-trip on a throwaway string): any fontstring that did not take it
--- keeps its GameFontHighlightSmall template. FX.Cooldown.Display.fontFile is
--- the accepted path, nil = every string on the template fallback.
+-- source only). The file follows the shared font law (PLAN §11.12,
+-- FX.Compat.FontUsable/ApplyFont): it is kept unless SetFont RAISES on it --
+-- never a GetFont/boolean round trip, a pending (not yet rendered) file reads
+-- false/nil. A string whose SetFont raised keeps its GameFontHighlightSmall
+-- template. FX.Cooldown.Display.fontFile is the configured path, nil = every
+-- string on the template fallback.
 --
 -- Position + lock state live in FX.db.cooldownDisplay.
 --
@@ -240,7 +242,7 @@ local S = FX.Cooldown.TimelineSkin
 -- clone, converted to TrueType; the .otf twin next to it is the license
 -- source and must NOT be loaded). GameFontHighlightSmall is the clean
 -- fallback; GOTHIC.TTF is Monotype-proprietary and gone.
-local FONT_FILE = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
+local FONT_FILE = FX.CLASSIC_FONT
 local FONT_SIZE = 11
 local ICON_FONT_SIZE = FONT_SIZE - 1   -- FW IconFont = Font size - 1 (:1810)
 local ICON_FONT_FLAGS = "OUTLINE"
@@ -282,20 +284,12 @@ local function iconSize()
     return S.Height
 end
 
---- The validated, lower-compare round-trip of validateFont for ANY file
---- path (the General BarFont option feeds arbitrary strings).
+--- The font law for ANY file path (the General BarFont option feeds arbitrary
+--- strings): the path itself unless SetFont RAISES on it (PLAN §11.12), nil
+--- when it raised. Never a GetFont round trip.
 local function validateFontFile(path)
     if type(path) ~= "string" or path == "" then return nil end
-    local okCreate, fontObj = pcall(CreateFont, path, FONT_SIZE)
-    if not okCreate or not fontObj then return nil end
-    local probe = UIParent:CreateFontString(nil, "OVERLAY")
-    if not probe then return nil end
-    local okSet = pcall(probe.SetFont, probe, path, FONT_SIZE)
-    local got = okSet and probe:GetFont()
-    probe:Hide()
-    if type(got) == "string" and got:lower() == path:lower() then
-        return path
-    end
+    if FX.Compat.FontUsable(path) then return path end
     return nil
 end
 
@@ -315,23 +309,22 @@ local function config()
     return cfg
 end
 
---- Validate the shipped font ONCE (the shipped path through the generic
---- round-trip above). Rejected files leave fontFile nil and every
---- fontstring keeps its GameFontHighlightSmall template.
+--- Validate the shipped font ONCE (the shipped path through the font law
+--- above). A raise leaves fontFile nil and every fontstring on its
+--- GameFontHighlightSmall template.
 local function validateFont()
     return validateFontFile(FONT_FILE)
 end
 
---- Apply the validated font, dirty-checked, falling back to the string's
---- GameFontHighlightSmall template (set at creation) when the file was not
---- accepted. The cache key carries the accepted FILE, so a BarFont change
---- re-applies every live string. SetFont returns the object (truthy) on
---- success in 12.x; treat any false/nil return or raise as a rejection and
---- restore the template.
+--- Apply the configured font, dirty-checked, falling back to the
+--- GameFontHighlightSmall template only when SetFont RAISED (the font law:
+--- SetFont's boolean and GetFont are not read -- they are false/nil for a
+--- usable file that has not rendered yet). The cache key carries the accepted
+--- FILE, so a BarFont change re-applies every live string.
 ---
 --- n6: the template branch stores a SENTINEL key -- the requested key with
 --- "#tpl" on it -- not nil, so the dirty check holds on the rejected-font
---- path: a BarFont the client refused used to re-run `SetFontTemplate` on
+--- path: a BarFont the client refused used to re-run the template on
 --- every fontstring of every BuildTags/SetBarFont pass. The sentinel
 --- carries the requested file, so it is only the accepted state for THAT
 --- request: a later BarFont change (a new D.fontFile, the all-template
@@ -341,13 +334,8 @@ local function applyFont(fs, size, flags)
         .. "|" .. tostring(size) .. "|" .. (flags or "")
     local tplKey = key .. "#tpl"
     if fs._font == key or fs._font == tplKey then return end
-    local ok = false
-    if D.fontFile then
-        ok = pcall(fs.SetFont, fs, D.fontFile, size, flags)
-        if ok then ok = (fs:GetFont()) == D.fontFile end
-    end
-    if not ok then
-        pcall(fs.SetFontTemplate, fs, "GameFontHighlightSmall")
+    if not FX.Compat.ApplyFont(fs, D.fontFile, size, flags,
+            "GameFontHighlightSmall") then
         key = tplKey
     end
     fs._font = key

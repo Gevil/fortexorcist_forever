@@ -1017,12 +1017,10 @@ function Probe:Window()
     pcall(eb.SetHighlightColor, eb, 0.30, 0.52, 0.85, 0.55)
     pcall(eb.Enable, eb, true)
     pcall(eb.SetFontObject, eb, _G.ChatFontNormal or _G.GameFontHighlight)
-    -- The options window's validated identity font, when it is loaded.
-    local Wc = FX.Options and FX.Options.Widgets and FX.Options.Widgets.C
-    if type(Wc) == "table" and type(Wc.FONT_FILE) == "string"
-        and type(Wc.FONT_SIZE) == "number" then
-        pcall(eb.SetFont, eb, Wc.FONT_FILE, Wc.FONT_SIZE)
-    end
+    -- The shipped identity font (PLAN §11.12 font law): kept unless SetFont
+    -- RAISES; the chat font object set above is the fallback.
+    FX.Compat.ApplyFont(eb, FX.CLASSIC_FONT, 11, nil,
+        _G.ChatFontNormal and "ChatFontNormal" or "GameFontHighlight")
     pcall(eb.SetScript, eb, "OnEditFocusGained", function(box)
         pcall(box.HighlightText, box, 0, -1)   -- select-all on focus
     end)

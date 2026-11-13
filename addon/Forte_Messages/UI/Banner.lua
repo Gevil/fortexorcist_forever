@@ -16,9 +16,9 @@
 --   * the UI-test law: activity starts through the public path (FX.Fire of
 --     the bus event) and the test asserts IsShown() -- this file exposes no
 --     render function a test could be tempted to call;
---   * the font law: URW Gothic (FX.CLASSIC_FONT, the owner's ruling), set in
---     a pcall with the template as the fallback, exactly as
---     Forte_Options/Core/Widgets.lua:validateFont does for the window;
+--   * the font law: URW Gothic (FX.CLASSIC_FONT, the owner's ruling), applied
+--     through FX.Compat.ApplyFont (PLAN §11.12): the file is kept unless
+--     SetFont RAISES, the template is the fallback only then;
 --   * no RegisterEvent, no CreateFrame at file load -- everything is created
 --     from the module's OnEnable (the frame law).
 --
@@ -34,7 +34,7 @@ FX.Messages = FX.Messages or {}
 local Banner = {}
 FX.Messages.Banner = Banner
 
-local TEXTURE_FONT = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
+-- (the shipped font is FX.CLASSIC_FONT, defined once in Forte_Core/Core/Compat.lua)
 local FONT_SIZE = 16
 
 Banner.DEFAULT = { point = "CENTER", relPoint = "CENTER", x = 0, y = -200 }
@@ -60,18 +60,11 @@ function Banner:Init()
     fs:SetText("")
     fs:SetJustifyH("CENTER")
     fs:SetPoint("CENTER", f, "CENTER", 0, 0)
-    local file = FX.CLASSIC_FONT
-        or TEXTURE_FONT
-    -- The Widgets.validateFont round trip: accepted only when GetFont hands
-    -- the file back; the GameFont template carries the text otherwise.
-    local okFont = pcall(fs.SetFont, fs, file, FONT_SIZE, "OUTLINE")
-    if okFont then
-        local okGet, got = pcall(fs.GetFont, fs)
-        if not (okGet and type(got) == "string") then okFont = false end
-    end
-    if not okFont then
-        pcall(fs.SetFontTemplate, fs, "GameFontHighlightLarge")
-    end
+    -- The shared font law: SetFont's boolean and GetFont are NOT read (a usable
+    -- file that has not rendered yet answers false/nil); only a raise puts the
+    -- GameFont template on the text.
+    FX.Compat.ApplyFont(fs, FX.CLASSIC_FONT, FONT_SIZE, "OUTLINE",
+        "GameFontHighlightLarge")
     f:Hide()
     self.frame, self.text = f, fs
     self.active = false

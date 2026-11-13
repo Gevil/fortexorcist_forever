@@ -1130,16 +1130,19 @@ end)
 test("Settings BarFont re-validates and re-applies every fontstring live", function()
     local shipped = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
     local tag = Display.tagFS[1]
-    -- Login already applied the stored default through this very seam,
-    -- and the sim's [font] verdict accepted it (the game-font law of the
-    -- "Init" test: the shipped file round-trips through CreateFont).
+    -- Login already applied the stored default through this very seam. The
+    -- sim echoes the path from GetFont, so this still reads it back; the live
+    -- client answers false/nil until the file has rendered once (PLAN §11.12 --
+    -- the old law "GetFont must echo the path" was the bug, and
+    -- test_font_law.lua pins the pending case). The shipped file is kept
+    -- unless SetFont RAISES.
     assertTrue(tag:GetFont():lower() == shipped:lower())
     -- The options file is the same vendored file the page registers.
     assertEquals(shipped, Settings:Get("General", "BarFont"))
-    -- SetBarFont routes through validateFontFile (CreateFont + SetFont
-    -- pcall, the client's own acceptability verdict -- in the sim every
-    -- path CreateFont takes is accepted, so what this proves is the live
-    -- re-apply: the tag, title and every pooled time/count fontstring).
+    -- SetBarFont routes through validateFontFile (FX.Compat.FontUsable: a
+    -- pcall'd SetFont, only a raise rejects -- in the sim no path raises, so
+    -- what this proves is the live re-apply: the tag, title and every pooled
+    -- time/count fontstring).
     Settings:Set("General", "BarFont", "Interface\\AddOns\\Forte_Core\\Fonts\\NOPE.ttf")
     assertTrue(tag:GetFont():lower()
         == "interface\\addons\\forte_core\\fonts\\nope.ttf")
@@ -1603,9 +1606,12 @@ test("n6: an unchanged overlap group costs no table.concat on the next pass", fu
 end)
 
 -- CodeReview2 n6 (2/2): the template-fallback branch stored `_font = nil`,
--- so the dirty check never cached and SetFontTemplate re-ran on every
--- fontstring of every tag rebuild on the rejected-font path.
-test("n6: the template-font fallback caches (no SetFontTemplate re-run)", function()
+-- so the dirty check never cached and the template call re-ran on every
+-- fontstring of every tag rebuild on the rejected-font path. Re-pinned to the
+-- PLAN §11.12 law: the template is applied through SetFontObject (the shared
+-- FX.Compat.ApplyFont), only for a font that RAISED -- the spy used to watch
+-- SetFontTemplate, which the shared law no longer calls.
+test("n6: the template-font fallback caches (no template re-run)", function()
     Display:Init()
     local fs = Display.tagFS[1]
     assertNotNil(fs, "the tag fontstrings exist after Init")
@@ -1614,12 +1620,12 @@ test("n6: the template-font fallback caches (no SetFontTemplate re-run)", functi
     -- every string rides the template branch.
     Display.fontFile = nil
     Display:BuildTags()                 -- applies the template once
-    local real = fs.SetFontTemplate
+    local real = fs.SetFontObject
     local calls = 0
-    fs.SetFontTemplate = function(...) calls = calls + 1; return real(...) end
+    fs.SetFontObject = function(...) calls = calls + 1; return real(...) end
     Display:BuildTags()
     Display:BuildTags()
-    fs.SetFontTemplate = real
+    fs.SetFontObject = real
     assertEquals(0, calls,
         "the sentinel key must cache the template state (n6)")
     -- The sentinel is a SECOND accepted key, not the only key: bringing the

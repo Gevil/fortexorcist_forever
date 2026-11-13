@@ -38,7 +38,7 @@ local R = {}
 FX.Hunter.RangeLight = R
 
 local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
-local FONT_FILE = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
+local FONT_FILE = FX.CLASSIC_FONT
 
 local function skinColors()
     local skin = FX.Cooldown and FX.Cooldown.TimelineSkin
@@ -98,18 +98,11 @@ local function bandColor(band)
 end
 R.BandColor = bandColor
 
+--- The font law (PLAN §11.12): the path unless SetFont RAISES on it, nil when
+--- it raised (FX.Compat.FontUsable). No GetFont round trip.
 local function validateFontFile(path)
     if type(path) ~= "string" or path == "" then return nil end
-    local okCreate, fontObj = pcall(CreateFont, path, S.FontSize)
-    if not okCreate or not fontObj then return nil end
-    local probe = UIParent:CreateFontString(nil, "OVERLAY")
-    if not probe then return nil end
-    local okSet = pcall(probe.SetFont, probe, path, S.FontSize)
-    local got = okSet and probe:GetFont()
-    probe:Hide()
-    if type(got) == "string" and got:lower() == path:lower() then
-        return path
-    end
+    if FX.Compat.FontUsable(path) then return path end
     return nil
 end
 
@@ -152,9 +145,8 @@ function R:Init()
 
     local text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     self.fontFile = validateFontFile(S.FontFile)
-    if self.fontFile then
-        pcall(text.SetFont, text, self.fontFile, S.FontSize, S.FontFlags)
-    end
+    FX.Compat.ApplyFont(text, self.fontFile, S.FontSize, S.FontFlags,
+        "GameFontHighlightSmall")
     text:SetJustifyH("CENTER")
     text:SetPoint("CENTER", f, "CENTER", 0, 0)
     local tc = S.TextColor

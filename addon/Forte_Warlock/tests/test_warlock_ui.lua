@@ -875,9 +875,10 @@ test("Warlock settings drive the four plates live", function()
     local shipped = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
     assertTrue(Stone.infoFS:GetFont():lower() == shipped:lower())
     assertEquals(11, StS.TextSize)
-    -- A font file the client can not load is REFUSED (the shipped font
-    -- validation law of Forte_Options/Forte_Hunter): the label keeps the
-    -- shipped face, it does not go blank.
+    -- The shared BarFont key has no Warlock consumer (Frame has no SetFont
+    -- setter), so the label keeps the shipped face whatever the store holds:
+    -- it does not go blank. The shipped file itself follows the PLAN §11.12
+    -- font law (kept unless SetFont raises; test_font_law.lua pins that).
     ST:Set("General", "BarFont", "Interface\\AddOns\\Forte_Core\\Fonts\\NOPE.ttf")
     assertTrue(Stone.infoFS:GetFont():lower() == shipped:lower(),
         "a missing font file is refused, " .. Stone.infoFS:GetFont())

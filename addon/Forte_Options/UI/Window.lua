@@ -490,6 +490,12 @@ function O:BuildIndex(f)
 end
 
 -- --------------------------------------------------------------- profiles --
+--- The late-measure callback (Compat.WhenFontLoaded): tabs sized while the font
+--- was pending are rebuilt from a real measure.
+function O._onFontLoaded()
+    if O.window then O:RefreshProfileTabs() end
+end
+
 --- One tab in the row under the title bar: Aluminium art, gold (active) or
 --- grey (inactive) caption, its own OnClick and tooltip. Rebuilt by
 --- RefreshProfileTabs (a handful of frames, on profile changes only).
@@ -505,6 +511,13 @@ function O:MakeTab(parent, text, active, onClick, tip)
     caption:SetPoint("CENTER", tab, "CENTER", 0, 0)
     local w = (caption.GetUnboundedStringWidth
         and caption:GetUnboundedStringWidth()) or 60
+    if FX.Compat.TextWidthPending(w, text) then
+        -- The shipped font has not rendered yet (PLAN §11.12): width reads 0.
+        -- Use the fallback width now and lay the tab row out again once the
+        -- file has rendered (one shared callback, idempotent).
+        w = 60
+        FX.Compat.WhenFontLoaded(WC.FONT_FILE, O._onFontLoaded)
+    end
     tab:SetSize(math.max(C.TAB_MIN_W, w + C.TAB_TEXT_PAD), C.TABS_H - 2 * C.TAB_INSET)
     art:SetVertexColor(active and 0.30 or 0.13, active and 0.30 or 0.14,
         active and 0.52 or 0.22, 0.95)

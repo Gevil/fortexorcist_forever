@@ -224,12 +224,19 @@ end
 --- The label's font size: the skin's size per the original law
 --- (TextSize = the {GOTHIC.TTF, 11} of Forte_Core.lua:2547) when its draw
 --- box fits the slot, else the largest size (floor) whose draw box fits.
+--- Returns `size, pending`. A 0 width (or no font size) for NON-EMPTY text is
+--- PENDING (PLAN §11.12: a font that has not rendered yet measures 0 / nil):
+--- the previous fitted size (else the skin's) is kept, so a bad read is never
+--- turned into a size.
 function Shards:InfoFitSize(text)
     local s = self.skin
     local dw, nsize = self:InfoDrawWidth(text)
-    if not dw or not nsize or dw <= 0 then return s.TextSize end
+    local pending = FX.Compat.TextWidthPending(dw, text)
+        or (text ~= nil and text ~= "" and not nsize)
+    if pending then return self._infoSize or s.TextSize, true end
+    if not dw or not nsize or dw <= 0 then return s.TextSize, false end
     local fit = math.floor(nsize * self:InfoSlotWidth() / dw)
-    return math.max(8, math.min(s.TextSize, fit))
+    return math.max(8, math.min(s.TextSize, fit)), false
 end
 
 --- The plate law's right label (RIGHT at InfoX, Forte_Soulstone.xml:140-146)
@@ -259,8 +266,16 @@ end
 function Shards:ApplyInfoFont()
     local fs = self.infoFS
     if not fs then return end
-    local size = self:InfoFitSize(fs:GetText())
-    pcall(fs.SetFont, fs, self.state.fontFile, size, 0)
+    local size, pending = self:InfoFitSize(fs:GetText())
+    if pending then
+        -- Re-fit once the font has rendered; the size just used is not
+        -- remembered as a measure.
+        self._onInfoFont = self._onInfoFont or function() self:ApplyInfoFont() end
+        FX.Compat.WhenFontLoaded(self.state.fontFile, self._onInfoFont)
+    else
+        self._infoSize = size
+    end
+    FX.Compat.ApplyFont(fs, self.state.fontFile, size, 0, "GameFontHighlightSmall")
 end
 
 -- ------------------------------------------------------------------ update --

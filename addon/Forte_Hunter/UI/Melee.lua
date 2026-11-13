@@ -49,7 +49,7 @@ local D = {}
 FX.Hunter.Melee = D
 
 local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
-local FONT_FILE = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
+local FONT_FILE = FX.CLASSIC_FONT
 
 --- The bar's current fill colour (one truth); the verbatim Spell triple
 --- is the fallback when the bar's skin is not loaded (the RangeLight
@@ -87,18 +87,11 @@ local TICK_SECONDS = 0.1                        -- the 10 Hz display law
 D.state = { enabled = false }
 local ST = D.state
 
+--- The font law (PLAN §11.12): the path unless SetFont RAISES on it, nil when
+--- it raised (FX.Compat.FontUsable). No GetFont round trip.
 local function validateFontFile(path)
     if type(path) ~= "string" or path == "" then return nil end
-    local okCreate, fontObj = pcall(CreateFont, path, S.FontSize)
-    if not okCreate or not fontObj then return nil end
-    local probe = UIParent:CreateFontString(nil, "OVERLAY")
-    if not probe then return nil end
-    local okSet = pcall(probe.SetFont, probe, path, S.FontSize)
-    local got = okSet and probe:GetFont()
-    probe:Hide()
-    if type(got) == "string" and got:lower() == path:lower() then
-        return path
-    end
+    if FX.Compat.FontUsable(path) then return path end
     return nil
 end
 
@@ -158,9 +151,8 @@ function D:Init()
 
     -- The remaining-seconds text, right-aligned at the rail's right end.
     local text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    if self.fontFile then
-        pcall(text.SetFont, text, self.fontFile, S.FontSize, S.FontFlags)
-    end
+    FX.Compat.ApplyFont(text, self.fontFile, S.FontSize, S.FontFlags,
+        "GameFontHighlightSmall")
     text:SetJustifyH("RIGHT")
     text:SetPoint("RIGHT", f, "RIGHT", -2, 0)
     local tc = S.TextColor

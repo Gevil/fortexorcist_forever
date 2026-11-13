@@ -514,3 +514,181 @@ end
 function SecretState.CooldownReadsAreSecret()
     return SecretState.cooldownsSecret == true
 end
+
+-- ---------------------------------------------------------------------------
+-- THE FONT LAW (PLAN §11.12, measured live 2026-11-13 on 1.60.1.70938).
+--
+-- FontString:SetFont(path, size, flags) loads a font file lazily, on its first
+-- render. Until the file has rendered once in this client process SetFont
+-- RETURNS FALSE, GetFont() is nil and GetStringWidth() is 0 -- and the text then
+-- draws in that font anyway. Only a RAISE ("invalid font asset ... file not
+-- found") means the file is unusable. So:
+--   * NEVER read SetFont's boolean or GetFont() as an acceptance test;
+--   * a display keeps its configured file unless FontUsable() says it RAISED;
+--   * code that sizes text right after SetFont treats a 0 width for non-empty
+--     text as "pending" (TextWidthPending), keeps its previous/fallback size,
+--     caches nothing, and re-measures from WhenFontLoaded.
+-- A shown + anchored fontstring (even at alpha 0) makes the client load a file;
+-- a hidden or unanchored one does not -- WarmFont is that fontstring.
+-- ---------------------------------------------------------------------------
+
+--- THE shipped font (URW Gothic Book, the owner's ruling). One definition;
+--- every display reads it from here.
+FX.CLASSIC_FONT = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
+
+local FONT_PROBE_SIZE = 12
+local FONT_POLL_SECONDS = 0.5
+local FONT_POLL_TICKS = 40            -- 40 x 0.5 s = the ~20 s budget
+local WARM_TEXT = "0123456789 AaGg"
+
+local probeFS     -- the one shared throwaway fontstring (nil = not built, false = unavailable)
+local function fontProbe()
+    if probeFS == nil then
+        probeFS = false
+        local parent = _G.UIParent
+        if parent and parent.CreateFontString then
+            local ok, fs = pcall(parent.CreateFontString, parent, nil, "OVERLAY")
+            if ok and fs then
+                pcall(fs.Hide, fs)
+                probeFS = fs
+            end
+        end
+    end
+    return probeFS or nil
+end
+
+--- Can the client use this font file? pcall-only: TRUE unless SetFont RAISED.
+--- Never reads SetFont's boolean or GetFont (both say "no" for a usable file
+--- that has not rendered yet). A non-string / empty path is unusable.
+function Compat.FontUsable(path)
+    if type(path) ~= "string" or path == "" then return false end
+    local fs = fontProbe()
+    if not fs then return true end    -- nothing to ask: nothing raised
+    local ok = pcall(fs.SetFont, fs, path, FONT_PROBE_SIZE, "")
+    return ok and true or false
+end
+
+--- Has this file rendered once in this client process? Informational only (the
+--- pending-measure re-run keys on it): the probe's SetFont returned true.
+function Compat.FontLoaded(path)
+    if type(path) ~= "string" or path == "" then return false end
+    local fs = fontProbe()
+    if not fs then return false end
+    local ok, res = pcall(fs.SetFont, fs, path, FONT_PROBE_SIZE, "")
+    return ok and res == true
+end
+
+--- Apply `path` to a fontstring. SetFont inside a pcall; ONLY when it raises
+--- (or `path` is not a usable string) the string is put on `templateName`
+--- (default GameFontHighlightSmall) through SetFontObject, in a pcall. Returns
+--- true when the file was applied, false when the template carries the text.
+function Compat.ApplyFont(fs, path, size, flags, templateName)
+    if not fs then return false end
+    if type(path) == "string" and path ~= "" and fs.SetFont then
+        -- `flags` is declared non-nilable (SimpleFontAPIDocumentation.lua:198): a
+        -- missing one must not be what raises, so nil travels as "".
+        local ok = pcall(fs.SetFont, fs, path, size, flags or "")
+        if ok then return true end
+    end
+    if fs.SetFontObject then
+        pcall(fs.SetFontObject, fs, templateName or "GameFontHighlightSmall")
+    end
+    return false
+end
+
+local warmFS = {}        -- [path] = the warm fontstring, or false (it raised)
+local warmHolder
+
+--- Make the client load `path` within seconds: ONE fontstring per path, on one
+--- tiny always-shown holder frame (parent UIParent, anchored on screen, alpha
+--- 0, BACKGROUND strata, no mouse, no OnUpdate), with text. Idempotent.
+--- Returns the fontstring, nil when it could not be built (or the file raised).
+function Compat.WarmFont(path)
+    if type(path) ~= "string" or path == "" then return nil end
+    local have = warmFS[path]
+    if have ~= nil then return have or nil end
+    local parent = _G.UIParent
+    if not (parent and _G.CreateFrame) then return nil end
+    if not Compat.FontUsable(path) then      -- SetFont raised: keep nothing, never retry
+        warmFS[path] = false
+        return nil
+    end
+    local ok, fs = pcall(function()
+        if not warmHolder then
+            local h = _G.CreateFrame("Frame", nil, parent)
+            h:SetSize(2, 2)
+            h:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, 0)
+            h:SetFrameStrata("BACKGROUND")
+            h:EnableMouse(false)
+            h:SetAlpha(0)
+            h:Show()
+            warmHolder = h
+        end
+        local s = warmHolder:CreateFontString(nil, "BACKGROUND")
+        s:SetFont(path, FONT_PROBE_SIZE, "")
+        s:SetPoint("CENTER", warmHolder, "CENTER", 0, 0)
+        s:SetText(WARM_TEXT)
+        s:Show()
+        return s
+    end)
+    if not ok then return nil end             -- not memoized: a later call may succeed
+    warmFS[path] = fs
+    return fs
+end
+
+--- A measured width that cannot be trusted yet: non-empty text reading 0 (or a
+--- non-number) while the font is pending. The caller keeps its previous or
+--- fallback size, caches nothing, and re-measures from WhenFontLoaded.
+function Compat.TextWidthPending(width, text)
+    if text == nil or text == "" then return false end
+    return type(width) ~= "number" or width <= 0
+end
+
+local waiters = {}       -- [path] = { fns = {...}, ticks = n, ticker = handle }
+
+local function stopWaiter(path)
+    local w = waiters[path]
+    waiters[path] = nil
+    if w and w.ticker and w.ticker.Cancel then pcall(w.ticker.Cancel, w.ticker) end
+    return w
+end
+
+local function pollWaiter(path)
+    local w = waiters[path]
+    if not w then return end
+    w.ticks = w.ticks + 1
+    if Compat.FontLoaded(path) then
+        stopWaiter(path)
+        for _, fn in ipairs(w.fns) do pcall(fn, path) end
+    elseif w.ticks >= FONT_POLL_TICKS then
+        stopWaiter(path)            -- ~20 s without a render: give up, never poll forever
+    end
+end
+
+--- Run `fn(path)` once, when `path` has rendered (FontLoaded). A C_Timer ticker
+--- (no OnUpdate) polls every 0.5 s and stops as soon as the font is loaded or
+--- after ~20 s; callbacks are pcall'd. Also warms the file (a polled font nobody
+--- shows would never load). Idempotent per (path, fn). Returns true when the
+--- font is ALREADY loaded -- nothing is pending, `fn` is not called -- else false.
+function Compat.WhenFontLoaded(path, fn)
+    if type(path) ~= "string" or path == "" or type(fn) ~= "function" then
+        return false
+    end
+    if Compat.FontLoaded(path) then return true end
+    Compat.WarmFont(path)
+    local w = waiters[path]
+    if not w then
+        w = { fns = {}, ticks = 0 }
+        waiters[path] = w
+    end
+    for _, have in ipairs(w.fns) do
+        if have == fn then return false end
+    end
+    w.fns[#w.fns + 1] = fn
+    if not w.ticker and _G.C_Timer and _G.C_Timer.NewTicker then
+        local ok, ticker = pcall(_G.C_Timer.NewTicker, FONT_POLL_SECONDS,
+            function() pollWaiter(path) end, FONT_POLL_TICKS)
+        if ok then w.ticker = ticker end
+    end
+    return false
+end

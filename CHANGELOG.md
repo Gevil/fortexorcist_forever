@@ -20,6 +20,12 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
   recorded error to chat as `[FX-ERR]` and turns on cast tracing; it no longer switches the game's chat
   logging on (that only records your real chat and never carried our lines), and the status line no longer
   shows the wrong `chatlog=` value.
+- **The bar and window font no longer falls back to the game font.** The client loads a font file only the
+  first time it draws it, and until then it reports the file as "not loaded" although it is fine — every bar,
+  timer, banner and the options window mistook that for a broken font and kept the default game font for the
+  whole session. A font is now rejected only when the client refuses the file outright, the shipped font is
+  pre-loaded at login, and text that is sized right after the font is set (Warlock shard label, Spell Timer
+  time column, options labels and tabs) is measured again once the font has loaded.
 
 ---
 

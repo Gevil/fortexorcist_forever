@@ -120,7 +120,7 @@ FX.Warlock.FrameSkin = {
     BarColor = { 0.64, 0.21, 0.93, 1 },           -- Forte_Soulstone.xml:119
     TextColor = { 1, 1, 1, 1 },                  -- Forte_Soulstone.lua:660
     TextSize = 11,                               -- Forte_Core.lua:2547
-    TextFont = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf",
+    TextFont = FX.CLASSIC_FONT,
     PlateTexture = TEX .. "Background",          -- Forte_Soulstone.xml:227
     EdgeTexture = TEX .. "Border",               -- Forte_Soulstone.xml:227
     BarTexture = "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar",
@@ -368,7 +368,8 @@ function Frame:_NewFont(dx, dy, size, justify, point, relPoint)
     local fs = self.anchor:CreateFontString()
     fs:SetPoint(point or "CENTER", self.anchor, relPoint or point or "CENTER",
         dx or 0, dy or 0)
-    fs:SetFont(self.state.fontFile, size or self.state.fontSize, 0)
+    FX.Compat.ApplyFont(fs, self.state.fontFile, size or self.state.fontSize, 0,
+        "GameFontHighlightSmall")
     fs:SetJustifyH(justify or "CENTER")
     local c = self.skin.TextColor
     fs:SetVertexColor(c[1], c[2], c[3], c[4])
@@ -451,7 +452,8 @@ function Frame:_NewRowFont(justify, row)
             fs:SetPoint("BOTTOMRIGHT", self.timeFS, "BOTTOMLEFT", -1, 0)
         end
     end
-    fs:SetFont(self.state.fontFile, self.state.fontSize, 0)
+    FX.Compat.ApplyFont(fs, self.state.fontFile, self.state.fontSize, 0,
+        "GameFontHighlightSmall")
     fs:SetJustifyH(justify)
     local c = self.skin.TextColor
     fs:SetVertexColor(c[1], c[2], c[3], c[4])

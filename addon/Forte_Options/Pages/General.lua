@@ -30,7 +30,7 @@ local O = FX.Options
 
 local M = "General"
 local TEX = "Interface\\AddOns\\Forte_Core\\Textures\\"
-local FONT = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
+local FONT = FX.CLASSIC_FONT
 
 -- The picker contents (the original registers the lists at load:
 -- FW:RegisterFont calls Forte_Core.lua:567-570, FW.TextureList :644-668).

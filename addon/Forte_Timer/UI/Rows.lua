@@ -114,22 +114,33 @@ end
 local nameOpts = {}
 
 -- ------------------------------------------------------------------- font --
---- The shipped-file validator, the Forte_Hunter/UI/Swing.lua law (CreateFont +
---- SetFont on a throwaway string, accepted only when GetFont returns the file
---- back). Rejection leaves every string on its GameFontHighlightSmall template.
-local function validateFontFile(path, size)
+--- The font law (PLAN §11.12): the file is kept unless SetFont RAISES on it
+--- (FX.Compat.FontUsable); nil when it raised -- every string then stays on its
+--- GameFontHighlightSmall template. No GetFont round trip: a usable file that
+--- has not rendered yet reads false/nil.
+local function validateFontFile(path)
     if type(path) ~= "string" or path == "" then return nil end
-    local okCreate, fontObj = pcall(CreateFont, path, size)
-    if not okCreate or not fontObj then return nil end
-    local probe = UIParent:CreateFontString(nil, "OVERLAY")
-    if not probe then return nil end
-    local okSet = pcall(probe.SetFont, probe, path, size)
-    local got = okSet and probe:GetFont()
-    probe:Hide()
-    if type(got) == "string" and got:lower() == path:lower() then
-        return path
-    end
+    if FX.Compat.FontUsable(path) then return path end
     return nil
+end
+
+--- Time-column width estimate (characters x size x 0.55), used ONLY while the
+--- font is pending and a row has no earlier good measure.
+local function estimateTextWidth(text, size)
+    return #text * (size or 11) * 0.55
+end
+
+--- Validate the skin's font file (Init's one font step; also the seam the
+--- tests drive) and arm the late measure (PLAN §11.12): text sized while the
+--- file is still pending reads width 0, so once it has rendered
+--- Compat.WhenFontLoaded drops the text/width caches and the next Update
+--- re-measures. Idempotent: the callback is one stable closure.
+function D:ValidateFonts()
+    local file = self.skin.Font[1]
+    self.fontFile = validateFontFile(file)
+    self.stacksFontFile = validateFontFile(file)
+    self._onFontLoaded = self._onFontLoaded or function() self:OnFontLoaded() end
+    FX.Compat.WhenFontLoaded(file, self._onFontLoaded)
 end
 
 -- ------------------------------------------------------------------- init --
@@ -140,8 +151,7 @@ function D:Init(options, skin, cfg)
         return
     end
     self.options, self.skin, self.cfg = options, skin, cfg
-    self.fontFile = validateFontFile(skin.Font[1], skin.Font[2])
-    self.stacksFontFile = validateFontFile(skin.Font[1], skin.Font[2] - 1)
+    self:ValidateFonts()
 
     local f = CreateFrame("Frame", "ForteXorcistTimerAnchor", UIParent,
         BackdropTemplateMixin and "BackdropTemplate" or nil)
@@ -244,6 +254,21 @@ function D:SetSize(w, h)
     for i = 1, #self.rows do
         local row = self.rows[i]
         if row then
+            row._gBarW, row._gHeight, row._gIcon, row._gIconRight =
+                nil, nil, nil, nil
+        end
+    end
+end
+
+--- The shipped font has rendered for the first time (Compat.WhenFontLoaded):
+--- every text/width cache that was filled while it was pending is dropped, so
+--- the next Update re-sets the time texts and re-measures the column.
+function D:OnFontLoaded()
+    for i = 1, #(self.rows or {}) do
+        local row = self.rows[i]
+        if row then
+            row._timeKey, row._timeText, row._goodW = nil, nil, nil
+            row._twWidth, row._nwWidth = nil, nil
             row._gBarW, row._gHeight, row._gIcon, row._gIconRight =
                 nil, nil, nil, nil
         end
@@ -565,9 +590,8 @@ function D:AcquireGroup(i)
         f:SetBackdropBorderColor(bg[1], bg[2], bg[3], bg[4])
     end
     local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    if self.fontFile then
-        pcall(label.SetFont, label, skin.LabelFont[1], skin.LabelFont[2])
-    end
+    FX.Compat.ApplyFont(label, self.fontFile and skin.LabelFont[1],
+        skin.LabelFont[2], nil, "GameFontHighlightSmall")
     label:SetTextColor(1, 1, 1, 1)
     label:SetJustifyH("CENTER")
     local mark = f:CreateTexture(nil, "OVERLAY")
@@ -629,9 +653,8 @@ function D:AcquireRow(i)
     -- The stack tag: the icon's BOTTOMRIGHT, the base font at size - 1 with
     -- OUTLINE (:1696-1698, :2467-2471, :3347 -- delta D8).
     local tag = icon:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    if self.stacksFontFile then
-        pcall(tag.SetFont, tag, skin.Font[1], skin.Font[2] - 1, "OUTLINE")
-    end
+    FX.Compat.ApplyFont(tag, self.stacksFontFile and skin.Font[1],
+        skin.Font[2] - 1, "OUTLINE", "GameFontHighlightSmall")
     tag:SetJustifyH("CENTER")
     tag:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 0, 0)
     tag:SetTextColor(1, 1, 1, 1)
@@ -641,9 +664,8 @@ function D:AcquireRow(i)
     local timeFS = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     local dummy = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     for _, fs in ipairs({ nameFS, timeFS, dummy }) do
-        if self.fontFile then
-            pcall(fs.SetFont, fs, skin.Font[1], skin.Font[2])
-        end
+        FX.Compat.ApplyFont(fs, self.fontFile and skin.Font[1], skin.Font[2],
+            nil, "GameFontHighlightSmall")
     end
     nameFS:SetTextColor(1, 1, 1, 1)
     nameFS:SetJustifyH("CENTER")
@@ -997,6 +1019,7 @@ function D:Update(links, n, options, skin)
                     o.altTimeFormat)
                 r.timeFS:SetText(text)
                 r.dummy:SetText(text)
+                r._timeText = text
             end
             if r._nName ~= row.name or r._nTarget ~= row.targetKey
                 or r._nStacks ~= row.stacks or r._nId ~= row.groupKey
@@ -1012,6 +1035,15 @@ function D:Update(links, n, options, skin)
                 r.nameFS:SetText(nameText)
             end
             local w = r.dummy:GetWidth()
+            if FX.Compat.TextWidthPending(w, r._timeText) then
+                -- The font file has not rendered yet (PLAN §11.12): GetWidth
+                -- reads 0 for real text. Keep this row's last good width, else
+                -- an estimate; nothing here is remembered as a measure, and
+                -- OnFontLoaded makes the next Update measure for real.
+                w = r._goodW or estimateTextWidth(r._timeText, self.skin.Font[2])
+            else
+                r._goodW = w
+            end
             if w and w > usewidth then usewidth = w end
         end
         if o.smartSpace == false then usewidth = 0 end

@@ -436,7 +436,10 @@ test("Open('General'): 780x650 frame, header bar height, name", function()
         if name == "ForteXorcistOptionsWindow" then found = true end
     end
     assertEquals(true, found)
-    -- The URW Gothic verdict of the font pipeline (accepted by the sim).
+    -- The URW Gothic verdict of the font pipeline. PLAN §11.12 law: the file is
+    -- kept unless SetFont RAISES (FX.Compat.FontUsable) -- the old "GetFont must
+    -- echo the path" round trip was the bug (test_font_law.lua pins the pending
+    -- case); the sim raises on no path, so the shipped file stands.
     assertEquals(WC.FONT_FILE, O.fontFile)
     print("[font] accepted=" .. tostring(O.fontFile))
 end)
@@ -1841,7 +1844,8 @@ function()
     assertNotNil(tag, "the bar's tags are live")
     -- Leave the shipped state through the store (the seam itself is
     -- test_timeline's BarFont test); the caption falls back to the
-    -- basename of the off-list path.
+    -- basename of the off-list path. The sim raises on no path, so NOPE is
+    -- applied under the PLAN §11.12 law (only a raise rejects).
     S:Set("General", "BarFont", NOPE)
     sel.refresh()
     assertEquals("NOPE.ttf", sel.caption:GetText())
