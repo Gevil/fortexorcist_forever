@@ -1106,6 +1106,8 @@ Decisions: build our own loop (no Mechanic/BugGrabber); the agent may type dev c
 | R2 | dev suite: font tests on the new law (Q5), deploy, live verify warm (reload) and cold (next owner restart), screenshots | manager |
 | R3 | refresh data to 70938, gate, release **1.0.1** (font fix, error recorder, `/fx log` fix) to GitHub + CurseForge (needs the regenerated CF token as `CF_API_KEY`, or the owner's OK to upload with the old one) | manager |
 
+**R4 (owner report 2026-11-13): the aspect reminder blinks after a reload although an aspect is active.** Cause (read in `Forte_Hunter/Core/Tools.lua`): `AspectTracker.current` is set only by our own cast or by `Reconcile()`, and `onToolEvent` reconciles only on `PLAYER_REGEN_ENABLED`; `PLAYER_ENTERING_WORLD` never reads the aspect, so after login/reload it is nil until the next fight ends. Same gap: an aspect cancelled out of combat is never noticed. Fix: reconcile at `PLAYER_ENTERING_WORLD` (+ one late pass for not-yet-loaded auras) and on the player's own `UNIT_AURA` out of combat (debounced), notify the reminder on a change. Builder `AspectFixR` in worktree `/tmp/fx-aspect` (branch `aspect-reconcile`) to stay clear of the font fix. Ships in 1.0.1.
+
 ### 11.13 Iteration S — smooth motion on high-refresh displays (owner, 2026-11-13: "165 Hz monitor, feels a bit stuttery")
 
 **What the code does today (read 2026-11-13):**
