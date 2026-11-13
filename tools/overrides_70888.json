@@ -1,62 +1,62 @@
 {
  "_meta": {
   "build": "1.60.1.70888",
-  "commit": "c1c29def90009d4aa51a47f6751b099372dd4c0a",
-  "field_semantics": "times in ms; an absent field = the store carries no row for it (absence, never a reading; data-diff-70707.md \u00a71); v=1 marks ids with at least one value row; charges: the store has no charges column (data-diff-70707.md \u00a71); feeds (wave I-2b): periodMs = the smallest positive Effects[].PeriodMs, targetCode = the Targets scalar (client SpellEffectTargetingCategory code, 1 = the caster), maxStack = AuraOptions.MaxStack above 1; build: spells 1.60.1.70888 @ hotfix 113904, item leg 1.60.1.70888 @ hotfix 113904 (data-diff-live-2026-11-10.md)",
+  "commit": "80ef86793788ca527d4a51d0e1a659a928ccc4b9",
+  "field_semantics": "times in ms; an absent field = the store carries no row for it (absence, never a reading; data-diff-70707.md \u00a71); v=1 marks ids with at least one value row; charges: the store has no charges column (data-diff-70707.md \u00a71); feeds (wave I-2b): periodMs = the smallest positive Effects[].PeriodMs, targetCode = the Targets scalar (client SpellEffectTargetingCategory code, 1 = the caster), maxStack = AuraOptions.MaxStack above 1; build: spells 1.60.1.70888 @ hotfix 114027, item leg 1.60.1.70888 @ hotfix 114039 (data-diff-live-2026-11-10.md)",
   "generated_by": "tools/extract_store.py",
   "group_stamps": {
    "druid": {
     "build": "1.60.1.70888",
-    "hotfix_push": 113904
+    "hotfix_push": 114027
    },
    "hunter": {
     "build": "1.60.1.70888",
-    "hotfix_push": 113904
+    "hotfix_push": 114027
    },
    "items": {
     "build": "1.60.1.70888",
-    "hotfix_push": 113904
+    "hotfix_push": 114039
    },
    "mage": {
     "build": "1.60.1.70888",
-    "hotfix_push": 113904
+    "hotfix_push": 114027
    },
    "paladin": {
     "build": "1.60.1.70888",
-    "hotfix_push": 113904
+    "hotfix_push": 114027
    },
    "priest": {
     "build": "1.60.1.70888",
-    "hotfix_push": 113904
+    "hotfix_push": 114027
    },
    "racials": {
     "build": "1.60.1.70888",
-    "hotfix_push": 113904
+    "hotfix_push": 114027
    },
    "rogue": {
     "build": "1.60.1.70888",
-    "hotfix_push": 113904
+    "hotfix_push": 114027
    },
    "shaman": {
     "build": "1.60.1.70888",
-    "hotfix_push": 113904
+    "hotfix_push": 114027
    },
    "shared": {
     "build": "1.60.1.70888",
-    "hotfix_push": 113904
+    "hotfix_push": 114027
    },
    "warlock": {
     "build": "1.60.1.70888",
-    "hotfix_push": 113904
+    "hotfix_push": 114027
    },
    "warrior": {
     "build": "1.60.1.70888",
-    "hotfix_push": 113904
+    "hotfix_push": 114027
    }
   },
-  "hotfix_push": 113904,
+  "hotfix_push": 114027,
   "items_build": "1.60.1.70888",
-  "items_hotfix_push": 113904,
+  "items_hotfix_push": 114039,
   "mixed": false,
   "source": "wowsims/forever (github.com/wowsims/forever)",
   "source_licence": "MIT (Copyright (c) 2022 wowsims team)",
@@ -11929,7 +11929,11 @@
    "v": 1
   },
   "12686": {
-   "name": "Enrage"
+   "castMs": 0,
+   "durationMs": 15000,
+   "name": "Enrage",
+   "spellLevel": 50,
+   "v": 1
   },
   "12693": {
    "name": "Drain Life"
@@ -13133,7 +13137,11 @@
    "name": "Arcane Blast"
   },
   "1300180": {
-   "name": "Stealth"
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 20000,
+   "name": "Stealth",
+   "v": 1
   },
   "1300361": {
    "name": "Starfall"
@@ -14150,7 +14158,14 @@
    "v": 1
   },
   "1320824": {
-   "name": "Rend"
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 14000,
+   "icdMs": 0,
+   "name": "Rend",
+   "periodMs": 2000,
+   "spellLevel": 50,
+   "v": 1
   },
   "1321196": {
    "name": "Chain Lightning"
@@ -18429,7 +18444,7 @@
    "castMs": 0,
    "category": 0,
    "categoryCooldownMs": 0,
-   "cooldownMs": 6000,
+   "cooldownMs": 8000,
    "durationMs": 12000,
    "family": 11,
    "gcdMs": 1500,
@@ -19548,7 +19563,14 @@
    "name": "Multi-Shot"
   },
   "18656": {
-   "name": "Corruption"
+   "castMs": 0,
+   "category": 0,
+   "durationMs": 9000,
+   "icdMs": 0,
+   "name": "Corruption",
+   "periodMs": 3000,
+   "spellLevel": 60,
+   "v": 1
   },
   "18657": {
    "baseLevel": 38,

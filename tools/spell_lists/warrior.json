@@ -19,6 +19,10 @@
     "Rapid Regeneration": {
       "id": 1260270,
       "reason": "the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4)"
+    },
+    "Enrage": {
+      "id": 440483,
+      "reason": "the warrior's Enrage buff (12 s, +10% damage, category 21; triggered by Fresh Meat 440484; the pick before hotfix push 114027). Push 114027 gave 12686 a store row: that is an item weapon proc of the same name (+102 attack power and haste, 15 s, spell level 50; wowsims sim/common/forever/stat_bonus_procs_auto_gen.go 'IsWeaponProc'), family-less, so it rode the in-family pool and outranked the class rows on spell level"
     }
   },
   "cooldowns": [
