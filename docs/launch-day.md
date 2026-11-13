@@ -223,6 +223,10 @@ rank pins are GENERATED data (M3a), so their rows are the ones to watch.
    lines, measured 2026-11-12), **no** red error line, no Lua error.
    `/fx errors` lists what the addon recorded for itself (nothing on a clean
    session); the same list is in `ForteXorcistDB.errors` after a `/reload`.
+   **Verified live 2026-11-13** (client 1.60.1.70938, typed through
+   `scripts/fxdev.py`): `/fx log` printed `Log: errors->chat=false
+   recorded=1 (/fx errors)`, `/fx errors` listed the one entry with its
+   source line, `/fx errors clear` emptied it; no Lua error.
 6. **Options closes with Esc.** `/fx options`, press **Esc** — the window
    closes (F1 proved the X; this is the keyboard half).
 7. **Bar smooth + CPU sane.** Watch the cooldown bar fill for ~10 s: the

@@ -1105,3 +1105,34 @@ Decisions: build our own loop (no Mechanic/BugGrabber); the agent may type dev c
 | R1 | one shared font law in `Forte_Core/Core/Compat.lua` (existing file → deployable with /reload): `FontUsable(path)` = pcall-only; `ApplyFont(fs, path, size, flags, templateName)` = apply, template only on a raise; `WarmFont(path)` = a shown, anchored, alpha-0 fontstring with text created at login so the file loads within seconds; a late-measure hook for code that sizes text (Warlock Shards fit size, Timer smart space, Options previews) so a 0 width while the font is pending is re-measured; replace every validator; tests | Sonnet builder |
 | R2 | dev suite: font tests on the new law (Q5), deploy, live verify warm (reload) and cold (next owner restart), screenshots | manager |
 | R3 | refresh data to 70938, gate, release **1.0.1** (font fix, error recorder, `/fx log` fix) to GitHub + CurseForge (needs the regenerated CF token as `CF_API_KEY`, or the owner's OK to upload with the old one) | manager |
+
+### 11.13 Iteration S — smooth motion on high-refresh displays (owner, 2026-11-13: "165 Hz monitor, feels a bit stuttery")
+
+**What the code does today (read 2026-11-13):**
+
+| Display | Redraw driver | Rate | At 165 fps |
+|---|---|---|---|
+| Cooldown bar icons | `Forte_Cooldown/Module.lua` render frame OnUpdate, accumulator `RENDER_SECONDS = 1/60`, remainder carried | ≤ 60 /s, whole `Display:Update` each time | fires on every 2nd/3rd frame in an uneven 3-3-2 pattern → judder |
+| Spell Timer rows | `Forte_Timer/Module.lua` `C_Timer.NewTicker(DRAW_SECONDS = 0.04)` | 25 /s | every 6–7 frames |
+| Hunter swing bar | `Forte_Hunter/UI/Swing.lua` OnUpdate, `TICK_SECONDS = 0.1` | 10 /s | every 16–17 frames |
+| Ready splash, melee rail, aspect reminder pulse | OnUpdate, `TICK_SECONDS = 0.1` | 10 /s | every 16–17 frames |
+| Range light | 10 /s | static light, no motion | fine as is |
+
+The 10/25 Hz numbers are the 2012 original's cadences (`Forte_Core.lua:2473`), kept for fidelity and CPU; the 60 Hz pump was added for the launch. None of them follows the display.
+
+**Law for this iteration: motion follows the frame, logic does not.** Each moving display gets a *motion pass* that runs every rendered frame while (and only while) the display is on screen and something moves, and keeps its existing *full pass* (sorting, text, colours, visibility, client reads) on the slow cadence.
+- A motion pass is pure geometry from numbers the full pass cached (start, end, duration, bar width): a few widget setters per moving element, **no client reads, no string work, no table or closure allocation, no sort**. Text (countdown numbers) stays on the slow pass — it changes 10×/s at most.
+- Hidden-frame law stands: the OnUpdate lives on a shown frame and is removed when nothing moves (idle = zero per-frame work).
+- Time base is `GetTime()` per frame (not accumulated `elapsed`), so motion is exact at any frame rate and after a hitch.
+- Where the client can animate for us (`StatusBar:SetTimerDuration` with a duration object we build — the Swing bar's "engine fill", built and off since launch pending a live answer), prefer it for linear fills: zero Lua per frame. Live probe queued 2026-11-13 (`ForteDevDB.motionProbe`: frame pacing over 3 s + does our armed bar's value move).
+- No new option unless the live CPU read-out says we need a cap.
+
+| # | Work | Who |
+|---|---|---|
+| S1 | Cooldown bar: per-frame icon motion (`Timeline` motion pass from cached end times through `TimelineMath`), full `Display:Update` back on the 10 Hz ticker + events; splash/pulse curves per frame | Sonnet builder |
+| S2 | Spell Timer: per-frame bar value + spark from cached row times on a shown-panel OnUpdate; full `Draw` stays on its ticker | Sonnet builder |
+| S3 | Hunter: swing fill + spark + melee rail per frame; flip the engine fill to "auto" only if the live probe proves it; reminder pulse per frame | Sonnet builder |
+| S4 | Tests through the real frame scripts: N frames at 1/165 s → the position changes every frame in equal steps for a linear bar, full-pass counters stay on the slow cadence, no OnUpdate while idle/hidden, zero allocation per motion pass (`collectgarbage("count")`), behaviour identical at 30/60/165/240 fps | builders |
+| S5 | Dev suite: a live "motion" check (test mode rows, out of combat): motion steps per rendered frame ≈ 1.0, plus the add-on CPU read-out before/after; live verify on the owner's 165 Hz client | manager |
+
+Order: after 11.12 (font fix) lands — it edits the same UI files. Ships in 1.0.1 if it verifies live, else 1.0.2.
