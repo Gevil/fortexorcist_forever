@@ -32,6 +32,11 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
   pre-loaded at login, and text that is sized right after the font is set (Warlock shard label, Spell Timer
   time column, options labels and tabs) is measured again once the font has loaded.
 - **Spell data follows the 12 November hotfixes.** Stormstrike's cooldown is 8 s (was 6 s).
+- **Smooth motion on high-refresh monitors.** Everything that moves — cooldown icons and their fades, the
+  Spell Timer bars and sparks, the Hunter swing bar, melee rail and aspect reminder pulse, the ready splash —
+  is now redrawn on every frame the game draws (it was 60, 25 or 10 times a second depending on the display,
+  which looked stuttery at 144/165 Hz). Countdown text, sorting and all game reads stay on the slow rhythm,
+  and a display that is hidden or has nothing moving does no per-frame work at all.
 
 ---
 
