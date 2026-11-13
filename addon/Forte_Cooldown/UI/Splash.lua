@@ -87,7 +87,7 @@ local S = FX.Cooldown.SplashSkin
 
 local DEFAULT = { point = "CENTER", relPoint = "CENTER", x = 0, y = 140,
     locked = true }
-local TICK_SECONDS = 0.1       -- the 10 Hz render rate (the Swing's law)
+local TICK_SECONDS = 0.1       -- the idle placeholder's 10 Hz refresh; a LIVE splash's bell runs per frame (PLAN §11.13)
 
 -- -------------------------------------------------------------- persistence --
 local fallbackCfg
@@ -172,6 +172,7 @@ function D:Init()
     self.cfg = cfgDefaults(config())
     self._icons = self._icons or {}
     self._activeCount = self._activeCount or 0
+    self._liveCount = self._liveCount or 0    -- live SPLASHES (never the placeholder)
 
     local f = CreateFrame("Frame", "ForteXorcistSplashAnchor", UIParent)
     f:SetSize(self:NormalSize(), self:NormalSize())
@@ -215,6 +216,28 @@ function D:Init()
 
     self.anchor, self.title = f, title
     self._shown, self._ticking, self._acc = false, false, 0
+    -- The window's one script body, built once. A LIVE splash runs its bell
+    -- on EVERY rendered frame from GetTime (PLAN §11.13: motion follows the
+    -- frame); with only the idle placeholder showing (unlocked preview) it
+    -- keeps the old 10 Hz cadence, which only re-reads the dirty-checked
+    -- option geometry.
+    self._onUpdate = function(_, elapsed)
+        if self._liveCount > 0 then
+            local now = GetTime()
+            self:_StepLive(now)
+            -- The last splash just ended: the window's face is a full-state
+            -- question (placeholder back / locked window hides + script off).
+            if self._liveCount == 0 then self:_RefreshIdle(now) end
+            return
+        end
+        local acc = (self._acc or 0) + (tonumber(elapsed) or 0)
+        if acc < TICK_SECONDS then
+            self._acc = acc
+            return
+        end
+        self._acc = 0
+        self:Update(GetTime())
+    end
 
     self:_WireSettings()
     self:ApplyStoredSettings()
@@ -398,6 +421,7 @@ function D:_Release(slot)
     if not slot.active then return end
     if slot == self._placeholder then self._placeholder = nil end
     slot.active = false
+    if not slot.placeholder then self._liveCount = self._liveCount - 1 end
     slot.name, slot.placeholder = nil, nil
     slot.frame:Hide()
     self._activeCount = self._activeCount - 1
@@ -509,6 +533,7 @@ function D:OnReady(name, now, texPath, cooldownDuration, category)
     self:_ApplyGlow(slot)
     slot.frame:Show()
     self._activeCount = self._activeCount + 1
+    self._liveCount = self._liveCount + 1
 
     if not self._shown then
         self._shown = true
@@ -539,12 +564,11 @@ function D:_RenderSlot(slot, now)
     slot.spark:SetSize(spark, spark)
 end
 
---- The render pass. `now` is optional (GetTime() by default) -- the tests
---- inject a clock. Returns true while the window runs (a live splashes or
---- a shown placeholder).
-function D:Update(now)
-    if not self.anchor or not S.Enable then return false end
-    now = now or GetTime()
+--- The motion half of the render: every live splash retires at the end of
+--- its window or renders its bell at `now`. Pure curve work -- the face of
+--- the window (placeholder / hide) is _RefreshIdle's. Shared by the full
+--- pass and the per-frame script.
+function D:_StepLive(now)
     local pool = self._icons
     for i = 1, #pool do
         local slot = pool[i]
@@ -561,26 +585,28 @@ function D:Update(now)
             end
         end
     end
+end
+
+--- The full render pass. `now` is optional (GetTime() by default) -- the
+--- tests inject a clock. Returns true while the window runs (a live splashes
+--- or a shown placeholder).
+function D:Update(now)
+    if not self.anchor or not S.Enable then return false end
+    now = now or GetTime()
+    self:_StepLive(now)
     self:_RefreshIdle(now)
     return self._activeCount > 0
 end
 
 -- ----------------------------------------------------------------- ticker --
---- The 10 Hz script exists only while the window is shown (a hidden frame
---- never receives OnUpdate -- the 2026-11-02 uiforever law).
+--- The window's script exists only while the window is shown (a hidden
+--- frame never receives OnUpdate -- the 2026-11-02 uiforever law); see
+--- `_onUpdate` in Init for what it runs.
 function D:_StartTicking()
     if not self.anchor or self._ticking then return end
     self._ticking = true
     self._acc = 0
-    self.anchor:SetScript("OnUpdate", function(_, elapsed)
-        local acc = (self._acc or 0) + (tonumber(elapsed) or 0)
-        if acc < TICK_SECONDS then
-            self._acc = acc
-            return
-        end
-        self._acc = 0
-        self:Update(GetTime())
-    end)
+    self.anchor:SetScript("OnUpdate", self._onUpdate)
 end
 
 function D:_StopTicking()
