@@ -210,6 +210,98 @@ test("panel: dynamic text is escaped (a pipe never starts a client escape)", fun
     assertTrue(text:find("||cffff0000red||r and ||T", 1, true) ~= nil, text)
 end)
 
+--- A detail of exactly `n` characters ending in "END" (Dev.DETAIL_MAX = 160 is the stored cap).
+local function detailOf(n) return string.rep("d", n - 3) .. "END" end
+
+test("panel: a failure keeps its whole stored detail (160 chars) and fits 3 wrapped lines", function()
+    local _, restore = sandbox()
+    local name = string.rep("n", 60)
+    S.RunList({ { name = "t", group = "ooc", fn = function(T)
+        T.check(name, function() T.fail(detailOf(160)) end)
+    end } }, "t")
+    local text = P.Text()
+    restore()
+    local line
+    for l in text:gmatch("[^\n]+") do if l:find("FAIL", 1, true) and l:find(name, 1, true) then line = l end end
+    assertNotNil(line, text)
+    assertTrue(line:find("END", 1, true) ~= nil, "the end of the detail is shown")
+    assertTrue(line:find("...", 1, true) == nil, "no truncation marker: " .. line)
+    local lines = math.ceil(P.VisibleLen(line) / P.CHARS_PER_LINE)
+    assertTrue(lines >= 3 and lines <= P.FAIL_LINES, "wrapped lines " .. lines .. " for " .. P.VisibleLen(line) .. " chars")
+end)
+
+test("panel: still only the first 12 failures, each up to 3 lines", function()
+    local _, restore = sandbox()
+    S.RunList({ { name = "t", group = "ooc", fn = function(T)
+        for i = 1, 14 do T.check(string.format("long failure %02d", i), function() T.fail(detailOf(160)) end) end
+    end } }, "t")
+    local text = P.Text()
+    restore()
+    assertTrue(text:find("long failure 12:", 1, true) ~= nil)
+    assertTrue(text:find("long failure 13:", 1, true) == nil)
+    assertTrue(text:find("+2 more failures", 1, true) ~= nil)
+end)
+
+test("panel: the last 3 DevCommands results show verb + ok + detail, clipped and escaped", function()
+    local _, restore = sandbox()
+    for i = 1, 5 do Dev.RecordCommand("verb" .. i, i % 2 == 1, "detail " .. i) end
+    Dev.RecordCommand("lua: print(|cffff0000)", false, "error: " .. string.rep("e", 150) .. "TAIL")
+    local text = P.Text()
+    restore()
+    assertTrue(text:find("commands (last 3 of 6):", 1, true) ~= nil, text)
+    assertTrue(text:find("verb4: detail 4", 1, true) ~= nil, text)
+    assertTrue(text:find("verb3", 1, true) == nil, "only the last 3")
+    local okLine, failLine
+    for l in text:gmatch("[^\n]+") do
+        if l:find("verb5: detail 5", 1, true) then okLine = l end
+        if l:find("lua: print", 1, true) then failLine = l end
+    end
+    assertNotNil(okLine); assertNotNil(failLine)
+    assertTrue(okLine:find("|cff55ff55ok|r ", 1, true) == 1, "ok marker: " .. okLine)
+    assertTrue(failLine:find("|cffff5555FAIL|r ", 1, true) == 1, "fail marker: " .. failLine)
+    assertTrue(failLine:find("||cffff0000", 1, true) ~= nil, "pipes escaped: " .. failLine)
+    assertTrue(failLine:find("TAIL", 1, true) == nil, "detail clipped")
+    assertTrue(failLine:find("...", 1, true) ~= nil, "clip marker")
+    assertTrue(P.VisibleLen(failLine) <= 2 * P.CHARS_PER_LINE, "a command line is at most 2 wrapped lines")
+end)
+
+test("panel: no commands section while ForteDevDB.commands is empty; it sits under the errors", function()
+    local _, restore = sandbox()
+    local empty = P.Text()
+    local list = { { kind = "error", msg = "an error", count = 1, first = 1, last = 1, session = 1 } }
+    if FX.db then FX.db.errors = { session = 1, list = list } end
+    Dev.RecordCommand("selftest ooc", true, "run #1")
+    local text = P.Text()
+    restore()
+    assertTrue(empty:find("commands (", 1, true) == nil, empty)
+    local cmdAt = text:find("commands (last 1 of 1):", 1, true)
+    assertNotNil(cmdAt, text)
+    if FX.db then
+        local errAt = text:find("an error", 1, true)
+        assertNotNil(errAt)
+        assertTrue(errAt < cmdAt, "commands come after the errors")
+    end
+end)
+
+test("panel: the worst-case text fits a 30% x 45% crop of a 5120x2160 screenshot at UI scale 0.64", function()
+    local _, restore = sandbox()
+    S.RunList({ { name = "t", group = "ooc", fn = function(T)
+        for i = 1, 20 do T.check(string.rep("N", 60) .. i, function() T.fail(detailOf(160)) end) end
+    end } }, "t")
+    local list = {}
+    for i = 1, 9 do list[i] = { kind = "error", msg = string.rep("m", 200), count = i, first = 1, last = 2, session = 1 } end
+    if FX.db then FX.db.errors = { session = 1, list = list } end
+    for i = 1, 30 do Dev.RecordCommand(string.rep("v", 80), i % 2 == 0, string.rep("c", 300)) end
+    local text = P.Text()
+    restore()
+    local scale = 0.64
+    local cropW, cropH = 0.30 * 5120, 0.45 * 2160
+    assertTrue(P.WIDTH * scale <= cropW, "panel width " .. P.WIDTH * scale .. " px vs crop " .. cropW)
+    local lines = P.EstimateLines(text)
+    local heightPx = (lines * P.LINE_HEIGHT + 10) * scale
+    assertTrue(heightPx <= cropH, string.format("worst case %d lines = %.0f px high vs crop %.0f", lines, heightPx, cropH))
+end)
+
 test("panel off hides the panel and keeps the beacon; on shows it again", function()
     local _, restore = sandbox()
     Dev.Repaint()

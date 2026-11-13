@@ -66,7 +66,9 @@ cell 0 magenta, cell 15 cyan; cells 1–14 black = 0 / white = 1: **1** in comba
 **5** the last run had a failure, **6** `FX.Errors.sinceLoad > 0`, **7–14** low 8 bits of `runId`
 (cell 7 = most significant). Cells are colour textures tinted by the same 0/1 colour (idempotent), so the
 texture API (`GetVertexColor`) reports each cell's colour. The panel (stamp, build, suite, counts, first 12
-failures, last 5 recorded errors) sits under it; `/fxdev panel off` hides only the panel. Repaint is
+failures of up to 3 wrapped lines each, last 5 recorded errors, last 3 `ForteDevDB.commands` results with ok +
+detail, so a DevCommands `lua` result is readable from the screenshot) sits under it; `/fxdev panel off` hides
+only the panel. Repaint is
 event-driven (run events, `PLAYER_REGEN_*`, `GROUP_ROSTER_UPDATE`, `shot`); there is no `OnUpdate`.
 Cell 6 only changes on a repaint, so poll with `shot`.
 

@@ -117,6 +117,19 @@ function Dev.S(v, max)
     return Dev.clip(k, max)
 end
 
+--- Tolerance for comparing a LIVE geometry number (size, offset) with an expected one, in UI units.
+--- The client returns 95.99999 for a frame set to 96, so an exact compare is a false failure.
+Dev.GEOM_TOL = 0.5
+
+--- True when `a` and `b` are plain numbers within `tol` (default Dev.GEOM_TOL) of each other.
+--- A secret, nil, NaN or non-number is never near anything.
+function Dev.near(a, b, tol)
+    if type(a) ~= "number" or type(b) ~= "number" then return false end
+    if Dev.isSecret(a) or Dev.isSecret(b) then return false end
+    if a ~= a or b ~= b then return false end
+    return math.abs(a - b) <= (tol or Dev.GEOM_TOL)
+end
+
 function Dev.now()
     local f = _G.time
     if type(f) == "function" then

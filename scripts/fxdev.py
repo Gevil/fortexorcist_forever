@@ -49,6 +49,10 @@ GUARD_MAX_AGE = 120.0           # seconds a beacon reading blocks typing
 MAX_SV_BYTES = 64 * 1024 * 1024
 MAX_LUA_CODE = 2000
 MARKER = ".fx-deploy-copy"      # same marker scripts/deploy.sh --copy writes
+HANDS_OFF_NOTE = ("the owner must be hands-off the keyboard and mouse while this types: typing collides with "
+                  "their input and can garble the line (seen: an unknown slash command)")
+VERIFY_NOTE = ("nothing can be verified from the host: confirm the command's own output in the next `shot`"
+               " (chat panel crop) before trusting that it ran as typed")
 
 # addon trees: (name pattern, excluded dir parts, excluded suffixes)
 ADDON_EXCLUDE_DIRS = ("tests", "docs")       # same as scripts/release.py
@@ -1259,9 +1263,18 @@ def v_commands(ctx, tokens):
     return write_devcommands(ctx, entries, allow)
 
 
+def owner_note(res, a, extra=""):
+    """Add the hands-off reminder (`note`) and the caller's `--owner-idle` assertion to a typing verb's result.
+    The flag changes nothing in behaviour: the host cannot see whether the owner is really idle."""
+    out = dict(res)
+    out["owner_idle"] = bool(getattr(a, "owner_idle", False))
+    out["note"] = " ".join(p for p in (HANDS_OFF_NOTE, extra) if p)
+    return out
+
+
 def v_type(ctx, a):
     res = send_command(ctx, a.command, allow_unsafe=a.allow_unsafe, force=a.force)
-    return {"ok": True, **res}
+    return owner_note({"ok": True, **res}, a, VERIFY_NOTE)
 
 
 def sv_sigs(ctx):
@@ -1301,7 +1314,7 @@ def do_reload(ctx, timeout=45.0, settle=4.0, force=False):
 
 
 def v_reload(ctx, a):
-    return do_reload(ctx, a.timeout, a.settle, a.force)
+    return owner_note(do_reload(ctx, a.timeout, a.settle, a.force), a)
 
 
 def v_shot(ctx, a):
@@ -1313,7 +1326,19 @@ def v_sv(ctx, a):
 
 
 def v_errors(ctx, a):
-    r = read_sv(ctx, "core", "errors")
+    """ForteXorcistDB.errors. The recorder is sparse (no table until the first error), so a missing
+    `errors` key is an ok result with an empty list, not a failure."""
+    r = read_sv(ctx, "core")
+    db = r.pop("value")
+    errs = db.get("errors") if isinstance(db, dict) else None
+    r["path"] = "errors"
+    if errs is None:
+        r.update({"value": {"list": []}, "list": [], "recorded": 0,
+                  "note": "no `errors` key in ForteXorcistDB: nothing recorded as of the last SavedVariables flush"})
+        return r
+    lst = errs.get("list") if isinstance(errs, dict) else None
+    lst = lst if isinstance(lst, list) else []
+    r.update({"value": errs, "list": lst, "recorded": len(lst)})
     return r
 
 
@@ -1362,7 +1387,8 @@ def do_selftest(ctx, suite=None, timeout=60.0, poll=4.0, force=False):
 
 
 def v_selftest(ctx, a):
-    return do_selftest(ctx, a.suite, a.timeout, a.poll, a.force)
+    res = do_selftest(ctx, a.suite, a.timeout, a.poll, a.force)
+    return owner_note(res, a, res.get("note", ""))
 
 
 def run_summary(sv_dev_value):
@@ -1412,16 +1438,21 @@ def v_loop(ctx, a):
     res["run"] = run
     res["stamp_match"] = bool(run and run.get("stamp") == d["stamp"])
     try:
-        res["errors"] = read_sv(ctx, "core", "errors")["value"]
+        res["errors"] = v_errors(ctx, a)["value"]
     except FxError as e:
         res["errors"] = {"error": str(e)}
     res["ok"] = True
+    res["note"] = HANDS_OFF_NOTE
     return res
 
 
 # --------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------
+OWNER_IDLE_HELP = ("assert that the owner is hands-off (recorded in the JSON as owner_idle; the host cannot "
+                   "check it, behaviour is unchanged)")
+
+
 def build_parser():
     ap = argparse.ArgumentParser(
         prog="fxdev.py", description=__doc__.split("\n\n")[0],
@@ -1438,10 +1469,12 @@ def build_parser():
     p.add_argument("--force", action="store_true", help="OWNER ONLY: ignore the combat/group guard")
     p.add_argument("--allow-unsafe", action="store_true",
                    help="OWNER ONLY: skip the /run deny-list (never used by the agent)")
+    p.add_argument("--owner-idle", action="store_true", help=OWNER_IDLE_HELP)
     p = sub.add_parser("reload", help="type /reload, wait for the SavedVariables mtime to change")
     p.add_argument("--force", action="store_true")
     p.add_argument("--timeout", type=float, default=45.0)
     p.add_argument("--settle", type=float, default=4.0, help="seconds to let the UI come back")
+    p.add_argument("--owner-idle", action="store_true", help=OWNER_IDLE_HELP)
     p = sub.add_parser("shot", help="type /fxdev shot, wait for the PNG, decode the beacon, write crops")
     p.add_argument("--timeout", type=float, default=20.0)
     p.add_argument("--file", help="decode an existing PNG instead (types nothing, cache untouched)")
@@ -1454,6 +1487,7 @@ def build_parser():
     p.add_argument("--force", action="store_true")
     p.add_argument("--timeout", type=float, default=60.0)
     p.add_argument("--poll", type=float, default=4.0)
+    p.add_argument("--owner-idle", action="store_true", help=OWNER_IDLE_HELP)
     p = sub.add_parser("loop", help="ONE iteration: deploy, reload, selftest, shot, reload, read")
     p.add_argument("--suite")
     p.add_argument("--force", action="store_true")

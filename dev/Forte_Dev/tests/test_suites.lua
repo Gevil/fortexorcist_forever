@@ -241,3 +241,206 @@ test("frames: a legacy-form timer position (no corner) fails the corner check", 
     restore()
     assertEquals("fail", find(run, "frames: timer position uses the corner form (FX.db.timer.display.corner)").status)
 end)
+
+local function stubBeacon(w, h, x, y)
+    return {
+        GetWidth = function() return w end,
+        GetHeight = function() return h end,
+        GetScale = function() return 1 end,
+        GetAlpha = function() return 1 end,
+        GetPoint = function() return "TOPLEFT", _G.UIParent, "TOPLEFT", x, y end,
+    }
+end
+
+local BEACON_TEST = "frames: Forte_Dev beacon is 96x6 at the top-left"
+
+test("frames: the beacon check tolerates client float noise (95.99999 x 6.00001, offsets 0.0001)", function()
+    local restore = sandbox()
+    local B = Dev.Beacon
+    local saved = B.frame
+    B.frame = stubBeacon(95.99999, 6.00001, 0.0001, -0.0001)
+    local run = runOne("frames")
+    B.frame = saved
+    restore()
+    local t = find(run, BEACON_TEST)
+    assertEquals("pass", t.status, t.detail)
+end)
+
+test("frames: the beacon check still fails a real size error and prints the decimals", function()
+    local restore = sandbox()
+    local B = Dev.Beacon
+    local saved = B.frame
+    B.frame = stubBeacon(94.5, 6, 0, 0)
+    local run = runOne("frames")
+    B.frame = stubBeacon(96, 6, 0, 3)
+    local run2 = runOne("frames")
+    B.frame = saved
+    restore()
+    local t = find(run, BEACON_TEST)
+    assertEquals("fail", t.status)
+    assertTrue(t.detail:find("beacon width: expected 96.0000 got 94.5000", 1, true) ~= nil, t.detail)
+    local t2 = find(run2, BEACON_TEST)
+    assertEquals("fail", t2.status)
+    assertTrue(t2.detail:find("beacon y offset", 1, true) ~= nil, t2.detail)
+end)
+
+-- ----------------------------------------------------------- the font probe --
+
+local FP = Dev.FontProbe
+local SHIPPED = "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.ttf"
+local SHORT = "Forte_Core\\Fonts\\URWGothic-Book.ttf"
+
+--- A FontString stub modelling the live client: `rule(path)` returns what SetFont returns (or raises).
+--- GetFont reads back the path only after a `true` (the font has rendered once); false = pending render.
+local function fontStub(rule)
+    local fs = { rendered = nil }
+    function fs:SetFont(path)
+        local r = rule(path)
+        if r == true then self.rendered = path end
+        return r
+    end
+    function fs:GetFont() return self.rendered end
+    return fs
+end
+
+local function ruleNotRenderedYet() return false end   -- the client's answer before the first render
+
+test("font probe: only a raise is unusable; true/false/nil are information", function()
+    local took, word = FP.Try(fontStub(function() return true end), SHIPPED)
+    assertEquals(true, took); assertEquals("true", word)
+
+    local pending = fontStub(ruleNotRenderedYet)
+    took, word = FP.Try(pending, SHIPPED)
+    assertEquals(true, took, "false is NOT a rejection"); assertEquals("false", word)
+    assertEquals(nil, pending:GetFont(), "pending first render reads back nil")
+
+    took, word = FP.Try(fontStub(function() return nil end), SHIPPED)
+    assertEquals(true, took); assertEquals("nil", word)
+
+    local missing = fontStub(function(path)
+        error("FontString:SetFont(): invalid font asset (" .. path .. "): file not found", 0)
+    end)
+    took, word = FP.Try(missing, "Interface\\AddOns\\Forte_Core\\Fonts\\NOPE.ttf")
+    assertEquals(false, took); assertEquals("raised:notfound", word)
+
+    took, word = FP.Try(fontStub(function() error("boom", 0) end), SHIPPED)
+    assertEquals(false, took); assertEquals("raised:boom", word)
+end)
+
+test("font probe: the detail merges equal displays, abbreviates the path, stays within 160 chars", function()
+    local entries = {
+        { name = "cd", path = SHIPPED, word = "false" },
+        { name = "tm", path = SHIPPED, word = "false" },
+        { name = "sw", path = SHIPPED, word = "false" },
+    }
+    local d = FP.Detail("true", entries)
+    assertEquals("ctl=true; cd,tm,sw=false @" .. SHORT, d)
+    assertTrue(#d <= 160)
+    local mixed = FP.Detail("true", {
+        { name = "cd", path = SHIPPED, word = "false" },
+        { name = "tm", path = "Interface\\AddOns\\Forte_Core\\Fonts\\NOPE.ttf", word = "raised:notfound" },
+        { name = "sw", path = nil, word = "nopath" },
+    })
+    assertTrue(mixed:find("cd=false @" .. SHORT, 1, true) ~= nil, mixed)
+    assertTrue(mixed:find("tm=raised:notfound @Forte_Core\\Fonts\\NOPE.ttf", 1, true) ~= nil, mixed)
+    assertTrue(mixed:find("sw=nopath @-", 1, true) ~= nil, mixed)
+    assertTrue(#mixed <= 160)
+    local long = {}
+    for i = 1, 12 do long[i] = { name = "d" .. i, path = SHIPPED .. i, word = "false" } end
+    assertTrue(#FP.Detail("true", long) <= 160, "clipped")
+end)
+
+local FONT_TEST = "frames: the shipped .ttf font object is usable"
+local CONTROL_TEST = "frames: font probe control (Blizzard FRIZQT__.TTF SetFont does not raise)"
+local RENDERED_TEST = "frames: the shipped font has rendered"
+
+--- Run the frames suite with the probe replaced and the three displays' fontFile set (nil = template fallback).
+local function runFonts(stub, path)
+    local restore = sandbox()
+    local savedProbe = FP.Probe
+    FP.Probe = function() return stub end
+    local displays = { FX.Cooldown and FX.Cooldown.Display, FX.Timer and FX.Timer.Display,
+        FX.Hunter and FX.Hunter.Swing }
+    local savedPaths = {}
+    for i = 1, 3 do
+        if type(displays[i]) == "table" then
+            savedPaths[i] = displays[i].fontFile
+            displays[i].fontFile = path
+        end
+    end
+    local run = runOne("frames")
+    for i = 1, 3 do
+        if type(displays[i]) == "table" then displays[i].fontFile = savedPaths[i] end
+    end
+    FP.Probe = savedProbe
+    restore()
+    return run
+end
+
+test("frames: a font pending its first render (SetFont false) PASSES; the detail says so; 'has rendered' skips", function()
+    local run = runFonts(fontStub(ruleNotRenderedYet), SHIPPED)
+    assertEquals("pass", find(run, CONTROL_TEST).status, find(run, CONTROL_TEST).detail)
+    local t = find(run, FONT_TEST)
+    assertEquals("pass", t.status, t.detail)
+    assertTrue(t.detail:find("ctl=false; ", 1, true) == 1, t.detail)
+    assertTrue(t.detail:find("=false @" .. SHORT, 1, true) ~= nil, t.detail)
+    assertTrue(t.detail:find("pending first render", 1, true) ~= nil, t.detail)
+    assertTrue(#t.detail <= 160, "detail length " .. #t.detail)
+    local r = find(run, RENDERED_TEST)
+    assertEquals("skip", r.status)
+    assertEquals("pending first render", r.detail)
+end)
+
+test("frames: a font that already rendered (SetFont true, GetFont reads the path) passes both checks", function()
+    local run = runFonts(fontStub(function() return true end), SHIPPED)
+    local t = find(run, FONT_TEST)
+    assertEquals("pass", t.status, t.detail)
+    assertTrue(t.detail:find("=true @" .. SHORT, 1, true) ~= nil, t.detail)
+    local r = find(run, RENDERED_TEST)
+    assertEquals("pass", r.status, r.detail)
+    assertTrue(r.detail:find(SHORT, 1, true) ~= nil, r.detail)
+end)
+
+test("frames: a missing font file is a pcall'd raise: the check FAILS with raised:notfound, not a suite error", function()
+    local stub = fontStub(function(path)
+        if path == FP.CONTROL_PATH then return true end
+        error("FontString:SetFont(): invalid font asset (" .. path .. "): file not found", 0)
+    end)
+    local run = runFonts(stub, "Interface\\AddOns\\Forte_Core\\Fonts\\NOPE.ttf")
+    local t = find(run, FONT_TEST)
+    assertEquals("fail", t.status)
+    assertTrue(t.detail:find("=raised:notfound @Forte_Core\\Fonts\\NOPE.ttf", 1, true) ~= nil, t.detail)
+    assertTrue(t.detail:find("^raise: ") == nil, t.detail)
+    assertEquals("skip", find(run, RENDERED_TEST).status)
+    assertEquals("pass", find(run, CONTROL_TEST).status)
+end)
+
+test("frames: a display that fell back to the template (fontFile nil) FAILS the font check", function()
+    local run = runFonts(fontStub(ruleNotRenderedYet), nil)
+    local t = find(run, FONT_TEST)
+    if FX.Cooldown and FX.Cooldown.Display then
+        assertEquals("fail", t.status, t.detail)
+        assertTrue(t.detail:find("=nopath @-", 1, true) ~= nil, t.detail)
+    end
+    assertEquals("skip", find(run, RENDERED_TEST).status)
+end)
+
+test("frames: a non-.ttf font path fails the font check", function()
+    local run = runFonts(fontStub(ruleNotRenderedYet), "Interface\\AddOns\\Forte_Core\\Fonts\\URWGothic-Book.otf")
+    local t = find(run, FONT_TEST)
+    if t.status ~= "skip" then
+        assertEquals("fail", t.status)
+        assertTrue(t.detail:find("=notttf @", 1, true) ~= nil, t.detail)
+    end
+end)
+
+test("frames: the control only fails when SetFont raises on Blizzard's font (a false boolean is fine)", function()
+    local ok = runFonts(fontStub(ruleNotRenderedYet), SHIPPED)
+    assertEquals("pass", find(ok, CONTROL_TEST).status)
+    local broken = runFonts(fontStub(function() error("probe dead", 0) end), SHIPPED)
+    local c = find(broken, CONTROL_TEST)
+    assertEquals("fail", c.status)
+    assertTrue(c.detail:find("the probe itself is broken", 1, true) ~= nil, c.detail)
+    assertTrue(c.detail:find("SetFont -> raised:probe dead", 1, true) ~= nil, c.detail)
+    assertTrue(find(broken, FONT_TEST).detail:find("ctl=raised:probe dead", 1, true) ~= nil, find(broken, FONT_TEST).detail)
+end)

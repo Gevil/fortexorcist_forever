@@ -1383,6 +1383,81 @@ class Verbs(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(fxdev.main(["--help"], ctx=e.ctx, out=io.StringIO()), 0)
 
+    SPARSE_SV = 'ForteXorcistDB = {\n\t["version"] = 1,\n}\n'
+
+    def test_errors_without_an_errors_key_is_ok_and_empty(self):
+        e = Env(self)
+        e.write(os.path.join(e.acct, "Forte_Core.lua"), self.SPARSE_SV)
+        code, out = e.run(["errors"])
+        self.assertEqual(code, 0, out)
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["list"], [])
+        self.assertEqual(out["recorded"], 0)
+        self.assertEqual(out["value"], {"list": []})
+        self.assertIn("nothing recorded", out["note"])
+
+    def test_errors_with_an_empty_table_and_with_entries(self):
+        e = Env(self)
+        e.write(os.path.join(e.acct, "Forte_Core.lua"), 'ForteXorcistDB = { ["errors"] = { ["session"] = 1 } }\n')
+        code, out = e.run(["errors"])
+        self.assertEqual((code, out["recorded"], out["list"]), (0, 0, []))
+        e2 = Env(self)                                   # CORE_SV has two entries
+        code, out = e2.run(["errors"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["recorded"], 2)
+        self.assertEqual(len(out["list"]), 2)
+        self.assertEqual(out["value"]["session"], 3)
+
+    def test_sv_core_path_errors_still_fails_when_the_key_is_missing(self):
+        e = Env(self)
+        e.write(os.path.join(e.acct, "Forte_Core.lua"), self.SPARSE_SV)
+        code, out = e.run(["sv", "core", "--path", "errors"])
+        self.assertEqual(code, 1)
+        self.assertIn("no key 'errors'", out["error"])
+
+    def test_v_errors_value_is_the_empty_shape_the_loop_step_reads(self):
+        e = Env(self)
+        e.write(os.path.join(e.acct, "Forte_Core.lua"), self.SPARSE_SV)
+        self.assertEqual(fxdev.v_errors(e.ctx, None)["value"], {"list": []})
+
+    def test_type_prints_the_hands_off_note_and_the_verify_hint(self):
+        e = Env(self)
+        code, out = e.run(["type", "/fx errors"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("hands-off", out["note"])
+        self.assertNotIn("\n", out["note"])
+        self.assertIn("next `shot`", out["note"])
+        self.assertIs(out["owner_idle"], False)
+        self.assertEqual(e.runner.executed, ["/fx errors"])          # behaviour unchanged
+        code, out = e.run(["type", "/fx errors", "--owner-idle"])
+        self.assertEqual(code, 0, out)
+        self.assertIs(out["owner_idle"], True)
+        self.assertEqual(e.runner.executed, ["/fx errors", "/fx errors"])
+
+    def test_reload_prints_the_hands_off_note(self):
+        e = Env(self)
+        core = os.path.join(e.acct, "Forte_Core.lua")
+        e.runner.on_exec = lambda c: e.bump(core, CORE_SV + "-- again\n")
+        code, out = e.run(["reload", "--owner-idle"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("hands-off", out["note"])
+        self.assertIs(out["owner_idle"], True)
+
+    def test_selftest_keeps_its_results_note_and_adds_the_hands_off_note(self):
+        e = Env(self)
+        self.shot_hook(e, [dict(run_id=5, finished=1), dict(run_id=6, finished=1)])
+        code, out = e.run(["selftest", "ooc"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("hands-off", out["note"])
+        self.assertIn("`fxdev.py reload`", out["note"])
+        self.assertIs(out["owner_idle"], False)
+
+    def test_a_refused_type_sends_nothing_and_needs_no_note(self):
+        e = Env(self)
+        code, out = e.run(["type", "/cast Fireball"])
+        self.assertEqual(code, 2)
+        self.assertEqual(e.runner.x_calls, [])
+
 
 class Plumbing(unittest.TestCase):
     def test_real_run_never_raises(self):

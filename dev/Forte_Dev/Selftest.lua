@@ -79,6 +79,23 @@ local function makeT(run)
         end
     end
 
+    --- Live geometry compare: |actual - expected| <= tol (default Dev.GEOM_TOL, 0.5 UI unit). The failure
+    --- detail prints 4 decimals (Dev.S rounds to 6 significant digits, which hides 95.99999 as "96").
+    function T.near(actual, expected, what, tol)
+        tol = tol or Dev.GEOM_TOL
+        local label = what or "near"
+        if Dev.isSecret(actual) then
+            raiseFail(Dev.clip(label .. ": SECRET value (not compared)"))
+        end
+        if type(actual) ~= "number" then
+            raiseFail(Dev.clip(string.format("%s: expected %.4f got %s", label, expected, Dev.S(actual, 40))))
+        end
+        if not Dev.near(actual, expected, tol) then
+            raiseFail(Dev.clip(string.format("%s: expected %.4f got %.4f (diff %.4f, tol %.2f)", label, expected,
+                actual, actual - expected, tol)))
+        end
+    end
+
     function T.truthy(v, what)
         if Dev.isSecret(v) then raiseFail(Dev.clip((what or "truthy") .. ": SECRET value (not tested)")) end
         if not v then raiseFail(Dev.clip((what or "expected a truthy value") .. " (got " .. Dev.S(v, 40) .. ")")) end
