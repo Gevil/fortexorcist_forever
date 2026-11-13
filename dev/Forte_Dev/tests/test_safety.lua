@@ -21,6 +21,10 @@ test("no chat, no addon messages, nothing gameplay: full run, combat run and Dev
     end
     local savedDB, savedAfter, savedCombat, savedCmds, savedShot = _G.ForteDevDB, Dev.After, _G.InCombatLockdown,
         _G.ForteDevCommands, _G.Screenshot
+    local savedSuites = Dev.suites
+    local sync = {}      -- the async motion suite needs real frames/timers: test_motion.lua drives it with stubs
+    for _, s in ipairs(Dev.suites) do if s.name ~= "motion" then sync[#sync + 1] = s end end
+    Dev.suites = sync
     local savedState = {}
     for k, v in pairs(Dev.state) do savedState[k] = v end
 
@@ -48,6 +52,7 @@ test("no chat, no addon messages, nothing gameplay: full run, combat run and Dev
     local runs = #db.runs
     _G.ForteDevDB, Dev.After, _G.InCombatLockdown, _G.ForteDevCommands, _G.Screenshot =
         savedDB, savedAfter, savedCombat, savedCmds, savedShot
+    Dev.suites = savedSuites
     for k in pairs(Dev.state) do Dev.state[k] = nil end
     for k, v in pairs(savedState) do Dev.state[k] = v end
     for _, name in ipairs(TRIPWIRES) do _G[name] = saved[name] end

@@ -409,3 +409,178 @@ test("geometry tolerance: T.near refuses a secret actual without comparing it", 
     assertEquals("fail", find(run, "secret").status)
     assertTrue(find(run, "secret").detail:find("SECRET", 1, true) ~= nil, find(run, "secret").detail)
 end)
+
+-- ============================================================ async steps ==
+
+test("async: a check that settles later; the run, its stored result and the beacon's finished cell wait for it", function()
+    local _, restore = sandbox()
+    local order, settleFn = {}, nil
+    local run, pending = S.RunList({
+        suite(function(T)
+            T.check("sync1", function() order[#order + 1] = "sync1" end)
+            T.async("later", 5, function(settle) order[#order + 1] = "begin"; settleFn = settle end)
+            T.step(function() order[#order + 1] = "step"; T.check("after", function() end) end)
+        end, "a"),
+        suite(function(T) order[#order + 1] = "suite b"; T.check("b", function() end) end, "b"),
+    }, "t", function() order[#order + 1] = "done" end)
+    local mid = { running = Dev.state.running, finished = Dev.state.finished, stored = #_G.ForteDevDB.runs,
+        order = table.concat(order, ","), flags = Dev.Beacon.Flags(), summary = S.Summary(run, pending) }
+    settleFn(function(T) T.note("late") end)
+    settleFn(function() error("a second settle must be ignored") end)
+    local final = { running = Dev.state.running, finished = Dev.state.finished, stored = #_G.ForteDevDB.runs,
+        order = table.concat(order, ","), flags = Dev.Beacon.Flags(), last = Dev.state.lastRun }
+    restore()
+    assertEquals(true, pending, "the run reports pending")
+    assertEquals(true, mid.running)
+    assertEquals(false, mid.finished and true or false, "not finished while the async step is open")
+    assertEquals(0, mid.stored, "nothing is stored before the last step")
+    assertEquals("sync1,begin", mid.order, "neither the next step nor the next suite started")
+    assertEquals(true, mid.flags.running, "beacon: running")
+    assertEquals(false, mid.flags.finished, "beacon: finished waits")
+    assertTrue(mid.summary:find("still running", 1, true) ~= nil, mid.summary)
+    assertEquals("sync1,begin,step,suite b,done", final.order)
+    assertEquals(false, final.running)
+    assertEquals(true, final.finished)
+    assertEquals(1, final.stored)
+    assertEquals(true, final.flags.finished)
+    assertEquals(false, final.flags.running)
+    assertEquals(run, final.last)
+    assertEquals(4, run.pass)
+    assertEquals(0, run.fail)
+    assertEquals("late", find(run, "later").detail)
+    assertEquals(4, #run.tests, "the ignored second settle recorded nothing")
+end)
+
+test("async: the hard timeout records a FAIL, runs the cleanup, ignores a late settle and the run goes on", function()
+    local timers, restore = sandbox()
+    local cleaned, settleFn = 0, nil
+    local run, pending = S.RunList({ suite(function(T)
+        T.async("never", 4, function(settle)
+            settleFn = settle
+            return function() cleaned = cleaned + 1 end
+        end)
+        T.step(function() T.check("next", function() end) end)
+    end) }, "t")
+    local sec, running = timers[1] and timers[1].sec, Dev.state.running
+    timers[1].fn()
+    settleFn(function(T) T.note("too late") end)
+    local after = { running = Dev.state.running, stored = #_G.ForteDevDB.runs }
+    restore()
+    assertEquals(true, pending)
+    assertEquals(4, sec, "the timeout is armed with the step's own seconds")
+    assertEquals(true, running)
+    assertEquals(false, after.running)
+    assertEquals(1, after.stored)
+    assertEquals(1, cleaned)
+    assertEquals("fail", find(run, "never").status)
+    assertTrue(find(run, "never").detail:find("timeout", 1, true) ~= nil, find(run, "never").detail)
+    assertEquals("pass", find(run, "next").status, "the queue went on after the timeout")
+    assertEquals(2, #run.tests, "the late settle recorded nothing")
+end)
+
+test("async: a settle before the timer fires leaves the timeout inert", function()
+    local timers, restore = sandbox()
+    local cleaned, settleFn = 0, nil
+    local run = S.RunList({ suite(function(T)
+        T.async("ok", 4, function(settle)
+            settleFn = settle
+            return function() cleaned = cleaned + 1 end
+        end)
+    end) }, "t")
+    settleFn(function() end)
+    timers[1].fn()
+    restore()
+    assertEquals(0, cleaned)
+    assertEquals(1, run.pass)
+    assertEquals(0, run.fail)
+end)
+
+test("async: inline settles, a raising begin, a raising step and a silent settle are all contained", function()
+    local _, restore = sandbox()
+    local run, pending = S.RunList({ suite(function(T)
+        T.async("inline", 5, function(settle) settle(function() end) end)
+        T.async("silent", 5, function(settle) settle() end)
+        T.async("raising", 5, function() error("begin boom") end)
+        T.step(function() error("step boom") end)
+        T.step(function() T.check("tail", function() end) end)
+    end) }, "t")
+    restore()
+    assertEquals(false, pending, "everything settled inline: the run is complete on return")
+    assertEquals("pass", find(run, "inline").status)
+    assertEquals(nil, find(run, "silent"), "settle() with no body records nothing")
+    assertEquals("fail", find(run, "raising").status)
+    assertTrue(find(run, "raising").detail:find("^raise: "), find(run, "raising").detail)
+    assertEquals("pass", find(run, "tail").status)
+    local stepFail = find(run, "step")
+    assertEquals("fail", stepFail.status)
+    assertTrue(stepFail.detail:find("step boom", 1, true) ~= nil, stepFail.detail)
+end)
+
+test("async: Request answers at once with 'still running'; a second request is refused until the run ends", function()
+    local _, restore = sandbox()
+    local settleFn
+    Dev.suites = { suite(function(T)
+        T.async("slow", 5, function(settle) settleFn = settle end)
+    end) }
+    local ok1, d1 = S.Request("ooc")
+    local ok2, d2 = S.Request("ooc")
+    settleFn(function() end)
+    local ok3, d3 = S.Request("ooc")
+    restore()
+    assertTrue(ok1 and d1:find("still running", 1, true) ~= nil, d1)
+    assertEquals(false, ok2)
+    assertTrue(d2:find("already in progress", 1, true) ~= nil, d2)
+    assertTrue(ok3, "a new run starts once the first one finished")
+end)
+
+test("async: the armed combat suite waits for an ooc run in flight instead of being lost", function()
+    local timers, restore = sandbox()
+    _G.InCombatLockdown = function() return false end
+    local log = {}
+    Dev.suites = { suite(function(T) T.check("c", function() log[#log + 1] = "c" end) end, "c", "combat") }
+    S.Request("combat")
+    Dev.state.running = true
+    local r1 = S.RunArmed()
+    local armedWhileRunning, sec = Dev.state.armed, timers[1] and timers[1].sec
+    Dev.state.running = false
+    timers[1].fn()
+    local armedAfter, ran = Dev.state.armed, #log
+    restore()
+    assertEquals(nil, r1)
+    assertEquals(true, armedWhileRunning, "still armed")
+    assertEquals(1, sec)
+    assertEquals(false, armedAfter)
+    assertEquals(1, ran, "the combat suite ran once the run had finished")
+end)
+
+test("shot: waits for a run in flight (bounded) so the screenshot shows the finished run", function()
+    local timers, restore = sandbox()
+    local savedShot = _G.Screenshot
+    local calls = 0
+    _G.Screenshot = function() calls = calls + 1 end
+    Dev.state.running = true
+    local ok = Dev.Dispatch("shot")
+    timers[1].fn()                               -- the 0.2 s timer: the run is still open
+    local whileRunning, rearmed = calls, #timers
+    Dev.state.running = false
+    timers[#timers].fn()                         -- the re-armed wait: the run has finished
+    local afterFinish = calls
+    -- a run that never finishes cannot hold the screenshot forever
+    Dev.state.running = true
+    Dev.Dispatch("shot")
+    local guard = 0
+    while calls == afterFinish and guard < 200 do
+        guard = guard + 1
+        timers[#timers].fn()
+    end
+    local waited = guard * Dev.SHOT_WAIT_STEP
+    local fired = calls
+    _G.Screenshot = savedShot
+    restore()
+    assertTrue(ok)
+    assertEquals(0, whileRunning, "no screenshot while the run is open")
+    assertEquals(2, rearmed, "re-armed")
+    assertEquals(1, afterFinish)
+    assertEquals(2, fired, "the bound fired the screenshot anyway")
+    assertTrue(waited <= Dev.SHOT_WAIT_MAX + Dev.SHOT_WAIT_STEP, "waited " .. waited .. " s")
+end)

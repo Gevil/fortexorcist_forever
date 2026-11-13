@@ -166,6 +166,10 @@ length). The recorder is sparse (no `errors` table until the first error): a mis
 Remembers the beacon run id, types `/fxdev selftest <suite>`, then `shot`s every ~4 s until the beacon says
 finished (not running) with a changed run id, or the timeout (exit 3, last beacon included). Prints the
 decoded beacon and the crops. Full results (`ForteDevDB.runs`) reach disk only after the next `reload`.
+The `ooc` set ends with the async `motion` suite (~5 s of real frames: pacing, then the demo's cooldown / spell
+timer / swing displays sampled per frame): the beacon's *finished* cell waits for it, and `shot` waits for an
+open run too (<= 15 s), so `commands "selftest ooc" shot` still photographs the finished run. The motion numbers
+are in `sv dev --path runs.-1` (tests named `motion: ...`).
 
 ```
 scripts/fxdev.py selftest ooc

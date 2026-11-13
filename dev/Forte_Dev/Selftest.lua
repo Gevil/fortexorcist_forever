@@ -11,6 +11,16 @@
 -- table, T.skip raises a skip tag, any other error is recorded as `raise: ...`. A live API value is
 -- never compared raw: pass it through Dev.plain / Dev.K first (T.eq refuses a secret `actual` and
 -- records "SECRET"). The detail of every result is a clipped PLAIN string.
+--
+-- ASYNC STEPS. A suite function may queue work that spans frames: T.step(fn) (a synchronous step that
+-- runs in order, fn may call T.check) and T.async(name, timeout, begin) (a check that completes later).
+-- The suite function returns at once; the runner then walks the queue step by step and only starts the
+-- next step (and the next suite) when the previous one has finished. `begin(settle)` starts the work and
+-- calls settle(body) from a C_Timer / OnUpdate callback: body is run like a T.check body under `name`
+-- (settle() with no body records nothing). begin may return a cleanup function; when `timeout` seconds
+-- pass without settle the cleanup runs and `name` is recorded as a FAIL ("timeout"). The run is stored
+-- (ForteDevDB.runs), the beacon's "finished" cell and Dev.state.finished only after the last step.
+--
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -62,6 +72,58 @@ local function makeT(run)
             record(name, "fail", "raise: " .. Dev.S(err))
         end
         note = nil
+    end
+
+    --- Attach a small plain-data table to the run result (ForteDevDB.runs[n][key]), e.g. the motion
+    --- suite's CPU numbers. Refuses a key the run already uses (id, tests, pass ...).
+    function T.attach(key, value)
+        if type(key) ~= "string" or run[key] ~= nil then error("T.attach: key '" .. tostring(key) .. "' is taken", 2) end
+        run[key] = value
+    end
+
+    --- Queue a synchronous step: fn(T) runs in order, after every earlier step has finished, and may
+    --- call T.check. Only valid while a suite function (or one of its steps) runs. A raise is recorded.
+    function T.step(fn)
+        local q = T._queue
+        q[#q + 1] = function(done)
+            local ok, err = pcall(fn, T)
+            if not ok then
+                record("step", "fail", "step raised: " .. (Dev.isSecret(err) and "SECRET"
+                    or Dev.S(type(err) == "table" and err.msg or err)))
+            end
+            done()
+        end
+    end
+
+    --- Queue a check that completes later: begin(settle) starts it (see the header). Exactly one
+    --- outcome is recorded: the settled body, a raise of begin, or the timeout FAIL.
+    function T.async(name, timeout, begin)
+        local q = T._queue
+        q[#q + 1] = function(done)
+            local settled, cleanup = false, nil
+            local function settle(body)
+                if settled then return end
+                settled = true
+                if type(body) == "function" then T.check(name, body) end
+                done()
+            end
+            local ok, res = pcall(begin, settle)
+            if ok then
+                cleanup = res
+            elseif not settled then
+                settled = true
+                record(name, "fail", "raise: " .. (Dev.isSecret(res) and "SECRET" or Dev.S(res)))
+                done()
+            end
+            if settled then return end
+            Dev.After(timeout, function()
+                if settled then return end
+                settled = true
+                if type(cleanup) == "function" then pcall(cleanup) end
+                record(name, "fail", "timeout: not finished after " .. tostring(timeout) .. " s")
+                done()
+            end)
+        end
     end
 
     function T.fail(msg) raiseFail(Dev.clip(msg or "failed")) end
@@ -129,34 +191,70 @@ local function newRun(label, combat)
     }
 end
 
---- Run an explicit suite list (the registered ones, or a test's own). Returns the finished run, or
---- nil + reason. The run is stored in ForteDevDB.runs.
-function S.RunList(list, label)
+--- Run `items` in order: runItem(item, done), where done() may be called inline or from a later
+--- callback; the next item starts only after done(). Inline completions loop (no recursion), so only a
+--- late done() re-enters. `items` may grow while it is walked (a step may queue another step).
+local function sequence(items, runItem, onDone)
+    local i = 0
+    local function walk()
+        while true do
+            i = i + 1
+            local item = items[i]
+            if item == nil then onDone() return end
+            local inline, finished = true, false
+            runItem(item, function()
+                if finished then return end
+                finished = true
+                if not inline then walk() end
+            end)
+            inline = false
+            if not finished then return end
+        end
+    end
+    walk()
+end
+
+--- Run an explicit suite list (the registered ones, or a test's own) under the label `label`.
+--- Returns (run, pending): `pending` is true while async steps of a suite are still queued -- the run
+--- is then stored in ForteDevDB.runs (and `onDone(run)` called, `Dev.state.finished` set) only when the
+--- last step has finished; the returned run keeps filling until then. nil + reason when refused.
+function S.RunList(list, label, onDone)
     local st = Dev.state
     if st.running then return nil, "a run is already in progress" end
     st.running = true
     Dev.Repaint()
     local run = newRun(label, Dev.inCombat())
     local T = makeT(run)
-    local ok, err = pcall(function()
-        for _, suite in ipairs(list) do
-            local okSuite, errSuite = pcall(suite.fn, T)
-            if not okSuite then
-                local msg = Dev.isSecret(errSuite) and "SECRET"
-                    or (type(errSuite) == "table" and errSuite.msg) or errSuite
-                T.record("suite " .. tostring(suite.name), "fail", "suite raised: " .. Dev.S(msg))
-            end
+    local complete = false
+    local function finish()
+        if complete then return end
+        complete = true
+        run.finished = Dev.now()
+        run._failRecorded = nil
+        T._queue = nil
+        Dev.AddRun(run)
+        st.lastRun = run
+        st.finished = true
+        st.running = false
+        Dev.Repaint()
+        if onDone then pcall(onDone, run) end
+    end
+    local ok, err = pcall(sequence, list, function(suite, doneSuite)
+        local queue = {}
+        T._queue = queue
+        local okSuite, errSuite = pcall(suite.fn, T)
+        if not okSuite then
+            local msg = Dev.isSecret(errSuite) and "SECRET"
+                or (type(errSuite) == "table" and errSuite.msg) or errSuite
+            T.record("suite " .. tostring(suite.name), "fail", "suite raised: " .. Dev.S(msg))
         end
-    end)
-    if not ok then T.record("runner", "fail", "runner raised: " .. Dev.S(err)) end
-    run.finished = Dev.now()
-    run._failRecorded = nil
-    Dev.AddRun(run)
-    st.lastRun = run
-    st.finished = true
-    st.running = false
-    Dev.Repaint()
-    return run
+        sequence(queue, function(step, doneStep) step(doneStep) end, doneSuite)
+    end, finish)
+    if not ok then
+        T.record("runner", "fail", "runner raised: " .. Dev.S(err))
+        finish()
+    end
+    return run, not complete
 end
 
 local function suitesOf(group)
@@ -167,15 +265,15 @@ local function suitesOf(group)
     return out
 end
 
---- Run every registered suite of `group` under the label `label`.
-function S.RunGroup(group, label)
+--- Run every registered suite of `group` under the label `label`. Returns (run, pending) like RunList.
+function S.RunGroup(group, label, onDone)
     if group == "ooc" and Dev.inCombat() then return nil, "refused in combat" end
-    return S.RunList(suitesOf(group), label or group)
+    return S.RunList(suitesOf(group), label or group, onDone)
 end
 
-function S.Summary(run)
-    return string.format("run #%d %s pass=%d fail=%d skip=%d%s", run.id, run.suite, run.pass, run.fail,
-        run.skip, run.combat and " (in combat)" or "")
+function S.Summary(run, pending)
+    return string.format("run #%d %s pass=%d fail=%d skip=%d%s%s", run.id, run.suite, run.pass, run.fail,
+        run.skip, run.combat and " (in combat)" or "", pending and " so far (async steps still running)" or "")
 end
 
 -- ---------------------------------------------------------- combat arming --
@@ -216,10 +314,15 @@ function S.OnOwnCast(spellID)
     while #ring > 20 do table.remove(ring, 1) end
 end
 
---- The armed combat suite fires (once; the owner re-arms with `selftest combat`).
+--- The armed combat suite fires (once; the owner re-arms with `selftest combat`). A run still in flight
+--- (async steps of an ooc run) holds it back: it retries every second until that run has finished.
 function S.RunArmed()
     local st = Dev.state
     if not st.armed then return nil end
+    if st.running then
+        Dev.After(1, S.RunArmed)
+        return nil, "deferred: a run is in progress"
+    end
     S.Disarm()
     return S.RunGroup("combat", "combat")
 end
@@ -232,9 +335,9 @@ function S.Request(which)
         S.Arm()
         return true, "combat suite armed: it runs " .. Dev.COMBAT_DELAY .. " s after combat starts"
     end
-    local run, why = S.RunGroup("ooc", which)
-    if not run then return false, why end
-    local text = S.Summary(run)
+    local run, second = S.RunGroup("ooc", which)
+    if not run then return false, second end
+    local text = S.Summary(run, second == true)
     if which == "all" then
         S.Arm()
         text = text .. "; combat suite armed"

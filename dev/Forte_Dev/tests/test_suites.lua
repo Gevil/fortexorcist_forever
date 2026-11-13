@@ -53,6 +53,11 @@ test("the suite registry: every contract suite is registered, ooc ones plus the 
     end
     assertNotNil(suiteNamed("combat"))
     assertEquals("combat", suiteNamed("combat").group)
+    assertNotNil(suiteNamed("motion"))
+    assertEquals("ooc", suiteNamed("motion").group)
+    local lastOoc
+    for _, s in ipairs(Dev.suites) do if s.group == "ooc" then lastOoc = s.name end end
+    assertEquals("motion", lastOoc, "the motion suite runs after the existing ooc suites")
 end)
 
 test("the generated API list is present and names what the addon calls", function()
@@ -67,7 +72,13 @@ end)
 
 test("a real ooc run: no check raises, every suite reports, nothing but the sim-limited checks fails", function()
     local restore = sandbox()
+    -- The motion suite is async and needs real frames + timers, which the simulator never delivers inside
+    -- a test (test_motion.lua drives it with stubs): this run covers the synchronous suites.
+    local savedSuites, sync = Dev.suites, {}
+    for _, s in ipairs(Dev.suites) do if s.name ~= "motion" then sync[#sync + 1] = s end end
+    Dev.suites = sync
     local run = S.RunGroup("ooc", "ooc")
+    Dev.suites = savedSuites
     restore()
     assertNotNil(run)
     local raised, unexpected = {}, {}

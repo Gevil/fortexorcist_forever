@@ -39,6 +39,8 @@ Dev.COMBAT_DELAY = 3      -- seconds after PLAYER_REGEN_DISABLED the armed comba
 Dev.COMMANDS_DELAY = 3    -- seconds after PLAYER_ENTERING_WORLD DevCommands run
 Dev.COMMANDS_FALLBACK = 5 -- seconds after OnEnable, when no PLAYER_ENTERING_WORLD was seen (login fallback)
 Dev.MAX_COMMAND_ENTRIES = 20
+Dev.SHOT_WAIT_MAX = 15     -- seconds `shot` waits for a run still in flight (async steps) before it fires anyway
+Dev.SHOT_WAIT_STEP = 0.5
 
 --- Session state (never saved).
 Dev.state = {
@@ -348,13 +350,21 @@ function Dev.StatusLine()
         tostring(Dev.inCombat()), type(errs) == "number" and tostring(errs) or "n/a"), 400)
 end
 
---- `/fxdev shot`: repaint the beacon + panel NOW, then Screenshot() on a later frame.
+--- `/fxdev shot`: repaint the beacon + panel NOW, then Screenshot() on a later frame. While a run is
+--- still in flight (async steps) the screenshot waits for it, at most Dev.SHOT_WAIT_MAX seconds, so
+--- `{ "selftest ooc", "shot" }` in DevCommands still photographs the finished run.
 function Dev.Shot()
     if type(_G.Screenshot) ~= "function" then return false, "shot: Screenshot() is not available" end
     Dev.Repaint()
-    Dev.After(0.2, function()
+    local function take(waited)
+        if Dev.state.running and waited < Dev.SHOT_WAIT_MAX then
+            Dev.After(Dev.SHOT_WAIT_STEP, function() take(waited + Dev.SHOT_WAIT_STEP) end)
+            return
+        end
+        Dev.Repaint()
         pcall(_G.Screenshot)
-    end)
+    end
+    Dev.After(0.2, function() take(0) end)
     return true, "shot scheduled"
 end
 
