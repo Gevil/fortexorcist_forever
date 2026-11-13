@@ -38,6 +38,13 @@
 -- arrival calls `Display:Update` synchronously through Casts.onRow, so the
 -- anchor is shown BEFORE its own OnUpdate is relied on.
 --
+-- Motion follows the frame, logic does not (PLAN §11.13): the ticker's full
+-- `Draw` keeps the text, widths, order, row acquire/release and expiry at its
+-- cadence, and the full pass it drives (UI/Rows.lua `D:Update`) installs the
+-- MOTION PASS -- `D:MotionPass`, the bar value, spark, colour/blink and fade
+-- ramp from cached numbers -- as an OnUpdate on the SHOWN anchor, only while a
+-- row moves; idle or hidden removes it again.
+--
 -- Lock: `/fx lock|unlock` moves this panel with the Cooldown bar by MIRRORING
 -- the two keys the Cooldown Display publishes (Cooldown.Lock and
 -- General.GlobalLock) through FX.Settings:OnChange -- the law Forte_Hunter's
@@ -597,10 +604,11 @@ function M:Clock()
     return GetTime()
 end
 
---- The 0.04 s display pass. Ticker-driven (an always-live driver: a hidden
---- anchor's OnUpdate never runs -- the 2026-11-02 uiforever finding), and
---- callable by hand from the row-arrival hook so the panel is SHOWN before any
---- OnUpdate is relied on.
+--- The 0.04 s full display pass. Ticker-driven (an always-live driver: a
+--- hidden anchor's OnUpdate never runs -- the 2026-11-02 uiforever finding),
+--- and callable by hand from the row-arrival hook so the panel is SHOWN
+--- before any OnUpdate is relied on. Per-frame motion is the Display's
+--- motion pass, armed by this pass's Update.
 function M:Draw()
     local d = FX.Timer.Display
     if not d or not self.options.enable or self.options.hide then return end

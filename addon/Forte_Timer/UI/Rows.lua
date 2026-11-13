@@ -79,7 +79,7 @@ FX.Timer.Display = D
 --- setter, never per inspected row.
 D.counts = { anchorGroup = 0, anchorRow = 0, anchorLabel = 0,
     anchorTicks = 0, sizeGroup = 0, geometry = 0, timeText = 0,
-    nameText = 0, spark = 0 }
+    nameText = 0, spark = 0, motionPass = 0, motionRows = 0 }
 
 local Laws = FX.Timer.Laws
 local Rows = FX.Timer.Rows
@@ -784,6 +784,101 @@ local function nearEq(a, b)
     return a ~= nil and b ~= nil and math.abs(a - b) < 0.01
 end
 
+-- ---------------------------------------------------------- shared motion --
+-- The PIECES of a row that move with time, each ONE function used by both
+-- passes (PLAN §11.13: motion follows the frame, logic does not). The full
+-- pass (D:Update -> BindRow, 25 Hz) calls them after caching the row's numbers
+-- on the pool slot (`_m*`); the motion pass (D:MotionPass, every rendered
+-- frame) calls them from those cached numbers alone -- no client read, no
+-- string work, no allocation. `r._mDraw` is the smoothed expire time,
+-- `r._mMax` the compressed scale, `r._mBarW` the bar width, `r._mFlip` the
+-- mirrored-fill flag, `r._mTotal/_mState/_mKind` the colour law's inputs.
+
+--- The bar height rides the row's visibility (the fade ramp shrinks it).
+local function applyVis(r, o, vis)
+    local h = o.height * vis
+    if not nearEq(r._height, h) then
+        r._height = h
+        r.bar:SetHeight(h)
+        r.fill:SetHeight(h)
+        r._fillW = nil
+    end
+end
+
+--- The group alpha law (:2340-2344): target/failed rows full, the rest
+--- NormalAlpha, scaled by the row's visibility.
+local function rowAlpha(vis, state, o)
+    return vis * ((state > Laws.REMOVE)
+        and 1 or (o.normalAlpha or FX.Timer.Skin.NormalAlpha))
+end
+
+--- The colour law at `now`: ColorVal decides once (the arrival flash, the
+--- blink pulse and the fail flash are pure functions of time), the fill takes
+--- the triple, the row background takes the alpha. Every comparison is
+--- component-wise NUMERIC. A direction change IS a colour change, because the
+--- fill moves between the engine StatusBar and the mirrored ARTWORK texture.
+local function applyColors(r, o, s, now)
+    local fillR, fillG, fillB, bgA = Laws.ColorVal(r._mDraw - now,
+        r._mTotal, r._mState, r._mKind, s, o)
+    local flipOn = r._mFlip
+    local fillChanged = r._fillR ~= fillR or r._fillG ~= fillG
+        or r._fillB ~= fillB or r._flip ~= flipOn
+    if fillChanged then
+        r._fillR, r._fillG, r._fillB = fillR, fillG, fillB
+        r._flip = flipOn
+        r._fillW = nil
+        if flipOn then
+            r.bar:SetStatusBarColor(0, 0, 0, 0)
+            r.fill:SetVertexColor(fillR, fillG, fillB, 1)
+        else
+            r.bar:SetStatusBarColor(fillR, fillG, fillB, 1)
+        end
+    end
+    if fillChanged or r._bgA ~= bgA then
+        r._bgA = bgA
+        r.back:SetVertexColor(fillR, fillG, fillB, bgA)
+    end
+end
+
+--- The fill for one bar value, the ONE bar-value consumer. SetValue(v) on the
+--- bar crops its LEFT-anchored fill to v, so the fill shrinks from the RIGHT
+--- (the direction law of §5.3, not a fix). Flipped (the source's flipped
+--- SetValue, :1656-1668): the fill texture rides the bar's RIGHT edge and
+--- crops its own left, `TexCoord(1-v,1,0,1)`. The shown flag is a cached
+--- boolean: a motion pass makes no client read.
+local function applyFill(r, flipOn, barval)
+    if flipOn then
+        local fw = barval * r._mBarW
+        if r._fillOn ~= true then
+            r._fillOn = true
+            r.fill:Show()
+        end
+        if r._fillW ~= fw then
+            r._fillW = fw
+            r.fill:SetSize(fw, r._height or r._mHeight)
+            r.fill:SetTexCoord(1 - barval, 1, 0, 1)
+        end
+    else
+        if r._fillOn ~= false then
+            r._fillOn = false
+            r.fill:Hide()
+        end
+        r.bar:SetValue(barval)
+    end
+end
+
+--- The spark rides the fill's live edge; a flipped bar's edge is the mirrored
+--- one (:2536-2540: `(1-barval)*width` when `bar.flipped`). The one anchor
+--- point is replaced in place, so the clear runs once per slot.
+local function placeSpark(r, flipOn, barval)
+    if not r._sparkAnch then
+        r._sparkAnch = true
+        r.spark:ClearAllPoints()
+    end
+    r.spark:SetPoint("CENTER", r.bar, "LEFT",
+        (flipOn and (1 - barval) or barval) * r._mBarW, 0)
+end
+
 --- Size/anchor one row to the live geometry, dirty-checked (the `_g*` fields
 --- cache the numbers it was last built with — compared numerically, never
 --- stringified: docs/perf.md §4 fix 2).
@@ -820,12 +915,7 @@ function D:ApplyRowGeometry(row, o, skin, vis)
                 o.height * skin.TickHeightFactor)
         end
     end
-    if not nearEq(row._height, o.height * vis) then
-        row._height = o.height * vis
-        row.bar:SetHeight(o.height * vis)
-        row.fill:SetHeight(o.height * vis)
-        row._fillW = nil
-    end
+    applyVis(row, o, vis)
     if row._width ~= o.barWidth then
         row._width = o.barWidth
         row.bar:SetWidth(o.barWidth)
@@ -840,7 +930,6 @@ function D:Update(links, n, options, skin)
     if not self.anchor then return 0 end
     local o = options or self.options
     local s = skin or self.skin
-    local S = FX.Timer.Skin
     n = n or 0
     local now = GetTime()
     if not o.enable or o.hide then
@@ -878,12 +967,12 @@ function D:Update(links, n, options, skin)
             local g = runs[ng]
             g.count = g.count + 1
             g.links[g.count] = link
-            local alpha = vis * ((row.state > Laws.REMOVE)
-                and 1 or (o.normalAlpha or S.NormalAlpha))
+            local alpha = rowAlpha(vis, row.state, o)
             if alpha > g.alpha then g.alpha = alpha end
             if (row.raidMark or 0) > g.raidMark then g.raidMark = row.raidMark end
         end
     end
+    self._ng = ng
 
     -- Pass B: draw the runs, cascading from the frame's first-slot corner.
     -- UP (the default, `Expand`, :2320-2332): from the frame's BOTTOMLEFT,
@@ -904,7 +993,7 @@ function D:Update(links, n, options, skin)
         and runs[1].key > Laws.PRIOR_NONE then
         shift = o.labelHeight
     end
-    local y, ri = 0, 0
+    local y, ri, moving = 0, 0, 0
     for gi = 1, ng do
         local run = runs[gi]
         local g = self:AcquireGroup(gi)
@@ -1056,6 +1145,7 @@ function D:Update(links, n, options, skin)
         for j = 1, run.count do
             self:BindRow(run.links[j], run.slot[j], g, o, s, now, barOffset,
                 usewidth, down)
+            if run.slot[j]._mMoves then moving = moving + 1 end
             barOffset = barOffset + (down and -step or step)
         end
         y = y + h + o.spacingHeight
@@ -1075,6 +1165,8 @@ function D:Update(links, n, options, skin)
     -- the label strip raised above the pin is not part of it.
     self.anchor:SetSize(o.groupWidth,
         math.max(o.height, y - o.spacingHeight - shift))
+    -- The motion pass lives on the shown anchor only while a row moves.
+    if moving > 0 then self:ArmMotion() else self:DisarmMotion() end
     return ri
 end
 
@@ -1106,6 +1198,20 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth, down)
     local row = Rows.rows[link[1]]
     if not r.bar:IsShown() then r.bar:Show() end
     self:ApplyRowGeometry(r, o, s, link[4])
+    -- The numbers the motion pass moves the row from, cached by this (slow)
+    -- pass: the next full pass is their only writer.
+    r._mDraw = row.drawExpireAt or row.expireAt
+    r._mMax = row.maxTime
+    r._mTotal = row.total
+    r._mState = row.state
+    r._mKind = row.kind
+    r._mExpire = row.expireAt
+    r._mRemove = row.removeAt
+    r._mVis = link[4]
+    r._mBarW = o.barWidth
+    r._mHeight = o.height
+    r._mFade = row.state >= Laws.FADING_INSTANT
+    r._mMoves = (row.total or 0) > 0
     -- The row x-inset: Height+1+Backdrop[6] (:2322), plus the page's extra
     -- x-offset of your own rows (the `none` key, the self/no-target law
     -- §3.3) and of the rows riding on your CURRENT target. The source has
@@ -1134,31 +1240,9 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth, down)
     -- (:2369, Forte_Core.lua:796-800) so a picked colour stays legible.
     -- Every comparison is component-wise NUMERIC (docs/perf.md §4 fix 2): the
     -- stringified triples this replaces were the panel's largest allocator.
-    local total = row.total
-    local remaining = (row.drawExpireAt or row.expireAt) - now
-    local fillR, fillG, fillB, bgA = Laws.ColorVal(remaining, total,
-        row.state, row.kind, s, o)
-    -- The bar direction (`Flip`, :3149/def :3332): a direction change IS a
-    -- colour change, because the fill moves between the engine StatusBar and
-    -- the mirrored ARTWORK texture.
     local flipOn = o.flip and true or false
-    local fillChanged = r._fillR ~= fillR or r._fillG ~= fillG
-        or r._fillB ~= fillB or r._flip ~= flipOn
-    if fillChanged then
-        r._fillR, r._fillG, r._fillB = fillR, fillG, fillB
-        r._flip = flipOn
-        r._fillW = nil
-        if flipOn then
-            r.bar:SetStatusBarColor(0, 0, 0, 0)
-            r.fill:SetVertexColor(fillR, fillG, fillB, 1)
-        else
-            r.bar:SetStatusBarColor(fillR, fillG, fillB, 1)
-        end
-    end
-    if fillChanged or r._bgA ~= bgA then
-        r._bgA = bgA
-        r.back:SetVertexColor(fillR, fillG, fillB, bgA)
-    end
+    r._mFlip = flipOn
+    applyColors(r, o, s, now)
     local nc = s.NormalColor
     if r._ncR ~= nc[1] or r._ncG ~= nc[2] or r._ncB ~= nc[3] then
         r._ncR, r._ncG, r._ncB = nc[1], nc[2], nc[3]
@@ -1167,24 +1251,10 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth, down)
         r.timeFS:SetTextColor(nc[1], nc[2], nc[3], s.TimeAlpha)
     end
 
-    -- the fill: the smoothed drawn-expire time over the compressed scale.
-    -- SetValue(v) on the bar crops its LEFT-anchored fill to v, so the fill
-    -- shrinks from the RIGHT: the direction law of §5.3, not a fix.
-    local barval = Laws.BarVal(row.drawExpireAt, now, row.maxTime)
-    if flipOn then
-        -- Flipped (the source's flipped SetValue, :1656-1668): the fill rides
-        -- the bar's RIGHT edge and crops its own left, `TexCoord(1-v,1,0,1)`.
-        local fw = barval * o.barWidth
-        if not r.fill:IsShown() then r.fill:Show() end
-        if r._fillW ~= fw then
-            r._fillW = fw
-            r.fill:SetSize(fw, r._height or o.height)
-            r.fill:SetTexCoord(1 - barval, 1, 0, 1)
-        end
-    else
-        if r.fill:IsShown() then r.fill:Hide() end
-        r.bar:SetValue(barval)
-    end
+    -- the fill: the smoothed drawn-expire time over the compressed scale
+    -- (the motion pass runs the same two lines every rendered frame).
+    local barval = Laws.BarVal(r._mDraw, now, r._mMax)
+    applyFill(r, flipOn, barval)
 
     -- widths from the smart space (:2391, :2510).
     if r._twWidth ~= usewidth then
@@ -1233,11 +1303,7 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth, down)
     end
     if sparkOn then
         counts.spark = counts.spark + 1
-        r.spark:ClearAllPoints()
-        -- The spark rides the fill's live edge; a flipped bar's edge is the
-        -- mirrored one (:2536-2540: `(1-barval)*width` when `bar.flipped`).
-        r.spark:SetPoint("CENTER", r.bar, "LEFT",
-            (flipOn and (1 - barval) or barval) * o.barWidth, 0)
+        placeSpark(r, flipOn, barval)
     end
 
     -- the predicted marking (§5.5): a 1 px dark notch at the bar's RIGHT end
@@ -1338,8 +1404,66 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth, down)
     r._row = row
 end
 
+--- The MOTION PASS (PLAN §11.13): runs from the shown anchor's OnUpdate, every
+--- rendered frame, while a row moves. Pure geometry from the numbers the full
+--- pass cached on the slots: the bar value (or the mirrored fill), the spark,
+--- the colour/blink/arrival-flash law and the fade ramp (a pure function of
+--- time once a row is fading), with the group alpha that follows the ramp.
+--- One `GetTime()` per frame, never an accumulated `elapsed`, so the position
+--- is exact at any frame rate and after a hitch. Text, widths, order, row
+--- acquire/release and expiry stay the full pass's: this pass reads no row,
+--- no unit, no client state and allocates nothing.
+function D:MotionPass()
+    local runs = self._runs
+    if not runs then return end
+    local o, s = self.options, self.skin
+    local now = GetTime()
+    counts.motionPass = counts.motionPass + 1
+    for gi = 1, self._ng or 0 do
+        local run = runs[gi]
+        local top = 0
+        for j = 1, run.count do
+            local r = run.slot[j]
+            local vis = r._mVis
+            if r._mFade then
+                vis = Laws.GateAlpha(r._mState, r._mExpire, r._mRemove, now, o)
+            end
+            applyVis(r, o, vis)
+            applyColors(r, o, s, now)
+            local barval = Laws.BarVal(r._mDraw, now, r._mMax)
+            applyFill(r, r._mFlip, barval)
+            if r._sparkOn then placeSpark(r, r._mFlip, barval) end
+            local a = rowAlpha(vis, r._mState, o)
+            if a > top then top = a end
+            counts.motionRows = counts.motionRows + 1
+        end
+        local g = self.groups[gi]
+        if g._alpha ~= top then
+            g._alpha = top
+            g.frame:SetAlpha(top)
+        end
+    end
+end
+
+--- Install the motion pass on the (shown) anchor. Idempotent; the closure is
+--- one stable value, so arming allocates once per display.
+function D:ArmMotion()
+    if self._motionOn or not self.anchor then return end
+    self._motionOn = true
+    self._onUpdate = self._onUpdate or function() self:MotionPass() end
+    self.anchor:SetScript("OnUpdate", self._onUpdate)
+end
+
+--- Remove it: idle or hidden means zero per-frame Lua.
+function D:DisarmMotion()
+    if not self._motionOn then return end
+    self._motionOn = false
+    if self.anchor then self.anchor:SetScript("OnUpdate", nil) end
+end
+
 --- The idle state: everything hidden, no per-frame work.
 function D:RenderIdle()
+    self:DisarmMotion()
     if self._shown then
         self._shown = false
         if self.anchor then self.anchor:Hide() end
