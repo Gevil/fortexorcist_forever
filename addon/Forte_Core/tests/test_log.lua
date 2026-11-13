@@ -273,3 +273,49 @@ function()
     assertEquals(1, n, "the re-applied switch copies errors, once")
     assertEquals(0, hits.n, "and never calls the chat-logging surface")
 end)
+
+-- ============================================ update hazard: no Errors.lua ==
+
+test("without FX.Errors (new .toc file not found after a /reload update) /fx log never raises",
+function()
+    local savedErrors, savedLogOn = FX.Errors, FX.db.logOn
+    local lines, rp = capturePrint()
+    local results = {}
+    local ok, err = pcall(function()
+        FX.Errors = nil
+        for _, cmd in ipairs({ "log on", "log", "log off" }) do
+            local okCmd, errCmd = pcall(FX.OnSlash, cmd)
+            results[#results + 1] = okCmd or (cmd .. ": " .. tostring(errCmd))
+            if cmd == "log on" then
+                results.onAfter = Log.on
+                results.stored = FX.db.logOn
+            end
+        end
+        -- A stored switch at login (Log:OnEnable) with the module absent.
+        FX.db.logOn = true
+        local okEn, errEn = pcall(Log.OnEnable, Log)
+        results[#results + 1] = okEn or ("OnEnable: " .. tostring(errEn))
+        results.enableOn = Log.on
+        local okOff, errOff = pcall(Log.Disable, Log)
+        results[#results + 1] = okOff or ("Disable: " .. tostring(errOff))
+    end)
+    -- Guarded teardown: always runs, whatever the body did.
+    pcall(Log.Disable, Log)
+    Log.on = false
+    FX.Errors, FX.db.logOn = savedErrors, savedLogOn
+    rp()
+    assertTrue(ok, "the body raised: " .. tostring(err))
+    for _, r in ipairs(results) do assertEquals(true, r) end
+    assertEquals(true, results.onAfter, "the switch itself still turns on")
+    assertEquals(true, results.stored)
+    assertEquals(true, results.enableOn, "the stored switch re-applies")
+    local notices = 0
+    for _, line in ipairs(lines) do
+        if line:find("error recorder (Core/Errors.lua) is not loaded", 1, true) then
+            notices = notices + 1
+        end
+    end
+    assertEquals(2, notices, "`/fx log on` and the login re-apply each say once that a restart is needed")
+    assertTrue(hasLine(lines, "restart the game"), "the status line works and names the restart")
+    assertEquals(savedErrors, FX.Errors, "the recorder is back")
+end)

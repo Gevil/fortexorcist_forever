@@ -56,29 +56,51 @@ local function copyToChat(kind, msg)
     pcall(say, "[FX-ERR] " .. text)
 end
 
+local NO_RECORDER = "Log: the error recorder (Core/Errors.lua) is not loaded -- "
+    .. "restart the game once to load it (a file added to the .toc is only "
+    .. "found at a full client start, not at /reload)."
+
+--- Subscribe the chat copy to the recorder. FX.Errors is nil when this
+--- Log.lua was reloaded by /reload after an update but Core/Errors.lua, new
+--- in the .toc, was not discovered (that needs a full client restart): the
+--- switch then still turns FX.Log tracing on, says so once, and copies nothing.
+function Log:Subscribe()
+    local errors = FX.Errors
+    if type(errors) ~= "table" or type(errors.Subscribe) ~= "function" then
+        return false
+    end
+    self.listener = self.listener or copyToChat
+    return errors:Subscribe(self.listener)
+end
+
 function Log:Enable()
     if self.on then return end
     self.on = true
-    self.listener = self.listener or copyToChat
-    FX.Errors:Subscribe(self.listener)
+    if not self:Subscribe() then FX.Print(NO_RECORDER) end
     if FX.db then FX.db.logOn = true end
 end
 
 function Log:Disable()
     if not self.on then return end
     self.on = false
-    if self.listener then FX.Errors:Unsubscribe(self.listener) end
+    local errors = FX.Errors
+    if self.listener and type(errors) == "table"
+        and type(errors.Unsubscribe) == "function" then
+        errors:Unsubscribe(self.listener)
+    end
     if FX.db then FX.db.logOn = nil end
 end
 
 --- The bare `/fx log` status line. No client query is involved (see the
 --- header: the chat-logging read was wrong on the live client and the
---- chat-logging state is not ours), so it cannot raise.
+--- chat-logging state is not ours), so it cannot raise; it reads the stored
+--- list directly, so it also works without the recorder module.
 function Log:Status()
     local e = FX.db and FX.db.errors
     local n = (type(e) == "table" and type(e.list) == "table") and #e.list or 0
-    FX.Print(string.format("Log: errors->chat=%s recorded=%d (/fx errors)",
-        tostring(self.on), n))
+    FX.Print(string.format("Log: errors->chat=%s recorded=%d (%s)",
+        tostring(self.on), n,
+        FX.Errors and "/fx errors" or "error recorder not loaded: restart the game"))
 end
 
 FX.RegisterSlash("log", function(rest)
