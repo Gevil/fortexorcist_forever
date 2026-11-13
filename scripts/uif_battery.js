@@ -69,9 +69,9 @@
  *               artefact is tolerated (PLAN §9 2026-11-02 LoD row).
  *   4. MODULES  ForteXorcist._moduleOrder prints (a live-verified array,
  *               `Locale,Probe,Splash,Cooldown,Timer,Messages`), and the
- *               always-loaded set Cooldown,Locale,Log,Messages,Probe,Splash,
- *               Timer is in it (Log: code-review-10 M3/M4, gate.py's
- *               ALWAYS_MODULES is the law).
+ *               always-loaded set Cooldown,Errors,Locale,Log,Messages,Probe,
+ *               Splash,Timer is in it (Log: code-review-10 M3/M4, Errors:
+ *               PLAN §11.11; gate.py's ALWAYS_MODULES is the law).
  *   5. CORE     the Splash and Messages modules are present.
  *   6. DB       ForteXorcist.db.version == 1 and db.profiles.active is set
  *               (the H3 profiles schema).
@@ -497,7 +497,7 @@ async function uifBattery(options) {
     'FXBAT-MODULES=');
   const mMod = mods.printed.match(/^FXBAT-MODULES=(.*)$/m);
   const modList = mMod ? mMod[1].trim().split(',').filter(Boolean) : [];
-  const core = ['Cooldown', 'Locale', 'Log', 'Messages', 'Probe', 'Splash', 'Timer'];
+  const core = ['Cooldown', 'Errors', 'Locale', 'Log', 'Messages', 'Probe', 'Splash', 'Timer'];
   const missingCore = core.filter((c) => !modList.includes(c));
   add('MODULES the module list prints', !!mMod, 'FXBAT-MODULES= print',
     mods.line || '(no printed line)');

@@ -76,8 +76,11 @@ ALWAYS_DATA = {"Items"}
 # event at file top, inert by default: OnEnable acts only on a stored
 # FX.db.logOn, writes SavedVariables only through Log:Enable, speaks in chat
 # only when a user calls FX.Log or /fx log), so it rides the always-loaded
-# Core load set like Locale/Messages/Probe.
-ALWAYS_MODULES = {"Cooldown", "Locale", "Log", "Messages", "Probe", "Splash", "TestMode", "Timer"}
+# Core load set like Locale/Messages/Probe. Errors: PLAN §11.11 -- the error
+# recorder is a Forte_Core module too (handler and event frame created in
+# OnEnable, never at file top; writes SavedVariables only on the first stored
+# entry), always loaded.
+ALWAYS_MODULES = {"Cooldown", "Errors", "Locale", "Log", "Messages", "Probe", "Splash", "TestMode", "Timer"}
 LOAD_PROBES = {
     None: {"data": {"Paladin"}, "modules": set()},
     "Hunter": {"data": {"Hunter"}, "modules": {"Hunter", "HunterUI", "HunterMelee", "HunterMeleeUI",

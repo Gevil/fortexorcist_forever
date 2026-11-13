@@ -1,28 +1,38 @@
--- Core/Log.lua -- live debug log for development sessions.
+-- Core/Log.lua -- live debug switch for development sessions.
 --
 -- `/fx log on` does two things:
---   1. wraps the client error handler so EVERY Lua error (any addon) is also
---      printed to chat as `[FX-ERR] <message>` (the original handler still
---      runs, so popups / BugGrabber keep working),
---   2. turns on the client's chat logging (`LoggingChat(true)` — the
---      catalog's form takes the enable boolean, so it is called WITH it and
---      only with it), which appends every chat line to
---      Logs/WoWChatLog.txt as it happens.
--- An outside tool can then tail that file for live errors and `FX.Log` lines
--- instead of waiting for a /reload to flush SavedVariables.
+--   1. copies every error the recorder STORES (Core/Errors.lua: errors,
+--      blocked actions, Lua warnings that concern ForteXorcist) to chat as
+--      `[FX-ERR] <message>` the moment it is recorded (`[FX-ERR] [blocked]
+--      <message>` for the other kinds). The stored list itself is `/fx errors`.
+--      This file wraps NO error handler: it subscribes to the recorder, so
+--      there is exactly one handler chain (Errors.lua owns it);
+--   2. turns on `FX.Log` tracing (`FX.Log(tag, ...)` prints `[FX:<tag>] ...`;
+--      the Spell Timer reads `FX.LogModule.on` to trace casts).
+-- `/fx log off` undoes both.
 --
--- `/fx log off` restores the previous handler and stops chat logging.
+-- WHAT WAS MEASURED (docs/research/ingame-dev-step0-results-2026-11-12.md,
+-- WoW Forever 1.60.1.70888, 2026-11-12): the client's chat logging records
+-- the player's real chat only. With chat logging ON (the built-in `/chatlog`
+-- answered "Chat logging disabled." when toggled), `[FX-ERR]` and `FX.Log`
+-- lines were printed and Logs/WoWChatLog.txt stayed 0 bytes. So this file
+-- never calls `LoggingChat` (turning it on only logs the player's real chat,
+-- a privacy cost with no benefit to us) and never reads `IsLoggingChat`
+-- (on that client the read printed `chatlog=false` while logging was on, so
+-- the old status field was wrong). Errors reach an outside reader through
+-- SavedVariables (`ForteXorcistDB.errors`, written at /reload or logout).
+--
 -- The on/off choice persists in FX.db.logOn and is re-applied through the
--- module registry at login (see the tail: the login re-apply rides
--- Log:OnEnable, the Core/Init.lua law; this file registers no event frame).
--- The DEFAULT install is off: FX.db.logOn is written only by Log:Enable and
--- nil'd by Log:Disable, so a fresh install re-applies nothing at login and
--- adds nothing to SavedVariables.
--- `FX.Log(tag, ...)` prints `[FX:<tag>] ...` (always, cheap, chat-only).
+-- module registry at login (the login re-apply rides Log:OnEnable, the
+-- Core/Init.lua law; this file registers no event frame). A stored `logOn`
+-- from an older build keeps meaning the same switch. The DEFAULT install is
+-- off: FX.db.logOn is written only by Log:Enable and nil'd by Log:Disable, so
+-- a fresh install re-applies nothing at login and adds nothing to
+-- SavedVariables.
 
 local FX = ForteXorcist
 
-local Log = { on = false, prev = nil, handler = nil }
+local Log = { on = false, listener = nil }
 FX.LogModule = Log
 
 local function say(msg)
@@ -31,66 +41,44 @@ local function say(msg)
     end
 end
 
---- Tagged debug line (chat -> WoWChatLog.txt while logging is on).
+--- Tagged debug line (chat only: it does not reach any log file).
 function FX.Log(tag, ...)
     local parts = {}
     for i = 1, select("#", ...) do parts[i] = tostring((select(i, ...))) end
     say("[FX:" .. tostring(tag) .. "] " .. table.concat(parts, " "))
 end
 
+--- The chat copy of one recorded entry. Never raises (the recorder pcalls
+--- its subscribers, and this adds its own pcall around the print).
+local function copyToChat(kind, msg)
+    local text = tostring(msg):gsub("|", "||")
+    if kind ~= "error" then text = "[" .. tostring(kind) .. "] " .. text end
+    pcall(say, "[FX-ERR] " .. text)
+end
+
 function Log:Enable()
     if self.on then return end
     self.on = true
-    if type(_G.geterrorhandler) == "function"
-        and type(_G.seterrorhandler) == "function" then
-        self.prev = _G.geterrorhandler()
-        self.handler = function(err)
-            -- Never let the logger itself raise inside the error path.
-            pcall(say, "[FX-ERR] " .. tostring(err))
-            if type(self.prev) == "function" then
-                return self.prev(err)
-            end
-        end
-        _G.seterrorhandler(self.handler)
-    end
-    -- The catalog form is `LoggingChat(enable)`: the boolean rides every
-    -- call (the argless shape is the M3 raise, see Log:Status).
-    if type(_G.LoggingChat) == "function" then pcall(_G.LoggingChat, true) end
+    self.listener = self.listener or copyToChat
+    FX.Errors:Subscribe(self.listener)
     if FX.db then FX.db.logOn = true end
 end
 
 function Log:Disable()
     if not self.on then return end
     self.on = false
-    if self.handler and type(_G.geterrorhandler) == "function"
-        and _G.geterrorhandler() == self.handler and self.prev then
-        _G.seterrorhandler(self.prev)
-    end
-    self.handler = nil
-    if type(_G.LoggingChat) == "function" then pcall(_G.LoggingChat, false) end
+    if self.listener then FX.Errors:Unsubscribe(self.listener) end
     if FX.db then FX.db.logOn = nil end
 end
 
---- The bare `/fx log` status line. M3 (code-review-10): the OLD shape read
---- the state with `_G.LoggingChat()` -- an argless call of a function the
---- catalog declares as `LoggingChat(enable)` (RETAIL-BASELINE: "Toggle
---- combat log file"), whose QUERY twin is `IsLoggingChat()` -- and the
---- C-side usage error it raises rode the unprotected slash dispatch
---- (Core/Init.lua: `fn(rest)`, no pcall), so the everyday "what's the state"
---- command died on the shipped client. The read is lawful now: prefer the
---- zero-arg query, pcall it, classify through PlainOrNil, default false.
---- `LoggingChat` itself is NOT in the pinned Forever catalog at all, so the
---- whole read is optional/unknown: no query, no answer, and no unguarded
---- call of anything.
+--- The bare `/fx log` status line. No client query is involved (see the
+--- header: the chat-logging read was wrong on the live client and the
+--- chat-logging state is not ours), so it cannot raise.
 function Log:Status()
-    local chatOn = false
-    local query = _G.IsLoggingChat
-    if type(query) == "function" then
-        local ok, v = pcall(query)
-        chatOn = (ok and FX.Compat.PlainOrNil(v)) and true or false
-    end
-    FX.Print(string.format("Log: errors->chat=%s chatlog=%s (Logs/WoWChatLog.txt)",
-        tostring(self.on), tostring(chatOn)))
+    local e = FX.db and FX.db.errors
+    local n = (type(e) == "table" and type(e.list) == "table") and #e.list or 0
+    FX.Print(string.format("Log: errors->chat=%s recorded=%d (/fx errors)",
+        tostring(self.on), n))
 end
 
 FX.RegisterSlash("log", function(rest)
@@ -102,15 +90,12 @@ FX.RegisterSlash("log", function(rest)
         Log:Disable()
         Log:Status()
     elseif rest == "test" then
-        -- m5 (code-review-10): the old shape was `pcall(error, ...)` (a
-        -- decoration -- pcall swallows it, the wrapper never saw it) plus an
-        -- UNGATED `_G.geterrorhandler()(...)` -- the one client touch in
-        -- this file that ignored the file's own presence idiom, so the
-        -- command died with "attempt to call a nil value" wherever the
-        -- handler getter is absent (a restricted client, the sim). The
-        -- self-test is the second line, gated: with the log ON its wrapper
-        -- prints the [FX-ERR] line through the chat frame; with the log off
-        -- the client's own handler (if any) answers.
+        -- m5 (code-review-10): the self-test hands one deliberate line to the
+        -- client's current error handler, gated on the getter being present
+        -- (a restricted client or the sim may not have it). With the
+        -- recorder installed that handler is ours: the line is recorded
+        -- (its stack runs through this file, so it is "ours") and, with the
+        -- log ON, copied to chat.
         if type(_G.geterrorhandler) == "function" then
             local ok, handler = pcall(_G.geterrorhandler)
             if ok and type(handler) == "function" then
@@ -124,13 +109,9 @@ end)
 
 -- The login re-apply rides Forte_Core's module registry (Core/Init.lua's
 -- law: "login-time work belongs in OnEnable, which the pass calls DIRECTLY";
--- Probe and TestMode follow it). Code-review-10 M4: this file used to run
--- `_G.CreateFrame(...):RegisterEvent("PLAYER_LOGIN")` at file top -- a
--- second login-time registrant besides the bootstrap frame, which the
--- single-registrant law exists to keep out of the tree (login/reload/
--- restriction event order is exactly what launch work rides on). The
--- default install is OFF: OnEnable enables only on the stored `on`, so a
--- fresh login writes nothing and registers no chat-logging call.
+-- Probe and TestMode follow it). The default install is OFF: OnEnable
+-- enables only on the stored `on`. Errors.lua is registered (and so enabled)
+-- before this module: the TOC loads it first.
 function Log:OnEnable()
     if FX.db and FX.db.logOn then
         self:Enable()

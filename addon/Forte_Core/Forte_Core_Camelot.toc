@@ -13,6 +13,7 @@ Core/Database.lua
 Core/Init.lua
 Core/Events.lua
 Core/Loader.lua
+Core/Errors.lua
 Core/Locale.lua
 Core/Probe.lua
 Core/Log.lua

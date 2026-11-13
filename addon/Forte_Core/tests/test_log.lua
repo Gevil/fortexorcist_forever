@@ -1,33 +1,29 @@
 -- addon/Forte_Core/tests/test_log.lua
--- Code-review-10 M3 + M4 + m5, section (c) MT-16: `Log.lua` was the whole
--- file with NO suite, and the two shipped bugs are exactly what a
--- stub-surface test catches:
+-- Core/Log.lua after the step-0 measurements (docs/research/
+-- ingame-dev-step0-results-2026-11-12.md): addon-printed lines never reach
+-- Logs/WoWChatLog.txt and the old `chatlog=` status field read false while
+-- chat logging was on. So `/fx log`
+--   * never calls `LoggingChat` and never reads `IsLoggingChat` (the legs
+--     below install spies that count AND raise, so a regression is loud);
+--   * prints a status line with no `chatlog` field;
+--   * `on` means: copy every error the recorder (Core/Errors.lua) stores to
+--     chat as `[FX-ERR]`, and turn on FX.Log tracing; `off` undoes both.
+-- Older code-review-10 legs stay: M4 (the file rides the module registry, no
+-- file-top registrant, default OFF, the login re-apply seam) and m5
+-- (`/fx log test` survives a missing handler getter).
 --
---   * M3 -- the bare `/fx log` status read the chat-logging state with
---     `_G.LoggingChat()`; the catalog declares `LoggingChat(enable)` (a
---     REQUIRED boolean -- the query twin is `IsLoggingChat()`), the C-side
---     usage error it raises rode `FX.OnSlash`'s UNPROTECTED sub dispatch
---     (Core/Init.lua: `fn(rest)` -- no pcall), and the everyday "what's the
---     state" command died on the shipped client. The legs below run the REAL
---     slash path with the query absent, raising, and returning, and the
---     catalog-shaped `LoggingChat` (raises on a nil argument -- the exact
---     argless-call witness).
---   * m5 -- `/fx log test` called `_G.geterrorhandler()` UNGATED (the
---     "attempt to call a nil value" class in any environment without the
---     client's handler getter -- the sim) behind a `pcall(error, ...)`
---     decoration that never reached any handler.
---   * M4 -- the login re-apply rode a file-top `CreateFrame` +
---     `RegisterEvent("PLAYER_LOGIN")`, a SECOND login-time registrant where
---     the law allows only Forte_Core's bootstrap frame. The file rides the
---     module registry now (FX.RegisterModule), and the legs pin the registry,
---     the ledger, the default-OFF install and the re-apply seam.
---
--- Every leg installs and restores the client globals it touches; the
--- slash is driven through `FX.OnSlash` (the real dispatch, the Options
--- suite's idiom), and the prints are captured through `FX.Print`.
+-- The slash is driven through `FX.OnSlash` (the real dispatch); the errors
+-- come through the REAL recorder wrapper on a fake client handler surface;
+-- every leg installs and restores the globals it touches.
 
 local FX = ForteXorcist
 local Log = FX.LogModule
+local Errors = FX.Errors
+
+local FORTE_MSG = "Interface\\AddOns\\Forte_Timer\\Core\\Rows.lua:123: attempt to index a nil value"
+local FORTE_STACK = "Interface\\AddOns\\Forte_Timer\\Core\\Rows.lua:123: in function 'Sweep'"
+local FOREIGN_MSG = "Interface\\AddOns\\Bagnon\\Main.lua:9: boom"
+local FOREIGN_STACK = "Interface\\AddOns\\Bagnon\\Main.lua:9: in function 'Open'"
 
 local function capturePrint()
     local lines, real = {}, FX.Print
@@ -42,17 +38,77 @@ local function hasLine(lines, needle)
     return false
 end
 
---- Install the chat-logging surface: the QUERY (`IsLoggingChat`) and the
---- TOGGLER (`LoggingChat`, catalog-shaped: a required boolean).
-local function installChatSurface(query, toggler)
-    local saved = { q = _G.IsLoggingChat, t = _G.LoggingChat }
-    _G.IsLoggingChat = query
-    _G.LoggingChat = toggler
-    return saved
+--- Spies on the whole chat-logging surface: every call is counted and raises
+--- (the catalog's `LoggingChat(enable)` raises on a missing argument; a
+--- query that answers would be the old, wrong read).
+local function installChatSpies()
+    local hits = { n = 0, names = {} }
+    local saved = { t = _G.LoggingChat, q = _G.IsLoggingChat }
+    local function spy(name)
+        return function()
+            hits.n = hits.n + 1
+            hits.names[#hits.names + 1] = name
+            error("FXTEST: " .. name .. " must not be called", 0)
+        end
+    end
+    _G.LoggingChat = spy("LoggingChat")
+    _G.IsLoggingChat = spy("IsLoggingChat")
+    local ci = _G.C_ChatInfo
+    local savedCi
+    if type(ci) == "table" then
+        savedCi = ci.IsLoggingChat
+        ci.IsLoggingChat = spy("C_ChatInfo.IsLoggingChat")
+    end
+    return hits, function()
+        _G.LoggingChat, _G.IsLoggingChat = saved.t, saved.q
+        if type(ci) == "table" then ci.IsLoggingChat = savedCi end
+    end
 end
-local function restoreChatSurface(saved)
-    _G.IsLoggingChat = saved.q
-    _G.LoggingChat = saved.t
+
+--- A fake client around the real recorder wrapper, plus a chat frame spy.
+--- Returns { fire = fn(msg, stack), chat = {lines} } and the restore.
+local function newClient()
+    local saved = {
+        get = _G.geterrorhandler, set = _G.seterrorhandler,
+        stack = _G.debugstack, chatFrame = _G.DEFAULT_CHAT_FRAME,
+        errors = FX.db.errors, since = Errors.sinceLoad, ignored = Errors.ignored,
+        logOn = FX.db.logOn,
+    }
+    Errors:Uninstall()
+    local client = { chat = {}, stack = FOREIGN_STACK, prevCalls = 0 }
+    client.current = function() client.prevCalls = client.prevCalls + 1 end
+    _G.geterrorhandler = function() return client.current end
+    _G.seterrorhandler = function(h) client.current = h end
+    _G.debugstack = function() return client.stack end
+    _G.DEFAULT_CHAT_FRAME = {
+        AddMessage = function(_, text)
+            -- Only the recorder copies: FX.Print status lines share the frame.
+            if tostring(text):find("[FX-ERR]", 1, true) == 1 then
+                client.chat[#client.chat + 1] = text
+            end
+        end,
+    }
+    FX.db.errors = nil
+    Errors.sinceLoad, Errors.ignored = 0, 0
+    assertTrue(Errors:Install())
+    function client.fire(msg, stack)
+        -- The scripted stack is live for this call only: errors the sim
+        -- raises on its own meanwhile must not look like ours.
+        client.stack = stack or FORTE_STACK
+        local r = client.current(msg)
+        client.stack = FOREIGN_STACK
+        return r
+    end
+    return client, function()
+        Log:Disable()
+        Errors:Uninstall()
+        _G.geterrorhandler, _G.seterrorhandler = saved.get, saved.set
+        _G.debugstack, _G.DEFAULT_CHAT_FRAME = saved.stack, saved.chatFrame
+        FX.db.errors = saved.errors
+        Errors.sinceLoad, Errors.ignored = saved.since, saved.ignored
+        FX.db.logOn = saved.logOn
+        Errors:Install()
+    end
 end
 
 -- ============================================================ the shape ==
@@ -62,21 +118,17 @@ function()
     assertNotNil(Log, "FX.LogModule is loaded by Forte_Core")
     assertNotNil(FX.modules["Log"],
         "the login re-apply rides FX.RegisterModule (Core/Init.lua's law:"
-        .. " login work belongs in OnEnable, which the pass calls DIRECTLY)"
-        .. " -- the old file-top CreateFrame + PLAYER_LOGIN was the second"
-        .. " silent registrant the single-registrant law exists to stop")
+        .. " login work belongs in OnEnable, which the pass calls DIRECTLY)")
     assertEquals(Log, FX.modules["Log"])
     assertNotNil(FX.slashSubs["log"], "the /fx log sub rides the seam")
 end)
 
-test("the default install is OFF: no chat logging armed, no SavedVariables write",
+test("the default install is OFF: nothing subscribed, no SavedVariables write",
 function()
     assertEquals(false, Log.on, "a fresh session is not logging")
     assertNil(FX.db and FX.db.logOn,
         "FX.db.logOn is written only by Log:Enable (the ONE SV key of this"
         .. " module); a fresh install carries no key")
-    -- The enable the login pass ran (FX._loginDone) called OnEnable with no
-    -- stored choice: the enable must not have enabled anything.
     if FX._loginDone then
         assertEquals(true, FX._enabledModules["Log"],
             "the login pass ran the Log's OnEnable -- on a fresh install that"
@@ -85,84 +137,99 @@ function()
     assertEquals(false, Log.on, "and the no-op is total")
 end)
 
--- ======================================================== M3: the status ==
+-- ======================================================== the status line ==
 
-test("M3: the bare /fx log with the catalog's required-arg LoggingChat present does NOT raise",
+test("/fx log status has no chatlog field and never touches the chat-logging surface",
 function()
-    -- The exact M3 witness. The old Status called `_G.LoggingChat()` -- the
-    -- C-side usage error that raises rode FX.OnSlash's unprotected dispatch,
-    -- so the whole slash command died. The new read prefers IsLoggingChat
-    -- and never calls the toggler with no argument.
-    local calls = {}
-    local saved = installChatSurface(nil, function(enable)
-        if enable == nil then error("LoggingChat: boolean expected", 0) end
-        calls[#calls + 1] = enable
-    end)
-    local lines, restorePrint = capturePrint()
+    local hits, restoreSpies = installChatSpies()
+    local lines, rp = capturePrint()
     local ok, err = pcall(FX.OnSlash, "log")
-    restorePrint()
-    restoreChatSurface(saved)
-    assertTrue(ok, "the bare status survives the catalog-shaped toggler: "
-        .. tostring(err))
-    assertEquals(0, #calls,
-        "the STATUS line never touches the toggler at all -- it is a read")
-    assertTrue(hasLine(lines, "Log: errors->chat="),
+    rp(); restoreSpies()
+    assertTrue(ok, "the bare status does not raise: " .. tostring(err))
+    assertTrue(hasLine(lines, "Log: errors->chat=false"),
         "the status line printed: " .. (lines[1] or "<nothing>"))
-    assertTrue(hasLine(lines, "chatlog=false"),
-        "no lawful query, no answer: the state reads false")
+    for _, line in ipairs(lines) do
+        assertNil(line:find("chatlog", 1, true), "no chatlog field: " .. line)
+    end
+    assertEquals(0, hits.n, "the status never calls LoggingChat / IsLoggingChat: "
+        .. table.concat(hits.names, ","))
 end)
 
-test("M3: the query absent is inert; the query raising is absorbed; the query answering true reads true",
-function()
-    -- (a) absent: nothing is callable, the read defaults false.
-    local saved = installChatSurface(nil, nil)
+test("/fx log on|off|test never call LoggingChat or IsLoggingChat", function()
+    local client, restore = newClient()
+    local hits, restoreSpies = installChatSpies()
     local lines, rp = capturePrint()
-    local okA = pcall(FX.OnSlash, "log")
-    rp(); restoreChatSurface(saved)
-    assertTrue(okA, "a bare status with NO chat-logging surface must not raise")
-    assertTrue(hasLine(lines, "chatlog=false"))
-
-    -- (b) raising: the read is pcall'd, so a raising query is a "false".
-    saved = installChatSurface(function()
-        error("FXTEST-QUERY-RAISE", 0)
-    end, nil)
-    lines, rp = capturePrint()
-    local okB = pcall(FX.OnSlash, "log")
-    rp(); restoreChatSurface(saved)
-    assertTrue(okB, "a raising query must not reach the slash dispatch")
-    assertTrue(hasLine(lines, "chatlog=false"))
-
-    -- (c) answering: the state rides the answer.
-    saved = installChatSurface(function() return true end, nil)
-    lines, rp = capturePrint()
-    local okC = pcall(FX.OnSlash, "log")
-    rp(); restoreChatSurface(saved)
-    assertTrue(okC)
-    assertTrue(hasLine(lines, "chatlog=true"),
-        "the query's TRUE is the state the status prints")
+    local results = {}
+    for _, cmd in ipairs({ "log on", "log", "log test", "log off", "log" }) do
+        local ok, err = pcall(FX.OnSlash, cmd)
+        results[#results + 1] = ok or (cmd .. ": " .. tostring(err))
+    end
+    rp(); restoreSpies()
+    local logOn = FX.db.logOn
+    restore()
+    for _, r in ipairs(results) do assertEquals(true, r) end
+    assertEquals(0, hits.n, "no chat-logging call at all: " .. table.concat(hits.names, ","))
+    assertNil(logOn, "off cleared the stored switch")
+    for _, line in ipairs(lines) do
+        assertNil(line:find("chatlog", 1, true), "no chatlog field: " .. line)
+    end
+    assertTrue(hasLine(lines, "Log: errors->chat=true"), "the on status")
 end)
 
-test("M3: /fx log on drives the toggler WITH its boolean (the catalog form, never argless)",
+-- ================================================ on = the [FX-ERR] copy ==
+
+test("/fx log on copies recorded errors to chat as [FX-ERR]; foreign errors and off do not",
 function()
-    local calls = {}
-    local saved = installChatSurface(function() return false end,
-        function(enable) calls[#calls + 1] = enable end)
+    local client, restore = newClient()
     local lines, rp = capturePrint()
-    local ok = pcall(FX.OnSlash, "log on")
-    rp(); restoreChatSurface(saved)
-    assertTrue(ok, "/fx log on must not raise")
-    assertEquals(1, #calls, "Enable drove the toggler exactly once")
-    assertEquals(true, calls[1], "with the required boolean true")
-    Log:Disable()                                  -- leave the session off
-    assertNil(FX.db and FX.db.logOn, "Disable clears the SV key (no growth)")
+    pcall(FX.OnSlash, "log on")
+    rp()
+    assertEquals(true, Log.on)
+    assertEquals(true, FX.db.logOn, "the switch persists")
+    client.fire(FORTE_MSG, FORTE_STACK)
+    client.fire(FOREIGN_MSG, FOREIGN_STACK)
+    local afterOn = #client.chat
+    local first = client.chat[1]
+    lines, rp = capturePrint()
+    pcall(FX.OnSlash, "log off")
+    rp()
+    client.fire("Interface\\AddOns\\Forte_Hunter\\X.lua:1: later", FORTE_STACK)
+    local afterOff = #client.chat
+    local prevCalls = client.prevCalls
+    restore()
+    assertEquals(1, afterOn, "exactly the recorded (Forte) error was copied")
+    assertEquals("[FX-ERR] " .. FORTE_MSG:gsub("|", "||"), first)
+    assertEquals(1, afterOff, "off stops the copy")
+    assertEquals(3, prevCalls, "the previous handler ran once per error throughout")
+end)
+
+test("the other kinds are copied with their kind", function()
+    local client, restore = newClient()
+    pcall(FX.OnSlash, "log on")
+    if not Errors._frame then Errors:OnEnable() end
+    local script = Errors._frame and Errors._frame:GetScript("OnEvent")
+    assertNotNil(script)
+    script(Errors._frame, "ADDON_ACTION_BLOCKED", "Forte_Timer", "Frame:Show()")
+    local chat = client.chat
+    restore()
+    assertEquals(1, #chat)
+    assertEquals("[FX-ERR] [blocked] Forte_Timer: Frame:Show()", chat[1])
+end)
+
+test("/fx log on twice subscribes once", function()
+    local client, restore = newClient()
+    pcall(FX.OnSlash, "log on")
+    pcall(FX.OnSlash, "log on")
+    client.fire(FORTE_MSG, FORTE_STACK)
+    local n = #client.chat
+    restore()
+    assertEquals(1, n)
 end)
 
 -- ========================================================== m5: the test ==
 
 test("m5: /fx log test survives a missing handler getter and reports through a present one",
 function()
-    -- (a) the sim shape: no client handler getter at all. The old shape's
-    -- second line called a nil value and died.
     local saved = { g = _G.geterrorhandler, s = _G.seterrorhandler }
     _G.geterrorhandler = nil
     local ok, err = pcall(FX.OnSlash, "log test")
@@ -170,45 +237,39 @@ function()
     _G.seterrorhandler = saved.s
     assertTrue(ok, "the self-test with NO handler getter: " .. tostring(err))
 
-    -- (b) the client shape: the deliberate line is handed to the handler.
     local got = {}
     _G.geterrorhandler = function()
-        return function(err) got[#got + 1] = tostring(err) end
+        return function(e) got[#got + 1] = tostring(e) end
     end
     ok, err = pcall(FX.OnSlash, "log test")
     _G.geterrorhandler = saved.g
     _G.seterrorhandler = saved.s
     assertTrue(ok, "the self-test with a handler getter: " .. tostring(err))
-    assertEquals(1, #got,
-        "the self-test is the one deliberate line through the handler")
+    assertEquals(1, #got, "the self-test is the one deliberate line through the handler")
     assertTrue(got[1]:find("FX log self%-test") ~= nil,
         "and it carries its label: " .. got[1])
 end)
 
 -- ======================================================= M4: the lifecycle ==
 
-test("M4: Log:OnEnable re-applies the stored choice and the enable/disable pair round-trips",
+test("M4: Log:OnEnable re-applies a stored switch (migration: logOn keeps its meaning)",
 function()
+    local client, restore = newClient()
+    local hits, restoreSpies = installChatSpies()
     assertEquals(false, Log.on, "start OFF")
-    local calls = {}
-    local saved = installChatSurface(function() return #calls > 0 end,
-        function(enable) calls[#calls + 1] = enable end)
-    -- The stored choice: the login pass's OnEnable leg enables.
-    FX.db.logOn = true
+    FX.db.logOn = true                      -- what an older build stored
     Log:OnEnable()
     assertEquals(true, Log.on, "the stored `on` re-applies through OnEnable")
-    assertEquals(1, #calls, "the re-apply armed the chat logging once")
-    assertEquals(true, calls[1])
-    -- Idempotence: the enable gate.
-    Log:OnEnable()
-    assertEquals(1, #calls, "a second re-apply is a no-op")
+    Log:OnEnable()                          -- idempotence
+    client.fire(FORTE_MSG, FORTE_STACK)
+    local n = #client.chat
     Log:Disable()
     assertEquals(false, Log.on)
-    assertEquals(2, #calls)
-    assertEquals(false, calls[2], "the disable disarms with the false boolean")
-    -- The no-choice default: OnEnable with no stored key enables nothing.
     assertNil(FX.db.logOn, "Disable cleared the stored key")
     Log:OnEnable()
     assertEquals(false, Log.on, "no stored choice, no enable")
-    restoreChatSurface(saved)
+    restoreSpies()
+    restore()
+    assertEquals(1, n, "the re-applied switch copies errors, once")
+    assertEquals(0, hits.n, "and never calls the chat-logging surface")
 end)

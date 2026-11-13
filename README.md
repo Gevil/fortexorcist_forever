@@ -91,7 +91,7 @@ write into the git tree through a symlink).
 
 | Folder | What it does |
 |---|---|
-| `Forte_Core` | Required by every other folder. Bootstrap, Forever compat layer, constants, saved-variables store and profiles, event bus, the `/fx` command, `/fx probe`, `/fx log`, `/fx test`, and the shared textures, font and sound. |
+| `Forte_Core` | Required by every other folder. Bootstrap, Forever compat layer, constants, saved-variables store and profiles, event bus, the `/fx` command, `/fx probe`, `/fx errors`, `/fx log`, `/fx test`, and the shared textures, font and sound. |
 | `Forte_Cooldown` | **Cooldown Timer** (one bar on a power-scale time axis), **Secondary Splash**, the cooldown engine behind them: spells, trinkets and potions, weapon enchants, racials, optional item procs. |
 | `Forte_Timer` | **Spell Timer**: stacked rows per spell and target. |
 | `Forte_Messages` | **Messages & Sound**: self messages, banner, sounds, opt-in party/raid announcements. |
@@ -156,7 +156,8 @@ values the game keeps readable in combat, and corrects itself whenever real valu
 | `/fx test` · `/fx test on` · `off` · `status` | demo mode: fills the cooldown bar, Spell Timer and (Hunter) swing bar with synthetic entries. Refused in combat, never sends chat, never saves. |
 | `/fx messages` | Messages & Sound counters |
 | `/fx probe` · `/fx probe show` · `clear` · `bar` · `bar off` | diagnostics: records what the game lets addons read, in or out of combat, into the saved variables |
-| `/fx log` · `/fx log on` · `off` · `test` | with `on`, every Lua error is copied to chat as `[FX-ERR]` |
+| `/fx errors` · `/fx errors clear` | lists the Lua errors, blocked actions and warnings the addon recorded for itself (kept in the saved variables, newest last, at most 20) |
+| `/fx log` · `/fx log on` · `off` · `test` | with `on`, each recorded error is also copied to chat as `[FX-ERR]` as it happens, and cast tracing is switched on. It does not touch the game's chat log. |
 
 ## Settings and profiles
 
@@ -234,7 +235,9 @@ values the game keeps readable in combat, and corrects itself whenever real valu
 - **Bars are locked and you cannot move them.** `/fx unlock`, drag, `/fx lock`.
 - **A bar is in the wrong place or gone.** `/fx reset` resets the cooldown bar; `/fx reset <module>`
   resets a module's settings.
-- **A Lua error.** `/fx log on` copies every error to chat as `[FX-ERR]`; copy that line into the issue.
+- **A Lua error.** ForteXorcist records its own errors quietly: type `/fx errors` to list them, and copy
+  the lines into the issue. `/fx log on` also prints each new one in chat as `[FX-ERR]`. After a `/reload`
+  or logout the same list is in `SavedVariables/Forte_Core.lua` (`ForteXorcistDB.errors`).
 - **Something reads wrong in combat.** Run `/fx probe` out of combat and again in combat (it opens in a
   copy window; click the text, `Ctrl-C`), and attach both blocks. `/fx probe bar` shows a bar fed by a
   duration the addon builds itself, to see whether that ticks in combat.
@@ -253,7 +256,7 @@ What you did:
 What you expected:
 What happened instead:       (screenshot if it is visual)
 In combat or out of combat:
-Lua error text:              (/fx log on, then paste the [FX-ERR] line)
+Lua error text:              (/fx errors, then paste the lines)
 /fx status output:
 ```
 

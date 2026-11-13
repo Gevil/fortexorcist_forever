@@ -12,6 +12,17 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
 
 ---
 
+## Unreleased
+
+- **Error recorder and a fixed `/fx log`.** The addon now quietly records its own Lua errors, blocked
+  actions and warnings (only those that concern ForteXorcist, never other addons') in the saved
+  variables; `/fx errors` lists them and `/fx errors clear` empties the list. `/fx log on` now copies each
+  recorded error to chat as `[FX-ERR]` and turns on cast tracing; it no longer switches the game's chat
+  logging on (that only records your real chat and never carried our lines), and the status line no longer
+  shows the wrong `chatlog=` value.
+
+---
+
 ## [1.0.0] - 2026-11-11
 
 First full release for **WoW Forever 1.60.1** (interface 16001). Everything from the

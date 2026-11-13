@@ -218,8 +218,11 @@ rank pins are GENERATED data (M3a), so their rows are the ones to watch.
 4. **(Rogue) Shank.** Cast it: a **10 s** cooldown icon rides the bar (the
    70790 capture gave the row its values — Shank 1329549 Rank 2 — the name
    carried none before).
-5. **`/fx log` with no argument** prints a status line (what logging is
-   doing), **no** red error line, no Lua error.
+5. **`/fx log` with no argument** prints a status line (`Log: errors->chat=…
+   recorded=…`, no `chatlog` field — the game's chat log never carried our
+   lines, measured 2026-11-12), **no** red error line, no Lua error.
+   `/fx errors` lists what the addon recorded for itself (nothing on a clean
+   session); the same list is in `ForteXorcistDB.errors` after a `/reload`.
 6. **Options closes with Esc.** `/fx options`, press **Esc** — the window
    closes (F1 proved the X; this is the keyboard half).
 7. **Bar smooth + CPU sane.** Watch the cooldown bar fill for ~10 s: the
