@@ -54,6 +54,7 @@ launch-day probe (list below), which is exactly why the Auto Shot cast fallback 
 | `UNIT_SPELLCAST_SUCCEEDED` | **yes** — `(unit, castGUID, spellID[, castBarID])`, 4th field tolerated | **`SecretWhenUnitSpellCastRestricted=true`** → spellID may be secret in combat; name resolution pcall-guarded | `wow-api-unit-player …/forever.json` ← `UnitDocumentation.lua:4844` |
 | `C_Spell.GetSpellInfo(spellID)` | **yes** — used for id→name | `SecretArguments=AllowedWhenTainted`; result `.name` through `PlainOrNil` | `wow-api-spells-abilities …/forever.json` ← `SpellDocumentation.lua:415` |
 | `PLAYER_REGEN_ENABLED` | **yes** — out-of-combat marker → reconcile trigger | — | `UnitDocumentation.lua:3890` |
+| `UNIT_AURA` (registered `player` only) | **yes** — out-of-combat aspect reconcile trigger (debounced 0.2 s) | payload `(unitTarget, updateInfo)` is not read | `UnitAuraDocumentation.lua` |
 | `C_UnitAuras.GetAuraDataBySpellName(unit, spellName, filter)` | **yes** — the name-resolving lookup we use; `unit` NeverSecret, `filter` Nilable (we pass nil) | **`SecretWhenUnitAuraRestricted=true`**, `RequiresNonSecretAura` → secret return = "no reliable information" | `UnitAuraDocumentation.lua:244`; Blizzard usage: `Blizzard_FrameXMLUtil/AuraUtil.lua:87` |
 | `C_UnitAuras.GetPlayerAuraBySpellName` | **NO — does not exist** in the catalog (whole `C_UnitAuras` set enumerated). The assignment's name is replaced by the row above | — | audited across every `*/references/generated/forever.json` |
 | `UnitRangedDamage(unit)` | **yes** — first return is `speed` (then min/max/pos/neg/percent) | **`SecretWhenUnitStatsRestricted=true`** → every return through `PlainOrNil` | `UnitDocumentation.lua:2961` |
@@ -67,7 +68,7 @@ launch-day probe (list below), which is exactly why the Auto Shot cast fallback 
 
 | State | In combat | Out of combat |
 |---|---|---|
-| Current aspect | **predicted**: our own cast event, resolved id→name, name ∈ derived list | **read**: `Reconcile()` via `C_UnitAuras.GetAuraDataBySpellName` per aspect (triggered by `PLAYER_REGEN_ENABLED`) — corrects a wrong prediction, clears all-absent, secret/nil reads leave state untouched |
+| Current aspect | **predicted**: our own cast event, resolved id→name, name ∈ derived list | **read**: `Reconcile()` via `C_UnitAuras.GetAuraDataBySpellName` per aspect (triggered by `PLAYER_REGEN_ENABLED`, `PLAYER_ENTERING_WORLD` + one pass ~1 s later, and the player's own `UNIT_AURA` coalesced to one pass per 0.2 s; skipped while a plain in-combat read is true) — corrects a wrong prediction, clears all-absent, secret/nil reads leave state untouched; a reconcile that moves `current` calls the tracker's `OnChange` listener (the reminder) |
 | Ranged swing | **event-driven**: `PLAYER_SWING` (no secret annotation on its payload) — no prediction window; `Auto Shot` cast events are the fallback start if the events do not reach addons | same (events are flavor-independent); `UnitRangedDamage`/`UnitAttackSpeed` speed reads are plain |
 | `Missing()` reminder | never (combat gate) | true only when no aspect is known active |
 

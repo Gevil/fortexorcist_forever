@@ -14,6 +14,11 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
 
 ## Unreleased
 
+- **The Hunter aspect reminder no longer blinks after a reload or login when an aspect is already
+  active, and it now reacts when an aspect is cancelled out of combat.** The addon only looked at your
+  buffs when a fight ended, so after `/reload`, a login or a zone change it thought you wore no aspect
+  until your next fight. It now reads the aspect on entering the world (once more a second later, in
+  case your buffs were still loading) and whenever your own buffs change out of combat.
 - **Error recorder and a fixed `/fx log`.** The addon now quietly records its own Lua errors, blocked
   actions and warnings (only those that concern ForteXorcist, never other addons') in the saved
   variables; `/fx errors` lists them and `/fx errors clear` empties the list. `/fx log on` now copies each
