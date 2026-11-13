@@ -31,6 +31,7 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
   whole session. A font is now rejected only when the client refuses the file outright, the shipped font is
   pre-loaded at login, and text that is sized right after the font is set (Warlock shard label, Spell Timer
   time column, options labels and tabs) is measured again once the font has loaded.
+- **Spell data follows the 12 November hotfixes.** Stormstrike's cooldown is 8 s (was 6 s).
 
 ---
 

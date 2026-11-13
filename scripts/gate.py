@@ -20,6 +20,18 @@ ADDONS = os.path.join(ROOT, "addon")
 SIM = os.environ.get("WOW_UI_SIM") or os.path.join(os.path.dirname(ROOT), "wow-ui-sim", "run.sh")
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 FORTE_ERR = re.compile(r"(Forte_\w+/[\w/\.]+:\d+)")
+# A traceback FRAME that is one of our test files ("...Forte_X/tests/test_y.lua:34: in function 'f'")
+# is the caller, not the error: when a test advances the sim clock and BLIZZARD code raises inside
+# that tick (Blizzard_GamepadActionBars' IsPetOrderMoveToPending nil, present at every load), the
+# sim prints the stack and our test file is on it. Such frames are not error sites. Everything else
+# still counts: the "Lua error: <Forte file>:<line>: msg" line itself (add-on code OR a test file
+# raising in a script) and every traceback frame in add-on (non-test) code. 2026-11-13, PLAN 11.12.
+TEST_FRAME = re.compile(r"Forte_\w+/tests/[\w/\.]+:\d+: in ")
+
+
+def forte_error_sites(out):
+    return sorted({m for line in out.splitlines() if not TEST_FRAME.search(line)
+                   for m in FORTE_ERR.findall(line)})
 
 failures = []
 
@@ -55,7 +67,7 @@ def run_tests():
         rc, out = sim("run-tests", addon)
         counts = re.findall(r"(\d+) tests?, (\d+) passed, (\d+) failed", out)
         fails = [l.strip()[:140] for l in out.splitlines() if "\u2717" in l]
-        errs = sorted(set(FORTE_ERR.findall(out)))
+        errs = forte_error_sites(out)
         ok = rc == 0 and counts and counts[-1][2] == "0" and not fails and not errs
         print(f"[tests] {addon}: "
               f"{counts[-1] if counts else 'no summary'} rc={rc} {'OK' if ok else 'FAIL'}")
@@ -98,7 +110,7 @@ PROBE = ('local k={} for n in pairs(ForteXorcist.Data or {}) do if not n:find("B
 
 def lua_errors():
     rc, out = sim("lua-errors")
-    errs = sorted(set(FORTE_ERR.findall(out)))
+    errs = forte_error_sites(out)
     print(f"[load] Forte_* error sites: {errs or 'none'}")
     if errs: failures.append("lua-errors")
     # The sim's load summary only lists the slowest addons, so prove loading from live globals
