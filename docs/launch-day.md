@@ -191,6 +191,10 @@ re-stamp §8 risks with the measured facts.
 
 ## Next live session (after 2026-11-07 refresh)
 
+> **Answered live 2026-11-13 (client 1.60.1.70938):** a duration object the addon builds DOES animate the addon's own
+> StatusBar through `SetTimerDuration` (texture width 50/100/150/200 px of 200 at 1/2/3/4.5 s); `GetValue()` stays 0.
+> See PLAN §11.13. The aspect lookup `GetAuraDataBySpellName("player", name, nil)` finds the buff (nil filter is fine).
+
 Numbered checks only the real client can answer, in order. The refresh is
 the Iteration-M build: the Timer's dead-target cleanup rides a new
 `UnitIsDeadOrGhost` gate, and the racials, the shared-cooldown pair and the
