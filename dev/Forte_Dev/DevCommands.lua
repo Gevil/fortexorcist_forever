@@ -1,0 +1,12 @@
+-- Forte_Dev/DevCommands.lua
+-- The command queue. REWRITTEN by the owner's own host tool (scripts/fxdev.py commands ...) before a
+-- /reload; nothing else writes it. Forte_Dev runs it ONCE per UI load, ~3 s after PLAYER_ENTERING_WORLD,
+-- never in combat, each entry through the same dispatcher as the /fxdev slash command.
+--
+-- Entries:
+--   "selftest ooc"               a /fxdev verb (selftest [ooc|combat|all], shot, status, panel on|off, run, clear)
+--   { verb = "shot" }            the same, as a table
+--   { lua = "return 1 + 1" }     free-form Lua through loadstring + pcall -- the same power as /run, which is
+--                                why this file must only ever be written by the owner's own tooling. The
+--                                result (or the error) is recorded in ForteDevDB.commands.
+ForteDevCommands = {}

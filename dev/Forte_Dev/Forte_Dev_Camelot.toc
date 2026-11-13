@@ -1,0 +1,22 @@
+## Interface: 16001
+## Title: |cffC41F3BForte|r Dev (not shipped)
+## Notes: ForteXorcist dev loop -- selftest runner, beacon, panel, DevCommands. Never released (.pkgmeta ignores dev/).
+## Version: dev
+## Author: Gevil
+## Dependencies: Forte_Core
+## SavedVariables: ForteDevDB
+
+DevStamp.lua
+DevCommands.lua
+Core.lua
+Selftest.lua
+Suites/ApiList.lua
+Suites/Census.lua
+Suites/Api.lua
+Suites/Frames.lua
+Suites/Persistence.lua
+Suites/Data.lua
+Suites/Errors.lua
+Suites/Combat.lua
+Beacon.lua
+Panel.lua

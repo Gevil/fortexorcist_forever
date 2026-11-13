@@ -40,6 +40,8 @@ ignore:
   - docs
   - tools
   - scripts
+  # the in-game dev loop (dev/Forte_Dev, dev/README.md, dev/gen_api_list.py): never released
+  - dev
   - dist
   - scratch
   - .github
