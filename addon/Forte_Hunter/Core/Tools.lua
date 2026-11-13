@@ -119,6 +119,7 @@ end
 function AspectTracker:Reconcile(readAura)
     local reader = readAura or FX.Hunter.DefaultAuraReader
     local found, unknown = nil, false
+    local prev = self.current
     for _, name in ipairs(self.order) do
         local ok, v = pcall(reader, name)
         local state
@@ -132,13 +133,27 @@ function AspectTracker:Reconcile(readAura)
     end
     if found then
         self.current = found
+        self:_Notify(prev)
         return "adopted"
     end
     if not unknown then
         self.current = nil
+        self:_Notify(prev)
         return "cleared"
     end
     return "unchanged"
+end
+
+--- Register the ONE change listener (the aspect reminder): `fn(current,
+--- previous)` runs after a Reconcile that moved `current`. nil clears it.
+function AspectTracker:OnChange(fn)
+    self.onChange = fn
+end
+
+function AspectTracker:_Notify(prev)
+    if self.current == prev then return end
+    local cb = self.onChange
+    if cb then pcall(cb, self.current, prev) end
 end
 
 function AspectTracker:Current()
@@ -908,8 +923,12 @@ end
 --- `C_UnitAuras.GetAuraDataBySpellName(unit, spellName, filter)` -- the
 --- name-resolving player-scoped lookup the Forever catalog ships
 --- (UnitAuraDocumentation.lua:244, SecretWhenUnitAuraRestricted, filter
---- Nilable so we pass nil), fed the `auraLookup` key so the name it resolves
---- is the CLIENT's. Its return is SecretWhenUnitAuraRestricted: a secret
+--- Nilable, type AuraFilters) fed the `auraLookup` key so the name it
+--- resolves is the CLIENT's. The pinned docs are SILENT on what a nil
+--- filter searches and on whether the name match is exact (the only
+--- documented call, UNIT-AURAS.md:44, passes "HELPFUL"; the catalog entry
+--- carries no default), so the nil stays until the real client confirms it.
+--- Its return is SecretWhenUnitAuraRestricted: a secret
 --- value reads as "no reliable information" (nil), a plain nil as "confirmed
 --- not active" (false).
 function FX.Hunter.DefaultAuraReader(name)
@@ -1109,6 +1128,56 @@ local function canonicalName(name)
 end
 M.CanonicalCastName = canonicalName
 
+-- ------------------------------------------- the aspect reconcile triggers --
+local RECONCILE_DEBOUNCE = 0.2   -- UNIT_AURA burst -> one pass
+local RECONCILE_LATE = 1.0       -- the one-shot pass after PLAYER_ENTERING_WORLD
+
+--- Arm a one-shot `C_Timer.After`; false when no timer surface exists.
+local function armTimer(seconds, fn)
+    if type(C_Timer) ~= "table" or type(C_Timer.After) ~= "function" then
+        return false
+    end
+    return (pcall(C_Timer.After, seconds, fn))
+end
+
+--- One reconcile pass, skipped while a plain "in combat" read is true (the
+--- aura reads are secret there; Reconcile would keep `current` anyway).
+--- An unknown (nil) combat read still reconciles: Reconcile itself never
+--- clears on an unknown aura read.
+local function reconcileAspects(m)
+    local t = m.Aspects
+    if t:IsCombat() == true then return end
+    t:Reconcile()
+end
+
+--- UNIT_AURA fires in bursts: the first event arms a self-clearing flag and
+--- one timer (the Forte_Cooldown/Module.lua debounce idiom); the rest of
+--- the burst is swallowed until the pass has run.
+local function scheduleAspectReconcile(m)
+    if m._auraPending then return end
+    m._auraPending = true
+    local armed = armTimer(RECONCILE_DEBOUNCE, function()
+        m._auraPending = false
+        if m._eventsEnabled then reconcileAspects(m) end
+    end)
+    if not armed then
+        m._auraPending = false
+        reconcileAspects(m)
+    end
+end
+
+--- The PLAYER_ENTERING_WORLD follow-up: one pass, one outstanding timer,
+--- never re-arms itself (UNIT_AURA covers anything later).
+local function scheduleLateAspectPass(m)
+    if m._latePending then return end
+    m._latePending = true
+    local armed = armTimer(RECONCILE_LATE, function()
+        m._latePending = false
+        if m._eventsEnabled then reconcileAspects(m) end
+    end)
+    if not armed then m._latePending = false end
+end
+
 local function onToolEvent(self, event, a1, a2, a3, a4)
     if event == "UNIT_SPELLCAST_SUCCEEDED" then
         -- (unitTarget, castGUID, spellID[, castBarID]) -- a2 guid, a3 id.
@@ -1148,6 +1217,14 @@ local function onToolEvent(self, event, a1, a2, a3, a4)
         self.Swing:OnSwingRange(a1, a2, a3)
     elseif event == "PLAYER_REGEN_ENABLED" then
         self.Aspects:Reconcile()
+    elseif event == "UNIT_AURA" then
+        -- (unitTarget, updateInfo): the registration is player-scoped, the
+        -- unit check keeps a re-registered/unscoped frame honest. In combat
+        -- the reads are secret, so nothing is scheduled; the debounce
+        -- coalesces the burst out of combat into one reconcile.
+        if a1 == "player" and self.Aspects:IsCombat() ~= true then
+            scheduleAspectReconcile(self)
+        end
     elseif event == "PLAYER_STARTED_MOVING" then
         self.Swing:OnPlayerStartedMoving()
     elseif event == "PLAYER_STOPPED_MOVING" then
@@ -1164,6 +1241,13 @@ local function onToolEvent(self, event, a1, a2, a3, a4)
         sw.factsInRange, sw.at, sw.pending, sw.cast = nil, nil, nil, nil
         sw.flying, sw.feignPending, sw.retryUntil = nil, nil, nil
         sw.movePulseAt = nil
+        -- Login, /reload and zone-in: the aspect may already be worn (our
+        -- own cast memory is empty after a reload), so read it now, and once
+        -- more shortly after -- the player's auras can still be loading at
+        -- the session's first PLAYER_ENTERING_WORLD, where "absent" is not
+        -- yet final. The late pass schedules nothing further.
+        reconcileAspects(self)
+        scheduleLateAspectPass(self)
     elseif event == "START_AUTOREPEAT_SPELL" then
         -- No payload (the pinned declaration carries none): Auto Shot and
         -- wand Shoot share this one path -- the §B2 finding.
@@ -1222,6 +1306,9 @@ function M:EnableEvents()
     f:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
     f:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
     f:RegisterUnitEvent("UNIT_SPELLCAST_FAILED_QUIET", "player")
+    -- The player's own aura changes: the out-of-combat aspect reconcile's
+    -- trigger (a lost/cancelled aspect, an aspect worn across a /reload).
+    f:RegisterUnitEvent("UNIT_AURA", "player")
     f:RegisterEvent("PLAYER_SWING")
     f:RegisterEvent("PLAYER_SWING_RANGE_UPDATE")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
@@ -1260,6 +1347,7 @@ function M:DisableEvents()
             f:UnregisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
             f:UnregisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
             f:UnregisterUnitEvent("UNIT_SPELLCAST_FAILED_QUIET", "player")
+            f:UnregisterUnitEvent("UNIT_AURA", "player")
         end
         if f.UnregisterEvent then
             f:UnregisterEvent("PLAYER_SWING")

@@ -24,7 +24,8 @@
 -- Update law: the OnUpdate script exists ONLY while the icon is on screen
 -- (it drives the pulse); hidden = no script, no per-frame work. Transitions
 -- INTO the shown state come from the UI module's event kicks (regen
--- enabled/disabled, cast, zone-in), never from a standing ticker.
+-- enabled/disabled, cast, zone-in) and from the tracker's change callback
+-- (R:_Watch: a reconcile that moved the aspect), never from a standing ticker.
 --
 -- Position lives in FX.db.hunterReminder. Settings (module "Hunter"):
 -- EnableReminder gates it; the aspect icon colour rides ReminderColor.
@@ -84,6 +85,7 @@ function R:Init()
     if self.anchor then return end
     self.cfg = cfgDefaults(config())
     self.Aspects = self.Aspects or (FX.Hunter.Tools and FX.Hunter.Tools.Aspects)
+    self:_Watch(self.Aspects)
 
     local f = CreateFrame("Frame", "ForteXorcistHunterReminderAnchor", UIParent,
         BackdropTemplateMixin and "BackdropTemplate" or nil)
@@ -130,6 +132,23 @@ end
 function R:SetAspects(tracker)
     self.Aspects = tracker
     self._shown, self._alpha = nil, nil
+    self:_Watch(tracker)
+end
+
+--- Subscribe to the tracker's change callback: a reconcile that moves the
+--- aspect (a reload that finds one worn, one cancelled out of combat)
+--- shows/hides the icon at once. A hidden frame gets no OnUpdate, so the
+--- 10 Hz self-heal cannot be what brings a hidden reminder back. The
+--- callback is the tracker's (pcall'd there); no chat output.
+function R:_Watch(tracker)
+    local old = self._watched
+    if old == tracker then return end
+    if old and old.onChange == self._changeCb then old:OnChange(nil) end
+    self._watched = tracker
+    if tracker and tracker.OnChange then
+        self._changeCb = self._changeCb or function() R:Refresh() end
+        tracker:OnChange(self._changeCb)
+    end
 end
 
 -- -------------------------------------------------------------- position --
