@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: |cffC41F3BForte|r Core
 ## Notes: ForteXorcist for WoW Forever -- shared bootstrap, compat layer and constants.
-## Version: 1.0.0
+## Version: 1.0.1
 ## Author: Gevil
 ## X-Curse-Project-ID: 1796794
 ## SavedVariables: ForteXorcistDB

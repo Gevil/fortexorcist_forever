@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: |cffC41F3BForte|r Items
 ## Notes: ForteXorcist item on-use/proc/consumable data (generated -- see tools/gen_item_data.py).
-## Version: 1.0.0
+## Version: 1.0.1
 ## Author: Gevil
 ## Dependencies: Forte_Core
 

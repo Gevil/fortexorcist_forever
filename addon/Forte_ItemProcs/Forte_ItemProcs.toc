@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: |cffC41F3BForte| Item Procs
 ## Notes: ForteXorcist item proc data (generated -- see tools/gen_item_data.py). Load-on-demand: parsed only when the Cooldown proc display (Cooldown.Procs) is switched on.
-## Version: 1.0.0
+## Version: 1.0.1
 ## Author: Gevil
 ## Dependencies: Forte_Core
 ## LoadOnDemand: 1
