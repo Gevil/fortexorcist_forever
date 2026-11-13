@@ -22,7 +22,13 @@
 -- shared Lock state (FX.Settings Hunter.Lock) gates the swing bar only.
 --
 -- Update law: the OnUpdate script exists ONLY while the icon is on screen
--- (it drives the pulse); hidden = no script, no per-frame work. Transitions
+-- (it drives the pulse); hidden = no script, no per-frame work. Motion
+-- follows the frame, logic does not (PLAN §11.13): the PULSE (alpha, the
+-- same cosine breath as always, off GetTime()) is computed on EVERY frame
+-- the icon is shown, while the state self-heal (`Refresh`: Missing(), the
+-- icon, hide when an aspect is adopted) stays on the 10 Hz cadence and on
+-- the tracker's change callback (`Aspects:OnChange`, subscribed in Init) --
+-- no tracker or client read per frame. Transitions
 -- INTO the shown state come from the UI module's event kicks (regen
 -- enabled/disabled, cast, zone-in) and from the tracker's change callback
 -- (R:_Watch: a reconcile that moved the aspect), never from a standing ticker.
@@ -57,7 +63,8 @@ FX.Hunter.ReminderSkin = {
 local S = FX.Hunter.ReminderSkin
 
 local DEFAULT = { point = "CENTER", relPoint = "CENTER", x = 160, y = -175 }
-local TICK_SECONDS = 0.1                      -- 10 Hz pulse sampling
+local TICK_SECONDS = 0.1                      -- the 10 Hz self-heal (Refresh);
+                                              -- the pulse is per frame
 
 R.state = { enabled = true }
 local ST = R.state
@@ -315,15 +322,18 @@ function R:StartTicking()
     self._acc = 0
     local f = self.anchor
     f:SetScript("OnUpdate", function(_, elapsed)
+        local now = GetTime()
         local acc = (self._acc or 0) + (tonumber(elapsed) or 0)
         if acc < TICK_SECONDS then
+            -- Between self-heal passes: the pulse alone, every frame.
             self._acc = acc
+            self:UpdateAlpha(now)
             return
         end
         self._acc = 0
         -- The pulse AND a state self-heal: an aspect cast (the tracker
         -- adopts it) hides the reminder within one 10 Hz pass.
-        if not self:Refresh(GetTime()) then self:StopTicking() end
+        if not self:Refresh(now) then self:StopTicking() end
     end)
 end
 

@@ -12,7 +12,9 @@
 -- SetEnabled -- never at file load); every style setter is dirty-checked;
 -- the OnUpdate ticker exists ONLY while the rail is on screen (a hidden
 -- frame gets no OnUpdate -- show transitions render synchronously from
--- the Core/Melee.lua event kicks). Click-through chrome (EnableMouse
+-- the Core/Melee.lua event kicks). PLAN §11.13: the ticker's EDGE pass
+-- (10 Hz: gate, text, show/hide) is `Refresh`; the fill rides every frame
+-- off the numbers that pass cached (`_ApplyFill`, GetTime() only). Click-through chrome (EnableMouse
 -- false, SetMovable false) like the range light and the Reminder: no
 -- handle of its own, it rides the bar's drag through the anchor chain.
 --
@@ -80,7 +82,9 @@ FX.Hunter.MeleeSkin = {
 }
 local S = FX.Hunter.MeleeSkin
 
-local TICK_SECONDS = 0.1                        -- the 10 Hz display law
+local TICK_SECONDS = 0.1                        -- the 10 Hz EDGE pass (gate,
+                                                -- text); the fill rides every
+                                                -- frame (PLAN §11.13)
 
 --- The module's live state. EnableMeleeRail defaults OFF (§7.5: the
 --- option is the rail; off = no frame, no ticker, no events).
@@ -266,7 +270,30 @@ function D:Refresh()
         self:_ApplyAnchor()
         self.anchor:Show()
     end
+    -- The motion cache (PLAN §11.13): the clock's numbers at this edge,
+    -- on GetTime()'s base whatever clock the tracker reads (a stub's own
+    -- clock included). The fill is the pure `_ApplyFill` of them.
+    local d = tracker.duration
+    self._mG, self._mFrac = GetTime(), fraction
+    self._mDur = (type(d) == "number" and d > 0) and d or nil
+    self:_ApplyFill(self._mG)
+    local key = math.floor(remaining * 10 + 0.5)
+    if self._timeKey ~= key then
+        self._timeKey = key
+        self.text:SetText(D.FormatRemaining(remaining))
+    end
+    self:StartTicking()
+    return true
+end
+
+--- The fill's width at `t` (the cached cycle numbers, linear in time; full
+--- = ready and it stays full past the cycle's end): the ONE function the
+--- edge pass and the motion pass share, so they cannot disagree.
+function D:_ApplyFill(t)
     local W = self._w or 200
+    local fraction = self._mFrac
+    local dur = self._mDur
+    if dur then fraction = fraction + (t - self._mG) / dur end
     local w = fraction * W
     if w < 0 then
         w = 0
@@ -277,13 +304,13 @@ function D:Refresh()
         self._fillW = w
         self.fill:SetSize(w, S.Height)
     end
-    local key = math.floor(remaining * 10 + 0.5)
-    if self._timeKey ~= key then
-        self._timeKey = key
-        self.text:SetText(D.FormatRemaining(remaining))
-    end
-    self:StartTicking()
-    return true
+end
+
+--- The per-frame pass (the ticker's work between edge passes): no
+--- tracker call, no gate, no text -- the fill from the cached numbers.
+function D:_MotionPass(now)
+    if not self._shown or self._mG == nil then return end
+    self:_ApplyFill(now)
 end
 
 function D:HideNow()
@@ -296,7 +323,7 @@ function D:HideNow()
         self._timeKey = nil
         self.text:SetText("")
     end
-    self._fillW = nil
+    self._fillW, self._mG = nil, nil
     if self.fill and self.anchor and self.fill.SetSize then
         -- Park the fill at empty, dirty-checked through _fillW.
         self.fill:SetSize(0, S.Height)
@@ -313,13 +340,16 @@ function D:StartTicking()
     self.anchor:SetScript("OnUpdate", function(_, elapsed)
         local acc = (self._acc or 0) + (tonumber(elapsed) or 0)
         if acc < TICK_SECONDS then
+            -- Between edge passes: the MOTION pass -- the fill off the
+            -- cached clock numbers and GetTime(), nothing else.
             self._acc = acc
+            self:_MotionPass(GetTime())
             return
         end
         self._acc = 0
-        -- The gate rides every pass: the range band leaving `melee` and
-        -- the out-of-combat edge hide the rail within a tick, no ticker
-        -- surviving them (the idle law).
+        -- The EDGE pass: the gate rides every one -- the range band leaving
+        -- `melee` and the out-of-combat edge hide the rail within a tick,
+        -- no ticker surviving them (the idle law).
         if not self:Refresh() then self:StopTicking() end
     end)
     -- The hidden-frame law: a shown-during-this-pass frame renders

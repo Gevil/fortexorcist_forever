@@ -42,7 +42,9 @@ local function fakeTracker(nowBox)
 end
 
 -- The whole file is the geometry-LAW suite: it reads the drawn fill width,
--- which is the v2 10 Hz SetSize law. Wave I-3 added the engine-armed fill
+-- which is the v2 Lua SetSize law (the edge pass `Update`; PLAN §11.13: the
+-- per-frame motion pass runs the same function, pinned in
+-- test_swing_motion.lua). Wave I-3 added the engine-armed fill
 -- beside it (UI/Swing.lua's Fill law; its default posture is this same lua
 -- path, and the flip of that default is a launch-day probe), so the mode is
 -- pinned here explicitly: this file keeps pinning the law no matter which
@@ -149,7 +151,7 @@ test("the bar hides after completion and the OnUpdate script is gone", function(
     Swing:SetShowSafeWindow(true)
 end)
 
-test("the 10 Hz OnUpdate exists only while a swing runs", function()
+test("the OnUpdate (10 Hz edge pass + per-frame motion) exists only while a swing runs", function()
     local t = FX.Hunter.NewSwingTracker({
         now = function() return GetTime() end,
         speedReader = function() return nil end,

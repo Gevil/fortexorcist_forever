@@ -6,7 +6,7 @@
 --   * the ENGINE-DRIVEN FILL: where StatusBar:SetTimerDuration +
 --     C_DurationUtil.CreateDuration + the two Status-bar enums exist, the
 --     reload/aim fill can be armed at the cycle's state edges and animated
---     by the client -- no Lua fill maths per frame; the v2 10 Hz SetSize
+--     by the client -- no Lua fill maths per frame; the v2 Lua SetSize
 --     law is the second path and the shipped DEFAULT (UI/Swing.lua's
 --     DEFAULT POSTURE: this simulator accepts the arm, its duration object
 --     counts down, and its widget never consumes it -- the gate test
@@ -115,7 +115,7 @@ end)
 --- One Auto Shot cycle through the REAL Update path: a 2.0 s cycle with a
 --- 2.0 s base speed (aimLen = 0.5 x 2.0/2.0 = 0.5, the window the slice
 --- keeps), the shot's START at the floor, SUCCEEDED (the proven flight),
---- then the next PLAYER_SWING re-arm; sampled at the 10 Hz render rate.
+--- then the next PLAYER_SWING re-arm; sampled at the 10 Hz edge-pass rate.
 --- `mode` picks the fill path; returns {observations, passes}.
 local function runCycle(mode)
     Swing:SetFillEngineMode(mode)
