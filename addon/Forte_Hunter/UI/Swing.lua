@@ -14,7 +14,8 @@
 --   * frames are created inside Init, which runs from the module's OnEnable
 --     (PLAYER_LOGIN) or an OnClassChanged handler -- never at file load
 --     (Forte_Core/Core/Init.lua's taint rule);
---   * every style setter is dirty-checked, the pass runs at 10 Hz;
+--   * every style setter is dirty-checked; the EDGE pass runs at 10 Hz and
+--     the MOTION pass (everything that travels with time) every frame;
 --   * the lock convention (m4): SetLocked publishes the state into
 --     FX.Settings (module "Hunter", key "Lock", guarded by
 --     store-inequality so a listener calling back stops there) and locking
@@ -31,8 +32,23 @@
 -- Update law: the OnUpdate script exists ONLY while a swing runs
 -- (SetScript("OnUpdate", fn) when a swing event arrives, SetScript
 -- ("OnUpdate", nil) the moment the tracker reports idle) -- an idle bar
--- costs no per-frame work. The script accumulates elapsed time and renders
--- at 10 Hz, never every frame.
+-- costs no per-frame work. MOTION FOLLOWS THE FRAME, LOGIC DOES NOT
+-- (PLAN §11.13): the script splits each bar into
+--   * the EDGE pass (`D:Update`, 10 Hz by the accumulated `elapsed`, plus
+--     an immediate one the frame a cached edge time has passed): phase
+--     decisions, every tracker read through the existing seams, the
+--     text, the colours, show/hide and the idle transition. It caches the
+--     numbers the motion needs (cycle start/duration, aim length, the
+--     floor, the retry deadline, the frozen interlock width, the clip and
+--     GCD seconds) in the `_g*` fields and the next time one of them
+--     expires in `_nextEdge`;
+--   * the MOTION pass (`D:_MotionPass`, every rendered frame, `GetTime()`
+--     as the only input): the fill width, the spark's position and alpha
+--     ramp, the slices and the clip/weave markers -- `D:_ApplyGeometry`,
+--     the SAME function the edge pass ends in, so the two can never
+--     disagree about a position. No client read, no string work, no
+--     allocation. Per-frame work is a compare (`now >= _nextEdge`) plus
+--     the few widget setters whose value actually changed.
 --
 -- Fill law (Wave I-3, upstream-addons-2026-11-03 §3 / ranked 2 -- the
 -- shipped swing-timer family's own capability gate, re-derived from the
@@ -1155,6 +1171,7 @@ function D:SetSize(w, h)
     self._aimRegionW, self._aimRegionA = nil, nil
     self._clipW, self._clipBandW, self._clipA = nil, nil, nil
     self._weaveX = false                        -- the force sentinel, not nil
+    self._sparkX = nil                          -- the spark re-points too
 end
 
 function D:SetWidth(v) self:SetSize(v, nil) end
@@ -1478,6 +1495,9 @@ end
 ---     prints the cast's remaining seconds;
 ---   * the in/ooc alpha pair (InCombatAlpha/OutOfCombatAlpha) rides the
 ---     anchor.
+---
+--- This is the EDGE pass: it reads the tracker and caches the motion
+--- numbers (`_CacheMotion`), then ends in the shared `_ApplyGeometry`.
 function D:Update(now)
     if not self.anchor then return false end
     local tracker = self.Tracker
@@ -1509,73 +1529,45 @@ function D:Update(now)
     local W = S.Width
     local scale = (tracker.duration and tracker.duration > 0)
         and (W / tracker.duration) or 0
-    -- J4 (PLAN §11.3): which way the FILL moves this mode draws. `safe`
-    -- is the shrinking fill `(remaining - floor) x scale`; `one` and
-    -- `elapsed` draw the raw cycle progress growing toward the aim end.
-    -- The two position markers read from the fill's START edge (below),
-    -- so the mode decides which end of the bar carries them.
+    -- J4 (PLAN §11.3): which way the FILL moves this mode draws (read again
+    -- by the geometry pass; the colour of the clip marker below needs it).
     local shrinking = ST.showSafeWindow and ST.barMode ~= "one"
 
-    -- The fill: frozen under the cast interlock, otherwise the phase's
-    -- own law.
-    local w
+    -- The interlock's frozen fill: read once, at the edge (it needs the
+    -- tracker's pure reads at the press instant); the motion pass holds it.
+    local frozenW
     if castLeft then
         local cast = tracker.cast
         local press = (type(cast) == "table")
             and FX.Compat.PlainOrNil(cast.startAt) or nil
-        w = (type(press) == "number")
+        frozenW = (type(press) == "number")
             and frozenFillW(tracker, press, ST.barMode, ST.showSafeWindow,
                 aimLen, W, scale)
             or nil
-        if w == nil then
+        if frozenW == nil then
             -- No press stamp on the tracker (a tracker with the legacy
             -- fraction seam only): the shipped v2 reading.
             local freeze = tracker.CastingCycleFraction
                 and tracker:CastingCycleFraction()
-            w = (freeze and (freeze * W)) or W
+            frozenW = (freeze and (freeze * W)) or W
         end
-    elseif ST.showSafeWindow and phase == "flying" then
-        -- The WST shot-bar law (WeaponSwingTimer_Hunter.lua :913-1010):
-        -- the WHOLE bar rides white from SUCCEEDED to the next
-        -- PLAYER_SWING re-arm -- the safe-to-move state, not a sliver.
-        w = W
-    elseif ST.barMode == "one" then
-        -- The `one` mode (slice A, §7.2): the fill is the cycle's progress
-        -- running INTO the aim end, capped so its right edge never enters
-        -- the standing aim region; the cap opens with the region's drain
-        -- through the aim phase, so the edge reaches the full width exactly
-        -- as the shot leaves. `drain` is the aim length the bar must still
-        -- keep clear: the full aim window while the cycle reloads, the
-        -- aim phase's own remaining inside it.
-        local aim = aimLen or 0
-        local drain = (phase == "aim") and math.min(aim, remaining) or aim
-        w = math.min(W - drain * scale, W * fraction)
-    elseif shrinking and phase ~= "flying" then
-        w = math.max(0, (remaining - floor) / tracker.duration) * W
-    else
-        w = fraction * W
     end
-    if w < 0 then
-        w = 0
-    elseif w > W then
-        w = W
-    end
-    -- The fill intent: this pass' width from the law above, recorded on
+    self:_CacheMotion(now, tracker, phase, aimLen, floor, fraction,
+        remaining, castLeft, castLen, frozenW, scale)
+
+    -- The fill intent: this pass' width from the fill law, recorded on
     -- both paths (the v2 path's `_fillW` caches its last SetSize; the
     -- engine path sizes its span from this number at the arm edge). The
     -- seam the fill-parity test compares; the spark head rides it too.
+    local w = self:_FillWidthAt(now)
     self._fillIntent = w
     -- The engine path arms the widget at the state edge and lets the
-    -- client animate it (the header's Fill law); the v2 path sizes it from
-    -- the law above. The engine test is re-read, so a mid-pass degrade is
-    -- drawn the same pass it happens.
+    -- client animate it (the header's Fill law); the v2 path sizes it in
+    -- `_ApplyGeometry`. The engine test is re-read, so a mid-pass degrade
+    -- is drawn the same pass it happens.
     if self._engineFill then
         self:_EngineFillPass(now, tracker, phase, castLeft, w, floor,
             remaining, aimLen, scale)
-    end
-    if not self._engineFill and self._fillW ~= w then
-        self._fillW = w
-        self.fill:SetSize(w, S.Height)
     end
 
     -- The fill tint: Buff white while the proven projectile is in flight,
@@ -1593,104 +1585,13 @@ function D:Update(now)
         end
     end
 
-    -- The spark at the fill head (the Timeline's pulse: alpha 1 -> 0
-    -- linear over PulseSeconds, no wave).
-    if self.spark then
-        local sa = 0
-        local at = self._sparkAt
-        if at then
-            sa = 1 - (now - at) / S.PulseSeconds
-            if sa <= 0 then
-                sa = 0
-                self._sparkAt = nil
-            end
-        end
-        self.spark:SetPoint("CENTER", self.anchor, "TOPLEFT", w,
-            S.Height * 0.5)
-        self.spark:SetVertexColor(1, 1, 1, sa)
-    end
+    -- Everything that travels with time: the fill (lua path), the spark,
+    -- the slices, the markers -- the one function the motion pass runs.
+    local retryW = self:_ApplyGeometry(now, w)
 
-    -- The slices: hidden wholesale in single-phase mode.
-    local aimW, retryW, castW = 0, 0, 0
-    if ST.showSafeWindow then
-        if castLeft then
-            -- The interlock: the full-width red slice says "this cycle
-            -- gets clipped" (the WST clip-bar signal our safe window
-            -- carries -- gap row 8/11).
-            castW = W
-        else
-            if ST.showAimSlice and phase == "aim"
-                and aimLen and aimLen > 0 then
-                -- The window is INFORMATION (the WST shot_slice law
-                -- :688-709 draws it unconditionally): the readiness gate
-                -- governs the shot, never the slice.
-                aimW = math.min(aimLen, aimLen + math.max(0,
-                    (tracker.retryUntil or 0) - now)) * scale
-            end
-            if ST.showRetry and tracker.retryUntil
-                and tracker.retryUntil > now then
-                local left = math.min(0.5, tracker.retryUntil - now)
-                retryW = left * scale
-            end
-        end
-    end
-    self:_SetSlice(self.aim, "_aimW", aimW, aimLen and aimLen * scale or 0)
-    self:_SetSlice(self.retry, "_retryW", retryW, 0)
-    self:_SetSlice(self.cast, "_castW", castW, 0)
-
-    -- The slice A markers (docs/research/wst-swing-design.md §7.3/§7.4):
-    -- the standing aim region, the clip stripe, the weave line. Pure
-    -- geometry off the numbers this pass already read -- no new event, no
-    -- new frame, no tracker change.
-    local aimSec = (aimLen and aimLen > 0) and aimLen or 0
-    -- P2: the standing aim region -- `aimLen x scale` at the bar's right
-    -- end for the WHOLE cycle, in every mode. It is a region, not the live
-    -- window, so the full-alpha live slice above it stays the loudest red
-    -- (and under a live retry this one dims further, §7.3).
-    local regionW = 0
-    if ST.showAimWindow and aimSec > 0 and scale > 0 then
-        regionW = math.min(W, aimSec * scale)
-    end
-    self:_SetSlice(self.aimRegion, "_aimRegionW", regionW, 0)
+    -- The marker tints (edge-only: a colour is state, not motion).
     self:_SetMarkerColor(self.aimRegion, "_aimRegionA", S.AimRegionColor,
         (retryW > 0) and S.AimRegionRetryAlpha or S.AimRegionAlpha)
-
-    -- P1: the clip marker (J4) -- the threshold the FILL EDGE crosses in
-    -- this mode, so the same question ("can I start a cast-time shot now
-    -- without clipping?") reads the same way in every mode: the fill edge
-    -- on the fitting side == `remaining - floor >= castLen`. `castLen` is
-    -- the LIVE cast's length while a cast runs, and the CLIENT's length of
-    -- the shipped data's longest cast-time shot otherwise (that row's
-    -- number when the client is silent), so an un-hasted 2.0 s bow reads
-    -- "never fits": the full bar in the growing modes (the stripe covers
-    -- it), a full band in `safe` (the orange can never outgrow it) -- the
-    -- honest "Aimed Shot always clips on this bow", available before the
-    -- press (§7.4). Where the mode's fill law does not SPEND the floor
-    -- (the growing fills draw raw progress), the marker carries it: the
-    -- safe fill is (remaining - floor) x scale already, so its band is the
-    -- bare cast length.
-    local clipW = 0
-    if ST.showClipRegion and scale > 0 then
-        local castSec = castLen or self:ClipCastSeconds()
-        local span
-        if castSec then
-            span = shrinking and castSec or (castSec + (floor or 0))
-        end
-        if span and span > 0 then
-            clipW = math.min(W, span * scale)
-        end
-    end
-    -- The safe mode draws the LEFT-anchored band the orange must outgrow
-    -- and parks the stripe; the growing modes keep §7.4's right-anchored
-    -- stripe and park the band (one texture per anchor, one anchor per
-    -- texture, J4).
-    if shrinking then
-        self:_SetSlice(self.clip, "_clipW", 0, 0)
-        self:_SetClipBand(clipW)
-    else
-        self:_SetClipBand(0)
-        self:_SetSlice(self.clip, "_clipW", clipW, 0)
-    end
     -- Under the interlock the active marker rides the interlock tint (the
     -- colour-blind palette gives it its OWN alpha, so the light band inside
     -- the frozen bar keeps its rung; on the shipped skin the two alphas are
@@ -1698,30 +1599,6 @@ function D:Update(now)
     self:_SetMarkerColor(shrinking and self.clipBand or self.clip, "_clipA",
         castLeft and S.ClipInterlockColor or S.ClipColor,
         castLeft and S.ClipInterlockAlpha or S.ClipRegionAlpha)
-
-    -- P4: the melee-weave line (J4) -- the GCD threshold the fill edge
-    -- crosses in this mode: `remaining - floor >= gcd` reads as the fill
-    -- edge on the fitting side, (gcd + floor) x scale from the RIGHT in
-    -- the growing fills (their fill spends no floor), gcd x scale from the
-    -- LEFT in `safe` (the orange reaching PAST the line = the 1.5 s GCD
-    -- still fits). At/past the far edge there is no room for the GCD at
-    -- all -- a hasted cycle parks the line OFF the bar in the mode's own
-    -- direction, which IS the "do not step in" message (§7.4's no-room law).
-    local weaveX
-    if ST.showWeaveLine and scale > 0 then
-        -- F9 (docs/reviews/code-review-8.md): the budget is a DATA read.
-        -- With no row there is no GCD to budget, and an invented 1.5 is not
-        -- a fact to hang a pixel on -- the line stays off the bar, in both
-        -- fill paths (this is the shared arm), and the property tests'
-        -- weave truth reads the same nil.
-        local gcdSec = gcdSeconds()
-        if gcdSec ~= nil then
-            local budget = gcdSec + (shrinking and 0 or (floor or 0))
-            local x = shrinking and (budget * scale) or (W - budget * scale)
-            if x > 0 and x < W then weaveX = x end
-        end
-    end
-    self:_SetWeaveLine(weaveX)
     self._phase = phase
 
     -- The text: the cast's remaining under the interlock; during the aim
@@ -1751,6 +1628,270 @@ function D:Update(now)
         self.text:SetText("")
     end
     return true
+end
+
+-- ------------------------------------------------------------------ motion --
+--- The cycle's fraction and remaining seconds at `t`, from the numbers the
+--- edge pass cached: the tracker's own `Progress` law (clamped at both
+--- ends, `(1, 0)` past the end) with no tracker call. A tracker without a
+--- numeric `start`/`duration` (a stub) is a static pair held to the next
+--- edge pass.
+local function progressAt(self, t)
+    local start = self._gStart
+    if start == nil then return self._gFrac, self._gRem end
+    local dur = self._gDur
+    local elapsed = t - start
+    if elapsed < 0 then elapsed = 0 end
+    if elapsed >= dur then return 1, 0 end
+    return elapsed / dur, dur - elapsed
+end
+
+--- The cycle floor at `t` (the tracker's `FloorAt`: the aim length plus
+--- the open retry penalty, which drains with the clock).
+local function floorAt(self, t)
+    local ru = self._gRu
+    if ru and ru > t then return self._gFloor + (ru - t) end
+    return self._gFloor
+end
+
+--- EDGE PASS ONLY: cache the numbers the motion pass needs and the next
+--- instant any of them expires (`_nextEdge`: the cycle end, the aim
+--- floor, the retry deadline, the cast end -- only instants STRICTLY in
+--- the future, so a passed gate that stays passed never re-requests).
+function D:_CacheMotion(now, tracker, phase, aimLen, floor, fraction,
+        remaining, castLeft, castLen, frozenW, scale)
+    local start, dur = tracker.start, tracker.duration
+    if type(start) == "number" and type(dur) == "number" and dur > 0 then
+        self._gStart, self._gFrac, self._gRem = start, nil, nil
+    else
+        self._gStart, self._gFrac, self._gRem = nil, fraction, remaining
+    end
+    self._gDur = dur
+    local ru = tracker.retryUntil
+    if type(ru) ~= "number" then ru = nil end
+    self._gRu = ru
+    self._gPhase, self._gAim = phase, aimLen
+    self._gFloor = (floor or 0) - ((ru and ru > now) and (ru - now) or 0)
+    self._gCast, self._gFrozenW = castLeft and true or false, frozenW
+    -- The data/client reads the markers need ride the edge only.
+    local clipSec, gcd
+    if scale > 0 then
+        if ST.showClipRegion then clipSec = castLen or self:ClipCastSeconds() end
+        if ST.showWeaveLine then gcd = gcdSeconds() end
+    end
+    self._gClipSec, self._gGcd = clipSec, gcd
+
+    local nxt = math.huge
+    local cend = self._gStart and (self._gStart + dur) or (now + remaining)
+    if cend > now and cend < nxt then nxt = cend end
+    local aimAt = cend - self._gFloor
+    if aimAt > now and aimAt < nxt then nxt = aimAt end
+    if ru and ru > now and ru < nxt then nxt = ru end
+    if castLeft then
+        local castEnd = now + castLeft
+        if castEnd < nxt then nxt = castEnd end
+    end
+    self._nextEdge = nxt
+end
+
+--- The fill width at `t` (px, clamped to the bar) from the cached numbers:
+--- frozen under the interlock, the whole bar in the proven flight, then
+--- the mode's own law -- `one` runs toward the aim end capped by the
+--- standing region (its cap opening with the region's drain), `safe` is
+--- the shrinking `(remaining - floor) x scale`, `elapsed` the raw cycle
+--- progress. Used by the edge pass (engine arm + intent) and the motion
+--- pass alike.
+function D:_FillWidthAt(now)
+    local W = S.Width
+    local phase = self._gPhase
+    local w
+    if self._gCast then
+        w = self._gFrozenW
+    elseif ST.showSafeWindow and phase == "flying" then
+        -- The WST shot-bar law (WeaponSwingTimer_Hunter.lua :913-1010):
+        -- the WHOLE bar rides white from SUCCEEDED to the next
+        -- PLAYER_SWING re-arm -- the safe-to-move state, not a sliver.
+        w = W
+    else
+        local fraction, remaining = progressAt(self, now)
+        local dur = self._gDur
+        if ST.barMode == "one" then
+            -- The `one` mode (slice A, §7.2): the fill is the cycle's
+            -- progress running INTO the aim end, capped so its right edge
+            -- never enters the standing aim region; the cap opens with the
+            -- region's drain through the aim phase, so the edge reaches the
+            -- full width exactly as the shot leaves. `drain` is the aim
+            -- length the bar must still keep clear: the full aim window
+            -- while the cycle reloads, the aim phase's own remaining inside
+            -- it.
+            local aim = self._gAim or 0
+            local drain = (phase == "aim") and math.min(aim, remaining) or aim
+            local scale = (dur and dur > 0) and (W / dur) or 0
+            w = math.min(W - drain * scale, W * fraction)
+        elseif ST.showSafeWindow and phase ~= "flying" and dur and dur > 0 then
+            w = math.max(0, (remaining - floorAt(self, now)) / dur) * W
+        else
+            w = fraction * W
+        end
+    end
+    if w < 0 then
+        w = 0
+    elseif w > W then
+        w = W
+    end
+    return w
+end
+
+--- THE MOTION PASS: every rendered frame while a swing is on screen, the
+--- script's only work between edge passes. Pure geometry off the cached
+--- numbers and `now` -- the cheap path (see the header's Update law).
+function D:_MotionPass(now)
+    if self._gPhase == nil or not self._shown then return end
+    self:_ApplyGeometry(now)
+end
+
+--- Position and size of everything that travels with time, from the
+--- cached numbers (`_CacheMotion`) at `now`: the lua-path fill (the engine
+--- path leaves the widget to the client and only its spark rides here),
+--- the spark and its alpha ramp, the slices, the standing aim region, the
+--- clip marker, the weave line. Every setter is dirty-checked. Returns the
+--- retry slice's width (the edge pass tints the region from it). `w` is
+--- the fill width when the caller already has it.
+function D:_ApplyGeometry(now, w)
+    local W, H = S.Width, S.Height
+    local phase, aimLen, ru = self._gPhase, self._gAim, self._gRu
+    local dur = self._gDur
+    local scale = (dur and dur > 0) and (W / dur) or 0
+    local shrinking = ST.showSafeWindow and ST.barMode ~= "one"
+    local floor = floorAt(self, now)
+
+    -- The fill.
+    w = w or self:_FillWidthAt(now)
+    self._fillIntent = w
+    if not self._engineFill and self._fillW ~= w then
+        self._fillW = w
+        self.fill:SetSize(w, H)
+    end
+
+    -- The spark at the fill head (the Timeline's pulse: alpha 1 -> 0
+    -- linear over PulseSeconds, no wave).
+    local spark = self.spark
+    if spark then
+        local sa = 0
+        local at = self._sparkAt
+        if at then
+            sa = 1 - (now - at) / S.PulseSeconds
+            if sa <= 0 then
+                sa = 0
+                self._sparkAt = nil
+            end
+        end
+        if self._sparkX ~= w then
+            self._sparkX = w
+            spark:SetPoint("CENTER", self.anchor, "TOPLEFT", w, H * 0.5)
+        end
+        if self._sparkA ~= sa then
+            self._sparkA = sa
+            spark:SetVertexColor(1, 1, 1, sa)
+        end
+    end
+
+    -- The slices: hidden wholesale in single-phase mode.
+    local aimW, retryW, castW = 0, 0, 0
+    if ST.showSafeWindow then
+        if self._gCast then
+            -- The interlock: the full-width red slice says "this cycle
+            -- gets clipped" (the WST clip-bar signal our safe window
+            -- carries -- gap row 8/11).
+            castW = W
+        else
+            if ST.showAimSlice and phase == "aim"
+                and aimLen and aimLen > 0 then
+                -- The window is INFORMATION (the WST shot_slice law
+                -- :688-709 draws it unconditionally): the readiness gate
+                -- governs the shot, never the slice.
+                aimW = math.min(aimLen, aimLen + math.max(0,
+                    (ru or 0) - now)) * scale
+            end
+            if ST.showRetry and ru and ru > now then
+                retryW = math.min(0.5, ru - now) * scale
+            end
+        end
+    end
+    self:_SetSlice(self.aim, "_aimW", aimW, aimLen and aimLen * scale or 0)
+    self:_SetSlice(self.retry, "_retryW", retryW, 0)
+    self:_SetSlice(self.cast, "_castW", castW, 0)
+
+    -- The slice A markers (docs/research/wst-swing-design.md §7.3/§7.4):
+    -- the standing aim region, the clip stripe, the weave line. Pure
+    -- geometry off the cached numbers -- no new event, no new frame, no
+    -- tracker change.
+    local aimSec = (aimLen and aimLen > 0) and aimLen or 0
+    -- P2: the standing aim region -- `aimLen x scale` at the bar's right
+    -- end for the WHOLE cycle, in every mode. It is a region, not the live
+    -- window, so the full-alpha live slice above it stays the loudest red
+    -- (and under a live retry this one dims further, §7.3).
+    local regionW = 0
+    if ST.showAimWindow and aimSec > 0 and scale > 0 then
+        regionW = math.min(W, aimSec * scale)
+    end
+    self:_SetSlice(self.aimRegion, "_aimRegionW", regionW, 0)
+
+    -- P1: the clip marker (J4) -- the threshold the FILL EDGE crosses in
+    -- this mode, so the same question ("can I start a cast-time shot now
+    -- without clipping?") reads the same way in every mode: the fill edge
+    -- on the fitting side == `remaining - floor >= castLen`. `castLen` is
+    -- the LIVE cast's length while a cast runs, and the CLIENT's length of
+    -- the shipped data's longest cast-time shot otherwise (that row's
+    -- number when the client is silent), so an un-hasted 2.0 s bow reads
+    -- "never fits": the full bar in the growing modes (the stripe covers
+    -- it), a full band in `safe` (the orange can never outgrow it) -- the
+    -- honest "Aimed Shot always clips on this bow", available before the
+    -- press (§7.4). Where the mode's fill law does not SPEND the floor
+    -- (the growing fills draw raw progress), the marker carries it: the
+    -- safe fill is (remaining - floor) x scale already, so its band is the
+    -- bare cast length.
+    local clipW = 0
+    local castSec = self._gClipSec
+    if ST.showClipRegion and scale > 0 and castSec then
+        local span = shrinking and castSec or (castSec + floor)
+        if span > 0 then
+            clipW = math.min(W, span * scale)
+        end
+    end
+    -- The safe mode draws the LEFT-anchored band the orange must outgrow
+    -- and parks the stripe; the growing modes keep §7.4's right-anchored
+    -- stripe and park the band (one texture per anchor, one anchor per
+    -- texture, J4).
+    if shrinking then
+        self:_SetSlice(self.clip, "_clipW", 0, 0)
+        self:_SetClipBand(clipW)
+    else
+        self:_SetClipBand(0)
+        self:_SetSlice(self.clip, "_clipW", clipW, 0)
+    end
+
+    -- P4: the melee-weave line (J4) -- the GCD threshold the fill edge
+    -- crosses in this mode: `remaining - floor >= gcd` reads as the fill
+    -- edge on the fitting side, (gcd + floor) x scale from the RIGHT in
+    -- the growing fills (their fill spends no floor), gcd x scale from the
+    -- LEFT in `safe` (the orange reaching PAST the line = the 1.5 s GCD
+    -- still fits). At/past the far edge there is no room for the GCD at
+    -- all -- a hasted cycle parks the line OFF the bar in the mode's own
+    -- direction, which IS the "do not step in" message (§7.4's no-room law).
+    -- F9 (docs/reviews/code-review-8.md): the budget is a DATA read (cached
+    -- by the edge pass). With no row there is no GCD to budget, and an
+    -- invented 1.5 is not a fact to hang a pixel on -- the line stays off
+    -- the bar, in both fill paths.
+    local weaveX
+    local gcdSec = self._gGcd
+    if ST.showWeaveLine and scale > 0 and gcdSec ~= nil then
+        local budget = gcdSec + (shrinking and 0 or floor)
+        local x = shrinking and (budget * scale) or (W - budget * scale)
+        if x > 0 and x < W then weaveX = x end
+    end
+    self:_SetWeaveLine(weaveX)
+    return retryW
 end
 
 --- Dirty-checked slice geometry (the every-style-setter-is-checked law).
@@ -1818,6 +1959,15 @@ function D:_SetWeaveLine(x)
     local tex = self.weave
     if not tex then return end
     if self._weaveX == x then return end
+    if x ~= nil and type(self._weaveX) == "number" then
+        -- The line is built and shown and only MOVES (the open retry drains
+        -- the floor, so the growing modes' line travels): re-point it, no
+        -- texture/size/show churn per frame.
+        self._weaveX = x
+        tex:SetPoint("TOPLEFT", self.anchor, "TOPLEFT",
+            x - S.WeaveWidth * 0.5, S.MarkerOvershoot * 0.5)
+        return
+    end
     self._weaveX = x
     if x == nil then
         -- The park, in the `_SetSlice` idiom: zero the size and hide, so a
@@ -2022,7 +2172,9 @@ function D:RenderIdle()
         self:_EnginePark(GetTime())
     end
     if self.spark then self.spark:SetVertexColor(1, 1, 1, 0) end
-    self._sparkAt = nil
+    self._sparkAt, self._sparkX, self._sparkA = nil, nil, 0
+    -- The motion cache dies with the bar: no stale geometry, no edge due.
+    self._gPhase, self._gStart, self._nextEdge = nil, nil, nil
     -- The slice A markers park with the slices: a hidden bar carries no
     -- stripe, no region and no line.
     if self.weave then
@@ -2043,19 +2195,32 @@ function D:RenderIdle()
 end
 
 -- ----------------------------------------------------------------- ticker --
---- The 10 Hz script exists only while a swing runs.
+--- The script exists only while a swing runs: the EDGE pass at 10 Hz (the
+--- accumulated `elapsed`) or the frame a cached edge time has passed (a
+--- phase edge lands on time, not up to 100 ms late); the MOTION pass on
+--- every other frame. `_nextEdge` is a plain number the edge pass keeps;
+--- missing or not in the future = no edge due (the 10 Hz beat drives).
 function D:StartTicking()
     if not self.anchor or self._ticking then return end
     self._ticking = true
     self._acc = 0
     self.anchor:SetScript("OnUpdate", function(_, elapsed)
+        local now = GetTime()
         local acc = (self._acc or 0) + (tonumber(elapsed) or 0)
-        if acc < TICK_SECONDS then
+        if acc >= TICK_SECONDS or now >= (self._nextEdge or math.huge) then
+            self._acc = 0
+            self:Update(now)
+            -- An edge the pass did not move into the future (or cleared) must
+            -- never re-request on every frame: without a FUTURE edge the 10 Hz
+            -- beat above is the driver (the full pass at 165 fps is 16x the
+            -- shipped cost). StartTicking renders once synchronously, so a
+            -- fresh script never waits on this.
+            local ne = self._nextEdge
+            if ne ~= nil and ne <= now then self._nextEdge = math.huge end
+        else
             self._acc = acc
-            return
+            self:_MotionPass(now)
         end
-        self._acc = 0
-        self:Update(GetTime())
     end)
     -- A hidden frame never receives OnUpdate, and the anchor is hidden while
     -- idle: render once now so the anchor is shown before its own OnUpdate is
