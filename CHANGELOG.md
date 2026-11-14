@@ -19,6 +19,11 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
   is now redrawn on every frame the game draws (it was 60, 25 or 10 times a second depending on the display,
   which looked stuttery at 144/165 Hz). Countdown text, sorting and all game reads stay on the slow rhythm,
   and a display that is hidden or has nothing moving does no per-frame work at all.
+- **Berserking now shows on the Spell Timer as a 15 s buff** (Troll rosters: it was only on the cooldown bar, which is
+  unchanged at 180 s). It is a single self row even with an enemy targeted, and it stays when that enemy dies. The 15 s
+  comes from the development notes and is not yet confirmed against the in-game tooltip; the Timer learns the real
+  length from the aura the first time it can read it out of combat. The same rule now keys every self-only Spell
+  Timer window to you rather than to the enemy you had targeted when you cast it.
 
 ---
 

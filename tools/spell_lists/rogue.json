@@ -17,6 +17,12 @@
       "reason": "two family-8 rows share the name: 1329328 is the level-30 passive talent (no duration), 1310703 is the 6 s aura Shank casts with the talent (docs/research/live-rogue-2026-11-09.md section 8; store Misc['1310703'].DurationMs = 6000)"
     }
   },
+  "_feeds": {
+    "Berserking": {
+      "noTarget": true,
+      "reason": "the racial is a self haste buff (+10% attack and cast speed on the caster); the store's four name shells (20554/23505/24378/1286304) carry no Effects/Targets, so the generator cannot derive the feed -- without this the Spell Timer row would be keyed to the current enemy target and retired when it dies (2026-11-14, Berserking not shown on the Spell Timer)"
+    }
+  },
   "cooldowns": [
     "Adrenaline Rush", "Blade Flurry", "Blind", "Cold Blood", "Distract", "Evasion",
     "Feint", "Ghostly Strike", "Gouge", "Kick", "Kidney Shot", "Between the Eyes",

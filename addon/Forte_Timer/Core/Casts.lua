@@ -355,7 +355,16 @@ function Casts:OnSent(target, spellID, now)
         end
     end
     local key
-    if type(plainTarget) == "string" and plainTarget ~= "" then
+    if FX.Timer.Registry.IsNoTarget(name) then
+        -- A row whose generated data says every effect lands on the caster
+        -- (`noTarget`, the original's `Track[spell][1]` `notTarget` column)
+        -- is exactly ONE self window whatever the SENT payload names: with an
+        -- enemy targeted the client still hands that target's name for a
+        -- racial/self buff, and a row keyed to it would be adopted as that
+        -- unit's (`ResolveTarget` promotes it to the "target" token) and
+        -- retired by the target's death (Berserking, 2026-11-14).
+        key = "none"
+    elseif type(plainTarget) == "string" and plainTarget ~= "" then
         key = plainTarget
     else
         key = "none"        -- self / no-target, the :979-985 sentinel path

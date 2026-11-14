@@ -3,7 +3,7 @@
 -- Overlay: wowsims/forever 80ef86793788ca527d4a51d0e1a659a928ccc4b9 build 1.60.1.70888 (MIT)
 --   (hotfix push 114027; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_store.py -- 70888 values win; absent fields = the store carries no row, mythicsim stands)
 -- Dev notes: tools/overrides_devnotes_2026-11-03.json (Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update); https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9) -- post-9 values the captured data does not carry, applied AFTER the 70888 layer; delete a row the day a store capture carries the value (hotfix-watch)
--- Regenerated: 2026-11-13T11:57:50+00:00
+-- Regenerated: 2026-11-14T19:52:35+00:00
 -- 70888 overlay changes in this file (14):
 --   Earth Shock: { id = 408690, name = "Earth Shock", durationMs = 2000, cooldownMs = 6000, cooldownCategory = 2171, gcdMs = 1500, rank = "Rank 7" } -> { id = 10414, name = "Earth Shock", durationMs = 2000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 7" }
 --   Flame Shock: { id = 29228, name = "Flame Shock", tickEvery = 3, durationMs = 12000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 6" } -> { id = 10448, name = "Flame Shock", tickEvery = 3, durationMs = 12000, cooldownMs = 6000, cooldownCategory = 19, gcdMs = 1500, rank = "Rank 5" }
@@ -20,20 +20,22 @@
 --   Strength of Earth Totem: { id = 25361, name = "Strength of Earth Totem", durationMs = 300000, gcdMs = 1000, rank = "Rank 5" } -> { id = 10442, name = "Strength of Earth Totem", durationMs = 300000, gcdMs = 1000, rank = "Rank 4" }
 --   Grace of Air Totem: { id = 25359, name = "Grace of Air Totem", durationMs = 300000, gcdMs = 1000, rank = "Rank 3" } -> { id = 10627, name = "Grace of Air Totem", durationMs = 300000, gcdMs = 1000, rank = "Rank 2" }
 -- Post-9 dev-notes values applied (2):
---   Berserking: cooldownMs None -> 180000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Berserking (Orc/Troll): 180 s real (hand-measured, the live 70790 store carries no Cooldowns row for any Berserking id)'); the November dev notes list Berserking only in the 'cooldowns we did NOT change' family note (docs/research/forever-dev-notes-2026-11-03.md), so no post-9 line restates the value; review-10 M2"
+--   Berserking: cooldownMs None -> 180000, durationMs None -> 15000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Berserking (Orc/Troll): 180 s real (hand-measured, the live 70790 store carries no Cooldowns row for any Berserking id)'); the November dev notes list Berserking only in the 'cooldowns we did NOT change' family note (docs/research/forever-dev-notes-2026-11-03.md), so no post-9 line restates the value; review-10 M2. durationMs 15000 (2026-11-14, Berserking not on the Spell Timer): 'Troll Berserking 15 s' (the 26/27 Oct dev notes, docs/research/forever-dev-notes-2026-11-03.md section 1 racials row) + wowsims/forever sim/core/racials.go berserkingAura Duration 15 s, wowsims commit 264068ee (2026-10-27); NOT yet confirmed on the live client tooltip"
 --   Rapid Regeneration: cooldownMs None -> 180000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Rapid Regeneration (Dwarf): 180 s real'); the November dev notes do not restate it; review-10 M2"
 -- Pinned picks (4); the spell list's `_pins` force the picked row -- the rank law stands for every other name (wave M3a law, see the generator docstring):
 --   Earth Shock -> 10414 (408690 is the S03 Way-of-Earth ladder (category 2171, not in any shaman skill line); 10414 Rank 7 is the learnable row, category 19 shared with Flame Shock and Frost Shock (client SpellCategories 70862; SkillLineAbility 5578; docs/research/live-shaman-2026-11-09.md 4.1))
 --   Lightning Shield -> 10432 (28821 is a level-60 set-bonus passive (durationMs -1); 10432 Rank 7 is the cast: 600000 ms, 3 charges, 3500 ms ICD, GCD 1500 (store AuraOptions, SkillLineAbility 5589; docs/research/live-shaman-2026-11-09.md 4.5))
 --   Berserking -> 20554 (all four 70790 rows (20554/23505/24378/1286304) are value-less name shells (no Cooldowns row), so the bare-row tiebreak rides the arbitrary max-id shell; 20554 is the id measured 180 s on the live client (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4))
 --   Rapid Regeneration -> 1260270 (the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4))
+-- Feed overrides (1); the spell list's `_feeds` force the `noTarget` feed where the captured effect shape cannot speak (tools/gen_spell_data.py, 2026-11-10):
+--   Berserking (20554) noTarget = true (the racial is a self haste buff (+10% attack and cast speed on the caster); the store's four name shells (20554/23505/24378/1286304) carry no Effects/Targets, so the generator cannot derive the feed -- without this the Spell Timer row would be keyed to the current enemy target and retired when it dies (2026-11-14, Berserking not shown on the Spell Timer))
 -- Racial rows (2); the `racials` group -- `racial = true` rows are skipped by Engine:Build and tracked by Engine:AddExtras from this data, so the Locale alias walk covers their names on localized clients (review-10 M2/m4):
 --   Berserking (20554)
 --   Rapid Regeneration (1260270)
 -- 70888-sourced rows: no row in the 1.60.1.70425 pull, the row is the 70888 store's capture of the name (2; the source-eligible rows are the Warlock pet kit (docs/research/forever-data-gaps.md G6) and the M3a racials group (the racial shells the 70425 pull names under other keys):
 --   Berserking (20554)
 --   Rapid Regeneration (1260270)
--- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's stack cap when above 1 (the live store's `MaxStack` WINS over the base row's -- the LIVE-WINS law, tools/gen_spell_data.py `row_feeds`), `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects` answer first, a 70888-picked row inherits the same-id base row's shape, and the 70888 overlay's own feed captures (per-id `periodMs`/`targetCode`) fill what neither can speak to (tools/overrides_70888.json). This file: 3 tickEvery, 1 maxStack, 22 noTarget.
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's stack cap when above 1 (the live store's `MaxStack` WINS over the base row's -- the LIVE-WINS law, tools/gen_spell_data.py `row_feeds`), `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects` answer first, a 70888-picked row inherits the same-id base row's shape, and the 70888 overlay's own feed captures (per-id `periodMs`/`targetCode`) fill what neither can speak to (tools/overrides_70888.json). This file: 3 tickEvery, 1 maxStack, 23 noTarget.
 --   feeds [10448] Flame Shock: tickEvery = 3
 --   feeds [1239243] Riptide: tickEvery = 3
 --   feeds [408345] Fire Nova: noTarget
@@ -59,6 +61,7 @@
 --   feeds [1238640] Ghost Wolf: noTarget
 --   feeds [16038] Call of Flame: noTarget
 --   feeds [16120] Call of Thunder: noTarget
+--   feeds [20554] Berserking: noTarget
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
@@ -135,7 +138,7 @@ ForteXorcist.Data.Shaman = {
   [526] = { id = 526, name = "Cure Poison", gcdMs = 1500 },
   [2870] = { id = 2870, name = "Cure Disease", gcdMs = 1500 },
   -- racials
-  [20554] = { id = 20554, name = "Berserking", racial = true, cooldownMs = 180000 },
+  [20554] = { id = 20554, name = "Berserking", racial = true, noTarget = true, durationMs = 15000, cooldownMs = 180000 },
   [1260270] = { id = 1260270, name = "Rapid Regeneration", racial = true, cooldownMs = 180000 },
 }
 

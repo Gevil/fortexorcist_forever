@@ -25,6 +25,12 @@
       "reason": "the 70862 store gained value rows for 15438, the item-proc aura (Arcane damage when struck, no family, permanent, level 55), which out-ranks the real Rank 6 ally buff 9910 (family 7, 600 s, level 54) on level (docs/research/data-diff-live-2026-11-10.md SS3.2-3.3)"
     }
   },
+  "_feeds": {
+    "Berserking": {
+      "noTarget": true,
+      "reason": "the racial is a self haste buff (+10% attack and cast speed on the caster); the store's four name shells (20554/23505/24378/1286304) carry no Effects/Targets, so the generator cannot derive the feed -- without this the Spell Timer row would be keyed to the current enemy target and retired when it dies (2026-11-14, Berserking not shown on the Spell Timer)"
+    }
+  },
   "cooldowns": [
     "Barkskin", "Bash", "Challenging Roar", "Cower", "Enrage",
     "Feral Charge", "Frenzied Regeneration", "Growl", "Hurricane", "Innervate",

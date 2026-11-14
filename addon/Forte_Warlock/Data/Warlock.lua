@@ -3,7 +3,7 @@
 -- Overlay: wowsims/forever 80ef86793788ca527d4a51d0e1a659a928ccc4b9 build 1.60.1.70888 (MIT)
 --   (hotfix push 114027; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_store.py -- 70888 values win; absent fields = the store carries no row, mythicsim stands)
 -- Dev notes: tools/overrides_devnotes_2026-11-03.json (Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update); https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9) -- post-9 values the captured data does not carry, applied AFTER the 70888 layer; delete a row the day a store capture carries the value (hotfix-watch)
--- Regenerated: 2026-11-13T11:57:50+00:00
+-- Regenerated: 2026-11-14T19:52:35+00:00
 -- 70888 overlay changes in this file (12):
 --   Bane of Havoc: { id = 1225228, name = "Bane of Havoc", durationMs = 300000 } -> { id = 1225228, name = "Bane of Havoc", durationMs = 300000, gcdMs = 1500 }
 --   Corruption: { id = 1223963, name = "Corruption", tickEvery = 3, durationMs = 12000, rank = "Rank 7" } -> { id = 11672, name = "Corruption", tickEvery = 3, durationMs = 18000, gcdMs = 1500, castMs = 2000, rank = "Rank 6" }
@@ -18,7 +18,7 @@
 --   Summon Voidwalker: { id = 25112, name = "Summon Voidwalker", durationMs = -1, gcdMs = 1500, castMs = 10000, rank = "Summon" } -> { id = 697, name = "Summon Voidwalker", durationMs = -1, gcdMs = 1500, castMs = 10000, rank = "Summon" }
 --   Immolation Aura: { id = 427726, name = "Immolation Aura", noTarget = true, durationMs = -1, gcdMs = 1500 } -> { id = 427726, name = "Immolation Aura", noTarget = true, durationMs = -1, gcdMs = 1500, icdMs = 1000 }
 -- Post-9 dev-notes values applied (2):
---   Berserking: cooldownMs None -> 180000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Berserking (Orc/Troll): 180 s real (hand-measured, the live 70790 store carries no Cooldowns row for any Berserking id)'); the November dev notes list Berserking only in the 'cooldowns we did NOT change' family note (docs/research/forever-dev-notes-2026-11-03.md), so no post-9 line restates the value; review-10 M2"
+--   Berserking: cooldownMs None -> 180000, durationMs None -> 15000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Berserking (Orc/Troll): 180 s real (hand-measured, the live 70790 store carries no Cooldowns row for any Berserking id)'); the November dev notes list Berserking only in the 'cooldowns we did NOT change' family note (docs/research/forever-dev-notes-2026-11-03.md), so no post-9 line restates the value; review-10 M2. durationMs 15000 (2026-11-14, Berserking not on the Spell Timer): 'Troll Berserking 15 s' (the 26/27 Oct dev notes, docs/research/forever-dev-notes-2026-11-03.md section 1 racials row) + wowsims/forever sim/core/racials.go berserkingAura Duration 15 s, wowsims commit 264068ee (2026-10-27); NOT yet confirmed on the live client tooltip"
 --   Rapid Regeneration: cooldownMs None -> 180000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Rapid Regeneration (Dwarf): 180 s real'); the November dev notes do not restate it; review-10 M2"
 -- Pinned picks (5); the spell list's `_pins` force the picked row -- the rank law stands for every other name (wave M3a law, see the generator docstring):
 --   Corruption -> 11672 (the rank law picks 1223963 (12 s, cast 0, no Powers/Cooldowns/BaseLevel row; referenced only by the S03 Scarlet Enclave Warlock Tank 2P set bonus). The castable Corruption is Rank 7 25311 / Rank 6 11672: 18 s, 3 s tick, 2 s cast, 340/290 mana (docs/research/live-warlock-2026-11-09.md SS0.3, SS2). 25311 is an AQ20 class-book rank (overlay bookRanks), which the generator's default law excludes from the pool (a pin on it reports a gap, same as Immolate 25309 -> 11668), so the pin rides the top TRAINER rank 11672 with identical duration/tick/cast. Rank 1/2 last 12/15 s: one duration per name, top rank stands)
@@ -26,6 +26,8 @@
 --   Summon Voidwalker -> 697 (25112 is the Abyss Shard no-reagent summon (same values, level 10, so the id tiebreak takes it once the 70862 store carries a value row for it); the spell the client casts is 697 (docs/research/data-diff-live-2026-11-10.md SS3.2-3.3))
 --   Berserking -> 20554 (all four 70790 rows (20554/23505/24378/1286304) are value-less name shells (no Cooldowns row), so the bare-row tiebreak rides the arbitrary max-id shell; 20554 is the id measured 180 s on the live client (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4))
 --   Rapid Regeneration -> 1260270 (the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4))
+-- Feed overrides (1); the spell list's `_feeds` force the `noTarget` feed where the captured effect shape cannot speak (tools/gen_spell_data.py, 2026-11-10):
+--   Berserking (20554) noTarget = true (the racial is a self haste buff (+10% attack and cast speed on the caster); the store's four name shells (20554/23505/24378/1286304) carry no Effects/Targets, so the generator cannot derive the feed -- without this the Spell Timer row would be keyed to the current enemy target and retired when it dies (2026-11-14, Berserking not shown on the Spell Timer))
 -- Racial rows (2); the `racials` group -- `racial = true` rows are skipped by Engine:Build and tracked by Engine:AddExtras from this data, so the Locale alias walk covers their names on localized clients (review-10 M2/m4):
 --   Berserking (20554)
 --   Rapid Regeneration (1260270)
@@ -52,7 +54,7 @@
 --   Summon Felhunter (691)
 --   Berserking (20554)
 --   Rapid Regeneration (1260270)
--- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's stack cap when above 1 (the live store's `MaxStack` WINS over the base row's -- the LIVE-WINS law, tools/gen_spell_data.py `row_feeds`), `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects` answer first, a 70888-picked row inherits the same-id base row's shape, and the 70888 overlay's own feed captures (per-id `periodMs`/`targetCode`) fill what neither can speak to (tools/overrides_70888.json). This file: 16 tickEvery, 3 maxStack, 30 noTarget.
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's stack cap when above 1 (the live store's `MaxStack` WINS over the base row's -- the LIVE-WINS law, tools/gen_spell_data.py `row_feeds`), `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects` answer first, a 70888-picked row inherits the same-id base row's shape, and the 70888 overlay's own feed captures (per-id `periodMs`/`targetCode`) fill what neither can speak to (tools/overrides_70888.json). This file: 16 tickEvery, 3 maxStack, 31 noTarget.
 --   feeds [18288] Amplify Curse: noTarget
 --   feeds [603] Bane of Doom: tickEvery = 60
 --   feeds [18708] Fel Domination: noTarget
@@ -98,6 +100,7 @@
 --   feeds [696] Demon Skin: noTarget
 --   feeds [427726] Immolation Aura: noTarget
 --   feeds [17854] Consume Shadows: tickEvery = 2
+--   feeds [20554] Berserking: noTarget
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
@@ -204,7 +207,7 @@ ForteXorcist.Data.Warlock = {
   [713] = { id = 713, name = "Summon Incubus", durationMs = -1, gcdMs = 1500, castMs = 10000, rank = "Summon" },
   [691] = { id = 691, name = "Summon Felhunter", durationMs = -1, gcdMs = 1500, castMs = 10000, rank = "Summon" },
   -- racials
-  [20554] = { id = 20554, name = "Berserking", racial = true, cooldownMs = 180000 },
+  [20554] = { id = 20554, name = "Berserking", racial = true, noTarget = true, durationMs = 15000, cooldownMs = 180000 },
   [1260270] = { id = 1260270, name = "Rapid Regeneration", racial = true, cooldownMs = 180000 },
 }
 

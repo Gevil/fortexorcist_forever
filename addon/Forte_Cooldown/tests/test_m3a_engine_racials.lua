@@ -79,6 +79,15 @@ function()
     local b = Engine.tracked["Berserking"]
     assertEquals(20554, b.dataId)
     near(180, b.baseDuration)
+    -- Berserking Spell Timer fix 2026-11-14: the row now ALSO carries
+    -- durationMs = 15000 (the buff, for Forte_Timer). The Engine reads
+    -- `cooldownMs` only (Build/AddExtras never touch `durationMs`), so the
+    -- bar a cast draws is still the 180 s cooldown, not the 15 s buff.
+    assertEquals(15000, berserking.durationMs)
+    local e = Engine:OnCast("Berserking", 1000)
+    assertNotNil(e, "the Berserking cast drew no bar")
+    near(180, e.endTime - e.start)
+    Engine.entries["Berserking"] = nil
     -- The name key is the DATA's English canonical name (the Locale alias
     -- walk canonicalizes the client's names onto it -- the deDE pin rides
     -- test_locale_cooldown.lua); AddExtras never asks the client for a name

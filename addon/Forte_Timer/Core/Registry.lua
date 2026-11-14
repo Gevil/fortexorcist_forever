@@ -463,12 +463,12 @@ end
 --- True when the row is a self / no-target window (the original's
 --- `Track[spell][1] == 1` column, `ST_TrackedSuccess` :979-985: such a cast
 --- carries guid "none" and a PRIOR_* group id, so it is exactly ONE row).
---- v1's rule: a spell whose generated row has no cooldown category and whose
---- name is a stance/aspect/window is self-only -- the safe form is explicit:
---- a registry entry is marked by the class lists it comes from, so v1 marks
---- NONE by default and the row key keeps the cast's own target (the design's
---- §3.3 law: "a self-buff is exactly one row because its targetKey is
---- 'none'", which the cast feed supplies when the SENT target is empty).
+--- The mark is DATA: the generated row's `noTarget` (every effect targets the
+--- caster, or the class list's `_feeds` override where the store cannot say --
+--- Berserking). `Casts:OnSent` keys such a cast "none" whatever target the
+--- SENT payload names (the design's §3.3 law: "a self-buff is exactly one row
+--- because its targetKey is 'none'"); a lone SUCCEEDED and a SENT with an
+--- empty target already key "none".
 function Registry.IsNoTarget(name)
     local t = Registry.entries[name]
     return t ~= nil and t.noTarget == true

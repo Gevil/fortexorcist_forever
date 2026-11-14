@@ -3,7 +3,7 @@
 -- Overlay: wowsims/forever 80ef86793788ca527d4a51d0e1a659a928ccc4b9 build 1.60.1.70888 (MIT)
 --   (hotfix push 114027; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_store.py -- 70888 values win; absent fields = the store carries no row, mythicsim stands)
 -- Dev notes: tools/overrides_devnotes_2026-11-03.json (Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update); https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9) -- post-9 values the captured data does not carry, applied AFTER the 70888 layer; delete a row the day a store capture carries the value (hotfix-watch)
--- Regenerated: 2026-11-13T11:57:49+00:00
+-- Regenerated: 2026-11-14T19:52:34+00:00
 -- 70888 overlay changes in this file (7):
 --   Intimidation: { id = 19577, name = "Intimidation", durationMs = 15000, cooldownMs = 60000, gcdMs = 1500 } -> { id = 19577, name = "Intimidation", durationMs = 15000, cooldownMs = 60000, cooldownCategory = 1132, gcdMs = 1500 }
 --   Raptor Strike: { id = 415343, name = "Raptor Strike", cooldownMs = 6000, cooldownCategory = 40, gcdMs = 1500, rank = "Rank 8" } -> { id = 14266, name = "Raptor Strike", cooldownMs = 6000, cooldownCategory = 40, rank = "Rank 8" }
@@ -13,7 +13,7 @@
 --   Frost Trap: { id = 13809, name = "Frost Trap", durationMs = 60000, cooldownMs = 30000, cooldownCategory = 2183, gcdMs = 1500 } -> { id = 13809, name = "Frost Trap", durationMs = 60000, cooldownMs = 30000, cooldownCategory = 411, gcdMs = 1500 }
 --   Summon Hawk: { id = 1293527, name = "Summon Hawk", cooldownMs = 6000, cooldownCategory = 1173, gcdMs = 1500, castMs = -1000000, rank = "Rank 4" } -> { id = 1293527, name = "Summon Hawk", racial = true, cooldownMs = 6000, cooldownCategory = 1173, gcdMs = 1500, castMs = -1000000, rank = "Rank 4", shares = "Arcane Shot" }
 -- Post-9 dev-notes values applied (2):
---   Berserking: cooldownMs None -> 180000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Berserking (Orc/Troll): 180 s real (hand-measured, the live 70790 store carries no Cooldowns row for any Berserking id)'); the November dev notes list Berserking only in the 'cooldowns we did NOT change' family note (docs/research/forever-dev-notes-2026-11-03.md), so no post-9 line restates the value; review-10 M2"
+--   Berserking: cooldownMs None -> 180000, durationMs None -> 15000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Berserking (Orc/Troll): 180 s real (hand-measured, the live 70790 store carries no Cooldowns row for any Berserking id)'); the November dev notes list Berserking only in the 'cooldowns we did NOT change' family note (docs/research/forever-dev-notes-2026-11-03.md), so no post-9 line restates the value; review-10 M2. durationMs 15000 (2026-11-14, Berserking not on the Spell Timer): 'Troll Berserking 15 s' (the 26/27 Oct dev notes, docs/research/forever-dev-notes-2026-11-03.md section 1 racials row) + wowsims/forever sim/core/racials.go berserkingAura Duration 15 s, wowsims commit 264068ee (2026-10-27); NOT yet confirmed on the live client tooltip"
 --   Rapid Regeneration: cooldownMs None -> 180000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Rapid Regeneration (Dwarf): 180 s real'); the November dev notes do not restate it; review-10 M2"
 -- Pinned picks (5); the spell list's `_pins` force the picked row -- the rank law stands for every other name (wave M3a law, see the generator docstring):
 --   Raptor Strike -> 14266 (Rank 8 trainer row (ON_NEXT_SWING attr0 0x40004, GCD 0, category 40 / 6000 ms); the rank law lands on the BaseLevel-0 ladder 415343 (GCD 1500, no next-swing bit) which no character knows, so the id-path known gate can never match it (live-hunter-2026-11-09.md §3.2))
@@ -21,6 +21,8 @@
 --   Summon Hawk -> 1293527 (the store's Rank 4 (L60, the rank the class book carries); the family-9 (pet-control) ladder -- the Arcane Shot family-5 ladder is where the SHARED 6 s cooldown lives (category 1173, CategoryCooldownMs 6000), which is why the row carries `_shares` (review-10 M2, the shared-cooldown fact this pin records))
 --   Berserking -> 20554 (all four 70790 rows (20554/23505/24378/1286304) are value-less name shells (no Cooldowns row), so the bare-row tiebreak rides the arbitrary max-id shell; 20554 is the id measured 180 s on the live client (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4))
 --   Rapid Regeneration -> 1260270 (the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4))
+-- Feed overrides (1); the spell list's `_feeds` force the `noTarget` feed where the captured effect shape cannot speak (tools/gen_spell_data.py, 2026-11-10):
+--   Berserking (20554) noTarget = true (the racial is a self haste buff (+10% attack and cast speed on the caster); the store's four name shells (20554/23505/24378/1286304) carry no Effects/Targets, so the generator cannot derive the feed -- without this the Spell Timer row would be keyed to the current enemy target and retired when it dies (2026-11-14, Berserking not shown on the Spell Timer))
 -- Shared cooldowns (`_shares`: a cast of either starts both bars, Forte_Cooldown/Core/Engine.lua's partner walk):
 --   Summon Hawk starts the cooldown of Arcane Shot too
 -- Racial rows (3); the `racials` group -- `racial = true` rows are skipped by Engine:Build and tracked by Engine:AddExtras from this data, so the Locale alias walk covers their names on localized clients (review-10 M2/m4):
@@ -30,7 +32,7 @@
 -- 70888-sourced rows: no row in the 1.60.1.70425 pull, the row is the 70888 store's capture of the name (2; the source-eligible rows are the Warlock pet kit (docs/research/forever-data-gaps.md G6) and the M3a racials group (the racial shells the 70425 pull names under other keys):
 --   Berserking (20554)
 --   Rapid Regeneration (1260270)
--- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's stack cap when above 1 (the live store's `MaxStack` WINS over the base row's -- the LIVE-WINS law, tools/gen_spell_data.py `row_feeds`), `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects` answer first, a 70888-picked row inherits the same-id base row's shape, and the 70888 overlay's own feed captures (per-id `periodMs`/`targetCode`) fill what neither can speak to (tools/overrides_70888.json). This file: 10 tickEvery, 3 maxStack, 18 noTarget.
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's stack cap when above 1 (the live store's `MaxStack` WINS over the base row's -- the LIVE-WINS law, tools/gen_spell_data.py `row_feeds`), `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects` answer first, a 70888-picked row inherits the same-id base row's shape, and the 70888 overlay's own feed captures (per-id `periodMs`/`targetCode`) fill what neither can speak to (tools/overrides_70888.json). This file: 10 tickEvery, 3 maxStack, 19 noTarget.
 --   feeds [19263] Deterrence: noTarget
 --   feeds [415320] Flanking Strike: maxStack = 3
 --   feeds [3045] Rapid Fire: noTarget
@@ -59,6 +61,7 @@
 --   feeds [1265042] Tendon Rip: tickEvery = 3
 --   feeds [1265883] Web: tickEvery = 1
 --   feeds [1515] Tame Beast: tickEvery = 20
+--   feeds [20554] Berserking: noTarget
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
@@ -143,7 +146,7 @@ ForteXorcist.Data.Hunter = {
   [6991] = { id = 6991, name = "Feed Pet" },
   -- racials
   [1293527] = { id = 1293527, name = "Summon Hawk", racial = true, cooldownMs = 6000, cooldownCategory = 1173, gcdMs = 1500, castMs = -1000000, rank = "Rank 4", shares = "Arcane Shot" },
-  [20554] = { id = 20554, name = "Berserking", racial = true, cooldownMs = 180000 },
+  [20554] = { id = 20554, name = "Berserking", racial = true, noTarget = true, durationMs = 15000, cooldownMs = 180000 },
   [1260270] = { id = 1260270, name = "Rapid Regeneration", racial = true, cooldownMs = 180000 },
 }
 

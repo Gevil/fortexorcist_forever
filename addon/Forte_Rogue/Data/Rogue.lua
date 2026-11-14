@@ -3,18 +3,20 @@
 -- Overlay: wowsims/forever 80ef86793788ca527d4a51d0e1a659a928ccc4b9 build 1.60.1.70888 (MIT)
 --   (hotfix push 114027; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_store.py -- 70888 values win; absent fields = the store carries no row, mythicsim stands)
 -- Dev notes: tools/overrides_devnotes_2026-11-03.json (Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update); https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9) -- post-9 values the captured data does not carry, applied AFTER the 70888 layer; delete a row the day a store capture carries the value (hotfix-watch)
--- Regenerated: 2026-11-13T11:57:49+00:00
+-- Regenerated: 2026-11-14T19:52:35+00:00
 -- 70888 overlay changes in this file (3):
 --   Feint: { id = 25302, name = "Feint", cooldownMs = 10000, cooldownCategory = 82, gcdMs = 1000, rank = "Rank 5" } -> { id = 11303, name = "Feint", cooldownMs = 10000, cooldownCategory = 82, gcdMs = 1000, rank = "Rank 4" }
 --   Dismantle: { id = 442206, name = "Dismantle", noTarget = true } -> { id = 442206, name = "Dismantle", noTarget = true, icdMs = 12000 }
 --   Setup: { id = 15250, name = "Setup" } -> { id = 13983, name = "Setup", noTarget = true, icdMs = 1000 }
 -- Post-9 dev-notes values applied (2):
---   Berserking: cooldownMs None -> 180000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Berserking (Orc/Troll): 180 s real (hand-measured, the live 70790 store carries no Cooldowns row for any Berserking id)'); the November dev notes list Berserking only in the 'cooldowns we did NOT change' family note (docs/research/forever-dev-notes-2026-11-03.md), so no post-9 line restates the value; review-10 M2"
+--   Berserking: cooldownMs None -> 180000, durationMs None -> 15000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Berserking (Orc/Troll): 180 s real (hand-measured, the live 70790 store carries no Cooldowns row for any Berserking id)'); the November dev notes list Berserking only in the 'cooldowns we did NOT change' family note (docs/research/forever-dev-notes-2026-11-03.md), so no post-9 line restates the value; review-10 M2. durationMs 15000 (2026-11-14, Berserking not on the Spell Timer): 'Troll Berserking 15 s' (the 26/27 Oct dev notes, docs/research/forever-dev-notes-2026-11-03.md section 1 racials row) + wowsims/forever sim/core/racials.go berserkingAura Duration 15 s, wowsims commit 264068ee (2026-10-27); NOT yet confirmed on the live client tooltip"
 --   Rapid Regeneration: cooldownMs None -> 180000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Rapid Regeneration (Dwarf): 180 s real'); the November dev notes do not restate it; review-10 M2"
 -- Pinned picks (3); the spell list's `_pins` force the picked row -- the rank law stands for every other name (wave M3a law, see the generator docstring):
 --   Venom -> 1310703 (two family-8 rows share the name: 1329328 is the level-30 passive talent (no duration), 1310703 is the 6 s aura Shank casts with the talent (docs/research/live-rogue-2026-11-09.md section 8; store Misc['1310703'].DurationMs = 6000))
 --   Berserking -> 20554 (all four 70790 rows (20554/23505/24378/1286304) are value-less name shells (no Cooldowns row), so the bare-row tiebreak rides the arbitrary max-id shell; 20554 is the id measured 180 s on the live client (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4))
 --   Rapid Regeneration -> 1260270 (the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4))
+-- Feed overrides (1); the spell list's `_feeds` force the `noTarget` feed where the captured effect shape cannot speak (tools/gen_spell_data.py, 2026-11-10):
+--   Berserking (20554) noTarget = true (the racial is a self haste buff (+10% attack and cast speed on the caster); the store's four name shells (20554/23505/24378/1286304) carry no Effects/Targets, so the generator cannot derive the feed -- without this the Spell Timer row would be keyed to the current enemy target and retired when it dies (2026-11-14, Berserking not shown on the Spell Timer))
 -- Racial rows (2); the `racials` group -- `racial = true` rows are skipped by Engine:Build and tracked by Engine:AddExtras from this data, so the Locale alias walk covers their names on localized clients (review-10 M2/m4):
 --   Berserking (20554)
 --   Rapid Regeneration (1260270)
@@ -23,7 +25,7 @@
 --   Death Mark (1325758)
 --   Berserking (20554)
 --   Rapid Regeneration (1260270)
--- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's stack cap when above 1 (the live store's `MaxStack` WINS over the base row's -- the LIVE-WINS law, tools/gen_spell_data.py `row_feeds`), `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects` answer first, a 70888-picked row inherits the same-id base row's shape, and the 70888 overlay's own feed captures (per-id `periodMs`/`targetCode`) fill what neither can speak to (tools/overrides_70888.json). This file: 11 tickEvery, 9 maxStack, 18 noTarget.
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's stack cap when above 1 (the live store's `MaxStack` WINS over the base row's -- the LIVE-WINS law, tools/gen_spell_data.py `row_feeds`), `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects` answer first, a 70888-picked row inherits the same-id base row's shape, and the 70888 overlay's own feed captures (per-id `periodMs`/`targetCode`) fill what neither can speak to (tools/overrides_70888.json). This file: 11 tickEvery, 9 maxStack, 19 noTarget.
 --   feeds [13750] Adrenaline Rush: noTarget
 --   feeds [13877] Blade Flurry: noTarget
 --   feeds [14177] Cold Blood: noTarget
@@ -54,6 +56,7 @@
 --   feeds [11354] Deadly Poison IV: tickEvery = 3, maxStack = 5
 --   feeds [1787] Stealth: noTarget
 --   feeds [1857] Vanish: noTarget
+--   feeds [20554] Berserking: noTarget
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
@@ -125,7 +128,7 @@ ForteXorcist.Data.Rogue = {
   [921] = { id = 921, name = "Pick Pocket" },
   [1842] = { id = 1842, name = "Disarm Trap", castMs = 2000 },
   -- racials
-  [20554] = { id = 20554, name = "Berserking", racial = true, cooldownMs = 180000 },
+  [20554] = { id = 20554, name = "Berserking", racial = true, noTarget = true, durationMs = 15000, cooldownMs = 180000 },
   [1260270] = { id = 1260270, name = "Rapid Regeneration", racial = true, cooldownMs = 180000 },
 }
 

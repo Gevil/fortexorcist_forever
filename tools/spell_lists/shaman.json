@@ -23,6 +23,12 @@
       "reason": "28821 is a level-60 set-bonus passive (durationMs -1); 10432 Rank 7 is the cast: 600000 ms, 3 charges, 3500 ms ICD, GCD 1500 (store AuraOptions, SkillLineAbility 5589; docs/research/live-shaman-2026-11-09.md 4.5)"
     }
   },
+  "_feeds": {
+    "Berserking": {
+      "noTarget": true,
+      "reason": "the racial is a self haste buff (+10% attack and cast speed on the caster); the store's four name shells (20554/23505/24378/1286304) carry no Effects/Targets, so the generator cannot derive the feed -- without this the Spell Timer row would be keyed to the current enemy target and retired when it dies (2026-11-14, Berserking not shown on the Spell Timer)"
+    }
+  },
   "cooldowns": [
     "Earth Shock", "Flame Shock", "Frost Shock", "Riptide", "Chain Lightning",
     "Molten Blast", "Lava Lash", "Fire Nova", "Healing Rain", "Decoy Totem",

@@ -360,7 +360,13 @@ function()
             local row = data[b]
             assertEquals(true, row.racial)
             assertEquals(180000, row.cooldownMs)
-            assertNil(row.durationMs)
+            -- Berserking Spell Timer fix 2026-11-14: the row now carries the
+            -- 15 s buff (tools/overrides_devnotes_2026-11-03.json, 26/27 Oct
+            -- dev notes + wowsims racials.go @ 264068ee; not yet confirmed on
+            -- the live client) and the self-only mark (`_feeds`). The bar
+            -- reads `cooldownMs` only: the 180 s above is unchanged.
+            assertEquals(15000, row.durationMs)
+            assertEquals(true, row.noTarget)
         else
             assertNil(b, cls .. " cannot roll Berserking (Orc/Troll racial)")
         end
@@ -371,6 +377,9 @@ function()
             local row = data[r]
             assertEquals(true, row.racial)
             assertEquals(180000, row.cooldownMs)
+            -- No evidence for a Rapid Regeneration length (2026-11-14,
+            -- Berserking fix): it keeps NO durationMs, so no Timer row.
+            assertNil(row.durationMs)
         else
             assertNil(r, cls .. " cannot roll Rapid Regeneration (Dwarf racial)")
         end

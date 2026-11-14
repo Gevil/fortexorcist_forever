@@ -13,6 +13,12 @@
       "reason": "the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4)"
     }
   },
+  "_feeds": {
+    "Berserking": {
+      "noTarget": true,
+      "reason": "the racial is a self haste buff (+10% attack and cast speed on the caster); the store's four name shells (20554/23505/24378/1286304) carry no Effects/Targets, so the generator cannot derive the feed -- without this the Spell Timer row would be keyed to the current enemy target and retired when it dies (2026-11-14, Berserking not shown on the Spell Timer)"
+    }
+  },
   "cooldowns": [
     "Shadowfiend", "Confounding Flash", "Silence", "Void Zone",
     "Circle of Healing", "Eye of the Void", "Homunculi", "Void Plague",

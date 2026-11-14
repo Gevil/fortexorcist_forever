@@ -94,8 +94,12 @@ local function pickCast(taken)
     for name, row in pairs(Registry.entries) do
         total = total + 1
         local dur = Registry.BestDuration(name)
+        -- Berserking fix 2026-11-14: a `noTarget` row is ONE "none" window
+        -- whatever the SENT names (Casts:OnSent), so it can not carry the
+        -- two-target legs below ("the fight carries two rows"): the census
+        -- sample is a target-keyed window.
         if type(dur) == "number" and dur >= 8 and dur <= 40
-            and not taken[name] then
+            and not row.noTarget and not taken[name] then
             windowed = windowed + 1
             local okI, infoI = pcall(C_Spell.GetSpellInfo, name)
             local id = okI and infoI

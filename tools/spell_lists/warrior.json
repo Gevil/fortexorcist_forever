@@ -25,6 +25,12 @@
       "reason": "the warrior's Enrage buff (12 s, +10% damage, category 21; triggered by Fresh Meat 440484; the pick before hotfix push 114027). Push 114027 gave 12686 a store row: that is an item weapon proc of the same name (+102 attack power and haste, 15 s, spell level 50; wowsims sim/common/forever/stat_bonus_procs_auto_gen.go 'IsWeaponProc'), family-less, so it rode the in-family pool and outranked the class rows on spell level"
     }
   },
+  "_feeds": {
+    "Berserking": {
+      "noTarget": true,
+      "reason": "the racial is a self haste buff (+10% attack and cast speed on the caster); the store's four name shells (20554/23505/24378/1286304) carry no Effects/Targets, so the generator cannot derive the feed -- without this the Spell Timer row would be keyed to the current enemy target and retired when it dies (2026-11-14, Berserking not shown on the Spell Timer)"
+    }
+  },
   "cooldowns": [
     "Berserker Rage", "Bloodrage", "Bloodthirst", "Challenging Shout", "Charge",
     "Concussion Blow", "Death Wish", "Disarm", "Enraged Regeneration", "Intercept",

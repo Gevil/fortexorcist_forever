@@ -3,7 +3,7 @@
 -- Overlay: wowsims/forever 80ef86793788ca527d4a51d0e1a659a928ccc4b9 build 1.60.1.70888 (MIT)
 --   (hotfix push 114027; assets/db_inputs/spell_store_inputs.json (gzip JSON); built by tools/extract_store.py -- 70888 values win; absent fields = the store carries no row, mythicsim stands)
 -- Dev notes: tools/overrides_devnotes_2026-11-03.json (Blizzard WoW Forever Beta Development Notes - Updated November 2, post 9 (Kaivax, 2026-11-03; changes since the October 15 beta update); https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696/9) -- post-9 values the captured data does not carry, applied AFTER the 70888 layer; delete a row the day a store capture carries the value (hotfix-watch)
--- Regenerated: 2026-11-13T11:58:30+00:00
+-- Regenerated: 2026-11-14T19:52:35+00:00
 -- 70888 overlay changes in this file (7):
 --   Charge: { id = 1240289, name = "Charge", cooldownMs = 15000, cooldownCategory = 44, rank = "Rank 3" } -> { id = 11578, name = "Charge", cooldownMs = 15000, cooldownCategory = 44, rank = "Rank 3" }
 --   Revenge: { id = 25288, name = "Revenge", cooldownMs = 5000, cooldownCategory = 65, gcdMs = 1500, rank = "Rank 6" } -> { id = 11601, name = "Revenge", cooldownMs = 5000, cooldownCategory = 65, gcdMs = 1500, rank = "Rank 5" }
@@ -13,7 +13,7 @@
 --   Enrage: { id = 427066, name = "Enrage", noTarget = true, durationMs = 12000 } -> { id = 440483, name = "Enrage", noTarget = true, durationMs = 12000, cooldownCategory = 21 }
 --   Battle Shout: { id = 25289, name = "Battle Shout", durationMs = 180000, gcdMs = 1500, rank = "Rank 7" } -> { id = 11551, name = "Battle Shout", durationMs = 180000, gcdMs = 1500, rank = "Rank 6" }
 -- Post-9 dev-notes values applied (2):
---   Berserking: cooldownMs None -> 180000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Berserking (Orc/Troll): 180 s real (hand-measured, the live 70790 store carries no Cooldowns row for any Berserking id)'); the November dev notes list Berserking only in the 'cooldowns we did NOT change' family note (docs/research/forever-dev-notes-2026-11-03.md), so no post-9 line restates the value; review-10 M2"
+--   Berserking: cooldownMs None -> 180000, durationMs None -> 15000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Berserking (Orc/Troll): 180 s real (hand-measured, the live 70790 store carries no Cooldowns row for any Berserking id)'); the November dev notes list Berserking only in the 'cooldowns we did NOT change' family note (docs/research/forever-dev-notes-2026-11-03.md), so no post-9 line restates the value; review-10 M2. durationMs 15000 (2026-11-14, Berserking not on the Spell Timer): 'Troll Berserking 15 s' (the 26/27 Oct dev notes, docs/research/forever-dev-notes-2026-11-03.md section 1 racials row) + wowsims/forever sim/core/racials.go berserkingAura Duration 15 s, wowsims commit 264068ee (2026-10-27); NOT yet confirmed on the live client tooltip"
 --   Rapid Regeneration: cooldownMs None -> 180000 -- post 9: "measured on the LIVE client by the addon owner (ForteXorcist session 2026-11-06, recorded in Forte_Cooldown/Core/Engine.lua's retired RACIALS table at commit d490e2e: 'Rapid Regeneration (Dwarf): 180 s real'); the November dev notes do not restate it; review-10 M2"
 -- Pinned picks (5); the spell list's `_pins` force the picked row -- the rank law stands for every other name (wave M3a law, see the generator docstring):
 --   Charge -> 11578 (warrior Charge R3 L46: cd 15 s, cat 44, GCD 0 (live store, gamedata card 1240289, sim charge.go ByID(11578)); 27685 is the hunter boar's Charge (focus cost, 'the boar's next attack', no class family) -- docs/research/live-warrior-2026-11-09.md §2.1)
@@ -21,6 +21,8 @@
 --   Enrage -> 440483 (the warrior's Enrage buff (12 s, +10% damage, category 21; triggered by Fresh Meat 440484; the pick before hotfix push 114027). Push 114027 gave 12686 a store row: that is an item weapon proc of the same name (+102 attack power and haste, 15 s, spell level 50; wowsims sim/common/forever/stat_bonus_procs_auto_gen.go 'IsWeaponProc'), family-less, so it rode the in-family pool and outranked the class rows on spell level)
 --   Berserking -> 20554 (all four 70790 rows (20554/23505/24378/1286304) are value-less name shells (no Cooldowns row), so the bare-row tiebreak rides the arbitrary max-id shell; 20554 is the id measured 180 s on the live client (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4))
 --   Rapid Regeneration -> 1260270 (the store's 1260270 is a value-less name shell (no Cooldowns row); the id is pinned to record the measured subject of the 180 s dev-notes fact (tools/overrides_devnotes_2026-11-03.json, owner session 2026-11-06; review-10 M2/m4))
+-- Feed overrides (1); the spell list's `_feeds` force the `noTarget` feed where the captured effect shape cannot speak (tools/gen_spell_data.py, 2026-11-10):
+--   Berserking (20554) noTarget = true (the racial is a self haste buff (+10% attack and cast speed on the caster); the store's four name shells (20554/23505/24378/1286304) carry no Effects/Targets, so the generator cannot derive the feed -- without this the Spell Timer row would be keyed to the current enemy target and retired when it dies (2026-11-14, Berserking not shown on the Spell Timer))
 -- Racial rows (2); the `racials` group -- `racial = true` rows are skipped by Engine:Build and tracked by Engine:AddExtras from this data, so the Locale alias walk covers their names on localized clients (review-10 M2/m4):
 --   Berserking (20554)
 --   Rapid Regeneration (1260270)
@@ -28,7 +30,7 @@
 --   Reckless Swings (1329555)
 --   Berserking (20554)
 --   Rapid Regeneration (1260270)
--- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's stack cap when above 1 (the live store's `MaxStack` WINS over the base row's -- the LIVE-WINS law, tools/gen_spell_data.py `row_feeds`), `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects` answer first, a 70888-picked row inherits the same-id base row's shape, and the 70888 overlay's own feed captures (per-id `periodMs`/`targetCode`) fill what neither can speak to (tools/overrides_70888.json). This file: 4 tickEvery, 3 maxStack, 29 noTarget.
+-- Feed columns (docs/design-spell-timer.md §3.4; read by Forte_Timer/Core/Registry.lua `Build`): `tickEvery` = the periodic effect's period in SECONDS (`Effects[].PeriodMs`), `maxStack` = the aura's stack cap when above 1 (the live store's `MaxStack` WINS over the base row's -- the LIVE-WINS law, tools/gen_spell_data.py `row_feeds`), `noTarget` = every captured effect targets the CASTER (effect `Target[0]` == 1). Feed sources (wave I-2b, docs/research/upstream-data-2026-11-03.md §7.5): the row's own base `Effects` answer first, a 70888-picked row inherits the same-id base row's shape, and the 70888 overlay's own feed captures (per-id `periodMs`/`targetCode`) fill what neither can speak to (tools/overrides_70888.json). This file: 4 tickEvery, 3 maxStack, 30 noTarget.
 --   feeds [18499] Berserker Rage: noTarget
 --   feeds [2687] Bloodrage: noTarget
 --   feeds [12328] Death Wish: noTarget
@@ -61,6 +63,7 @@
 --   feeds [2458] Berserker Stance: noTarget
 --   feeds [71] Defensive Stance: noTarget
 --   feeds [412513] Gladiator Stance: tickEvery = 1, noTarget
+--   feeds [20554] Berserking: noTarget
 
 ForteXorcist = ForteXorcist or {}
 ForteXorcist.Data = ForteXorcist.Data or {}
@@ -131,7 +134,7 @@ ForteXorcist.Data.Warrior = {
   [11556] = { id = 11556, name = "Demoralizing Shout", durationMs = 45000, gcdMs = 1500, rank = "Rank 5" },
   [403215] = { id = 403215, name = "Commanding Shout", durationMs = 300000, gcdMs = 1500 },
   -- racials
-  [20554] = { id = 20554, name = "Berserking", racial = true, cooldownMs = 180000 },
+  [20554] = { id = 20554, name = "Berserking", racial = true, noTarget = true, durationMs = 15000, cooldownMs = 180000 },
   [1260270] = { id = 1260270, name = "Rapid Regeneration", racial = true, cooldownMs = 180000 },
 }
 
