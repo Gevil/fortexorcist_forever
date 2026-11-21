@@ -12,7 +12,9 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
 
 ---
 
-## Unreleased
+## [1.0.2] - 2026-11-21
+
+Fixes for the first player reports, smoother motion, and the game data of build 1.60.1.70959 / items 71037.
 
 - **Smooth motion on high-refresh monitors.** Everything that moves — cooldown icons and their fades, the
   Spell Timer bars and sparks, the Hunter swing bar, melee rail and aspect reminder pulse, the ready splash —
