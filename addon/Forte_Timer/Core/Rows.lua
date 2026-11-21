@@ -209,6 +209,17 @@ function Rows:Find(name, targetKey)
     return nil
 end
 
+--- The ONE "this row is on you" predicate: the `"none"` target key, the
+--- self / no-target window of §3.3 (a self-cast buff, a `noTarget` spell such
+--- as Rapid Fire or Berserking whatever the SENT payload named -- Casts:OnSent
+--- -- and a lone SUCCEEDED). The renderer's OffsetSelf extra and the
+--- ShowSelf display filter both read it, so "your own rows" has one meaning.
+--- A row keyed to a unit/name (an enemy DoT, a buff on another player, a pet
+--- row on the pet's target) is NOT on you, even when that unit is you by name.
+function Rows.IsSelfRow(row)
+    return row.targetKey == "none"
+end
+
 --- Every live row of a spell name into `out` (the aura sweep's lookup: the
 --- fact arrives keyed by spell, the rows are keyed by spell+target).
 function Rows:AllForName(name, out)
@@ -773,6 +784,7 @@ function Rows:Sorted(out, now)
     -- `compareLinks` reads these module-scope values.
     sortGrouping = opts.groupID ~= false
     sortOutwands = opts.outwands ~= false
+    local hideSelf = opts.showSelf == false
     local n = 0
     for i = 1, self.rows_n do
         local row = self.rows[i]
@@ -794,6 +806,10 @@ function Rows:Sorted(out, now)
             row.alpha = a
             link[4] = a
             link[5] = row.hiddenSince
+            -- ShowSelf off: the row stays in the model and its gate stamp
+            -- keeps running above (no flash when the option flips back), but
+            -- it gets no link -- so no slot, no group run, no cap count.
+            if hideSelf and Rows.IsSelfRow(row) then n = n - 1 end
         end
     end
     for i = n + 1, #out do out[i] = nil end

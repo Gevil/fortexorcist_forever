@@ -1219,7 +1219,7 @@ function D:BindRow(link, r, g, o, s, now, barOffset, usewidth, down)
     -- here and nowhere else. BOTH halves are layout numbers, never time, so
     -- the bar keeps its anchoring across ticks and is re-anchored only when
     -- the inset, the cascade slot or the owning group box changes (fix 3).
-    local extra = (row.targetKey == "none") and (o.offsetSelf or 0)
+    local extra = Rows.IsSelfRow(row) and (o.offsetSelf or 0)
         or ((row.targetKey == "target") and (o.offsetTarget or 0) or 0)
     local ax = o.barInset + extra
     if r._ap ~= g.frame or r._ax ~= ax or r._ay ~= barOffset

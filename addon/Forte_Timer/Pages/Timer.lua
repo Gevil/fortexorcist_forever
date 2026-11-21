@@ -70,6 +70,7 @@ local DEFAULTS = {
     Flip = false,
     -- Display rules
     ShowTargetNames = true,
+    ShowSelf = true,
     ShowID = false,
     ShowSpellNames = false,
     MaxDisplayTime = 30,
@@ -149,6 +150,9 @@ FX.Timer.Pages.WIDGET_TIPS = {
         .. "onto the bars (Forte_Timer.lua:2351-2364). Applied live.",
     ShowTargetNames = "Label the rows with the target's name; off labels "
         .. "them with the spell name. Applied live.",
+    ShowSelf = "Off hides every row that is on you (your own buffs and "
+        .. "self-only windows such as Rapid Fire or Berserking); rows on "
+        .. "enemies and other players stay.",
     ShowSpellNames = "Label the rows with the spell name instead of the "
         .. "target (the source's own spell mode, :2391). Applied live.",
     ShowID = "Prefix the label with #<id> (the source's ShowID, "
@@ -337,6 +341,9 @@ function P.RegisterTimerPage()
                     s.CHK({ module = M, key = "ShowTargetNames",
                         label = "Show target names",
                         tip = TIPS.ShowTargetNames })
+                    s.CHK({ module = M, key = "ShowSelf",
+                        label = "Show timers on yourself",
+                        tip = TIPS.ShowSelf })
                     s.CHK({ module = M, key = "ShowSpellNames",
                         label = "Show spell names",
                         tip = TIPS.ShowSpellNames })
@@ -352,7 +359,8 @@ function P.RegisterTimerPage()
                 end, {
                     module = M,
                     keys = { "Enable", "Lock", "Label", "ShowTargetNames",
-                        "ShowSpellNames", "ShowID", "Outwands", "Flip" },
+                        "ShowSelf", "ShowSpellNames", "ShowID", "Outwands",
+                        "Flip" },
                     tip = "The master switches and the row labels.",
                 })
                 b.Section("Frame Sizing", function(s)

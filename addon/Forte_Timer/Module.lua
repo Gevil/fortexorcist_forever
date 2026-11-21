@@ -110,6 +110,7 @@ local function defaultOptions()
                                     -- design §8.3, and the assignment's
                                     -- "Show target names")
         showTarget = true,         -- the assignment's "Show target names"
+        showSelf = true,           -- Issue #3: rows on yourself ("none" key)
         showID = false,            -- :3318
         spell = false,             -- :3340
         icon = true, iconRight = false,     -- :3326-3327
@@ -177,6 +178,7 @@ local KEYMAP = {
     Spacing = "SetSpacing",
     Max = "SetMaxRows",
     ShowTargetNames = "SetShowTarget",
+    ShowSelf = "SetShowSelf",
     Label = "SetLabel",
     ShowID = "SetShowID",
     ShowSpellNames = "SetSpellName",
@@ -241,7 +243,7 @@ M.KEYMAP = KEYMAP
 --- law).
 local STORED = {
     SpellTimer = { "Enable", "Scale", "Alpha", "Width", "Height", "Space",
-        "Spacing", "Max", "ShowTargetNames", "Label", "ShowID",
+        "Spacing", "Max", "ShowTargetNames", "ShowSelf", "Label", "ShowID",
         "ShowSpellNames", "MaxDisplayTime", "ExpandUpwards", "NormalAlpha",
         "BarBackgroundAlpha", "EnableSpark", "EnableBackdrop", "SmartSpace",
         "IconStacks", "ShowStacks", "ShowTicks", "ShowTooltips",
@@ -383,6 +385,13 @@ function M:SetMaxOn(on) self.options.maxOn = not not on end
 --- Label checkbox/store from the screen. It writes its own key only.
 function M:SetShowTarget(on)
     self.options.showTarget = not not on
+end
+--- Issue #3: display-only. Off drops the rows on yourself from the link pass
+--- (Rows:Sorted) and redraws at once; the rows stay in the model.
+function M:SetShowSelf(on)
+    self.options.showSelf = not not on
+    local D = FX.Timer and FX.Timer.Display
+    if D and D.anchor then self:Draw() end
 end
 function M:SetLabel(on) self.options.label = not not on end
 function M:SetShowID(on) self.options.showID = not not on end

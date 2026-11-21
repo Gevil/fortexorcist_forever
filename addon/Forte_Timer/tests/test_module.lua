@@ -627,6 +627,7 @@ function()
         Height = { "height", "iconSize", "barWidth", "barInset" },
         Space = { "space" }, Spacing = { "spacingHeight" },
         Max = { "maxRows" }, ShowTargetNames = { "showTarget" },
+        ShowSelf = { "showSelf" },
         Label = { "label" }, ShowID = { "showID" },
         ShowSpellNames = { "spell" }, MaxDisplayTime = { "maxTime" },
         ExpandUpwards = { "expand" }, EnableBackdrop = { "__stored__" },
