@@ -19,5 +19,6 @@ Suites/Data.lua
 Suites/Errors.lua
 Suites/Combat.lua
 Suites/Motion.lua
+CdLog.lua
 Beacon.lua
 Panel.lua

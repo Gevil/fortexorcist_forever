@@ -3,11 +3,11 @@
 
     scripts/fxdev.py status
     scripts/fxdev.py deploy [--dry-run]
-    scripts/fxdev.py commands [VERB ...] [--lua 'code' ...]
+    scripts/fxdev.py commands [VERB ...] [--lua 'code' ...]   e.g. `commands cdlog 600` / `commands cdlog off`
     scripts/fxdev.py type "<cmd>" [--force] [--allow-unsafe]
     scripts/fxdev.py reload [--force] [--timeout S] [--settle S]
     scripts/fxdev.py shot [--timeout S] [--file PNG]
-    scripts/fxdev.py sv core|dev [--path a.b.c]
+    scripts/fxdev.py sv core|dev [--path a.b.c]        e.g. `sv dev --path cdlogSummary` (cdlog recording summary)
     scripts/fxdev.py errors
     scripts/fxdev.py selftest [suite] [--force] [--timeout S] [--poll S]
     scripts/fxdev.py loop [--suite S] [--force]
@@ -48,6 +48,8 @@ MAX_CMD_LEN = 240
 GUARD_MAX_AGE = 120.0           # seconds a beacon reading blocks typing
 MAX_SV_BYTES = 64 * 1024 * 1024
 MAX_LUA_CODE = 2000
+CDLOG_MAX_SECONDS = 3600        # Forte_Dev/CdLog.lua MAX_SECONDS
+CDLOG_ARG = re.compile(r"^(?:\d+(?:\.\d*)?|off|status)$", re.IGNORECASE | re.ASCII)
 MARKER = ".fx-deploy-copy"      # same marker scripts/deploy.sh --copy writes
 HANDS_OFF_NOTE = ("the owner must be hands-off the keyboard and mouse while this types: typing collides with "
                   "their input and can garble the line (seen: an unknown slash command)")
@@ -750,10 +752,28 @@ def parse_commands_args(tokens):
             allow = True
         elif t.startswith("--"):
             raise Refused(f"unknown option {t} for `commands`")
+        elif t.lower() == "cdlog" and i + 1 < len(tokens) and CDLOG_ARG.match(tokens[i + 1]):
+            entries.append(("verb", f"{t} {tokens[i + 1]}"))      # `cdlog 600` is ONE verb with its argument
+            i += 2
+            continue
         else:
             entries.append(("verb", t))
         i += 1
     return entries, allow
+
+
+def check_cdlog_verb(text):
+    """`cdlog [SECONDS|off|status]` (the Forte_Dev passive cooldown recorder): refuse a malformed argument
+    here instead of recording a failed entry in the game. Other verbs pass untouched."""
+    words = text.split()
+    if not words or words[0].lower() != "cdlog":
+        return
+    if len(words) > 2 or (len(words) == 2 and not CDLOG_ARG.match(words[1])):
+        raise Refused(f"verb {text[:40]!r}: expected `cdlog [SECONDS|off|status]`")
+    if len(words) == 2 and words[1][0].isdigit():
+        secs = float(words[1])
+        if not 1 <= secs <= CDLOG_MAX_SECONDS:
+            raise Refused(f"verb {text[:40]!r}: cdlog seconds must be 1..{CDLOG_MAX_SECONDS}")
 
 
 def check_devcommand_entries(entries, allow_unsafe=False):
@@ -765,6 +785,7 @@ def check_devcommand_entries(entries, allow_unsafe=False):
                 raise Refused(f"verb {text!r} starts with '/': give the verb only, or use --lua")
             if any(ord(c) < 32 or ord(c) == 127 for c in text):
                 raise Refused(f"verb {text[:40]!r} contains control characters")
+            check_cdlog_verb(text)
         else:
             if not text.strip() or len(text) > MAX_LUA_CODE:
                 raise Refused(f"--lua code is empty or longer than {MAX_LUA_CODE} chars")
@@ -1457,7 +1478,8 @@ def build_parser():
     ap = argparse.ArgumentParser(
         prog="fxdev.py", description=__doc__.split("\n\n")[0],
         epilog="`commands [VERB ...] [--lua CODE ...]` writes Forte_Dev/DevCommands.lua "
-               "(no arguments clears it). See docs/dev-loop.md.")
+               "(no arguments clears it); `commands cdlog 600` records cooldown flags for 600 s after the next "
+               "reload (read: `sv dev --path cdlogSummary`). See docs/dev-loop.md.")
     sub = ap.add_subparsers(dest="verb", required=True, metavar="VERB")
     sub.add_parser("status", help="game, window, install vs repo, stamps, SV mtimes, newest screenshot")
     p = sub.add_parser("deploy", help="copy changed addon/Forte_* + dev/Forte_Dev into the install")

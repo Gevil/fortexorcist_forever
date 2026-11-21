@@ -115,6 +115,17 @@ or reload, never in combat. If the file did not exist, `restart_needed` is true.
 scripts/fxdev.py commands "selftest ooc" shot --lua 'print(C_AddOns.IsAddOnLoaded("Forte_Dev"))'
 ```
 
+`cdlog` is one verb with its argument: `commands cdlog 600` writes the single entry `"cdlog 600"` (a passive
+600 s recording of `C_Spell.GetSpellCooldown` starts ~3 s after the next login/reload), `cdlog off` / `cdlog status` /
+bare `cdlog` likewise; seconds are 1-3600 and anything else is refused (exit 2) before the file is written. DevCommands
+run once per load, so disarm with `commands` (no arguments) before the reload that is meant to flush the recording:
+
+```
+scripts/fxdev.py commands cdlog 600 && scripts/fxdev.py reload      # arm + start (owner then just plays)
+scripts/fxdev.py commands && scripts/fxdev.py reload                # disarm + flush (PLAYER_LOGOUT finalizes)
+scripts/fxdev.py sv dev --path cdlogSummary
+```
+
 ### `type "<cmd>"`
 Types one whitelisted command (all rules above). The JSON carries `note` (the owner must be hands-off; nothing
 can be verified from the host, so confirm the command's own output in the next `shot`) and `owner_idle`. `reload`
@@ -154,6 +165,13 @@ of the JSON; Lua lists are 1-based and `-1` is the last element. Empty Lua table
 ```
 scripts/fxdev.py sv core --path errors.list.-1
 scripts/fxdev.py sv dev --path runs.-1
+```
+
+The passive cooldown recorder (`commands cdlog 600`, dev/README.md *CdLog*) leaves `cdlog` (rows) and
+`cdlogSummary` here; per spell: `sv dev --path cdlogSummary.spells.Shoot`, flips: `sv dev --path cdlogSummary.flipMoments`.
+
+```
+scripts/fxdev.py sv dev --path cdlogSummary
 ```
 
 ### `errors`

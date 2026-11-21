@@ -1,9 +1,10 @@
 -- Forte_Dev/Panel.lua
--- The readable panel under the beacon: stamp, build, suite, pass/fail/skip counts, the first 12 failing
+-- The readable panel under the beacon: stamp, build, an optional `cdlog: recording N s left, M rows` line (while
+-- Dev.CdLog records), suite, pass/fail/skip counts, the first 12 failing
 -- tests with their details (up to 3 wrapped lines each), the last 5 recorded errors (FX.db.errors.list),
 -- the last 3 DevCommands results (ForteDevDB.commands). For the manager to read in
 -- a crop of the top-left 30% x 45% of a screenshot. A plain frame + background texture + fontstring; no
--- OnUpdate, no mouse. `/fxdev panel off` hides it; the beacon row stays.
+-- OnUpdate of its own, no mouse (a recording's OnUpdate repaints it every 2 s). `/fxdev panel off` hides it; the beacon row stays.
 
 ForteXorcist = ForteXorcist or {}
 local FX = ForteXorcist
@@ -23,6 +24,7 @@ Panel.CHARS_PER_LINE = 80          -- conservative wrap estimate: GameFontHighli
 Panel.LINE_HEIGHT = 12             -- UI units per wrapped line (small font), for the size estimate
 Panel.CMD_VERB_CLIP = 50
 Panel.CMD_DETAIL_CLIP = 100
+Panel.CDLOG_CLIP = 100             -- the `cdlog: recording ...` line
 
 --- Escape a dynamic string for a FontString ("|" starts an escape sequence).
 local function esc(s)
@@ -53,6 +55,8 @@ function Panel.Text()
     lines[#lines + 1] = string.format("Forte_Dev  %s", esc(db.stamp))
     lines[#lines + 1] = string.format("build %s   class %s   runId %d   in combat %s   armed %s",
         esc(db.build), esc(tostring(Dev.classToken())), db.runId, tostring(Dev.inCombat()), tostring(st.armed))
+    local cd = Dev.CdLog and Dev.CdLog.PanelLine and Dev.CdLog.PanelLine()
+    if cd then lines[#lines + 1] = esc(Dev.clip(cd, Panel.CDLOG_CLIP)) end
     if type(run) == "table" then
         lines[#lines + 1] = string.format("run #%s  suite %s  pass %s  fail %s  skip %s%s", tostring(run.id),
             esc(tostring(run.suite)), tostring(run.pass), tostring(run.fail), tostring(run.skip),

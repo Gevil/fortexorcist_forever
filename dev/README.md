@@ -17,6 +17,7 @@ suites, a pixel beacon + text panel for screenshots, and a command queue. It is 
 | `Suites/*.lua` | census, api, frames, persistence, data, errors, **motion** (`ooc`, async, last) and combat (`combat`) |
 | `Suites/ApiList.lua` | **generated** by `python3 dev/gen_api_list.py` (`--check` = staleness test) |
 | `Beacon.lua`, `Panel.lua` | the screenshot surface |
+| `CdLog.lua` | the passive cooldown recorder (`/fxdev cdlog`, DevCommands `cdlog 600`), see below |
 | `tests/*.lua` | simulator tests |
 
 ## `/fxdev`
@@ -27,6 +28,8 @@ after `PLAYER_REGEN_DISABLED` (you create the combat; Forte_Dev never does) and 
 still in flight it waits for it. `all` = ooc now + arm. `shot` repaints the beacon/panel, then calls
 `Screenshot()` 0.2 s later (or, while a run is still in flight, as soon as it finished, at most 15 s).
 `run` re-runs DevCommands. `clear` empties runs/commands (the run id keeps counting) and disarms.
+`cdlog [seconds|off|status]` starts a passive recording of `C_Spell.GetSpellCooldown` (see *CdLog*), stops it, or
+prints its state (the summary of the last one while idle).
 
 `ooc` is **asynchronous** since the `motion` suite: `/fxdev selftest ooc` answers at once with "still running",
 the run is stored in `ForteDevDB.runs` and the beacon's *finished* cell (and *running* cell 3) flip only when the
@@ -66,7 +69,7 @@ through `GetTicksPerSecond`) must be sanity-checked against the first live numbe
 after a demo stop is informational (real cooldowns keep the render script alive). Read the numbers with
 `scripts/fxdev.py sv dev --path runs.-1` after a `/reload`.
 
-In combat only `status`, `panel`, `shot` and `selftest combat` (arming) are accepted; everything else is refused.
+In combat only `status`, `panel`, `shot`, `cdlog off|status` and `selftest combat` (arming) are accepted; everything else is refused.
 
 ## DevCommands — read this
 
@@ -83,6 +86,9 @@ therefore written **only by the owner's own host tool** (`scripts/fxdev.py comma
 owner before a `/reload`; nothing else may write it. Results (or the error) land in `ForteDevDB.commands`
 as classified strings.
 
+`cdlog 600` / `cdlog off` / `cdlog status` are valid entries (`scripts/fxdev.py commands cdlog 600` writes
+`"cdlog 600"`): a 600 s passive cooldown recording that starts with the load (see *CdLog*).
+
 ## ForteDevDB (contract shape)
 
 ```
@@ -94,9 +100,65 @@ as classified strings.
 ```
 
 Additive keys beyond the contract: `runs[].build`, `runs[].dropped` (results past the caps), `nonce`.
+
 Only plain strings/numbers/booleans are stored — every live value goes through `FX.Probe.K` /
 `FX.Compat.PlainOrNil` first. Caps: 30 recorded failures and 150 recorded entries per run, 160 characters per
 detail (the client stops reporting errors after 100 per session); the pass/fail/skip counts keep counting.
+The recorder adds `cdlog` (rows, cap 4000) and `cdlogSummary`, both written only by a `cdlog` recording (see *CdLog*).
+
+## CdLog — the passive cooldown recorder (CdLog.lua)
+
+Question it answers: what do `C_Spell.GetSpellCooldown`'s `isActive` / `isOnGCD` / `isEnabled` and its
+`duration` / `startTime` really do on WoW Forever (a wand `Shoot` or the GCD may be reported in a way the engine
+misreads)? The owner just plays; the next session reads SavedVariables. Nothing is typed in the game:
+
+```
+scripts/fxdev.py commands cdlog 600      # arm: a 600 s recording starts ~3 s after the NEXT login / reload
+scripts/fxdev.py reload                  # (or the owner relogs) -> recording; the owner plays
+scripts/fxdev.py commands                # disarm (no arguments clears DevCommands.lua) ...
+scripts/fxdev.py reload                  # ... this reload finalizes + flushes: PLAYER_LOGOUT stops the recording
+scripts/fxdev.py sv dev --path cdlogSummary
+scripts/fxdev.py sv dev --path cdlog     # the rows
+```
+
+`Dev.CdLog.Start(seconds)` / `Stop()` / `Status()`; seconds 1-3600, a second `Start` only moves the deadline.
+DevCommands run once per load, so a `cdlog 600` entry restarts (and clears) the recording at every load until it
+is removed (`fxdev.py commands` with no arguments): disarm before the reading reload, or that reload's own load
+starts a new, empty recording after the old one was flushed to disk.
+
+**Recording** = one frame whose `OnUpdate` and events exist ONLY while recording (Stop removes both; events are
+registered at Start, never at file top). ~10 Hz, skipped while the player is dead. Sampled: every name in
+`FX.Cooldown.Engine.tracked` plus `Shoot` and `Auto Shot` (the English name on an English client, the data row's
+rank id on a localized one, like `Forte_Cooldown`'s `readKey`). A row is stored only when `isActive`, `isOnGCD`,
+`isEnabled`, the plain duration (rounded to 0.01) or the NUMERIC verdict (`startTime + duration` still ahead of
+`GetTime()`; the only way a `startTime` change counts) differs from the spell's previous sample; the first sample
+of a spell is stored once as a baseline (`base = true`). The pass allocates nothing of its own when nothing changed.
+
+`ForteDevDB.cdlog` = chronological array capped at 4000 rows (once full the oldest row table is removed and reused,
+so SavedVariables stay bounded). Every row has `t` (GetTime, 0.01), `ev`, `combat`:
+
+| `ev` | fields |
+|---|---|
+| `cd` | `name`, `active`, `gcd`, `enabled`, `dur`, `start`, `secretNumbers`, `base?`, `secretFlags?` (a nil field = secret or absent) |
+| `cast` | own `UNIT_SPELLCAST_SUCCEEDED`: `name` only when the id is plain, `secretId = true` when it is secret (ids are never stored) |
+| `auto+` / `auto-` | `START_AUTOREPEAT_SPELL` / `STOP_AUTOREPEAT_SPELL` |
+| `combat+` / `combat-` | `PLAYER_REGEN_DISABLED` / `PLAYER_REGEN_ENABLED` |
+| `start` / `stop` | `seconds` / `reason` (`done`, `off`, `logout`) |
+
+**Summary** (on Stop; `/fxdev cdlog status`; `ForteDevDB.cdlogSummary`, also written at `PLAYER_LOGOUT`, so a
+reload while recording still flushes it): `{ v, reason, planned, started, ended, elapsed, wall, stamp, build, rows,
+rowCounts, dropped, readErrors, spellCount, flipMoments, spells = { [name] = { changes, periods, min, median, max,
+longest, censored, open, secretNumbers } } }`. `periods` = closed `active = true & gcd = false` periods that began
+at an observed change; `longest` also covers a period still open at the end or already running at the baseline
+(`censored` counts closed ones of that kind); `flipMoments` = moments where >= 4 distinct spells changed `active`
+within 50 ms. It is computed over the retained rows only (`dropped` says how many the ring pushed out).
+Read one spell with `sv dev --path cdlogSummary.spells.Shoot`.
+
+Panel: while recording the panel shows `cdlog: recording 312 s left, 57 rows` (repainted every 2 s and on `shot`).
+Auto-stop: the OnUpdate deadline plus a `C_Timer` backup. Safety: no chat, nothing typed, nothing protected.
+Tests: `tests/test_cdlog.lua` (stubbed clock / cooldown API / frame through the `CdLog.now / read / tracked /
+isDead / inCombat / createFrame` seams). What only the real client can tell: what the flags and numbers really do
+(that is the point), the true row rate of a long session, whether `OnUpdate` really fires every frame.
 
 ## Beacon (top-left, 16 cells of 6 UI units, 96x6, strata TOOLTIP)
 
@@ -110,6 +172,8 @@ detail, so a DevCommands `lua` result is readable from the screenshot) sits unde
 only the panel. Repaint is
 event-driven (run events, `PLAYER_REGEN_*`, `GROUP_ROSTER_UPDATE`, `shot`); there is no `OnUpdate`.
 Cell 6 only changes on a repaint, so poll with `shot`.
+While a `cdlog` recording runs the panel gains one line, `cdlog: recording 312 s left, 57 rows` (clipped like the
+others, repainted every 2 s by the recorder and on `shot`; the recorder's `OnUpdate` is the only repaint timer).
 
 ## Safety
 
@@ -118,6 +182,8 @@ output is the local chat frame answering a typed `/fxdev` (plus the `Test Mode: 
 prints locally when the motion suite starts/stops the demo; the demo is refused in combat and the suite never
 asks then). In combat only the armed combat suite's READ assertions run. `tests/test_safety.lua` puts
 tripwires on the chat/gameplay globals through a full run.
+The recorder adds nothing to this surface: no chat, no addon messages, nothing typed, nothing protected; its
+events and `OnUpdate` exist only while a recording runs (`tests/test_cdlog.lua` puts the same tripwires on it).
 
 ## Simulator
 
@@ -136,3 +202,5 @@ the async tests in `test_runner.lua` fire every frame and timer by hand through 
 (`Dev.Motion.after / newDriver / buildTargets / testMode`); the full `ooc` runs in `test_suites.lua` /
 `test_safety.lua` leave the async `motion` suite out. What only the real client can tell: that `OnUpdate`
 really fires every frame, the true frame times, and that the widgets' read-back values really change.
+`tests/test_cdlog.lua` drives the recorder the same way (clock, cooldown API, frame and events stubbed by hand through
+`Dev.CdLog.now / read / tracked / isDead / inCombat / createFrame`).

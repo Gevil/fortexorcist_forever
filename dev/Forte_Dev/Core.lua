@@ -280,7 +280,7 @@ end
 -- ------------------------------------------------------------- the verbs --
 -- A verb handler returns (ok, detail). `combatOk(rest)` marks the verbs allowed in combat.
 
-Dev.USAGE = "/fxdev selftest [ooc|combat|all] | shot | status | panel on|off | run | clear"
+Dev.USAGE = "/fxdev selftest [ooc|combat|all] | shot | status | panel on|off | run | clear | cdlog [seconds|off|status]"
 Dev.verbs = {}
 
 Dev.verbs.selftest = {

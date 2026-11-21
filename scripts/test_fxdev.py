@@ -1083,6 +1083,56 @@ class DevCommands(unittest.TestCase):
         code, out = e.run(["commands", "--lua", "Quit()", "--allow-unsafe"])
         self.assertEqual(code, 0)
 
+    def test_cdlog_verb_is_one_entry_with_its_argument(self):
+        e = Env(self)
+        fxdev.deploy(e.ctx)
+        code, out = e.run(["commands", "cdlog", "600", "shot", "cdlog", "off", "cdlog", "status", "cdlog"])
+        self.assertEqual(code, 0, out)
+        got = self.parse(e, open(os.path.join(e.addons, "Forte_Dev", "DevCommands.lua")).read())
+        self.assertEqual(got, ["cdlog 600", "shot", "cdlog off", "cdlog status", "cdlog"])
+        self.assertEqual(out["entries"], got)
+        code, out = e.run(["commands", "cdlog 45", "--lua", "print(1)", "cdlog", "--lua=print(2)"])
+        self.assertEqual(code, 0, out)
+        got = self.parse(e, open(os.path.join(e.addons, "Forte_Dev", "DevCommands.lua")).read())
+        self.assertEqual(got, ["cdlog 45", {"lua": "print(1)"}, "cdlog", {"lua": "print(2)"}])
+
+    def test_cdlog_verb_parse_and_check_units(self):
+        self.assertEqual(fxdev.parse_commands_args(["cdlog", "600"]), ([("verb", "cdlog 600")], False))
+        self.assertEqual(fxdev.parse_commands_args(["CDLOG", "OFF"]), ([("verb", "CDLOG OFF")], False))
+        self.assertEqual(fxdev.parse_commands_args(["cdlog", "12.5", "x"]),
+                         ([("verb", "cdlog 12.5"), ("verb", "x")], False))
+        self.assertEqual(fxdev.parse_commands_args(["cdlog", "--lua", "x"]),
+                         ([("verb", "cdlog"), ("lua", "x")], False))
+        for ok in ("cdlog", "cdlog 1", "cdlog 3600", "cdlog 3600.0", "cdlog off", "cdlog status", "cdlog  600"):
+            with self.subTest(ok=ok):
+                fxdev.check_devcommand_entries([("verb", ok)])
+        for bad in ("cdlog 0", "cdlog 0.5", "cdlog 3601", "cdlog 99999", "cdlog abc", "cdlog 1e3", "cdlog -5",
+                    "cdlog 600 off", "cdlog on", "cdlog \u0663\u0660"):
+            with self.subTest(bad=bad):
+                with self.assertRaises(fxdev.Refused):
+                    fxdev.check_devcommand_entries([("verb", bad)])
+        fxdev.check_devcommand_entries([("verb", "cdlogger 5")])      # another verb: not ours to judge
+
+    def test_cdlog_verb_refusals_through_the_cli(self):
+        e = Env(self)
+        fxdev.deploy(e.ctx)
+        for args in (["commands", "cdlog 0"], ["commands", "cdlog", "99999"], ["commands", "cdlog abc"],
+                     ["commands", "cdlog 600 now"]):
+            with self.subTest(args=args):
+                code, out = e.run(args)
+                self.assertEqual(code, 2, out)
+
+    def test_cdlog_summary_is_readable_with_sv_dev_path(self):
+        e = Env(self)
+        e.write(os.path.join(e.acct, "Forte_Dev.lua"),
+                'ForteDevDB = { ["cdlogSummary"] = { ["spellCount"] = 1, ["flipMoments"] = 2, '
+                '["spells"] = { ["Auto Shot"] = { ["periods"] = 3, ["median"] = 0.5 } } } }\n')
+        code, out = e.run(["sv", "dev", "--path", "cdlogSummary.spells.Auto Shot.periods"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["value"], 3)
+        code, out = e.run(["sv", "dev", "--path", "cdlogSummary.flipMoments"])
+        self.assertEqual(out["value"], 2)
+
     def test_without_forte_dev_installed(self):
         e = Env(self)
         code, out = e.run(["commands", "shot"])
