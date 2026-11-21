@@ -24,6 +24,26 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
   comes from the development notes and is not yet confirmed against the in-game tooltip; the Timer learns the real
   length from the aura the first time it can read it out of combat. The same rule now keys every self-only Spell
   Timer window to you rather than to the enemy you had targeted when you cast it.
+- **Item tracking follows the game's item changes of 21 November.** The cooldown bar now knows 4 more use items (the
+  trinkets Zarla's Snack Pouch and Sayaad Charm, the Sand-Covered Silk Sash and the Ancient Mattock), no new
+  consumables needed adding, and the proc list gains 27 items (among them Seed of Renewal, Zealot Plate, Maw of
+  Min'loth and the new Grass Killer weapons). Gloves of Holy Might and Howling Hide now use their new 20 s proc
+  cooldown and aura, Traveler's Symbols shows its 60 s window, and the Onyxia Blood Talisman, which lost its use
+  effect, is no longer tracked.
+- **Fixes for the first reports from players (GitHub issues #1–#3):**
+  - **The cooldown splash now plays when a cooldown ends, not when you cast.** The bar's "Splash ready cooldowns"
+    option used to play its big icon splash at the cast as well; it now acts only when the cooldown comes ready, like
+    the original. A new option "Splash icons when cast" (off by default) brings the cast splash back.
+  - **A short lockout can no longer put spells on the cooldown bar.** Players saw every spell appear with its full
+    cooldown while firing a wand. The bar now trusts a plainly readable cooldown over the game's "active" flag, waits
+    for an in-combat "active" flag to last longer than any global cooldown before drawing a bar, and no longer learns
+    a cooldown length from a lockout shared by several spells. `/fx status` shows counters for each of these guards.
+    (The exact cause could not be reproduced without a wand on the live game: please send your `/fx status` if
+    it still happens.)
+  - **New option "Show timers on yourself"** on the Spell Timer page (on by default). Off hides every row that is on
+    you (your own buffs and self-only windows such as Rapid Fire); rows on enemies and other players stay.
+- **Spell data follows the game's hotfixes up to build 70959.** Wild Growth's ranks now share one cooldown (the
+  game fixed ranks not going on cooldown) and Unsealed Wrath has its 0.1 s proc cooldown. Stormstrike stays at 8 s.
 
 ---
 
