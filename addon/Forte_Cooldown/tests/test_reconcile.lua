@@ -450,6 +450,14 @@ test("Read pass: active non-GCD starts the edge, GCD-only and live entries do no
         return { currentCharges = SECRET, maxCharges = 1,
                  cooldownStartTime = SECRET, cooldownDuration = SECRET }
     end
+    -- The edge law (Core/Engine.lua header): a secret-number active read
+    -- creates an entry only after it PERSISTED MIN_COOLDOWN seconds. Plant
+    -- first sightings 5 s back, as five seconds of such reads would have --
+    -- the GCD-only spell's mark must be cleared by its isOnGCD read.
+    for _, spell in ipairs({ "Bestial Wrath", "Rapid Fire" }) do
+        Engine.pendingEdge[spell] = GetTime() - 5
+        Engine.pendingSeen[spell] = GetTime()
+    end
     M:ReadAll()
     FX.Compat.GetSpellCooldownInfo = realInfo
     FX.Compat.GetSpellCharges = realCharges
@@ -460,6 +468,7 @@ test("Read pass: active non-GCD starts the edge, GCD-only and live entries do no
     assertEquals("edge", e.source)
     assertTrue(e.predicted)
     assertNil(Engine.entries["Rapid Fire"]) -- isOnGCD: GCD is not an edge
+    assertNil(Engine.pendingEdge["Rapid Fire"])  -- ... and it cleared the mark
     assertEquals(1, countEntries())
     -- A second pass: the live entry owns the spell, the edge adds nothing.
     FX.Compat.GetSpellCooldownInfo = realInfo

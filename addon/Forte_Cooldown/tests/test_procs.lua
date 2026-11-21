@@ -39,7 +39,10 @@ local AD_NAME, AD_BUFF, AD_ICD = "Argent Defender", 17351, 20
 local AD_KEY = "Argent Defender#17351"
 -- The generated Hunter census (build 1.60.1.70425): rows with a plain buffId
 -- and an icdMs whose seconds clear Engine.MIN_COOLDOWN, class-filtered.
-local HUNTER_ROWS = 13
+-- 2026-11-21 pass (docs/research/live-items-procs-2026-11-21.md): 13 -> 18, the five ICD rows of
+-- >= 3 s the pass added or gave an ICD (Seed of Renewal 120 s, Zealot Plate 15 s, Maw of
+-- Min'loth 3 s, Gloves of Holy Might 20 s, Howling Hide 20 s); Farraki Kris's 100 ms stays out.
+local HUNTER_ROWS = 18
 
 local function watched()
     local n = 0

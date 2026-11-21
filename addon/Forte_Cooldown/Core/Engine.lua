@@ -49,6 +49,41 @@
 -- leaves everything else to tier 1. `FX.SecretState` only says when tier 1 is
 -- not worth asking at all (skip work), never what is true.
 --
+-- Edge law (GitHub issue #2, "Wand GCD triggers spell cooldown timers"). The
+-- boolean pair can say "something is running", never WHICH cooldown or how
+-- long, so it is the weakest tier and is held to three rules:
+--  1. Plain numbers are authoritative. When this spell's numeric read of the
+--     pass was PLAIN (any OnRead verdict but "secret"), the booleans never
+--     CREATE an entry: a plain pair that is not a cooldown >= MIN_COOLDOWN
+--     means the active bit is GCD / lockout noise. (The early clear of an old
+--     prediction stays, but not while the plain numbers say it is running.)
+--  2. Persistence. With secret/absent numbers an `isActive` read (not on the
+--     GCD) with no entry only plants `pendingEdge[name] = firstSeenAt`. The
+--     entry is created when the SAME spell is still active >= MIN_COOLDOWN
+--     seconds later -- by this file's own law anything shorter is not a
+--     tracked cooldown -- and is BACK-DATED to firstSeenAt (endTime =
+--     firstSeenAt + duration). isActive == false or isOnGCD == true clears the
+--     mark; a secret/absent bit leaves it alone; a mark with no confirming
+--     read for PENDING_STALE (10 s) is dropped. Marks are plain numbers in
+--     reused tables (nothing allocates per read); Build wipes them, and so
+--     does any cast/anchor that gives the spell a real entry.
+--  3. Observable. `Engine.stats` counts edges created, edges suppressed by
+--     rule 1 and by rule 2 (per episode, not per read), lockout reads
+--     skipped, and the last edge created; Module:Status prints them.
+--
+-- Lockout law (same issue). OnRead anchors and learns only a read that looks
+-- like THAT spell's own cooldown. A read is a LOCKOUT -- verdict "lockout":
+-- anchors nothing, learns nothing, clears nothing -- when
+--  (a) the spell's known duration (BestDuration: learned beats the data's
+--      base) exists and the read is shorter than LOCKOUT_FRACTION (50%) of
+--      it; or
+--  (b) the caller flags the same plain (start, duration) pair on >=
+--      LOCKOUT_SPELLS (3) tracked spells in ONE pass (NoteReadPair /
+--      IsSharedLockout; the wand's shared recovery). Only spells that do not
+--      share a declared cooldown with each other count: a data-declared group
+--      (the Hunter traps' category 411) really does report one pair on every
+--      member, and that is those spells' own cooldown.
+--
 -- Multi-charge model (owner ruling 2026-11-01: multi-charge is MISSING in
 -- the original -- built new; the DISPLAY draws charge counts later, this
 -- layer only exposes the data):
@@ -105,6 +140,11 @@ Engine.MIN_COOLDOWN = 2.99
 -- carries the same 1.6 as its file-local `PREDICTION_GRACE` for the item side
 -- (owner law, single value; kept local there so that file stays self-contained).
 Engine.PREDICTION_GRACE = 1.6
+
+-- Edge / lockout law constants (file header).
+Engine.PENDING_STALE = 10       -- s without a confirming read: drop the mark
+Engine.LOCKOUT_FRACTION = 0.5   -- a read shorter than this share of the known duration
+Engine.LOCKOUT_SPELLS = 3       -- one plain pair on this many unrelated spells
 
 -- Shared cooldowns (a cast of tracked spell X also starts other tracked rows).
 -- Two data-driven links, both ONE HOP (no transitive closure, so no loop):
@@ -171,6 +211,18 @@ Engine.entries = {}
 -- clean. The rows below are the entry shape (file header).
 Engine.learned = {}   -- [name] = seconds, persisted via Engine:AttachStorage
 
+-- Edge-law state (file header). Plain numbers in reused tables.
+--   pendingEdge[name]  first sighting of an active, not-GCD, number-less read
+--   pendingSeen[name]  latest confirming read of that mark
+--   plainGuarded[name] the plain-number guard already counted this episode
+Engine.pendingEdge = {}
+Engine.pendingSeen = {}
+Engine.plainGuarded = {}
+-- Session counters (plain integers; Build does NOT reset them: a rebuild is
+-- not a new session). `lastEdgeAt` is a GetTime() frame time.
+Engine.stats = { edgesCreated = 0, edgesPlainGuard = 0, edgesNotPersistent = 0,
+                 lockoutsSkipped = 0, lastEdgeName = nil, lastEdgeAt = nil }
+
 --- Point learned durations at a SavedVariables-backed table so they survive reloads.
 function Engine:AttachStorage(tbl)
     self.learned = tbl
@@ -195,6 +247,9 @@ function Engine:Build(classFile, isKnown)
     self.builtClass = classFile
     wipe(self.tracked)
     wipe(self.entries)
+    wipe(self.pendingEdge)
+    wipe(self.pendingSeen)
+    wipe(self.plainGuarded)
     local key = TitleCase(classFile)
     local data = key and FX.Data and FX.Data[key]
     if not data then
@@ -296,6 +351,9 @@ function Engine:OnCast(name, now, _partner)
     if not t then return nil end
     local duration = self:BestDuration(name)
     if not duration then return nil end
+    -- A cast event is the better signal: the spell has a real entry now.
+    self.pendingEdge[name], self.pendingSeen[name] = nil, nil
+    self.plainGuarded[name] = nil
     local e = self.entries[name] or { name = name }
     e.start, e.duration, e.endTime, e.predicted = now, duration, now + duration, true
     e.source, e.anchored = "cast", nil
@@ -330,8 +388,11 @@ end
 --- A live cooldown read for `name`. `start`/`duration` may be secret (pass raw;
 --- this guards them). A plain, real cooldown re-anchors the entry and is learned;
 --- a plain "not on cooldown" read clears it; a secret read changes nothing.
---- Returns "anchored", "cleared", "secret" or "ignored".
-function Engine:OnRead(name, start, duration, now)
+--- Returns "anchored", "cleared", "secret", "lockout" or "ignored".
+--- `sharedPair` (optional, from the caller's pass: Engine:IsSharedLockout)
+--- says the same plain (start, duration) pair rides >= LOCKOUT_SPELLS
+--- unrelated tracked spells -- see the file header's Lockout law.
+function Engine:OnRead(name, start, duration, now, sharedPair)
     local t = self.tracked[name]
     if not t then return "ignored" end
     start = FX.Compat.PlainOrNil(start)
@@ -346,6 +407,12 @@ function Engine:OnRead(name, start, duration, now)
     if type(start) ~= "number" or type(duration) ~= "number" then return "secret" end
 
     if start > 0 and duration >= self.MIN_COOLDOWN then
+        -- Lockout law: not THIS spell's own cooldown -- touch nothing.
+        local known = self:BestDuration(name)
+        if sharedPair or (known and duration < known * self.LOCKOUT_FRACTION) then
+            self.stats.lockoutsSkipped = self.stats.lockoutsSkipped + 1
+            return "lockout"
+        end
         local e = self.entries[name] or { name = name }
         e.start, e.duration, e.endTime, e.predicted = start, duration, start + duration, false
         -- A plain read is the certification: it re-anchors the window and
@@ -441,20 +508,61 @@ end
 --- arrives secret, in-combat prediction has no event to ride on -- but
 --- SpellCooldownInfo.isActive / .isOnGCD are NeverSecret, so Module's read
 --- pass can see a tracked spell's cooldown RUNNING (not the GCD) and call
---- this. It creates the same predicted BestDuration window OnCast makes,
---- tagged source = "edge": a never-anchored "edge" entry never pops ready
---- (inferred-entries rule, PLAN §3.2); it is swept in silence when its
---- window lapses. Returns the entry, or nil if `name` is untracked, has a
---- live entry, or no duration is known.
-function Engine:OnActiveEdge(name, now)
+--- OnReadActive, which gates this by the Edge law (file header). It creates
+--- the same predicted BestDuration window OnCast makes, tagged source =
+--- "edge": a never-anchored "edge" entry never pops ready (inferred-entries
+--- rule, PLAN §3.2); it is swept in silence when its window lapses. `since`
+--- (optional, <= now) BACK-DATES the window to the first sighting
+--- (endTime = since + duration). Returns the entry, or nil if `name` is
+--- untracked, has a live entry, or no duration is known.
+function Engine:OnActiveEdge(name, now, since)
     if not self.tracked[name] then return nil end
     if self.entries[name] then return nil end
     local duration = self:BestDuration(name)
     if not duration then return nil end
-    local e = { name = name, start = now, duration = duration,
-                endTime = now + duration, predicted = true, source = "edge" }
+    local start = (since ~= nil and since < now) and since or now
+    local e = { name = name, start = start, duration = duration,
+                endTime = start + duration, predicted = true, source = "edge" }
     self.entries[name] = e
+    local s = self.stats
+    s.edgesCreated = s.edgesCreated + 1
+    s.lastEdgeName, s.lastEdgeAt = name, now
     return e
+end
+
+--- Drop every edge-law mark of `name` without counting anything.
+local function clearMarks(self, name)
+    self.pendingEdge[name], self.pendingSeen[name] = nil, nil
+    self.plainGuarded[name] = nil
+end
+
+--- An episode of "active but not a tracked cooldown" ended (inactive read,
+--- GCD): drop the marks, and when a persistence mark was open that is one
+--- edge suppressed by persistence.
+local function endEpisode(self, name)
+    if self.pendingEdge[name] ~= nil then
+        self.stats.edgesNotPersistent = self.stats.edgesNotPersistent + 1
+    end
+    clearMarks(self, name)
+end
+
+--- Edge law rule 2: one number-less active, not-GCD read of a spell with no
+--- entry. Returns "pending" | "edge" | "ignored".
+local function notePending(self, name, now)
+    local first, seen = self.pendingEdge[name], self.pendingSeen[name]
+    if first ~= nil and (seen == nil or now - seen > self.PENDING_STALE) then
+        -- No confirming read for too long: continuity is unknown, start over.
+        self.stats.edgesNotPersistent = self.stats.edgesNotPersistent + 1
+        first = nil
+    end
+    self.pendingSeen[name] = now
+    if first == nil then
+        self.pendingEdge[name] = now
+        return "pending"
+    end
+    if now - first < self.MIN_COOLDOWN then return "pending" end
+    clearMarks(self, name)
+    return self:OnActiveEdge(name, now, first) and "edge" or "ignored"
 end
 
 --- TIER 2 -- the boolean ready tier. `isActive` / `isOnGCD` are the raw
@@ -464,7 +572,10 @@ end
 --- lockdown of the numbers this file's numeric tier goes blind on. They are
 --- still routed through PlainOrNil: a claim about an *output annotation* is
 --- not a claim about a runtime value, and `x == true` on a secret raises.
---- `now` is a plain GetTime() frame time, never a read.
+--- `now` is a plain GetTime() frame time, never a read. `numeric` is the
+--- verdict `Engine:OnRead` gave THIS spell in the same pass (nil = the read
+--- did not run; "secret" = the numbers were unreadable; anything else = the
+--- numbers were PLAIN, so they are authoritative -- Edge law rule 1).
 ---
 --- What the two bits can prove, and nothing else:
 ---  * `isActive == false` with `isOnGCD ~= true` on OUR OWN PREDICTION that
@@ -476,21 +587,24 @@ end
 ---    here (`endTime = now`, `duration` kept consistent with `start`), so the
 ---    next `Sweep` retires the entry with the NORMAL ready pop -- the
 ---    inferred-entries law stays in the Sweep: a never-anchored "edge" entry
----    still dies in silence.
----  * `isActive == true` with no live entry -- a cooldown is running that no
----    cast event named (the secret-spellID case): the existing
----    `OnActiveEdge` fallback, tagged source = "edge".
+---    still dies in silence. Not while the plain numbers say the cooldown is
+---    running ("anchored" / "lockout").
+---  * `isActive == true` with no live entry and no plain numbers -- a
+---    cooldown that no cast event named (the secret-spellID case) -- once it
+---    has PERSISTED for MIN_COOLDOWN seconds (Edge law rule 2): the
+---    `OnActiveEdge` fallback, back-dated, tagged source = "edge".
 --- Anything else -- a "read"/"duration" window the numbers own, a charge bar
 --- the charges read owns (file header), a plain-true with a live entry, a
 --- GCD-only active, a secret/absent bit -- leaves the state alone. Booleans
 --- carry NO numbers: this tier never learns a duration.
---- Returns "cleared" | "edge" | "kept" | "ignored".
-function Engine:OnReadActive(name, isActive, isOnGCD, now)
+--- Returns "cleared" | "edge" | "pending" | "kept" | "ignored".
+function Engine:OnReadActive(name, isActive, isOnGCD, now, numeric)
     if not self.tracked[name] then return "ignored" end
     isActive = FX.Compat.PlainOrNil(isActive)
     isOnGCD = FX.Compat.PlainOrNil(isOnGCD)
     local e = self.entries[name]
     if isActive == false then
+        endEpisode(self, name)
         if not e then return "ignored" end
         -- The GCD's own activity is not a statement about this spell.
         if isOnGCD == true then return "kept" end
@@ -500,17 +614,75 @@ function Engine:OnReadActive(name, isActive, isOnGCD, now)
         -- Only a *predicted* window: a plain read's entry is the numbers'
         -- own business (its next plain read, or the Sweep, retires it).
         if not e.predicted then return "kept" end
+        -- The plain numbers say it is running: the booleans do not overrule.
+        if numeric == "anchored" or numeric == "lockout" then return "kept" end
         if (now - e.start) < self.PREDICTION_GRACE then return "kept" end
         e.endTime, e.duration = now, now - e.start
         return "cleared"
     end
     if isActive == true then
-        if e then return "kept" end
-        if isOnGCD == true then return "ignored" end
-        local created = self:OnActiveEdge(name, now)
-        return created and "edge" or "ignored"
+        if e then
+            clearMarks(self, name)
+            return "kept"
+        end
+        if isOnGCD == true then
+            endEpisode(self, name)
+            return "ignored"
+        end
+        if numeric ~= nil and numeric ~= "secret" then
+            -- Edge law rule 1: plain numbers are authoritative.
+            self.pendingEdge[name], self.pendingSeen[name] = nil, nil
+            if not self.plainGuarded[name] then
+                self.plainGuarded[name] = true
+                self.stats.edgesPlainGuard = self.stats.edgesPlainGuard + 1
+            end
+            return "ignored"
+        end
+        return notePending(self, name, now)
     end
     return "kept"
+end
+
+-- One read pass's plain (start, duration) pairs of reads that WOULD anchor
+-- (start > 0, duration >= MIN_COOLDOWN), for the shared-lockout rule.
+-- Reused arrays: nothing allocates after the first pass.
+local passName, passStart, passDur = {}, {}, {}
+local passN = 0
+
+--- Start a read pass (Module:ReadAll calls it once, before the first read).
+function Engine:BeginReadPass()
+    passN = 0
+end
+
+--- Record one spell's raw numeric read of this pass (guards it itself).
+function Engine:NoteReadPair(name, start, duration)
+    start = FX.Compat.PlainOrNil(start)
+    duration = FX.Compat.PlainOrNil(duration)
+    if type(start) ~= "number" or type(duration) ~= "number" then return end
+    if start <= 0 or duration < self.MIN_COOLDOWN then return end
+    passN = passN + 1
+    passName[passN], passStart[passN], passDur[passN] = name, start, duration
+end
+
+--- Lockout law (b): does this spell's plain pair ride >= LOCKOUT_SPELLS
+--- tracked spells of the pass (itself + others that do not share a declared
+--- cooldown with it)? Needs the pass's NoteReadPair calls.
+function Engine:IsSharedLockout(name, start, duration)
+    if passN < self.LOCKOUT_SPELLS then return false end
+    start = FX.Compat.PlainOrNil(start)
+    duration = FX.Compat.PlainOrNil(duration)
+    if type(start) ~= "number" or type(duration) ~= "number" then return false end
+    local t = self.tracked[name]
+    if not t then return false end
+    local n = 1
+    for i = 1, passN do
+        local other = passName[i]
+        if other ~= name and passStart[i] == start and passDur[i] == duration then
+            local ot = self.tracked[other]
+            if ot and not sharesWith(t, name, ot, other) then n = n + 1 end
+        end
+    end
+    return n >= self.LOCKOUT_SPELLS
 end
 
 --- TIER 3 -- the opportunistic exact anchor. `remaining` / `total` are the

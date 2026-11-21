@@ -221,11 +221,17 @@ test("OnReadActive owns the active-edge start and guards the booleans defensivel
     Engine:Build("HUNTER", allKnown)
     wipe(Engine.entries)
 
-    -- isActive == true, no entry, not the GCD -> the PLAN §8 "edge" entry.
-    assertEquals("edge", Engine:OnReadActive("Bestial Wrath", true, false, 5000))
+    -- isActive == true, no entry, not the GCD -> the PLAN §8 "edge" entry --
+    -- once the active read has PERSISTED MIN_COOLDOWN seconds (Edge law,
+    -- Core/Engine.lua header; tests/test_tiers_wand.lua pins the guards): the
+    -- first sighting only plants a mark, and the entry is back-dated to it.
+    assertEquals("pending", Engine:OnReadActive("Bestial Wrath", true, false, 5000))
+    assertNil(Engine.entries["Bestial Wrath"])
+    assertEquals("edge", Engine:OnReadActive("Bestial Wrath", true, false, 5003))
     local e = Engine.entries["Bestial Wrath"]
     assertNotNil(e)
     assertEquals("edge", e.source)
+    assertEquals(5000, e.start)
     assertTrue(e.predicted)
     -- A live entry owns the spell: a second active read adds nothing.
     assertEquals("kept", Engine:OnReadActive("Bestial Wrath", true, false, 5010))
@@ -493,6 +499,13 @@ test("The duration tier does nothing on a secret, absent, broken or spent object
         return durationObject(false, 0, 120)
     end
     wipe(Engine.entries)
+    -- The edge law wants an active read to PERSIST before it creates an
+    -- entry (Core/Engine.lua header): plant first sightings 5 s back, as
+    -- five seconds of such reads would have.
+    for name in pairs(Engine.tracked) do
+        Engine.pendingEdge[name] = GetTime() - 5
+        Engine.pendingSeen[name] = GetTime()
+    end
     M:ReadAll()
     local anchored = 0
     for _, entry in pairs(Engine.entries) do

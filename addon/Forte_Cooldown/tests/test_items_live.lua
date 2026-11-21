@@ -384,6 +384,60 @@ test("the twelve added on-use items are complete rows and all track", function()
         "the Flash Bundle moved onto the on-use path")
 end)
 
+-- 2026-11-21 pass (items leg 1.60.1.71037 @ 114326, docs/research/live-items-procs-2026-11-21.md):
+-- four on-use items the 11-10 layer lacked, one duration override and one removal. The rows
+-- are read through the real Rescan path (bag items, matched by name) like the twelve above.
+local ADDED_ONUSE_1121 = {
+    { name = "Zarla's Snack Pouch",     id = 276744, s = 900 },
+    { name = "Sayaad Charm",            id = 284231, s = 900 },
+    { name = "Sand-Covered Silk Sash",  id = 286612, s = 1800 },
+    { name = "Ancient Mattock",         id = 287045, s = 120 },
+}
+
+test("2026-11-21: the new on-use items appear on the bar with their live cooldown", function()
+    if not hasData() then return end
+    freshStorage()
+    as("HUNTER")
+    local names, bag = {}, {}
+    for _, t in ipairs(ADDED_ONUSE_1121) do
+        local row = onUseRow(t.name, t.id)
+        assertNotNil(row, t.name .. " is not in data.onUse")
+        assertEquals(t.s * 1000, row.cooldownMs)
+        assertEquals(row, FX.Data.Items.OnUseByName[t.name], t.name .. " is not the ByName row")
+        names[t.id] = t.name
+        bag[#bag + 1] = t.id
+    end
+    assertEquals(#ADDED_ONUSE_1121, Items:Rescan(readersFrom({ names = names, bags = { [0] = bag } })))
+    for _, t in ipairs(ADDED_ONUSE_1121) do
+        local tr = Items.tracked[t.name]
+        assertNotNil(tr, t.name .. " is not tracked")
+        assertEquals("item", tr.kind)
+        near(t.s, tr.baseDuration)
+    end
+    -- the buff windows the rows state (Ancient Mattock's effect states none)
+    assertEquals(15000, onUseRow("Zarla's Snack Pouch", 276744).durationMs)
+    assertEquals(5000, onUseRow("Sand-Covered Silk Sash", 286612).durationMs)
+    assertNil(onUseRow("Ancient Mattock", 287045).durationMs)
+end)
+
+test("2026-11-21: Traveler's Symbols gains its 60 s window; Onyxia Blood Talisman lost its use",
+function()
+    if not hasData() then return end
+    freshStorage()
+    as("HUNTER")
+    local ts = FX.Data.Items.OnUseByName["Traveler's Symbols"]
+    assertNotNil(ts)
+    assertEquals(60000, ts.durationMs, "live_items.json onUseOverride 221315")
+    assertEquals(1800000, ts.cooldownMs, "the 30 min use cooldown is the pull's, untouched")
+    -- 18406's db row has no item effect any more (live_items.json onUseRemove): no row, no bar.
+    assertNil(FX.Data.Items.OnUseByName["Onyxia Blood Talisman"])
+    assertNil(onUseRow("Onyxia Blood Talisman", 18406))
+    assertEquals(0, Items:Rescan(readersFrom({
+        equipped = { [13] = 18406 },
+        names = { [18406] = "Onyxia Blood Talisman" },
+    })), "an Onyxia Blood Talisman on the trinket slot is tracked")
+end)
+
 -- ------------------------------------------------------------- proc rows --
 
 test("Fist of Stone: the droppable 17943 row wins the name index", function()
@@ -409,9 +463,65 @@ test("Fist of Stone: the droppable 17943 row wins the name index", function()
     assertEquals(4, #shared, "ProcsByBuffNameAll lost a shadowed Lightning Bolt row")
 end)
 
+-- 2026-11-21 pass: new proc rows resolve by item name AND by buff name, the two changed rows
+-- (Gloves of Holy Might, Howling Hide) moved to the live aura, and the ICD rows reach the
+-- watched set through the real Procs:Build.
+test("2026-11-21: new proc items resolve by name and buff name and feed the proc watcher",
+function()
+    local procs = FX.Data and FX.Data.ItemProcs
+    if not procs then
+        print("[skip] ForteXorcist.Data.ItemProcs not loaded")
+        return
+    end
+    local seed = procs.ProcsByName["Seed of Renewal"]
+    assertNotNil(seed, "Seed of Renewal is not in the name index")
+    assertEquals(219326, seed.itemId)
+    assertEquals(443678, seed.buffId)
+    assertEquals(120000, seed.icdMs)
+    assertEquals(30000, seed.durationMs)
+    assertEquals("buff-window", seed.trackable)
+    assertEquals(seed, procs.ProcsByBuffName["Seed of Renewal (443278)"])
+    local maw = procs.ProcsByName["Maw of Min'loth"]
+    assertNotNil(maw)
+    assertEquals(3000, maw.icdMs)
+    assertEquals(maw, procs.ProcsByBuffName["Fatal Bite (1295064)"])
+    local wit = procs.ProcsByName["Wit's Edge"]
+    assertNotNil(wit)
+    assertEquals("ClassMage", wit.classAllowlist[1], "the live class line of Wit's Edge")
+    -- the two rows the live db moved
+    local hide = procs.ProcsByName["Howling Hide"]
+    assertEquals(1330916, hide.buffId)
+    assertEquals(20000, hide.icdMs)
+    assertNil(hide.durationMs, "the live effect states no window")
+    assertNotNil(procs.ProcsByBuffName["Howler's Cry (1330916)"])
+    assertNil(procs.ProcsByBuffName["Howler's Cry (1315767)"], "the pre-hotfix aura is still indexed")
+    local gloves = procs.ProcsByName["Gloves of Holy Might"]
+    assertEquals(20000, gloves.icdMs)
+    assertNotNil(procs.ProcsByBuffName["Gloves of Holy Might (1330855)"])
+    assertNil(procs.ProcsByBuffName["Gloves of Holy Might (1325229)"])
+
+    -- Behaviour half: the real watcher builds from these rows and an aura sighting starts the
+    -- ICD window at the row's length.
+    freshStorage()
+    as("HUNTER")
+    if not Procs:IsEnabled() then Procs:SetEnabled(true) end
+    assertTrue(Procs:IsEnabled(), "the proc feature will not switch on")
+    Procs:Build()
+    local t = Procs.tracked["Seed of Renewal#443678"]
+    assertNotNil(t, "Seed of Renewal is not watched")
+    near(120, t.icd)
+    near(20, Procs.tracked["Howling Hide#1330916"].icd)
+    near(20, Procs.tracked["Gloves of Holy Might#1325229"].icd)
+    near(3, Procs.tracked["Maw of Min'loth#1295065"].icd)
+    assertNil(Procs.tracked["Howling Hide#1315767"], "the pre-hotfix aura is watched")
+    assertEquals(1, Procs:OnProcSeen(443678, 500))
+    near(500 + 120, Engine.entries["Seed of Renewal#443678"].endTime)
+    Engine.entries["Seed of Renewal#443678"] = nil
+end)
+
 -- ------------------------------------------------------------- sub-second --
 
--- 33 of the 51 ICD rows are 10/100/200 ms debounces (Searing Dagger's tooltip
+-- 34 of the 57 ICD rows (2026-11-21 pass; 33 of 51 before it) are 10/100/200 ms debounces (Searing Dagger's tooltip
 -- reads "10ms cooldown"), not cooldowns. Engine.MIN_COOLDOWN (2.99 by default)
 -- drops them, and Procs.MIN_ICD (1 s) keeps them out when the user lowers
 -- IgnoreShort on the Options page.

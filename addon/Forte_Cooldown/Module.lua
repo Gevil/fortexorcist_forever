@@ -41,13 +41,23 @@ local popInfoScratch = {}
 --   numeric  a plain C_Spell.GetSpellCooldown/GetSpellCharges read anchored
 --            or cleared an entry (Engine:OnRead verdicts).
 --   boolean  the NeverSecret isActive/isOnGCD pair ended a prediction early
---            ("cleared") or started an "edge" entry no cast event named.
+--            ("cleared") or started an "edge" entry no cast event named --
+--            only after the active read persisted (Engine.lua Edge law).
+--            The guard counters (Engine.stats: edges, plain-number and
+--            persistence suppressions, lockout reads) ride the same
+--            `/fx status` line, non-zero parts only.
 --   duration the unannotated duration object anchored an entry.
 -- Built at load, so PER SESSION by construction; InitReadTiers republishes
 -- the same table into FX.db.diag for /fx status to read. The launch-day
 -- question -- "which tiers are real on the live client" -- is answered by
 -- the boolean/duration columns.
 local readTiers = { numeric = 0, boolean = 0, duration = 0 }
+
+-- ReadAll scratch, reused for the life of the session and wiped per pass. The
+-- pass reads EVERY spell's numeric info before it feeds the tiers: the
+-- shared-lockout rule (Engine:IsSharedLockout, Engine.lua header) needs the
+-- whole pass's plain (start, duration) pairs before the first verdict.
+local passInfo, passStart, passDur, passLegacy = {}, {}, {}, {}
 
 local readPending, rebuildPending, rescanPending = false, false, false
 local reasonShown = false
@@ -269,29 +279,57 @@ function M:ReadAll()
     local skipNumeric = FX.SecretState ~= nil
         and FX.SecretState.CooldownReadsAreSecret ~= nil
         and FX.SecretState.CooldownReadsAreSecret()
-    for name in pairs(Engine.tracked) do
-        -- H1b: every C_Spell read of this pass takes the locale-safe key
-        -- (the data row's id on a localized client, the English name on an
-        -- English one). `name` stays the Engine's key -- the reads are keyed
-        -- on the client's identifier space, the state on the data key space.
-        local key = readKey(name)
-        local isActive, isOnGCD
-        local ok, info = false, nil
-        if not skipNumeric then
+    wipe(passInfo)
+    wipe(passStart)
+    wipe(passDur)
+    wipe(passLegacy)
+    Engine:BeginReadPass()
+    if not skipNumeric then
+        for name in pairs(Engine.tracked) do
+            -- H1b: every C_Spell read of this pass takes the locale-safe key
+            -- (the data row's id on a localized client, the English name on
+            -- an English one). `name` stays the Engine's key -- the reads are
+            -- keyed on the client's identifier space, the state on the data
+            -- key space.
+            local key = readKey(name)
             -- pcall: a live read can itself throw on Forever (secret values
             -- propagate as a raise, not just a bad value). One spell blowing
             -- up must not abort the rest of the pass.
-            ok, info = pcall(FX.Compat.GetSpellCooldownInfo, key)
+            local ok, info = pcall(FX.Compat.GetSpellCooldownInfo, key)
+            if ok and info then
+                passInfo[name] = info
+                Engine:NoteReadPair(name, info.startTime, info.duration)
+            else
+                -- Legacy multi-return client: no info table means no
+                -- booleans and no charge pair -- plain numbers only, no
+                -- boolean tier.
+                local okG, start, duration = pcall(FX.Compat.GetSpellCooldown, key)
+                if okG then
+                    passLegacy[name] = true
+                    passStart[name], passDur[name] = start, duration
+                    Engine:NoteReadPair(name, start, duration)
+                end
+            end
         end
-        if ok and info then
+    end
+    for name in pairs(Engine.tracked) do
+        local key = readKey(name)
+        local isActive, isOnGCD
+        -- The verdict of THIS spell's numeric read (nil = it did not run):
+        -- tier 2 treats anything but "secret" as plain numbers, which are
+        -- authoritative (Engine.lua header, Edge law).
+        local numeric
+        local info = passInfo[name]
+        if info then
             -- Count the tier only when the read MOVED state: an "anchored"
             -- verdict always qualifies; a "cleared" one only when an entry
             -- was there to retire (a plain "ready" read of a spell with no
             -- entry is the common no-op, and counting it would bury the
             -- launch-day signal under ~40 hits a second).
             local hadEntry = Engine.entries[name] ~= nil
-            local verdict = Engine:OnRead(name, info.startTime, info.duration, now)
-            if verdict == "anchored" or (verdict == "cleared" and hadEntry) then
+            numeric = Engine:OnRead(name, info.startTime, info.duration, now,
+                Engine:IsSharedLockout(name, info.startTime, info.duration))
+            if numeric == "anchored" or (numeric == "cleared" and hadEntry) then
                 readTiers.numeric = readTiers.numeric + 1
             end
             -- The booleans of the same read (NeverSecret -- the numbers of
@@ -304,23 +342,20 @@ function M:ReadAll()
                         charge.cooldownStartTime, charge.cooldownDuration, now)
                 end
             end
-        elseif not skipNumeric then
-            -- Legacy multi-return client: no info table means no booleans
-            -- and no charge pair -- plain numbers only, no boolean tier.
+        elseif passLegacy[name] then
             local hadEntry = Engine.entries[name] ~= nil
-            local okG, start, duration = pcall(FX.Compat.GetSpellCooldown, key)
-            if okG then
-                local verdict = Engine:OnRead(name, start, duration, now)
-                if verdict == "anchored" or (verdict == "cleared" and hadEntry) then
-                    readTiers.numeric = readTiers.numeric + 1
-                end
+            numeric = Engine:OnRead(name, passStart[name], passDur[name], now,
+                Engine:IsSharedLockout(name, passStart[name], passDur[name]))
+            if numeric == "anchored" or (numeric == "cleared" and hadEntry) then
+                readTiers.numeric = readTiers.numeric + 1
             end
         end
         -- Tier 2. Also the ONLY tier that sees the booleans of a read whose
         -- numbers were secret -- that is its whole purpose -- and it owns
         -- the active-edge fallback (Engine:OnActiveEdge) the previous
-        -- revision of this pass called by hand.
-        local active = Engine:OnReadActive(name, isActive, isOnGCD, now)
+        -- revision of this pass called by hand, now behind the Edge law
+        -- (plain numbers authoritative, persistence before creation).
+        local active = Engine:OnReadActive(name, isActive, isOnGCD, now, numeric)
         if active == "cleared" or active == "edge" then
             readTiers.boolean = readTiers.boolean + 1
         end
@@ -1082,6 +1117,37 @@ function M:OnEnable()
     if Engine.Items then Engine.Items:Rescan() end
 end
 
+--- The `readTiers:` /fx status line: the three tier counters, then ONLY the
+--- non-zero guard counters (Engine.stats; Engine.lua header, Edge and
+--- Lockout laws) so a pasted status says which guard fired:
+---   edges               edge entries created (persisted active reads)
+---   edge-plain-guard    would-be edges the plain-number guard suppressed
+---   edge-not-persistent would-be edges that did not persist MIN_COOLDOWN
+---   lockout-skips       lockout reads (anchored/learned/cleared nothing)
+---   last edge <spell> <N>s ago
+local function readTiersLine()
+    local s = Engine.stats
+    local line = string.format("readTiers: numeric %d | boolean %d | duration %d",
+        readTiers.numeric, readTiers.boolean, readTiers.duration)
+    if s.edgesCreated > 0 then
+        line = line .. string.format(" | edges %d", s.edgesCreated)
+    end
+    if s.edgesPlainGuard > 0 then
+        line = line .. string.format(" | edge-plain-guard %d", s.edgesPlainGuard)
+    end
+    if s.edgesNotPersistent > 0 then
+        line = line .. string.format(" | edge-not-persistent %d", s.edgesNotPersistent)
+    end
+    if s.lockoutsSkipped > 0 then
+        line = line .. string.format(" | lockout-skips %d", s.lockoutsSkipped)
+    end
+    if s.lastEdgeName ~= nil and s.lastEdgeAt ~= nil then
+        line = line .. string.format(" | last edge %s %ds ago", s.lastEdgeName,
+            math.max(0, math.floor(GetTime() - s.lastEdgeAt + 0.5)))
+    end
+    return line
+end
+
 --- `/fx` status hook (Init.lua is not edited; `FX.Cooldown.Module:Status()`
 --- is the entry point). Counts + live entries with remaining seconds.
 function M:Status()
@@ -1105,8 +1171,7 @@ function M:Status()
     -- of the read ladder actually moved state this session. In a real raid
     -- the `boolean` column is the proof the NeverSecret pair works, and the
     -- `duration` column the proof the unannotated duration object does.
-    FX.Print(string.format("readTiers: numeric %d | boolean %d | duration %d",
-        readTiers.numeric, readTiers.boolean, readTiers.duration))
+    FX.Print(readTiersLine())
     for _, e in ipairs(active) do
         FX.Print(string.format("  %s: %.1fs%s", e.name,
             math.max(0, e.endTime - GetTime()),
