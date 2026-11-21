@@ -16,9 +16,11 @@
 -- never set, :1088; BLEND), size SplashFactor*ih*(1-t14) = 0 -> 4*ih linear
 -- (:1381, :1812), a 2.2x Spark2 ADD glow behind it tinted
 -- FixIntensity(category) (:1083-85, :1386-87, :1407, :1418), the whole bar
--- fading alpha t14 = 1 -> 0 linear (:1403). We fire that curve on a cast's
--- first sighting (name-keyed slots) at the icon centre, and the pulse at
--- the left end, over the same 1.0 s law. Source law:
+-- fading alpha t14 = 1 -> 0 linear (:1403). The source plays that curve
+-- when a cooldown comes READY: we draw it as the pulse at the left end
+-- (the row parks at t = 0 there, :343-351). A second copy on the icon at a
+-- cast's first sighting is opt-in (`SplashOnCast`, default off; issue #1),
+-- over the same 1.0 s law. Source law:
 -- /tmp/fxref/Forte_Cooldown/Forte_Cooldown.lua (render loop :499-642, tags
 -- :1233-1330, defaults :1801-1874).
 --
@@ -163,9 +165,12 @@ FX.Cooldown.TimelineSkin = {
                                               -- true; the row is the SPLASH
                                               -- block :1723 "Splash ready
                                               -- cooldowns"): it gates the
-                                              -- t15==-1 expiry visual, both
-                                              -- its casts (:1380 `if
-                                              -- s.Splash and t15==-1`)
+                                              -- t15==-1 expiry visual
+                                              -- (:1380 `if s.Splash and
+                                              -- t15==-1`)
+    SplashOnCast = false,                     -- ours: ALSO splash the icon
+                                              -- at the cast (the original
+                                              -- plays only at READY; #1)
     SplashFactor = 4,                         -- splash peak = 4x the icon
                                               -- (size = SplashFactor*ih*
                                               -- (1-t14) :1381; =4 :1812)
@@ -1091,10 +1096,11 @@ end
 
 --- `Splash` (the SPLASH block's row :1723 "Splash ready cooldowns", default
 --- true :1811): the gate of the source's t15==-1 expiry visual (:1380 `if
---- s.Splash and t15 == -1`). This port renders that ONE curve twice -- the
---- splash on the icon at the cast (SpawnSplash) and the pulse at the bar's
---- origin when the cooldown comes ready (SpawnPulse) -- so one gate rules
---- both. Off also clears what is on screen.
+--- s.Splash and t15 == -1`). The source plays that ONE curve when a cooldown
+--- comes READY; this port renders it as the pulse at the bar's origin
+--- (SpawnPulse, D:OnReady). Off also clears what is on screen. The extra
+--- first-sighting splash on the icon (SpawnSplash) additionally needs
+--- `SplashOnCast` (SetSplashOnCast).
 function D:SetSplashOn(on)
     S.SplashOn = not not on
     if S.SplashOn then return end
@@ -1107,6 +1113,22 @@ function D:SetSplashOn(on)
         local p = self.pulsePool[i]
         p._endAt = nil
         p.frame:Hide()
+    end
+end
+
+--- `SplashOnCast` (ours, no source row; default OFF): also play the expiry
+--- curve on the icon when a name is first seen (the cast). The original did
+--- NOT do this -- issue #1 "Cooldown Splash plays at start of cooldown".
+--- Still ANDed with `Splash` inside SpawnSplash. Turning it off clears the
+--- cast splashes on screen; the ready pulses are untouched.
+function D:SetSplashOnCast(on)
+    S.SplashOnCast = not not on
+    if S.SplashOnCast then return end
+    for i = 1, #(self.splashPool or {}) do
+        local s = self.splashPool[i]
+        s._endAt = nil
+        s.frame:Hide()
+        s.frame:SetScript("OnUpdate", nil)
     end
 end
 
@@ -1458,6 +1480,7 @@ local KEYMAP = {
     IconTextColor = "SetIconTextColor",
     IconTextColorOn = "SetIconTextColorOn",
     Splash = "SetSplashOn",
+    SplashOnCast = "SetSplashOnCast",
     SplashFactor = "SetSplashFactor",
     MinRange = "SetMinRange", MinRangeOn = "SetMinRangeOn",
     MaxRange = "SetMaxRange", MaxRangeOn = "SetMaxRangeOn",
@@ -1504,7 +1527,7 @@ local STORED = {
         "PowerScale", "TimeTags", "IgnoreShort", "BarColor", "BgColor",
         "Spark", "Scale", "Alpha",
         "BarAlpha", "BarAlphaMax", "IconTime", "IconTextColor",
-        "IconTextColorOn", "Splash", "SplashFactor",
+        "IconTextColorOn", "Splash", "SplashOnCast", "SplashFactor",
         "IconSize", "IconSizeOn", "TextColor",
         "MinRange", "MinRangeOn", "MaxRange", "MaxRangeOn",
         "MinRemaining", "MinRemainingOn", "MaxRemaining",
@@ -1709,7 +1732,12 @@ function D:BindSlot(slot, e, cx, now)
     slot._timeKey = nil                     -- fresh icon: paint the time
     slot._fadeStart = now
     slot._alpha = nil
-    self:SpawnSplash(cx, slot._texPath, col, now)
+    -- Issue #1: the first-sighting splash is NOT the original's behaviour
+    -- (the source plays its ONE expiry effect when a cooldown comes READY),
+    -- so it is opt-in (`SplashOnCast`, default off).
+    if S.SplashOnCast then
+        self:SpawnSplash(cx, slot._texPath, col, now)
+    end
 end
 
 --- The source's t15==-1 expiry curve (:1380-1403), shared by spawn and the
@@ -1843,6 +1871,13 @@ function D:SpawnPulse(name, texPath, col, endAt)
     s.spark:SetVertexColor(fixIntensity(col[1], col[2], col[3]))  -- :1407, :1418
     if texPath and S.SparkOn then s.spark:Show() else s.spark:Hide() end
     s.frame:ClearAllPoints()
+    -- Issue #1 evidence (docs/reference-functional-spec.md CD-08 "pre-computes
+    -- the icon's end-of-bar geometry", CD-23 "the row lives until t<=-1"):
+    -- the source's expiry effect is drawn on the READY ICON at its final,
+    -- parked position = pos(0) = the bar's left end, which is exactly where
+    -- this pulse sits. So origin pulse == icon-at-final-position; no
+    -- relocation. (/tmp/fxref was absent when this was checked; the :343-351
+    -- lines were not re-read, the spec rows above are the evidence.)
     -- The pulse rides the bar's ORIGIN end (CD_EndCooldown parks the row at
     -- t = 0, so pos(0) is that axis position) on the current geometry axis.
     local off = S.Inset

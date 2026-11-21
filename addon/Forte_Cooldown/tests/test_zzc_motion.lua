@@ -400,6 +400,9 @@ end)
 
 test("S4: the cast splash runs its curve on EVERY frame while shown and drops its script",
 function()
+    -- Issue #1 re-pin: the first-sighting splash is opt-in (SplashOnCast,
+    -- default off); the per-frame curve is driven with it on.
+    Display:SetSplashOnCast(true)
     enable()
     withClock(function()
         clock = BASE
@@ -435,6 +438,7 @@ function()
         assertFalse(s.frame:IsShown())
         clearBar(clock)
     end)
+    Display:SetSplashOnCast(false)
 end)
 
 test("S4: the ready pulse fades on EVERY frame while shown and drops its script",

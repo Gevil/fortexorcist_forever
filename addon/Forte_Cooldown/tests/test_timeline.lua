@@ -162,20 +162,21 @@ test("Icons are 24x24 and sit at TimelineMath.pos on the time axis", function()
 
     -- Just-bound icons start their fade-in at Alpha (0.2).
     near3(slotOf("Disengage").frame:GetAlpha(), S.Alpha)
-    -- First-sighting cast splashes took three pool slots.
-    assertEquals(3, #Display.splashPool)
+    -- Issue #1 re-pin: this pinned "first-sighting cast splashes took three
+    -- pool slots". A cast no longer splashes by default (SplashOnCast off).
+    assertEquals(0, #Display.splashPool)
 end)
 
-test("Fade-in completes, splashes retire, pool stays (grow-only)", function()
+test("Fade-in completes; no cast splash is spawned by default (pool stays empty)", function()
     Display:Update(THREE, 100 + S.FadeSeconds)
     near3(slotOf("Disengage").frame:GetAlpha(), S.AlphaMax)
-    -- Splashes end at 100 + SplashSeconds and hid; the pool kept its slots.
+    -- Issue #1 re-pin: this pinned "splashes retire, pool keeps 3 slots" as
+    -- a law of the first sighting. With the default SplashOnCast = false no
+    -- splash frame is ever created by a cast.
     Display:Update(THREE, 100 + S.SplashSeconds + 0.01)
-    assertFalse(Display.splashPool[1].frame:IsShown())
-    assertEquals(3, #Display.splashPool)
-    -- Re-rendering the SAME names must not grow the pool (no re-sightings).
+    assertEquals(0, #Display.splashPool)
     Display:Update(THREE, 100 + S.SplashSeconds + 0.1)
-    assertEquals(3, #Display.splashPool)
+    assertEquals(0, #Display.splashPool)
 end)
 
 -- =============================================================== fade-in ==
@@ -241,6 +242,7 @@ local function liveSplash()
 end
 
 test("Splash law: size 0 -> 4x icon and alpha 1 -> 0, both linear over 1.0 s", function()
+    Display:SetSplashOnCast(true)   -- issue #1 re-pin: cast splash is opt-in
     -- Window constants straight from the source law.
     near3(S.SplashSeconds, 1.0)
     near3(S.SplashAlpha, 1.0)
@@ -278,9 +280,11 @@ test("Splash law: size 0 -> 4x icon and alpha 1 -> 0, both linear over 1.0 s", f
     Display:Update(feed, now + S.SplashSeconds + 1e-6)
     assertFalse(s.frame:IsShown())
     assertTrue(liveSplash() == nil)
+    Display:SetSplashOnCast(false)
 end)
 
 test("Splash tint/blend: white BLEND icon, Spark2 ADD glow FixIntensity-tinted, 0.133 crop", function()
+    Display:SetSplashOnCast(true)   -- issue #1 re-pin: cast splash is opt-in
     local now = 12445
     Display:Update({
         { name = "SplashTint", start = 0, duration = 60, endTime = now + 60 },
@@ -309,6 +313,7 @@ test("Splash tint/blend: white BLEND icon, Spark2 ADD glow FixIntensity-tinted, 
     near3(bly, S.SplashCrop[2]); near3(bry, S.SplashCrop[2])  -- bottom edge
     assertTrue(s.spark:IsShown())
     Display:Update({}, now + S.SplashSeconds + 0.01)
+    Display:SetSplashOnCast(false)
 end)
 
 test("Pulse and cross-fade constants equal the source's 1/s visibility law", function()
@@ -748,6 +753,9 @@ local function activeSplashes()
 end
 
 test("The soonest cooldown leaving shifts the bar: no new splash, fade + texture kept", function()
+    -- Issue #1 re-pin: first-sighting splash is opt-in (SplashOnCast); the
+    -- no-resplash-on-shift law is only observable with it on.
+    Display:SetSplashOnCast(true)
     local now = 20000
     local ABC = {
         { name = "ShiftA", start = 0, duration = 100, endTime = now + 30 },
@@ -785,9 +793,12 @@ test("The soonest cooldown leaving shifts the bar: no new splash, fade + texture
     near3(slotOf("ShiftB")._fadeStart, fadeB)
     near3(slotOf("ShiftC")._fadeStart, fadeC)
     assertTrue(slotOf("ShiftA") == nil)
+    Display:SetSplashOnCast(false)
 end)
 
 test("A new cast inserted mid-list splashes exactly once, at its own centre", function()
+    -- Issue #1 re-pin: first-sighting splash is opt-in (SplashOnCast).
+    Display:SetSplashOnCast(true)
     local W, H, Max, Loga = S.Width, S.Height, S.Max, S.Loga
     local now = 21000
     local A = { name = "InsA", start = 0, duration = 100, endTime = now + 30 }
@@ -819,9 +830,12 @@ test("A new cast inserted mid-list splashes exactly once, at its own centre", fu
     -- D's fade starts now; A's never restarted.
     near3(slotOf("InsD")._fadeStart, settled)
     near3(slotOf("InsA")._fadeStart, now)
+    Display:SetSplashOnCast(false)
 end)
 
 test("A name that left the bar and returns (a new cast) splashes again", function()
+    -- Issue #1 re-pin: first-sighting splash is opt-in (SplashOnCast).
+    Display:SetSplashOnCast(true)
     local now = 22000
     local A = { name = "RetA", start = 0, duration = 30, endTime = now + 30 }
     local B = { name = "RetB", start = 0, duration = 60, endTime = now + 60 }
@@ -838,6 +852,7 @@ test("A name that left the bar and returns (a new cast) splashes again", functio
     -- ...and the pool quiets out again after SplashSeconds.
     Display:Update({ A, B }, now + 2 + S.SplashSeconds + 0.01)
     assertEquals(0, activeSplashes())
+    Display:SetSplashOnCast(false)
 end)
 
 test("The charge count at the icon's top-right is clear of the time text", function()
@@ -1428,6 +1443,10 @@ function()
     -- rules both. `SplashFactor` (:1724, default 4 :1812) is the bell's peak
     -- multiplier: size = SplashFactor * ih * (1 - t14) (:1381).
     Display:Init()
+    -- Issue #1 re-pin: the first-sighting splash this test drives is now the
+    -- opt-in `SplashOnCast` (default off). The test pinned it as the default
+    -- law; it keeps its assertions by opting in (reset at the end).
+    Settings:Set("Cooldown", "SplashOnCast", true)
     local function liveSplashes()
         local n = 0
         for _, s in ipairs(Display.splashPool) do
@@ -1468,6 +1487,7 @@ function()
     near3(s.tex:GetWidth(), 8 * S.Height * 0.5)
     Settings:Reset("Cooldown", "SplashFactor")
     Display:Update({}, now + 2 + S.SplashSeconds + 0.01)
+    Settings:Reset("Cooldown", "SplashOnCast")
 end)
 
 -- ================================================================= m5 perf --

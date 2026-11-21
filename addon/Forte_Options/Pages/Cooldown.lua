@@ -103,6 +103,9 @@ FX.Settings:Register(M, {
     -- row's SetRange(1) floor).
     Splash = true,
     SplashFactor = 4,
+    -- Issue #1: ALSO splash the icon when a cooldown first appears (the
+    -- cast). Ours; the original splashes only at READY. Default OFF.
+    SplashOnCast = false,
     MaxTime = 300,
     PowerScale = 0.33,                 -- Loga
     -- The TIME RANGE filters (:1729-1732, the NU2 rows = a value plus its
@@ -302,6 +305,8 @@ O:RegisterPage({
             -- The SPLASH block (:1723-1724), labels verbatim (:122, :124).
             s.CHK({ module = M, key = "Splash", label = "Splash ready cooldowns",
                 tip = "This will show an icon 'splash' at the origin of the cooldown timer each time a cooldown is ready (Forte_Cooldown.lua:1723, default on :1811; the draw gate is s.Splash at :1380). Live: off also clears the splash on screen." })
+            s.CHK({ module = M, key = "SplashOnCast", label = "Splash icons when cast",
+                tip = "Also play the splash on the icon at the moment a cooldown first appears on the bar (when you cast it), in addition to the splash at the origin when it is ready. Off by default: the original ForteXorcist did NOT do this - it plays its single splash only when a cooldown comes ready (issue #1). Needs 'Splash ready cooldowns' on. Live: off also clears cast splashes on screen." })
             s.NUM({ module = M, key = "SplashFactor", label = "Splash icon active scale",
                 min = 1, max = 20, step = 0.5,
                 tip = "Set what scale factor to use for the icon splash at the middle of the splash animation (Forte_Cooldown.lua:1724, default 4 :1812, the row's floor is 1). The splash grows to this many times the icon. Live." })
@@ -364,7 +369,7 @@ O:RegisterPage({
             keys = { "Warn", "Width", "Height", "IconSizeOn", "IconSize",
                 "BarAlpha", "BarAlphaMax",
                 "IconTime", "IconTextColorOn", "IconTextColor",
-                "Splash", "SplashFactor", "MaxTime", "PowerScale",
+                "Splash", "SplashOnCast", "SplashFactor", "MaxTime", "PowerScale",
                 "MinRangeOn", "MinRange", "MaxRangeOn", "MaxRange",
                 "MinRemainingOn", "MinRemaining", "MaxRemainingOn",
                 "MaxRemaining",
