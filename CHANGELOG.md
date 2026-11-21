@@ -12,6 +12,16 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
 
 ---
 
+## Unreleased
+
+- **Hunter: Summon Hawk tracker.** Each hawk you summon now shows on the Spell Timer with its own
+  countdown ("Summon Hawk 1" / "Summon Hawk 2"): 18 s each, at most two at once, and a third cast replaces the
+  hawk with the least time left and restarts it. `/fx status` shows `hawks 1/2 (next gone in 7.3 s)`. The timing
+  (a 1 s dive before the hawk appears, 18 s lifetime, replacement order) comes from the game data and the
+  simulator project and is not yet confirmed against the live client. Only for Hunters who know the talent.
+
+---
+
 ## [1.0.2] - 2026-11-21
 
 Fixes for the first player reports, smoother motion, and the game data of build 1.60.1.70959 / items 71037.

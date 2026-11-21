@@ -1186,6 +1186,10 @@ local function onToolEvent(self, event, a1, a2, a3, a4)
             self.Aspects:OnCast(name)
             self.Swing:OnCast(name)
             self.Swing:OnShotCast("SUCCEEDED", name, a3, a2)
+            -- Summon Hawk (Core/Hawks.lua, PLAN §11.16): the same resolved,
+            -- canonical name; the module acts only for its own spell and
+            -- only while the player knows it.
+            if FX.Hunter.Hawks then FX.Hunter.Hawks:OnCast(name) end
         end
     elseif event == "UNIT_SPELLCAST_SENT" then
         -- CAT (UnitDocumentation.lua): SENT(unitTarget, target, castGUID,
@@ -1241,6 +1245,8 @@ local function onToolEvent(self, event, a1, a2, a3, a4)
         sw.factsInRange, sw.at, sw.pending, sw.cast = nil, nil, nil, nil
         sw.flying, sw.feignPending, sw.retryUntil = nil, nil, nil
         sw.movePulseAt = nil
+        -- Hawks do not survive a loading screen (Core/Hawks.lua).
+        if FX.Hunter.Hawks then FX.Hunter.Hawks:OnWorldEnter() end
         -- Login, /reload and zone-in: the aspect may already be worn (our
         -- own cast memory is empty after a reload), so read it now, and once
         -- more shortly after -- the player's auras can still be loading at
@@ -1248,6 +1254,9 @@ local function onToolEvent(self, event, a1, a2, a3, a4)
         -- yet final. The late pass schedules nothing further.
         reconcileAspects(self)
         scheduleLateAspectPass(self)
+    elseif event == "PLAYER_DEAD" then
+        -- Registered by the hawk tracker only while it is active.
+        if FX.Hunter.Hawks then FX.Hunter.Hawks:OnPlayerDead() end
     elseif event == "START_AUTOREPEAT_SPELL" then
         -- No payload (the pinned declaration carries none): Auto Shot and
         -- wand Shoot share this one path -- the §B2 finding.
@@ -1329,6 +1338,9 @@ function M:EnableEvents()
     -- edges need the opt-in (no-op where C_SwingTimer is absent).
     M.RequestRangeCheck("swing", true)
     self._eventsEnabled = true
+    -- The hawk tracker rides this frame (it registers PLAYER_DEAD itself,
+    -- and only while the player knows Summon Hawk).
+    if FX.Hunter.Hawks then FX.Hunter.Hawks:Enable(f) end
 end
 
 --- Tear the event registrations back down (class changed away from
@@ -1362,6 +1374,7 @@ function M:DisableEvents()
         end
         f:SetScript("OnEvent", nil)
     end
+    if FX.Hunter.Hawks then FX.Hunter.Hawks:Disable() end
     M.RequestRangeCheck("swing", false)
     self._eventsEnabled = false
 end
@@ -1390,7 +1403,7 @@ function M:StatusLine()
     local snap = M.Aspects:Snapshot()
     local fraction, remaining = M.Swing:Progress()
     local phase = M.Swing:CycleState()
-    return string.format(
+    local line = string.format(
         "Hunter: %d aspects | current=%s%s | ranged swing: %s%s",
         #snap.aspects,
         tostring(snap.current),
@@ -1399,6 +1412,10 @@ function M:StatusLine()
             or "idle",
         phase and string.format(" | phase=%s aim=%.2f", phase,
             M.Swing.aimLen) or "")
+    -- Summon Hawk tracker segment (Core/Hawks.lua): only while it is active.
+    local hawks = FX.Hunter.Hawks and FX.Hunter.Hawks:StatusSegment()
+    if hawks then line = line .. " | " .. hawks end
+    return line
 end
 
 --- `/fx status` integration: prints its own line (review m6 -- modules

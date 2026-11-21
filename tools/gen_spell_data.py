@@ -97,6 +97,25 @@ Light and says nothing for the caster-side Echoes / Shieldsworn). Applied
 after `row_feeds`; every forced row rides the generated header
 ("Feed overrides"). Only `noTarget` is overridable.
 
+**Summon windows** (2026-11-21, PLAN §11.16, the Hunter Summon Hawk tracker): a
+spell-list file may carry `_summons` = {data name: {"id": N, "capEffect": K,
+"reason": "..."}}. The CAST rank of a spell that leaves a creature behind
+carries no duration of its own (Summon Hawk 1293527: 6 s shared cooldown, no
+`DurationMs`), and the creature's lifetime lives on a separate summon spell
+(1293248, `DurationMs` 18000). The law copies that window onto the CAST row as
+`summonDurationMs` (the summon row's duration after the live-store overlay, by
+id) and, when `capEffect` is given, `summonMax` = the `BasePoints` of the K-th
+(1-based) effect of the picked row (the upstream sim reads the number of hawks
+up at once off `EffectN(3)` of the rank, wowsims/forever `sim/hunter/
+summon_hawk.go`; here that effect is the dummy with BasePoints 2). It adds NO
+row and does not touch `durationMs`, so the cooldown bar keeps the row's 6 s
+shared cooldown exactly as before and `Forte_Timer/Core/Registry.lua` (which
+registers rows with `durationMs > 0` only) still registers nothing for it --
+the consumer is `Forte_Hunter/Core/Hawks.lua`. A listed id with no positive
+duration, or a `capEffect` with no positive whole BasePoints, is reported as a
+gap and the field is left off (the consumer then stays inactive), never
+guessed.
+
 **Companion-row shadows** (2026-11-01, agent `DataWave`): a *companion row* is a
 trigger row whose only effect applies the real spell's aura (single Effect
 Type=6, Aura=332, BasePoints = the real spell's ID) and which carries **no**
@@ -746,6 +765,12 @@ def emit_entry(row: dict, icd: int = 0,
         # `shares` link; the store's own fact for Summon Hawk <-> Arcane
         # Shot is the shared category 1173 with the 6 s CategoryCooldownMs).
         fields.append(f'shares = "{lua_escape(row["_shares"])}"')
+    if row.get("_summon_ms"):
+        # The summon spell's lifetime (the `_summons` law, docstring): the
+        # consumer is Forte_Hunter/Core/Hawks.lua, never the Timer registry.
+        fields.append(f'summonDurationMs = {row["_summon_ms"]}')
+    if row.get("_summon_max"):
+        fields.append(f'summonMax = {row["_summon_max"]}')
     return "{ " + ", ".join(fields) + " }"
 
 
@@ -824,6 +849,10 @@ def main() -> int:
     shares_report: list[str] = []     # rows carrying a `_shares` link
     racials_report: list[str] = []    # rows of the `racials` group (M3a)
     resolved_ids: dict[str, int] = {}  # name -> picked id (the rename alias join)
+    # Summon windows (2026-11-21, PLAN §11.16, see the module docstring):
+    # {data name: {"id": summon spell id, "capEffect": K, "reason": "..."}}.
+    summons: dict[str, dict] = dict(spec.get("_summons") or {})
+    summons_report: list[str] = []    # rows carrying a summon window
 
     def _row_duration(r: dict) -> int:
         d = r.get("DurationMs")
@@ -1009,6 +1038,36 @@ def main() -> int:
                 entry = emit_entry(out_row, icd, feeds)
                 if entry != base_text:
                     changes.append(f"{n}: {base_text} -> {entry}")
+            sm = summons.get(n)
+            if sm is not None:
+                # The `_summons` law: set AFTER the overlay-change comparison
+                # above, so the header's "overlay changes" list stays the
+                # overlay's own word and these fields are not blamed on it.
+                sid = int(sm["id"])
+                scands = [r for r in rows + ov_rows if r.get("ID") == sid]
+                s_dur = (overlay_apply(scands[0], ov).get("DurationMs")
+                         if scands else None)
+                if type(s_dur) != int or s_dur <= 0:
+                    gaps.append(f"{group}: {n!r} _summons id {sid} carries no "
+                                f"positive duration in this build")
+                else:
+                    out_row["_summon_ms"] = s_dur
+                    note = f"{n} ({out_row['ID']}) -> summon {sid} lives {s_dur} ms"
+                    cap_eff = sm.get("capEffect")
+                    if cap_eff is not None:
+                        effs = row_effects(out_row)
+                        cap = (_num(effs[int(cap_eff) - 1].get("BasePoints"))
+                               if 1 <= int(cap_eff) <= len(effs) else None)
+                        if cap is None or cap < 1 or int(cap) != cap:
+                            gaps.append(f"{group}: {n!r} _summons capEffect "
+                                        f"{cap_eff} has no positive whole "
+                                        f"BasePoints on {out_row['ID']}")
+                        else:
+                            out_row["_summon_max"] = int(cap)
+                            note += (f", at most {int(cap)} at once (BasePoints "
+                                     f"of effect {cap_eff} of {out_row['ID']})")
+                    summons_report.append(
+                        note + f" ({sm.get('reason', 'no reason given')})")
             resolved_ids[n] = out_row["ID"]
             groups.setdefault(group, []).append((n, out_row, icd, feeds))
 
@@ -1051,6 +1110,8 @@ def main() -> int:
             print(f"  feed override: {p}")
         for s in shares_report:
             print(f"  shares: {s}")
+        for s in summons_report:
+            print(f"  summon: {s}")
         for r in racials_report:
             print(f"  racial: {r}")
         return 0
@@ -1111,6 +1172,14 @@ def main() -> int:
         lines.append(f"-- Shared cooldowns (`_shares`: a cast of either starts "
                       f"both bars, Forte_Cooldown/Core/Engine.lua's partner walk):")
         for s in shares_report:
+            lines.append(f"--   {s}")
+    if summons_report:
+        lines.append(f"-- Summon windows ({len(summons_report)}); the spell list's "
+                      f"`_summons` copy the lifetime/count of the creature a cast "
+                      f"leaves behind onto the CAST row as `summonDurationMs`/"
+                      f"`summonMax` (consumer: Forte_Hunter/Core/Hawks.lua; no new "
+                      f"row, `durationMs` untouched -- see the generator docstring):")
+        for s in summons_report:
             lines.append(f"--   {s}")
     if racials_report:
         lines.append(f"-- Racial rows ({len(racials_report)}); the `racials` group -- "

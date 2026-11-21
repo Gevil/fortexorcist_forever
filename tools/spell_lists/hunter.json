@@ -31,6 +31,13 @@
   "_shares": {
     "Summon Hawk": "Arcane Shot"
   },
+  "_summons": {
+    "Summon Hawk": {
+      "id": 1293248,
+      "capEffect": 3,
+      "reason": "the cast rank 1293527 carries no duration; the hawk it leaves lives on the summon spell 1293248 (store DurationMs 18000, PLAN §11.16), and effect 3 of the rank is the number of hawks up at once (wowsims/forever sim/hunter/summon_hawk.go:58-70, EffectN(3).BaseValue(); BasePoints 2 here) -- unconfirmed on the live client"
+    }
+  },
   "cooldowns": [
     "Aimed Shot", "Arcane Shot", "Bestial Wrath", "Chimera Shot", "Concussive Shot",
     "Counterattack", "Deterrence", "Disengage", "Distracting Shot", "Enchanted Flare",

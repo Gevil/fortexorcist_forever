@@ -274,7 +274,11 @@ function Reconcile:SweepUnit(token, filter, now)
             local mine = (row.targetKey == token)
                 or (row.unitToken == token)
                 or (token == "player" and row.targetKey == "none")
-            if mine and tokenHoldsRowUnit(self, row, token) then
+            -- A row a class tracker owns (Casts:DeclareOwnedRows: the Hunter
+            -- hawks) is not an aura on this unit: no aura read may judge it.
+            local casts = FX.Timer.Casts
+            local owned = casts and casts.RowIsOwned and casts:RowIsOwned(row.name)
+            if mine and not owned and tokenHoldsRowUnit(self, row, token) then
                 if self:SweepRow(row, token, filter, now) then n = n + 1 end
             end
         end

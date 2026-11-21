@@ -4,11 +4,12 @@
 ## Version: 1.0.2
 ## Author: Gevil
 ## Dependencies: Forte_Core
-## OptionalDeps: Forte_Options, Forte_Cooldown
+## OptionalDeps: Forte_Options, Forte_Cooldown, Forte_Timer
 ## LoadOnDemand: 1
 
 Data/Hunter.lua
 Core/Tools.lua
+Core/Hawks.lua
 Core/Range.lua
 Core/Melee.lua
 Core/SwingDemo.lua
