@@ -67,6 +67,12 @@ error), `onUseAdd` (live on-use items mythicsim does not have), `procAdd` / `pro
 consumables with a cooldown that the 106-row sim list omits) and the ICD audit readings.
 The 64 wowsims-side on-use category additions stay unemitted, matching the
 `category_cooldown_ms` "NOT emitted" law above.
+Added 2026-11-21 (items leg 1.60.1.71037 @ 114326, tools/diff_live_items.py finds the candidates):
+`onUseRemove` (a mythicsim on-use row the live item lost; `was` = the cooldown it must still
+hold) and `procOverride` ({itemId: {name, set, was, source}}: value changes to a mythicsim proc
+row over buffId/buffName/durationMs/icdMs, a null `set` deletes the field; stale or redundant
+is an error, like `onUseOverride`). Every proc row with an `icdMs` needs an `icdStoreAudit`
+reading (the aura id in its buffName and its buffId, null = no store row).
 
 **Relevance policy**: no hand filtering by class -- most items are class-agnostic. `classAllowlist`
 is emitted ONLY where the source row has `class_allowlist` (e.g. trinkets restricted to one class
@@ -426,6 +432,59 @@ def main() -> int:
             row[f] = ov[f]
             ov_applied.append(f"{row['name']} ({iid}) {f} {ov['was']} -> {ov[f]}")
 
+    # `onUseRemove`: a mythicsim on-use row the live game no longer has (the item lost its use
+    # effect). Each entry names the item, the cooldown it expects (`was`), and its source; a
+    # missing row or a different cooldown is an error (the pinned data moved, re-check).
+    n_removed = 0
+    removed: list[str] = []
+    for a in live.get("onUseRemove") or []:
+        hit = [d for d in on_use if d["itemId"] == a["itemId"] and d["source"] == "item"]
+        if len(hit) != 1:
+            errors.append(f"onUseRemove {a['itemId']} ({a.get('name')}): needs exactly one mythicsim "
+                          f"on-use row, found {len(hit)} -- remove it from live_items.json")
+        elif hit[0]["name"] != a.get("name") or hit[0].get("cooldownMs") != a.get("was"):
+            errors.append(f"onUseRemove {a['itemId']}: the row is {hit[0]['name']!r} cooldownMs "
+                          f"{hit[0].get('cooldownMs')}, the list expects {a.get('name')!r} / {a.get('was')}")
+        else:
+            on_use.remove(hit[0])
+            n_removed += 1
+            removed.append(f"{a['name']} ({a['itemId']}) cooldownMs {a['was']} removed")
+
+    # `procOverride`: value changes to a mythicsim proc row ({itemId: {name, set, was, source}}).
+    # `set` and `was` map the same fields (buffId, buffName, durationMs, icdMs); a null `set`
+    # value deletes the field, a null `was` says the row does not carry it. A `was` that is not
+    # what the pinned row says, or a `set` equal to the row, is an error (stale / redundant).
+    n_proc_ov = 0
+    for sid, ov in sorted((live.get("procOverride") or {}).items(), key=lambda kv: int(kv[0])):
+        hit = [d for d in procs if d["itemId"] == int(sid) and d["source"] == "item"]
+        fields = sorted((ov.get("set") or {}).keys())
+        bad = [f for f in fields if f not in ("buffId", "buffName", "durationMs", "icdMs")]
+        if len(hit) != 1 or not fields or bad or set(fields) != set((ov.get("was") or {}).keys()):
+            errors.append(f"procOverride {sid}: needs exactly one mythicsim proc row and `set` / `was` "
+                          f"over the same fields of buffId/buffName/durationMs/icdMs")
+            continue
+        row = hit[0]
+        if ov.get("name") != row["name"]:
+            errors.append(f"procOverride {sid}: names {row['name']!r}, the list says {ov.get('name')!r}")
+            continue
+        stale = [f for f in fields if row.get(f) != ov["was"][f]]
+        same = [f for f in fields if row.get(f) == ov["set"][f]]
+        if stale:
+            errors.append(f"procOverride {sid} ({row['name']}): the source row's {stale} differ from "
+                          f"`was` -- the pinned data moved, re-check the override")
+        elif same:
+            errors.append(f"procOverride {sid} ({row['name']}): the source row already says "
+                          f"{same} -- remove the override from live_items.json")
+        else:
+            for f in fields:
+                if ov["set"][f] is None:
+                    row.pop(f, None)
+                else:
+                    row[f] = ov["set"][f]
+            n_proc_ov += 1
+            ov_applied.append(f"{row['name']} ({sid}) procs " + ", ".join(
+                f"{f} {ov['was'][f]} -> {ov['set'][f]}" for f in fields))
+
     have_on_use = {d["itemId"] for d in on_use if d["source"] == "item"}
     n_add_on_use = 0
     for a in live.get("onUseAdd") or []:
@@ -593,7 +652,8 @@ def main() -> int:
     for cname in benign_clash:
         print(f"report: item name {cname!r} equals a class spell name whose rows carry no "
               f"cooldownMs (not tracked by name): benign")
-    print(f"report: live layer: overrides applied={len(ov_applied)} onUse added={n_add_on_use} "
+    print(f"report: live layer: overrides applied={len(ov_applied)} (proc overrides={n_proc_ov}) "
+          f"onUse removed={n_removed} onUse added={n_add_on_use} "
           f"procs added={n_add_proc} consumables added={n_add_cons}")
     print(f"report: ICD audit (join on the buffName aura id): equal={audit['equal']} "
           f"store-reads-0={len(audit['zero'])} contradicts={len(audit['diff'])} "
@@ -716,6 +776,7 @@ def main() -> int:
     A("-- Live layer (tools/item_lists/live_items.json): value overrides applied to mythicsim rows:")
     for s in ov_applied:
         A(f"--   {s}")
+    A(f"--   rows removed: onUse={n_removed} " + "; ".join(removed))
     A(f"--   rows added: onUse={n_add_on_use} procs={n_add_proc} consumables={n_add_cons} "
       f"(each row's source is in the list file)")
     collisions_leg(L)

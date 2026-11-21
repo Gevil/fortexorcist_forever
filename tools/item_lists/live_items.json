@@ -1,9 +1,13 @@
 {
  "_meta": {
   "what": "Live-game item data the pinned mythicsim 70425 files do not carry. Read by tools/gen_item_data.py; with the mythicsim data + the spell overlay it is the generator's whole input, so generation is deterministic.",
-  "report": "docs/research/live-items-procs-2026-11-09.md",
-  "source_db": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890)",
-  "source_store": "wowsims/forever 5f766b07 assets/db_inputs/spell_store_inputs.json (gzip JSON); Builds/Hotfixes of every group 1.60.1.70862 / 113890",
+  "report": "docs/research/live-items-procs-2026-11-09.md (first layer) + docs/research/live-items-procs-2026-11-21.md (items leg 71037 pass)",
+  "source_db": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json (items leg 1.60.1.71037 @ hotfix push 114326), item import wowsims commit 42cb97b037",
+  "source_store": "wowsims/forever d0ba78b8 assets/db_inputs/spell_store_inputs.json (gzip JSON); Builds.items 1.60.1.71037, Hotfixes.items 114326 (the spell groups of the same file stay at 1.60.1.70959 @ 114286)",
+  "items_build": "1.60.1.71037",
+  "items_hotfix_push": 114326,
+  "refreshed": "2026-11-21",
+  "rows_note": "Rows whose source cites wowsims 5f766b07 were added on 2026-11-10 (items leg 70862 @ 113890); the 2026-11-21 pass re-diffed every row against d0ba78b8 with tools/diff_live_items.py and found them still true (the one divergence, Counterattack Lodestone's window, is the documented override below). Rows citing d0ba78b8 are the 2026-11-21 additions.",
   "slotType": "composed from the db.json integer enums in the field order of gen_item_data.SLOT_FIELDS (type, hand_type, weapon_type, ranged_weapon_type, armor_type). Checked against mythicsim items.jsonl on the 6626 ids both carry: 30 differ (handType 1/2 is ambiguous in the db enum on 7 weapons, 23 more differ on other fields); none of the 10 rows used here is among them.",
   "categories": "category ids / category cooldowns of on-use rows are NOT emitted (the gen_item_data law: shared-category lockouts of on-use rows stay out); consumables carry them",
   "edit_rule": "edit this file, then run python3 tools/gen_item_data.py; never hand-edit Items.lua / Procs.lua"
@@ -32,9 +36,62 @@
    "durationMs": 10000,
    "was": 8000,
    "source": "aura 1302356 (Magnetize, the item effect buff) DurationMs 10000 in the spell store (1.60.1.70862 @ 113890) AND in mythicsim spells.jsonl; the item effect rows (mythicsim items.jsonl, db.json) say 8000, which is the duration of the triggered spell 1302357 (docs/research/data-diff-live-2026-11-10.md s6)"
+  },
+  "221315": {
+   "name": "Traveler's Symbols",
+   "durationMs": 60000,
+   "was": null,
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 221315 (items leg 1.60.1.71037 @ hotfix push 114326): the item effect (buff Traveler's Mark 1306267) states effectDurationMs 60000; the mythicsim 70425 row carries no duration (report 2026-11-21 s3.3)"
+  }
+ },
+ "onUseRemove": [
+  {
+   "itemId": 18406,
+   "name": "Onyxia Blood Talisman",
+   "was": 300000,
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 18406 (items leg 1.60.1.71037 @ hotfix push 114326): the item row has no itemEffects any more (a quest-reward trinket with stats only); mythicsim GH:35f2faf reports the on-use lost in push 114115 (docs/research/forever-changes-2026-11-21.md a3) (report 2026-11-21 s3.3)"
+  }
+ ],
+ "procOverride": {
+  "867": {
+   "name": "Gloves of Holy Might",
+   "set": {
+    "buffName": "Gloves of Holy Might (1330855)",
+    "icdMs": 20000
+   },
+   "was": {
+    "buffName": "Gloves of Holy Might (1325229)",
+    "icdMs": null
+   },
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 867 (items leg 1.60.1.71037 @ hotfix push 114326): itemEffects buffId 1325229, buffName 'Gloves of Holy Might (1330855)', proc icdMs 20000 procChance 0.15; the spell store's AuraOptions for aura 1330855 reads ICDMs 20000 (report 2026-11-21 s3.3)"
+  },
+  "284262": {
+   "name": "Howling Hide",
+   "set": {
+    "buffId": 1330916,
+    "buffName": "Howler's Cry (1330916)",
+    "durationMs": null,
+    "icdMs": 20000
+   },
+   "was": {
+    "buffId": 1315767,
+    "buffName": "Howler's Cry (1315767)",
+    "durationMs": 30000,
+    "icdMs": null
+   },
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 284262 (items leg 1.60.1.71037 @ hotfix push 114326): itemEffects buffId 1330916, buffName 'Howler's Cry (1330916)', no effectDurationMs, proc icdMs 20000 procChance 0.1; the store's AuraOptions for aura 1330916 reads ICDMs 20000 (report 2026-11-21 s3.3)"
   }
  },
  "onUseAdd": [
+  {
+   "itemId": 287045,
+   "name": "Ancient Mattock",
+   "cooldownMs": 120000,
+   "buffId": 1325180,
+   "buffName": "Sift Soil (1325180)",
+   "slotType": "ItemTypeWeapon / HandTypeOneHand / WeaponTypeAxe",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 287045 (items leg 1.60.1.71037 @ hotfix push 114326); on-use cooldownMs 120000, no effect duration in the row; first seen 2026-11-11 (report 2026-11-21 s3.1)"
+  },
   {
    "itemId": 280065,
    "name": "Behemoth Bones",
@@ -106,6 +163,26 @@
    "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (5 Min Cooldown) (report s2)"
   },
   {
+   "itemId": 286612,
+   "name": "Sand-Covered Silk Sash",
+   "cooldownMs": 1800000,
+   "buffId": 9774,
+   "buffName": "Immune Root (9774)",
+   "durationMs": 5000,
+   "slotType": "ItemTypeWaist / ArmorTypeCloth",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 286612 (items leg 1.60.1.71037 @ hotfix push 114326); on-use cooldownMs 1800000; first seen 2026-11-11; the 2026-11-09 report had it from a Wowhead tooltip only (30 Min Cooldown) (report 2026-11-21 s3.1)"
+  },
+  {
+   "itemId": 284231,
+   "name": "Sayaad Charm",
+   "cooldownMs": 900000,
+   "buffId": 1315557,
+   "buffName": "Charm (1315557)",
+   "durationMs": 15000,
+   "slotType": "ItemTypeTrinket",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 284231 (items leg 1.60.1.71037 @ hotfix push 114326); on-use cooldownMs 900000; first seen 2026-11-10 (report 2026-11-21 s3.1)"
+  },
+  {
    "itemId": 280074,
    "name": "Scalding Flamehoof",
    "cooldownMs": 300000,
@@ -144,6 +221,16 @@
    "durationMs": 10000,
    "slotType": "ItemTypeTrinket",
    "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); Wowhead Forever tooltip (7 Min Cooldown) (report s2)"
+  },
+  {
+   "itemId": 276744,
+   "name": "Zarla's Snack Pouch",
+   "cooldownMs": 900000,
+   "buffId": 1315190,
+   "buffName": "Zarla's Snack Pouch (1315190)",
+   "durationMs": 15000,
+   "slotType": "ItemTypeTrinket",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 276744 (items leg 1.60.1.71037 @ hotfix push 114326); on-use cooldownMs 900000; first seen 2026-11-10 (report 2026-11-21 s3.1)"
   }
  ],
  "procAdd": [
@@ -154,6 +241,238 @@
    "buffName": "Fist of Stone (1294794)",
    "slotType": "ItemTypeWeapon / HandTypeMainHand / WeaponTypeMace",
    "source": "wowsims/forever 5f766b07af5f140a2e3c357b7a655eff2c4d53e4 assets/database/db.json (items leg 1.60.1.70862 @ hotfix push 113890); passive in mythicsim 70425, a proc in the live db; droppable mace, Landslide (report s4)"
+  },
+  {
+   "itemId": 7726,
+   "name": "Aegis of the Scarlet Commander",
+   "buffId": 1293539,
+   "buffName": "Scarlet Retribution (1293539)",
+   "slotType": "ItemTypeWeapon / HandTypeOffHand / WeaponTypeShield",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 7726 (items leg 1.60.1.71037 @ hotfix push 114326); proc effect, no ICD / rate in the row; passive in mythicsim 70425 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 23004,
+   "name": "Idol of Longevity",
+   "buffId": 28847,
+   "buffName": "Healing Touch Refund (28847)",
+   "slotType": "ItemTypeRanged / RangedWeaponTypeIdol",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 23004 (items leg 1.60.1.71037 @ hotfix push 114326); proc effect, no ICD / rate in the row; passive in mythicsim 70425; phase 2 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 23005,
+   "name": "Totem of Flowing Water",
+   "buffId": 28849,
+   "buffName": "Lesser Healing Wave (28849)",
+   "slotType": "ItemTypeRanged / RangedWeaponTypeTotem",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 23005 (items leg 1.60.1.71037 @ hotfix push 114326); proc effect, no ICD / rate in the row; passive in mythicsim 70425; phase 2 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 219326,
+   "name": "Seed of Renewal",
+   "buffId": 443678,
+   "buffName": "Seed of Renewal (443278)",
+   "durationMs": 30000,
+   "icdMs": 120000,
+   "slotType": "ItemTypeTrinket",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 219326 (items leg 1.60.1.71037 @ hotfix push 114326); proc icdMs 120000 effectDurationMs 30000; first seen 2026-11-21; the store's AuraOptions for aura 443278 reads ICDMs 120000 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 273293,
+   "name": "Bandsaw Wristbands",
+   "buffId": 1292039,
+   "buffName": "Spikes (1292039)",
+   "slotType": "ItemTypeWrist / ArmorTypeMail",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 273293 (items leg 1.60.1.71037 @ hotfix push 114326); proc effect, no ICD / rate in the row; passive in mythicsim 70425 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 274265,
+   "name": "Brush Cutter",
+   "buffId": 1293518,
+   "buffName": "Grass Killer (1293518)",
+   "slotType": "ItemTypeWeapon / HandTypeOneHand / WeaponTypeAxe",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 274265 (items leg 1.60.1.71037 @ hotfix push 114326); proc ppm 2.35 (rate not emitted); first seen 2026-11-08 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 274270,
+   "name": "Weed Whacker",
+   "buffId": 1293568,
+   "buffName": "Grass Killer (1293568)",
+   "slotType": "ItemTypeWeapon / HandTypeTwoHand / WeaponTypeAxe",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 274270 (items leg 1.60.1.71037 @ hotfix push 114326); proc ppm 1.1 (rate not emitted); first seen 2026-11-08 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 274271,
+   "name": "Deadhead Blade",
+   "buffId": 1293518,
+   "buffName": "Grass Killer (1293518)",
+   "slotType": "ItemTypeWeapon / HandTypeOneHand / WeaponTypeDagger",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 274271 (items leg 1.60.1.71037 @ hotfix push 114326); proc ppm 2 (rate not emitted); first seen 2026-11-08 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 274484,
+   "name": "Axe of Inevitable Ruin",
+   "buffId": 1294226,
+   "buffName": "Wound (1294226)",
+   "slotType": "ItemTypeWeapon / HandTypeTwoHand / WeaponTypeAxe",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 274484 (items leg 1.60.1.71037 @ hotfix push 114326); proc ppm 2.15 (rate not emitted) (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 274603,
+   "name": "Dreadfrost Saber",
+   "buffId": 1294940,
+   "buffName": "Dreadfrost Saber (1294939)",
+   "slotType": "ItemTypeWeapon / HandTypeMainHand / WeaponTypeSword",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 274603 (items leg 1.60.1.71037 @ hotfix push 114326); proc effect, no ICD / rate in the row; first seen 2026-11-07 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 274608,
+   "name": "Maw of Min'loth",
+   "buffId": 1295065,
+   "buffName": "Fatal Bite (1295064)",
+   "icdMs": 3000,
+   "slotType": "ItemTypeWeapon / HandTypeOffHand / WeaponTypeShield",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 274608 (items leg 1.60.1.71037 @ hotfix push 114326); proc icdMs 3000; first seen 2026-11-07; the 2026-11-09 report quoted its tooltip '10%, 3s cooldown' (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 274647,
+   "name": "Farraki Kris",
+   "buffId": 1294645,
+   "buffName": "Blood Sacrifice (1294644)",
+   "durationMs": 6000,
+   "icdMs": 100,
+   "slotType": "ItemTypeWeapon / HandTypeMainHand / WeaponTypeDagger",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 274647 (items leg 1.60.1.71037 @ hotfix push 114326); proc icdMs 100 (a debounce, no bar) effectDurationMs 6000; first seen 2026-11-07 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 274651,
+   "name": "Zealot Plate",
+   "buffId": 1294666,
+   "buffName": "Zealotry (1294668)",
+   "icdMs": 15000,
+   "slotType": "ItemTypeChest / ArmorTypePlate",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 274651 (items leg 1.60.1.71037 @ hotfix push 114326); proc icdMs 15000; first seen 2026-11-07; the 2026-11-09 report quoted its tooltip '(15s cooldown)' (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 274952,
+   "name": "Jom-jom's Gabbar",
+   "buffId": 1295736,
+   "buffName": "Bolder'ok Boulder (1295736)",
+   "slotType": "ItemTypeWeapon / HandTypeOneHand / WeaponTypeDagger",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 274952 (items leg 1.60.1.71037 @ hotfix push 114326); proc ppm 1.75 (rate not emitted); quest reward; first seen 2026-11-07 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 276419,
+   "name": "Lightcrest Hammer",
+   "buffId": 1299631,
+   "buffName": "Smite (1299631)",
+   "slotType": "ItemTypeWeapon / HandTypeOneHand / WeaponTypeMace",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 276419 (items leg 1.60.1.71037 @ hotfix push 114326); proc ppm 3.6 (rate not emitted); first seen 2026-11-10 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 276632,
+   "name": "Wit's Edge",
+   "buffId": 1300140,
+   "buffName": "Wit's End (1300141)",
+   "durationMs": 15000,
+   "slotType": "ItemTypeWeapon / HandTypeMainHand / WeaponTypeSword",
+   "classAllowlist": [
+    "ClassMage"
+   ],
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 276632 (items leg 1.60.1.71037 @ hotfix push 114326); proc procChance 0.15 effectDurationMs 15000; classAllowlist [8] = ClassMage; first seen 2026-11-13 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 276742,
+   "name": "Girdle of Extracted Answers",
+   "buffId": 1308777,
+   "buffName": "Shield Spike (1308777)",
+   "slotType": "ItemTypeWaist / ArmorTypePlate",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 276742 (items leg 1.60.1.71037 @ hotfix push 114326); proc effect, no ICD / rate in the row; first seen 2026-11-07 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 279480,
+   "name": "Bigger Rock on Bigger Stick",
+   "buffId": 1306816,
+   "buffName": "Bigger Rock to the Face (1306816)",
+   "durationMs": 20000,
+   "slotType": "ItemTypeWeapon / HandTypeTwoHand / WeaponTypeMace",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 279480 (items leg 1.60.1.71037 @ hotfix push 114326); proc ppm 1.5 (rate not emitted) effectDurationMs 20000; quest reward; first seen 2026-11-06 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 279852,
+   "name": "Rock on Stick",
+   "buffId": 1309967,
+   "buffName": "Rock to the Face (1309967)",
+   "durationMs": 20000,
+   "slotType": "ItemTypeWeapon / HandTypeOneHand / WeaponTypeMace",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 279852 (items leg 1.60.1.71037 @ hotfix push 114326); proc ppm 1.85 (rate not emitted) effectDurationMs 20000; quest reward; first seen 2026-11-06 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 282632,
+   "name": "Scalding Staff",
+   "buffId": 1314069,
+   "buffName": "Fire Blast (1314069)",
+   "slotType": "ItemTypeWeapon / HandTypeTwoHand / WeaponTypeStaff",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 282632 (items leg 1.60.1.71037 @ hotfix push 114326); proc effect, no ICD / rate in the row; first seen 2026-11-09 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 282700,
+   "name": "Shadow Scalper",
+   "buffId": 1314274,
+   "buffName": "Shadow Bolt Volley (1314274)",
+   "slotType": "ItemTypeWeapon / HandTypeOneHand / WeaponTypeAxe",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 282700 (items leg 1.60.1.71037 @ hotfix push 114326); proc effect, no ICD / rate in the row; first seen 2026-11-16 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 284050,
+   "name": "High Elf's Recurve",
+   "buffId": 1314888,
+   "buffName": "Poison Sting (1314888)",
+   "durationMs": 9000,
+   "slotType": "ItemTypeRanged / RangedWeaponTypeBow",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 284050 (items leg 1.60.1.71037 @ hotfix push 114326); proc effect effectDurationMs 9000, no ICD / rate; first seen 2026-11-08 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 284587,
+   "name": "Ankle Slicers",
+   "buffId": 1316346,
+   "buffName": "Sliced Ankle (1316346)",
+   "durationMs": 6000,
+   "slotType": "ItemTypeRanged / RangedWeaponTypeThrown",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 284587 (items leg 1.60.1.71037 @ hotfix push 114326); proc effect effectDurationMs 6000, no ICD / rate; first seen 2026-11-13 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 286430,
+   "name": "Toofbreaker",
+   "buffId": 1320269,
+   "buffName": "Toofbreak (1320269)",
+   "slotType": "ItemTypeWeapon / HandTypeOneHand / WeaponTypeMace",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 286430 (items leg 1.60.1.71037 @ hotfix push 114326); proc ppm 2 (rate not emitted); first seen 2026-11-07 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 286650,
+   "name": "Pyromancer's Baton",
+   "buffId": 1320925,
+   "buffName": "Ablaze (1320925)",
+   "durationMs": 9000,
+   "slotType": "ItemTypeWeapon / HandTypeOneHand / WeaponTypeMace",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 286650 (items leg 1.60.1.71037 @ hotfix push 114326); proc ppm 2.05 (rate not emitted) effectDurationMs 9000; first seen 2026-11-07 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 287005,
+   "name": "Sword of Dismemberment",
+   "buffId": 1324687,
+   "buffName": "Dismember (1324687)",
+   "slotType": "ItemTypeWeapon / HandTypeTwoHand / WeaponTypeSword",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 287005 (items leg 1.60.1.71037 @ hotfix push 114326); proc ppm 0.6 (rate not emitted); first seen 2026-11-07 (report 2026-11-21 s3.2)"
+  },
+  {
+   "itemId": 288900,
+   "name": "Earthshaker",
+   "buffId": 21152,
+   "buffName": "Earthshaker (21152)",
+   "durationMs": 3000,
+   "slotType": "ItemTypeWeapon / HandTypeTwoHand / WeaponTypeMace",
+   "source": "wowsims/forever d0ba78b81e1e302392cacf5c7d5e7eecb05cf6a0 assets/database/db.json item 288900 (items leg 1.60.1.71037 @ hotfix push 114326); proc effect effectDurationMs 3000; BoE clone of 17073 with the same buff 21152, ProcsByName keeps 17073 (lowest id) (report 2026-11-21 s3.2)"
   }
  ],
  "procPreferId": {
@@ -811,14 +1130,14 @@
   }
  ],
  "icdStoreAudit": {
-  "source": "spell store AuraOptions.ICDMs, wowsims/forever 5f766b07 (1.60.1.70862 @ 113890); null = the store has no AuraOptions row for that id",
+  "source": "spell store AuraOptions.ICDMs, wowsims/forever d0ba78b8 assets/db_inputs/spell_store_inputs.json (Builds.items 1.60.1.71037 @ 114326), re-captured 2026-11-21 for the 57 ICD rows; null = the store has no AuraOptions row for that id",
   "byBuffNameAuraId": {
    "15594": 30000,
    "15600": 2000,
    "16620": 10000,
    "16982": 0,
    "17350": 20000,
-   "20847": null,
+   "20847": 60000,
    "21185": null,
    "21969": 120000,
    "21978": 100,
@@ -827,6 +1146,7 @@
    "27561": 20000,
    "424336": 1000,
    "424339": 1000,
+   "443278": 120000,
    "1213390": null,
    "1213395": null,
    "1231152": 100,
@@ -838,14 +1158,19 @@
    "1294055": 10,
    "1294255": 60000,
    "1294530": 10,
+   "1294644": 100,
+   "1294668": 15000,
+   "1295064": 3000,
    "1297370": 100,
    "1299948": 10,
    "1300781": 10,
-   "1301046": null,
-   "1302108": null,
-   "1302348": null,
+   "1301046": 100,
+   "1302108": 120000,
+   "1302348": 10,
    "1305424": null,
-   "1314143": 60000
+   "1314143": 60000,
+   "1330855": 20000,
+   "1330916": 20000
   },
   "byBuffId": {
    "13441": 0,
@@ -865,6 +1190,7 @@
    "27860": null,
    "423192": 0,
    "423194": 0,
+   "443678": 0,
    "1213381": null,
    "1213393": null,
    "1231138": null,
@@ -875,12 +1201,17 @@
    "1294058": 0,
    "1294258": null,
    "1294537": 0,
+   "1294645": null,
+   "1294666": null,
+   "1295065": null,
    "1297369": null,
    "1299943": 0,
    "1300782": null,
    "1302109": null,
    "1302350": null,
-   "1305426": null
+   "1305426": null,
+   "1325229": null,
+   "1330916": 20000
   }
  },
  "icdTooltipAudit": {
