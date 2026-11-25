@@ -41,9 +41,12 @@ FX.Hunter.Hawks = H
 
 --- The data name of the cast (the generated data's English key space).
 local SPELL = "Summon Hawk"
---- Seconds between the cast and the hawk standing. Upstream sim fit EV-0127
---- ("at least 1 s", the dive); UNVERIFIED on the live client (PLAN §11.16).
-local DIVE_SECONDS = 1.0
+--- Seconds between the cast and the hawk standing: the dive's travel time to
+--- the target. The upstream sim fit says "at least 1 s" (EV-0127) but the
+--- owner saw the hawk appear "almost immediately, a very slight delay"
+--- (live, 2026-11-25), so this is a short estimate; the real value grows with
+--- the distance to the target, which the add-on cannot read.
+local DIVE_SECONDS = 0.3
 --- The Spell Timer colour band of a hawk row: the self-buff band. The name
 --- shape alone would put `Summon Hawk N` into the Cooldown band (the
 --- `^Summon` term, Forte_Timer/Core/Registry.lua), so the band is passed
