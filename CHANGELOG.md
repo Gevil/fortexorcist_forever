@@ -12,7 +12,9 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
 
 ---
 
-## Unreleased
+## [1.0.4] - 2026-11-27
+
+Player-reported fixes (ready splash, Spell Timer filters) and the game data of build 71091.
 
 - **The ready splash no longer gets lost when the game ends a cooldown early.** When the game reported a spell
   ready a little before the add-on expected it (latency, a reset), the add-on quietly dropped the icon and
