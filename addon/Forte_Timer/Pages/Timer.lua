@@ -71,6 +71,15 @@ local DEFAULTS = {
     -- Display rules
     ShowTargetNames = true,
     ShowSelf = true,
+    -- Issue #4: the display filters. Both defaults change nothing (OFF / an
+    -- empty list). `HideLonger`/`HideTime` are the original's gate keys
+    -- (Module.lua KEYMAP) -- unregistered until now, so no page could store
+    -- them; they ride the same section so a player can tell the two apart.
+    HideLongerThanOn = false,
+    HideLongerThan = 60,
+    ExcludeSpells = "",
+    HideLonger = false,
+    HideTime = (FX.Timer.Laws and FX.Timer.Laws.HIDE_TIME) or 2,
     ShowID = false,
     ShowSpellNames = false,
     MaxDisplayTime = 30,
@@ -153,6 +162,29 @@ FX.Timer.Pages.WIDGET_TIPS = {
     ShowSelf = "Off hides every row that is on you (your own buffs and "
         .. "self-only windows such as Rapid Fire or Berserking); rows on "
         .. "enemies and other players stay.",
+    ExcludeSpells = "Spells that never get a timer. Type spell names "
+        .. "separated by commas, in any case; English or your client's "
+        .. "language (empty entries and repeats are ignored). The rows keep "
+        .. "running in the background, so removing a name shows its timer "
+        .. "again with the right time left. Also /fx timer exclude <spell>, "
+        .. "/fx timer include <spell> and /fx timer excluded. Applied live.",
+    HideLongerThanOn = "Never show a timer whose TOTAL length is longer than "
+        .. "the number below: a 90 s buff stays hidden for its whole life, "
+        .. "however little of it is left. Not the same as 'Hide until the "
+        .. "last 30 s' below, which only holds a long timer back until its "
+        .. "REMAINING time is short. Off by default. Applied live.",
+    HideLongerThan = "Seconds, 5 to 3600 (default 60). Compared with a "
+        .. "timer's total length, not the time left; a timer exactly this "
+        .. "long still shows. Used while 'Hide timers longer than' is ticked. "
+        .. "Applied live.",
+    HideLonger = "Hide until the last 30 s: a timer with 30 s or more LEFT "
+        .. "fades out after the 'visible for' time and comes back once less "
+        .. "than 30 s remain (the source's HideLonger gate; the 30 s is "
+        .. "fixed). Unlike 'Hide timers longer than', which never shows long "
+        .. "timers at all. Off by default. Applied live.",
+    HideTime = "How long a timer that 'Hide until the last 30 s' is holding "
+        .. "back stays visible after it appears, before it fades out "
+        .. "(default 2 s). Applied live.",
     ShowSpellNames = "Label the rows with the spell name instead of the "
         .. "target (the source's own spell mode, :2391). Applied live.",
     ShowID = "Prefix the label with #<id> (the source's ShowID, "
@@ -362,6 +394,30 @@ function P.RegisterTimerPage()
                         "ShowSelf", "ShowSpellNames", "ShowID", "Outwands",
                         "Flip" },
                     tip = "The master switches and the row labels.",
+                })
+                b.Section("Hide Timers", function(s)
+                    s.STR({ module = M, key = "ExcludeSpells",
+                        label = "Excluded spells", maxLetters = 512,
+                        tip = TIPS.ExcludeSpells })
+                    s.CHK({ module = M, key = "HideLongerThanOn",
+                        label = "Hide timers longer than",
+                        tip = TIPS.HideLongerThanOn })
+                    s.NUM({ module = M, key = "HideLongerThan",
+                        label = "Longer than (seconds)",
+                        min = 5, max = 3600, step = 1,
+                        tip = TIPS.HideLongerThan })
+                    s.CHK({ module = M, key = "HideLonger",
+                        label = "Hide until the last 30 s",
+                        tip = TIPS.HideLonger })
+                    s.NUM({ module = M, key = "HideTime",
+                        label = "Held back timers visible for (s)",
+                        min = 0.5, max = 30, step = 0.5,
+                        tip = TIPS.HideTime })
+                end, {
+                    module = M,
+                    keys = { "ExcludeSpells", "HideLongerThanOn",
+                        "HideLongerThan", "HideLonger", "HideTime" },
+                    tip = "Timers you do not want drawn: named spells, long timers, or long timers held back until their last seconds.",
                 })
                 b.Section("Frame Sizing", function(s)
                     s.NUM({ module = M, key = "Width", label = "Width",

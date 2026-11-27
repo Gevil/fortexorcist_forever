@@ -220,6 +220,82 @@ function Rows.IsSelfRow(row)
     return row.targetKey == "none"
 end
 
+-- ------------------------------------------------- the display filters (#4) --
+--- Issue #4: two more display-only filters beside ShowSelf -- "hide timers
+--- longer than N seconds" (a row's TOTAL, `row.total`) and "excluded spells"
+--- (a name list). Like ShowSelf they decide in `Rows:Sorted` before a link
+--- exists; the rows stay in the model.
+---
+--- The exclusion list is parsed ONCE per change into a set the draw pass only
+--- looks up in (no per-frame string work):
+---   set = { names = { [lowercased name] = true }, memo = { [row.name] = bool } }
+--- `memo` is the per-spell-name verdict, filled the first time a name is seen
+--- and thrown away with the set, so the steady state is two table reads.
+
+--- Split a free-text spell list into names. Commas and line breaks separate
+--- names; each name is trimmed and its inner whitespace runs collapse to one
+--- space; empties and case-insensitive duplicates are dropped (the first
+--- spelling wins). Returns the array of names.
+function Rows.ParseSpellList(text)
+    local list, seen = {}, {}
+    if type(text) ~= "string" then return list end
+    for piece in text:gmatch("[^,\r\n]+") do
+        local name = piece:gsub("%s+", " "):match("^ ?(.-) ?$")
+        if name and name ~= "" then
+            local low = name:lower()
+            if not seen[low] then
+                seen[low] = true
+                list[#list + 1] = name
+            end
+        end
+    end
+    return list
+end
+
+--- The lookup set of a spell list, nil for an empty list (no filter at all).
+--- Every entry is stored lowercased, and again as its English data name when
+--- the client's name is a known localized alias (`FX.Locale.CanonicalName`:
+--- identity on an English client, nil-safe when Locale is absent).
+function Rows.BuildExcludeSet(text)
+    local list = Rows.ParseSpellList(text)
+    if #list == 0 then return nil end
+    local Locale = FX.Locale
+    local names = {}
+    for i = 1, #list do
+        local name = list[i]
+        names[name:lower()] = true
+        local canon = Locale and Locale.CanonicalName
+            and Locale.CanonicalName(name)
+        if type(canon) == "string" and canon ~= "" then
+            names[canon:lower()] = true
+        end
+    end
+    return { names = names, memo = {} }
+end
+
+--- Is a spell NAME excluded by `set`? The row's own name (the English data
+--- name; or the client's when the data has none), its English canonical and
+--- its name as the client shows it (`FX.L`) are all tried, so a list written
+--- in either language -- or lowercased by the slash line -- matches.
+function Rows.IsExcluded(set, name)
+    if type(name) ~= "string" then return false end
+    local memo = set.memo
+    local v = memo[name]
+    if v == nil then
+        local names = set.names
+        local Locale = FX.Locale
+        v = names[name:lower()] == true
+        if not v and Locale then
+            local canon = Locale.CanonicalName and Locale.CanonicalName(name)
+            local shown = Locale.LocalizedName and Locale.LocalizedName(name)
+            v = (type(canon) == "string" and names[canon:lower()] == true)
+                or (type(shown) == "string" and names[shown:lower()] == true)
+        end
+        memo[name] = v
+    end
+    return v
+end
+
 --- Every live row of a spell name into `out` (the aura sweep's lookup: the
 --- fact arrives keyed by spell, the rows are keyed by spell+target).
 function Rows:AllForName(name, out)
@@ -785,31 +861,42 @@ function Rows:Sorted(out, now)
     sortGrouping = opts.groupID ~= false
     sortOutwands = opts.outwands ~= false
     local hideSelf = opts.showSelf == false
+    -- Issue #4: the "hide timers longer than" pair and the excluded-spell set
+    -- (both nil/off by default, so a default install does no extra work)
+    local longOn, longAt = opts.hideLongerThanOn, opts.hideLongerThan
+    local hideLong = longOn == true and type(longAt) == "number"
+    local excluded = opts.excludeSet
     local n = 0
     for i = 1, self.rows_n do
         local row = self.rows[i]
         if row then
-            n = n + 1
-            local link = out[n]
-            if not link then link = {}; out[n] = link end
-            link[1] = i
-            link[2] = row.groupKey
-            link[3] = row.drawExpireAt
-            link[6] = row.maxTime
-            link[7] = row.hiddenSince
             -- the visibility of this row (:2146-2168 + the HideLonger gate);
             -- the gate's trip stamp rides the row (link col 7)
-            opts.hiddenSince = row.hiddenSince
+            local stamp = row.hiddenSince
+            opts.hiddenSince = stamp
             local a = Laws.GateAlpha(row.state, row.expireAt, row.removeAt,
                 now, opts)
             row.hiddenSince = opts.hiddenSince
             row.alpha = a
-            link[4] = a
-            link[5] = row.hiddenSince
-            -- ShowSelf off: the row stays in the model and its gate stamp
-            -- keeps running above (no flash when the option flips back), but
-            -- it gets no link -- so no slot, no group run, no cap count.
-            if hideSelf and Rows.IsSelfRow(row) then n = n - 1 end
+            -- A filtered row (ShowSelf off, longer than the limit, an excluded
+            -- spell) stays in the model and its gate stamp keeps running above
+            -- (no flash when a filter flips back), but it gets no link -- so
+            -- no slot, no group run, no cap count, and no link table is even
+            -- fetched for it (nothing to allocate or trim afterwards).
+            if not ((hideSelf and Rows.IsSelfRow(row))
+                or (hideLong and row.total > longAt)
+                or (excluded and Rows.IsExcluded(excluded, row.name))) then
+                n = n + 1
+                local link = out[n]
+                if not link then link = {}; out[n] = link end
+                link[1] = i
+                link[2] = row.groupKey
+                link[3] = row.drawExpireAt
+                link[4] = a
+                link[5] = row.hiddenSince
+                link[6] = row.maxTime
+                link[7] = stamp
+            end
         end
     end
     for i = n + 1, #out do out[i] = nil end

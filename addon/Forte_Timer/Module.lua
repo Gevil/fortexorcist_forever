@@ -111,6 +111,12 @@ local function defaultOptions()
                                     -- "Show target names")
         showTarget = true,         -- the assignment's "Show target names"
         showSelf = true,           -- Issue #3: rows on yourself ("none" key)
+        -- Issue #4: two more display-only filters. `hideLongerThan*` hides
+        -- every row whose TOTAL is over the limit (NOT the `hideLonger` gate
+        -- below, which hides a row until its REMAINING time is under 30 s);
+        -- `excludeSet` is the parsed `ExcludeSpells` list (nil = empty).
+        hideLongerThanOn = false, hideLongerThan = 60,
+        excludeSet = nil,
         showID = false,            -- :3318
         spell = false,             -- :3340
         icon = true, iconRight = false,     -- :3326-3327
@@ -179,6 +185,9 @@ local KEYMAP = {
     Max = "SetMaxRows",
     ShowTargetNames = "SetShowTarget",
     ShowSelf = "SetShowSelf",
+    HideLongerThanOn = "SetHideLongerThanOn",
+    HideLongerThan = "SetHideLongerThan",
+    ExcludeSpells = "SetExcludeSpells",
     Label = "SetLabel",
     ShowID = "SetShowID",
     ShowSpellNames = "SetSpellName",
@@ -243,7 +252,8 @@ M.KEYMAP = KEYMAP
 --- law).
 local STORED = {
     SpellTimer = { "Enable", "Scale", "Alpha", "Width", "Height", "Space",
-        "Spacing", "Max", "ShowTargetNames", "ShowSelf", "Label", "ShowID",
+        "Spacing", "Max", "ShowTargetNames", "ShowSelf", "HideLongerThanOn",
+        "HideLongerThan", "ExcludeSpells", "Label", "ShowID",
         "ShowSpellNames", "MaxDisplayTime", "ExpandUpwards", "NormalAlpha",
         "BarBackgroundAlpha", "EnableSpark", "EnableBackdrop", "SmartSpace",
         "IconStacks", "ShowStacks", "ShowTicks", "ShowTooltips",
@@ -392,6 +402,138 @@ function M:SetShowSelf(on)
     self.options.showSelf = not not on
     local D = FX.Timer and FX.Timer.Display
     if D and D.anchor then self:Draw() end
+end
+
+--- Issue #4. Same shape as SetShowSelf: display-only, redraw at once, the
+--- rows stay in the model (Rows:Sorted does the filtering).
+local function redrawNow(self)
+    local D = FX.Timer and FX.Timer.Display
+    if D and D.anchor then self:Draw() end
+end
+
+function M:SetHideLongerThanOn(on)
+    self.options.hideLongerThanOn = not not on
+    redrawNow(self)
+end
+
+--- Seconds, clamped to the page's 5..3600 (a value written straight to the
+--- store can not push the limit out of that range).
+function M:SetHideLongerThan(v)
+    if type(v) ~= "number" or v ~= v then return end
+    self.options.hideLongerThan = math.max(5, math.min(3600, v))
+    redrawNow(self)
+end
+
+--- The excluded-spell list text -> the lookup set, parsed ONCE here (never in
+--- the draw pass). `_excludeText` keeps the text being applied so the slash
+--- subcommands edit the live list.
+function M:SetExcludeSpells(text)
+    if type(text) ~= "string" then text = "" end
+    self._excludeText = text
+    self.options.excludeSet = Rows.BuildExcludeSet(text)
+    redrawNow(self)
+end
+
+-- A late localized item name can change a name's verdict: drop the memos.
+if FX.Locale and FX.Locale.SubscribeLateNames then
+    FX.Locale.SubscribeLateNames(function()
+        local set = M.options and M.options.excludeSet
+        if set then wipe(set.memo) end
+    end)
+end
+
+-- ------------------------------------------- the excluded-spell list (#4) --
+--- The names being excluded right now, as an array (commas / line breaks,
+--- trimmed, case-insensitive duplicates gone).
+function M:ExcludedList()
+    return Rows.ParseSpellList(self._excludeText or "")
+end
+
+--- A name typed to the slash line (which arrives lowercased) in the registry's
+--- own spelling when this class has that spell, by its English or its client
+--- name; anything else is kept as typed (the player may exclude a spell that
+--- was not cast yet, or that another class owns).
+local function spelled(name)
+    local low = name:lower()
+    local entries = FX.Timer.Registry and FX.Timer.Registry.entries
+    if entries then
+        for key in pairs(entries) do
+            if type(key) == "string" and key:lower() == low then return key end
+        end
+        if FX.L then
+            for key in pairs(entries) do
+                local shown = type(key) == "string" and FX.L(key)
+                if type(shown) == "string" and shown:lower() == low then
+                    return key
+                end
+            end
+        end
+    end
+    return name
+end
+
+local function canonLow(name)
+    local L = FX.Locale
+    local c = L and L.CanonicalName and L.CanonicalName(name)
+    return (type(c) == "string" and c or name):lower()
+end
+
+local function sameSpell(a, b)
+    return a:lower() == b:lower() or canonLow(a) == canonLow(b)
+end
+
+--- Write a list through the settings store (the page's own route: the page,
+--- the profile and the live filter then agree); a session without a store
+--- applies it directly.
+local function commitList(self, list)
+    local text = table.concat(list, ", ")
+    local st = FX.Settings
+    if st and st.Set then st:Set("SpellTimer", "ExcludeSpells", text) end
+    if self._excludeText ~= text then self:SetExcludeSpells(text) end
+end
+
+--- `/fx timer exclude <names>`: add. Returns (added, alreadyThere) arrays.
+function M:ExcludeSpell(text)
+    local list = self:ExcludedList()
+    local added, already = {}, {}
+    for _, typed in ipairs(Rows.ParseSpellList(text)) do
+        local name = spelled(typed)
+        local have = false
+        for i = 1, #list do
+            if sameSpell(list[i], name) then have = true break end
+        end
+        if have then
+            already[#already + 1] = name
+        else
+            list[#list + 1] = name
+            added[#added + 1] = name
+        end
+    end
+    if #added > 0 then commitList(self, list) end
+    return added, already
+end
+
+--- `/fx timer include <names>`: remove. Returns (removed, notThere) arrays.
+function M:IncludeSpell(text)
+    local list = self:ExcludedList()
+    local removed, missing = {}, {}
+    for _, typed in ipairs(Rows.ParseSpellList(text)) do
+        local name = spelled(typed)
+        local found = false
+        for i = #list, 1, -1 do
+            if sameSpell(list[i], name) then
+                table.remove(list, i)
+                found = true
+            end
+        end
+        if found then
+            removed[#removed + 1] = name
+        else
+            missing[#missing + 1] = name
+        end
+    end
+    if #removed > 0 then commitList(self, list) end
+    return removed, missing
 end
 function M:SetLabel(on) self.options.label = not not on end
 function M:SetShowID(on) self.options.showID = not not on end
@@ -1160,8 +1302,42 @@ FX.RegisterSlash("timer", function(rest)
         local d = FX.Timer.Display
         if d and d.anchor and d.Reset then d:Reset() end
         FX.Print("timer: position reset")
+    elseif sub == "exclude" or sub == "include" then
+        -- the whole rest of the line is the name (spaces allowed); commas
+        -- or line breaks give several
+        local arg = (rest or ""):match("^%S+%s+(.-)%s*$")
+        if not M.options then
+            FX.Print("timer: not enabled")
+        elseif not arg or #Rows.ParseSpellList(arg) == 0 then
+            FX.Print("timer: /fx timer " .. sub .. " <spell name>")
+        elseif sub == "exclude" then
+            local added, already = M:ExcludeSpell(arg)
+            if #added > 0 then
+                FX.Print("timer: excluding " .. table.concat(added, ", "))
+            end
+            if #already > 0 then
+                FX.Print("timer: already excluded: "
+                    .. table.concat(already, ", "))
+            end
+        else
+            local removed, missing = M:IncludeSpell(arg)
+            if #removed > 0 then
+                FX.Print("timer: showing again " .. table.concat(removed, ", "))
+            end
+            if #missing > 0 then
+                FX.Print("timer: not excluded: " .. table.concat(missing, ", "))
+            end
+        end
+    elseif sub == "excluded" then
+        local list = M:ExcludedList()
+        if #list == 0 then
+            FX.Print("timer: no spells are excluded")
+        else
+            FX.Print(string.format("timer: %d excluded: %s", #list,
+                table.concat(list, ", ")))
+        end
     else
-        FX.Print("timer: /fx timer status | clear | test | reset")
+        FX.Print("timer: /fx timer status | clear | test | reset | exclude <spell> | include <spell> | excluded")
         M:Status()
     end
 end)
