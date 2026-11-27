@@ -12,6 +12,23 @@ simulators and uiforever.com and, from 2026-11-06, in the live game.
 
 ---
 
+## Unreleased
+
+- **The ready splash no longer gets lost when the game ends a cooldown early.** When the game reported a spell
+  ready a little before the add-on expected it (latency, a reset), the add-on quietly dropped the icon and
+  skipped the pulse and the splash. It now treats a confirmed cooldown that ends early as a real ready moment, and
+  still ignores a prediction that the game never confirmed (so nothing splashes right after a cast). `/fx status`
+  shows `ready-from-read` and `predictions-dropped` counters.
+- **Spell Timer: hide timers by length or by name (GitHub issue #4).** New options on the Spell Timer page:
+  *Hide timers longer than* N seconds (by the timer's total length, off by default), and an *Excluded spells*
+  list; `/fx timer exclude <spell>`, `/fx timer include <spell>` and `/fx timer excluded` edit it quickly. The
+  older *Hide longer* and *Hide time* options (a timer stays hidden until its last 30 s) are now on the page too.
+- **Spell data follows the game's hotfixes up to build 71091.** Oath of Light lasts 60 minutes (was 5).
+- **Known limit:** a hawk you dismiss early (Dismiss Pet or the icon under the portrait) stays on the Spell Timer
+  until its 18 s are up; the add-on cannot see a dismissal.
+
+---
+
 ## [1.0.3] - 2026-11-25
 
 The Hunter Summon Hawk tracker, checked against the live game.
