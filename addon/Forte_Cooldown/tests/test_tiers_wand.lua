@@ -54,7 +54,7 @@ end
 local function resetStats()
     local s = Engine.stats
     s.edgesCreated, s.edgesPlainGuard, s.edgesNotPersistent = 0, 0, 0
-    s.lockoutsSkipped = 0
+    s.lockoutsSkipped, s.readyFromRead, s.predictionsDropped = 0, 0, 0
     s.lastEdgeName, s.lastEdgeAt = nil, nil
 end
 

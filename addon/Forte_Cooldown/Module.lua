@@ -1124,6 +1124,10 @@ end
 ---   edge-plain-guard    would-be edges the plain-number guard suppressed
 ---   edge-not-persistent would-be edges that did not persist MIN_COOLDOWN
 ---   lockout-skips       lockout reads (anchored/learned/cleared nothing)
+---   ready-from-read     windows a plain READY read ended before their clock
+---                       (landed -> the Sweep's normal ready pop; issue #1)
+---   predictions-dropped never-anchored predictions a far-early ready read
+---                       proved wrong (dropped silently, no pop)
 ---   last edge <spell> <N>s ago
 local function readTiersLine()
     local s = Engine.stats
@@ -1140,6 +1144,12 @@ local function readTiersLine()
     end
     if s.lockoutsSkipped > 0 then
         line = line .. string.format(" | lockout-skips %d", s.lockoutsSkipped)
+    end
+    if s.readyFromRead > 0 then
+        line = line .. string.format(" | ready-from-read %d", s.readyFromRead)
+    end
+    if s.predictionsDropped > 0 then
+        line = line .. string.format(" | predictions-dropped %d", s.predictionsDropped)
     end
     if s.lastEdgeName ~= nil and s.lastEdgeAt ~= nil then
         line = line .. string.format(" | last edge %s %ds ago", s.lastEdgeName,

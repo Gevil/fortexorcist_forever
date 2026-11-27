@@ -233,8 +233,22 @@ test("Ready read: fresh prediction GCD-masked, older entry cleared", function()
     assertEquals("ignored", Engine:OnRead("Bestial Wrath", 0, 0, 1000.5))
     assertNotNil(Engine.entries["Bestial Wrath"])
 
-    -- 2 s after the cast (outside the 1.6 s window): trust the read.
+    -- 2 s after the cast (outside the 1.6 s window): trust the read. Issue #1
+    -- plausibility rule: a PREDICTED, never-anchored entry whose ready read
+    -- arrives far (> READY_SKEW) before its predicted end was a wrong guess:
+    -- deleted silently, counted, NO pop (the original assertion, restored).
+    local dropped = Engine.stats.predictionsDropped
     assertEquals("cleared", Engine:OnRead("Bestial Wrath", 0, 0, 1002))
+    assertNil(Engine.entries["Bestial Wrath"])
+    assertEquals(dropped + 1, Engine.stats.predictionsDropped)
+    -- Within READY_SKEW of the predicted end the same read lands the window
+    -- and the next Sweep pops it once.
+    Engine:OnCast("Bestial Wrath", 2000)             -- endTime 2120
+    assertEquals("cleared", Engine:OnRead("Bestial Wrath", 0, 0, 2119.5))
+    assertEquals(2119.5, Engine.entries["Bestial Wrath"].endTime)
+    local out = Engine:Sweep(2119.5, {})
+    assertEquals(1, #out)
+    assertEquals("Bestial Wrath", out[1])
     assertNil(Engine.entries["Bestial Wrath"])
 
     -- Reads for untracked spells are ignored outright.

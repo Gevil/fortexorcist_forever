@@ -141,6 +141,13 @@ Engine.MIN_COOLDOWN = 2.99
 -- (owner law, single value; kept local there so that file stays self-contained).
 Engine.PREDICTION_GRACE = 1.6
 
+-- Ready-read plausibility skew (seconds): a plain "ready" read of a PREDICTED,
+-- never-anchored entry lands (and pops) only when it arrives within this much
+-- of the predicted end -- cast-latency / debounced-read-vs-10 Hz-Sweep skew.
+-- Further out, the prediction was wrong and the entry is dropped silently
+-- (Engine.stats.predictionsDropped). Anchored entries are exempt.
+Engine.READY_SKEW = 1.0
+
 -- Edge / lockout law constants (file header).
 Engine.PENDING_STALE = 10       -- s without a confirming read: drop the mark
 Engine.LOCKOUT_FRACTION = 0.5   -- a read shorter than this share of the known duration
@@ -158,7 +165,8 @@ Engine.LOCKOUT_SPELLS = 3       -- one plain pair on this many unrelated spells
 -- and NO row carries a separate category lockout length, so a partner is
 -- started with its OWN duration (`BestDuration`: learned beats base). A
 -- shorter/longer real lockout is corrected by the next plain read (OnRead
--- anchors; a plain "ready" read clears the prediction after the grace). A
+-- anchors; a plain "ready" read after the grace LANDS the prediction -- the
+-- next Sweep pops it ready once, issue #1). A
 -- partner already running LONGER than the new window is never shortened. A
 -- charge spell is never started by a partner's cast (a lockout is not a charge
 -- spent; the charge read owns that bar).
@@ -221,7 +229,8 @@ Engine.plainGuarded = {}
 -- Session counters (plain integers; Build does NOT reset them: a rebuild is
 -- not a new session). `lastEdgeAt` is a GetTime() frame time.
 Engine.stats = { edgesCreated = 0, edgesPlainGuard = 0, edgesNotPersistent = 0,
-                 lockoutsSkipped = 0, lastEdgeName = nil, lastEdgeAt = nil }
+                 lockoutsSkipped = 0, readyFromRead = 0, predictionsDropped = 0,
+                 lastEdgeName = nil, lastEdgeAt = nil }
 
 --- Point learned durations at a SavedVariables-backed table so they survive reloads.
 function Engine:AttachStorage(tbl)
@@ -356,7 +365,7 @@ function Engine:OnCast(name, now, _partner)
     self.plainGuarded[name] = nil
     local e = self.entries[name] or { name = name }
     e.start, e.duration, e.endTime, e.predicted = now, duration, now + duration, true
-    e.source, e.anchored = "cast", nil
+    e.source, e.anchored, e.landed = "cast", nil, nil
     if t.maxCharges then
         local c = e.charges
         if not c then
@@ -387,7 +396,8 @@ end
 
 --- A live cooldown read for `name`. `start`/`duration` may be secret (pass raw;
 --- this guards them). A plain, real cooldown re-anchors the entry and is learned;
---- a plain "not on cooldown" read clears it; a secret read changes nothing.
+--- a plain "not on cooldown" read LANDS a live window (endTime = now) so the
+--- next Sweep pops it ready once (issue #1); a secret read changes nothing.
 --- Returns "anchored", "cleared", "secret", "lockout" or "ignored".
 --- `sharedPair` (optional, from the caller's pass: Engine:IsSharedLockout)
 --- says the same plain (start, duration) pair rides >= LOCKOUT_SPELLS
@@ -414,6 +424,13 @@ function Engine:OnRead(name, start, duration, now, sharedPair)
             return "lockout"
         end
         local e = self.entries[name] or { name = name }
+        if e.landed and start < e.endTime then
+            -- The window a ready read already landed (issue #1): a late read
+            -- of that SAME window (it started before the landing) must not
+            -- resurrect it -- the next Sweep pops it once.
+            return "ignored"
+        end
+        e.landed = nil
         e.start, e.duration, e.endTime, e.predicted = start, duration, start + duration, false
         -- A plain read is the certification: it re-anchors the window and
         -- vouches for an "edge" entry, unlocking its ready pop (header).
@@ -440,7 +457,39 @@ function Engine:OnRead(name, start, duration, now, sharedPair)
         and (now - e.start) < self.PREDICTION_GRACE then
         return "ignored"
     end
-    self.entries[name] = nil
+    if not e then return "cleared" end
+    -- Issue #1 ("the cooldown splash does not play at the end"): a live
+    -- window the game says is READY is the READY MOMENT -- it must reach the
+    -- normal Sweep pop (bar pulse, Secondary Splash, FX_COOLDOWN_READY), not
+    -- vanish. Deleting the entry here (the pre-1.0.3 behaviour) swallowed the
+    -- pop whenever the game's own read landed a little before our predicted
+    -- endTime (cast-latency skew, the debounced read racing the 10 Hz Sweep,
+    -- an early reset). Same landing as OnReadActive's early-end branch.
+    if e.source == "edge" and not e.anchored then
+        -- Inferred-entries law: a never-anchored edge entry dies in silence.
+        self.entries[name] = nil
+        return "cleared"
+    end
+    if now >= e.endTime then
+        -- Already landed (by an earlier ready read or OnReadActive) or run
+        -- out by its own clock: the Sweep pops it once; nothing to re-land.
+        return "cleared"
+    end
+    -- Plausibility (manager review, issue #1 follow-up): land + pop only
+    -- when the ready moment can be REAL. An ANCHORED entry (a plain read
+    -- showed a real cooldown) ready early is a real ready (reset, talent,
+    -- latency). A PREDICTED never-anchored entry is only our guess; a ready
+    -- read far before its predicted end says the guess was wrong (a data row
+    -- longer than the real cooldown, or none) -- no ready moment happened,
+    -- so a pop would be a splash right after the cast. Drop it silently.
+    if not e.anchored and e.endTime - now > self.READY_SKEW then
+        self.entries[name] = nil
+        self.stats.predictionsDropped = self.stats.predictionsDropped + 1
+        return "cleared"
+    end
+    e.endTime, e.duration = now, math.max(now - e.start, 0)
+    e.landed = true
+    self.stats.readyFromRead = self.stats.readyFromRead + 1
     return "cleared"
 end
 
@@ -617,6 +666,10 @@ function Engine:OnReadActive(name, isActive, isOnGCD, now, numeric)
         -- The plain numbers say it is running: the booleans do not overrule.
         if numeric == "anchored" or numeric == "lockout" then return "kept" end
         if (now - e.start) < self.PREDICTION_GRACE then return "kept" end
+        -- Already landed by a plain ready read (OnRead, issue #1): the Sweep
+        -- retires it; never move the endTime again (a second landing must
+        -- not stretch the window).
+        if e.landed then return "kept" end
         e.endTime, e.duration = now, now - e.start
         return "cleared"
     end
@@ -726,6 +779,8 @@ function Engine:OnReadDuration(name, remaining, total, now)
     end
     local duration = full or (endTime - (e.start or now))
     if duration <= 0 then duration = remaining end
+    if e.landed and endTime - duration < e.endTime then return "ignored" end
+    e.landed = nil
     e.start, e.duration, e.endTime = endTime - duration, duration, endTime
     e.predicted, e.source, e.anchored = false, "duration", true
     if e.charges and e.charges.nextAt ~= nil then

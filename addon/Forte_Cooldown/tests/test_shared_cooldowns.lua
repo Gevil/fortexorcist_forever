@@ -401,7 +401,10 @@ test("the client read stays the truth for a predicted partner", function()
         near(20, frost.duration)
         assertFalse(frost.predicted)
         assertTrue(frost.anchored)
-        -- A plain "ready" read after the grace clears a predicted partner.
+        -- A plain "ready" read after the grace clears a predicted partner
+        -- (the original assertion, restored): issue #1 plausibility rule -- a
+        -- never-anchored prediction whose ready read is > READY_SKEW before
+        -- its end was wrong and is dropped without a pop.
         local later = Engine.entries["Explosive Trap"].start
             + Engine.PREDICTION_GRACE + 1
         assertEquals("cleared", Engine:OnRead("Explosive Trap", 0, 0, later))
